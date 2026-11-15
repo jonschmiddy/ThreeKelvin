@@ -41,6 +41,9 @@ const LAB_ZOOM_S := 0.9
 const DOCK_BEAT_S := 0.3
 ## A dock from the station's right (`Moored`): LOCAL to black, then the landing.
 static var dock_fade_only := false
+## LOCAL's own dock, your ship in sight at its mooring: no CUT and no ARRIVE (Jon, Nov 15: it "resets").
+## Why: docs/why/ZoomLadder.md#dock-from-here
+static var dock_from_here := false
 const DOCK_POWER_S := 1.3
 const DOCK_ENTER_S := 4.0
 ## how fast the warning lights at the mouth flash while your ship waits (a second)
@@ -105,6 +108,8 @@ static func seam3_fade() -> String:
 static func dock_steps() -> PackedFloat32Array:
 	if dock_fade_only:
 		return PackedFloat32Array([FADE_OUT_S, 0.0, 0.0, 0.0, 0.0])
+	if dock_from_here:
+		return PackedFloat32Array([0.0, 0.0, DOCK_BEAT_S, DOCK_POWER_S, DOCK_ENTER_S])
 	return PackedFloat32Array([FADE_OUT_S, ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0,
 		DOCK_BEAT_S, DOCK_POWER_S, DOCK_ENTER_S])
 

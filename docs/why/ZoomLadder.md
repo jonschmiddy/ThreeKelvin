@@ -530,3 +530,24 @@ camera was asked to put it: the chart's turning galaxy lands it a pixel or
 so off its aim at a far zoom, and the held picture, carried at four times
 its size into LOCAL, put a second ship 5 px from the first)
 ```
+
+## Dock from here
+
+Above `static var dock_from_here := false`, and in `Router.show_station`:
+
+```text
+LOCAL'S OWN DOCK GOES ON FROM WHERE YOUR SHIP SITS (Jon, Nov 15: clicking DOCK
+"resets the LOCAL scene and then runs the docking animation"). The five steps
+(Dock in five steps, above) began with a CUT to black and a new system's
+ARRIVE, which on LOCAL's own DOCK took a ship already moored in sight off its
+mooring, under the black, and flew it in again: it read as LOCAL being rebuilt.
+From LOCAL with your ship in sight the CUT and the ARRIVE now take no time:
+the BEAT, the POWER and the ENTER run from the picture the player is looking
+at, ship where it is, camera still. The Oct 20 arrival ("Why doesn't the ship
+enter like the first local?") is kept where the ship is not yet on LOCAL: the
+map's DOCK, whose LOCAL is built with your ship off it (`dock_hidden`), still
+cuts in and plays the arrival. Moored on the station's right the dock is still
+the fade (`dock_fade_only`, Mirrored in docs/why/SectorScreen.md). Set at
+every LOCAL door of `Router.show_station`, cleared when the dock lands.
+`LadderTest` (`_hull_flies_in`, `_dock_from_here`) holds it.
+```

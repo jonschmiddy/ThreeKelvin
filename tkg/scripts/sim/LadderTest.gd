@@ -72,15 +72,20 @@ func _go(label: String, call: Callable, want: Script) -> void:
 
 ## 3B docking: the ship only moves right, and the elevator slides in only after it has landed.
 ## Why: docs/why/LadderTest.md#docking-choreography
-func _hull_flies_in(dock_b: Button) -> void:
+func _hull_flies_in(dock_b: DockMouth) -> void:
 	var loc0 := Router.current as SectorScreen
 	# (into a SLEEPING station, as the map's DOCK finds one: LOCAL wakes it as
 	# it comes up now, Jon, Oct 21, "station:BC" -- into one awake, `_dock_lit`)
 	if loc0 != null:
 		loc0.station_asleep()
 	_ok("from the left: LOCAL drawn as ever, the station on the right", loc0 != null and not loc0._view.mirrored)
+	# (where your ship sits as the mouth is clicked: the dock goes on from there, Jon, Nov 15)
+	var moor0 := _ship_on_plate(loc0) if loc0 != null and loc0._face != null else Rect2()
+	var view0 := loc0._view.get_instance_id() if loc0 != null else 0
 	dock_b.pressed.emit()
-	_ok("from the left: the dock flies in (not the fade from the right)", not ZoomLadder.dock_fade_only)
+	_ok("from the left: the dock flies in (not the fade from the right), from where your ship sits (%s)" % ZoomLadder.dock_from_here,
+		not ZoomLadder.dock_fade_only and ZoomLadder.dock_from_here)
+	var rebuilt := 0
 	var xs: Array[float] = []
 	var rail_out := true
 	var st: StationScreen = null
@@ -154,6 +159,8 @@ func _hull_flies_in(dock_b: Button) -> void:
 			station_frame = Engine.get_process_frames()
 		var blk := _black_a()
 		black_top = maxf(black_top, blk)
+		if not (Router.current is StationScreen) and (Router.current != loc0 or not is_instance_valid(loc0) or loc0._view.get_instance_id() != view0):
+			rebuilt += 1
 		if hall and Router.current == loc0 and is_instance_valid(loc0):
 			last = _ship_on_plate(loc0)
 			whole = _fitted_on_plate(loc0)
@@ -200,7 +207,7 @@ func _hull_flies_in(dock_b: Button) -> void:
 						if off > bg_worst:
 							bg_worst = off
 							bg_at = "%s frame %d" % [beat, bg_frames]
-			if beat == &"cut":
+			if beat in [&"cut", &"beat", &"power"]:
 				cut_black = maxf(cut_black, float(hd.get("black", 0.0)))
 				if moor.size.x <= 0.0:
 					moor = last
@@ -297,28 +304,22 @@ func _hull_flies_in(dock_b: Button) -> void:
 		for i in range(1, tails.size()):
 			if tails[i] < tails[i - 1] - 0.01:
 				right = false
-		_ok("3B: on LOCAL your ship comes in from off the left (tail at plate x %.0f) and only moves right" % first.position.x,
-			tails.size() > 20 and first.end.x < StationFace.EDGE_X and right)
+		# NO RESET (Jon, Nov 15): the dock starts from the scene being looked at, your ship where it sat
+		_ok("3B: LOCAL is the same screen and scene through the dock, never rebuilt (%d frames otherwise)" % rebuilt, rebuilt == 0)
+		_ok("3B: on LOCAL your ship sets off from where it sat (plate %s; it sat at %s) and only moves right" % [first, moor0],
+			tails.size() > 20 and moor0.size.x > 1.0 and absf(first.position.x - moor0.position.x) < 0.5 and first.size.is_equal_approx(moor0.size) and right)
 		_ok("3B: the station's lights are all on before the pan (power %.2f)" % power, power >= 0.999)
-		_ok("3B: the dock comes in five steps, in order -- the cut to black, your ship's arrival, a beat, the station powers on, your ship goes in: %s" % [beats],
-			beats == [&"cut", &"arrive", &"beat", &"power", &"enter"])
+		_ok("3B: LOCAL's dock goes on from the picture as it is -- a beat, the station powers on, your ship goes in, no cut and no arrival: %s" % [beats],
+			beats == [&"beat", &"power", &"enter"] or beats == [&"cut", &"beat", &"power", &"enter"])
 		_ok("3B: THE CAMERA STILL -- nothing but your ship moves on LOCAL from the dock's first frame to the dip to black (%d frames; %d with anything else off where it was, at most %.2f px%s)" % [
 			bg_frames, bg_moved, bg_worst, ", at " + bg_at if bg_at != "" else ""], bg_frames > 200 and bg_moved == 0)
 		_ok("3B: THE DUST AT ITS IDLE -- every mote moves by its own drift and bob alone through the dock (%d frames; beyond them at most %.3f px, %d frames over), the sky's camera held (%s)" % [
 			dust_frames, dust_worst, dust_over, dust_cam.keys()], dust_frames > 200 and dust_over == 0 and dust_cam.size() == 1)
-		_ok("3B CUT: LOCAL goes all the way to black, your ship taken off its mooring in it (%.2f)" % cut_black, cut_black >= 0.99)
-		# THE ENTRANCE IS THE ARRIVAL (Jon, Oct 20: "I want the ship to enter the
-		# screen like it does for the first sector")
-		var arr_s := ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0
-		_ok("3B ARRIVE: your ship starts all off the view's left edge (%s) and the arrival is all there (%d frames, %.1f s; the arrival's lead and approach %.1f s)" % [
-			arr_first_off, arr_frames, arr_frames / 30.0, arr_s], arr_first_off and arr_frames >= int(arr_s * 30.0) - 1)
-		_ok("3B ARRIVE: the flameout sputters down to the idle -- FULL, the coughs, then only the idle from the beat on (%s; through the beat and power-on %s)" % [arr_thr.keys(), thr_after.keys()],
-			arr_thr.has(ThrusterFx.Thrust.FULL) and arr_thr.has(ThrusterFx.Thrust.CRUISE) and arr_thr.has(ThrusterFx.Thrust.IDLE)
-				and thr_after.keys() == [ThrusterFx.Thrust.IDLE])
+		_ok("3B: no cut to black over LOCAL and no arrival played again (black %.2f, %d arrival frames)" % [cut_black, arr_frames],
+			cut_black <= 0.01 and arr_frames == 0 and _dock_rec.is_empty())
+		_ok("3B: your ship idles through the beat and the power-on (%s)" % [thr_after.keys()], thr_after.keys() == [ThrusterFx.Thrust.IDLE])
 		_ok("3B ENTER: its engines lit for the move in (%s, CRUISE %d)" % [thr_enter.keys(), ThrusterFx.Thrust.CRUISE],
 			thr_enter.has(ThrusterFx.Thrust.CRUISE))
-		_ok("3B ARRIVE: it comes to rest at its mooring, where it sat (plate x %.1f..%.1f; it sat at %.1f..%.1f)" % [
-			arr_end.position.x, arr_end.end.x, moor.position.x, moor.end.x], moor.size.x > 1.0 and absf(arr_end.position.x - moor.position.x) < 0.01 and arr_end.size.is_equal_approx(moor.size))
 		var wx := 0.0
 		if not wait_x.is_empty():
 			wx = wait_x.max() - wait_x.min()
@@ -334,8 +335,7 @@ func _hull_flies_in(dock_b: Button) -> void:
 		for tp: Array in Audio.tape:
 			if String(tp[6]).begins_with("thruster_") and (station_frame < 0 or int(tp[5]) < station_frame):
 				clips.append([tp[6], int(tp[5]) - arr_frame0, float(tp[7])])
-		_ok("3B: the arrival's clip (%s) is heard once on LOCAL, from its start, as the arrival begins (%s)" % [arr_clip, clips],
-			arr_clip != &"" and clips.size() == 1 and StringName(clips[0][0]) == arr_clip and absi(int(clips[0][1])) <= 1 and float(clips[0][2]) == 0.0)
+		_ok("3B: no arrival clip on LOCAL: your ship was already there (%s)" % [clips], clips.is_empty())
 		# Seen only in the recess: past its end the parts are 0 pixels seen.
 		var hull := HULL_ROWS
 		_ok("3B: your ship is all the way into the hull, none of it seen, before the hand-off (on the plate %s; hull past the recess from x %.0f)" % [whole, hull.position.x],
@@ -473,8 +473,9 @@ func _first_locals() -> void:
 
 ## The dock's arrival must match the first LOCAL's, frame by frame.
 func _arrival_is_first_locals() -> void:
-	if not _ok("first LOCAL's arrival recorded (%d frames) and the dock's (%d)" % [_first_rec.size(), _dock_rec.size()],
-			not _first_rec.is_empty() and not _dock_rec.is_empty()):
+	# (LOCAL's own DOCK plays no arrival now, Jon, Nov 15: the map's DOCK still does, below)
+	if _dock_rec.is_empty():
+		_ok("first LOCAL's arrival recorded (%d frames); LOCAL's DOCK replays none" % _first_rec.size(), not _first_rec.is_empty())
 		return
 	var bad := 0
 	var at := ""
@@ -498,14 +499,14 @@ func _arrival_is_first_locals() -> void:
 
 
 ## A key mid-arrival lands in the berth at once, with the arrival parked.
-func _dock_skipped(dock_b: Button) -> void:
+func _dock_skipped(dock_b: DockMouth) -> void:
 	var loc := Router.current as SectorScreen
 	var art := loc._view.ship_view() if loc != null else null
 	dock_b.pressed.emit()
 	var in_fly := false
 	for i in 120:
 		await _tree.process_frame
-		if loc != null and is_instance_valid(loc) and not loc._lad.is_empty() 				and (loc._lad.get("hall", {}) as Dictionary).get("beat", &"") == &"arrive" 				and float((loc._lad.get("hall", {}) as Dictionary).get("t_arrive", 0.0)) > ShipView.ARRIVE_LEAD_S + 0.5:
+		if loc != null and is_instance_valid(loc) and not loc._lad.is_empty() 				and (loc._lad.get("hall", {}) as Dictionary).get("beat", &"") == &"power":
 			in_fly = true
 			break
 	var k := InputEventKey.new()
@@ -520,7 +521,7 @@ func _dock_skipped(dock_b: Button) -> void:
 	var n := await _idle()
 	await Harness.frames(_tree, 2)
 	var st := Router.current as StationScreen
-	_ok("3B: a key mid-arrival (%s) lands in the berth at once (%d frames), the elevator in its place with no slide" % [in_fly, n],
+	_ok("3B: a key mid-dock, the station powering up (%s), lands in the berth at once (%d frames), the elevator in its place with no slide" % [in_fly, n],
 		in_fly and n >= 0 and n <= 3 and st != null and Router.docked and st._rail_slide == null and st._rail_back == null
 			and PanelSlide.live.is_empty())
 	_ok("3B: and nothing of the arrival is left on your ship (parked, not driven)", art == null or not is_instance_valid(art)
@@ -672,7 +673,7 @@ func _yard_heard(label: String, yr: Dictionary) -> void:
 
 
 ## A key mid-landing hushes it: berth at once, idle engines, nothing of the landing heard after.
-func _yard_skipped(dock_b: Button, at: float) -> void:
+func _yard_skipped(dock_b: DockMouth, at: float) -> void:
 	dock_b.pressed.emit()
 	Audio.taping = true
 	Audio.tape.clear()
@@ -1057,7 +1058,7 @@ func _ship_global(art: ShipView) -> Rect2:
 ## Why: docs/why/LadderTest.md#mirrored
 func _redock_from_right() -> void:
 	var loc := Router.current as SectorScreen
-	var dock_b: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
+	var dock_b: DockMouth = loc.find_child("DockMouth", true, false) as DockMouth if loc != null else null
 	if not _ok("from the right: DOCK on LOCAL, moored on the station's right", dock_b != null and Moored.here()):
 		return
 	var art := loc._view.ship_view()
@@ -1150,7 +1151,7 @@ func _station_same(route: String, at_once: Dictionary) -> void:
 ## Why: docs/why/LadderTest.md#skip-mid-undock
 func _undock_skipped() -> void:
 	var loc := Router.current as SectorScreen
-	var dk: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
+	var dk: DockMouth = loc.find_child("DockMouth", true, false) as DockMouth if loc != null else null
 	if not _ok("3B undock, skipped: DOCK on LOCAL's bar", dk != null):
 		return
 	dk.pressed.emit()
@@ -1311,7 +1312,7 @@ func _every_side_once() -> void:
 		if not _ok("%s: LOCAL draws it" % id, loc != null and loc._face != null and loc._face.side.id == id
 				and loc._face_front.side == loc._face.side):
 			continue
-		var dock_b: Button = loc.find_child("Dock", true, false) as Button
+		var dock_b: DockMouth = loc.find_child("DockMouth", true, false) as DockMouth
 		if dock_b == null:
 			_ok("%s: DOCK on the bar" % id, false)
 			continue
@@ -1734,7 +1735,7 @@ func _wake_heard(press: bool) -> void:
 ## Power-on step by step with its sound: a clunk and buzz per bank, the chime on green.
 func _dock_heard() -> void:
 	var loc := Router.current as SectorScreen
-	var dock_b: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
+	var dock_b: DockMouth = loc.find_child("DockMouth", true, false) as DockMouth if loc != null else null
 	if not _ok("dock heard: DOCK on LOCAL at the station", dock_b != null and loc._face != null):
 		return
 	loc.station_asleep()
@@ -1770,7 +1771,7 @@ func _dock_heard() -> void:
 ## Docking into an awake station does not replay the power-on; undock then skips the fly-in.
 func _dock_lit() -> void:
 	var loc := Router.current as SectorScreen
-	var dock_b: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
+	var dock_b: DockMouth = loc.find_child("DockMouth", true, false) as DockMouth if loc != null else null
 	if not _ok("dock lit: DOCK on LOCAL at the station", dock_b != null and loc._face != null):
 		return
 	loc.station_awake()
@@ -2168,9 +2169,18 @@ func _run() -> void:
 		and is_equal_approx(ZoomLadder.LIGHT_ON, 1.35))
 	# The dock on LOCAL has five steps: cut, arrival length (Jon, Oct 20), beat, power-on, way in.
 	var dock_want := ZoomLadder.FADE_OUT_S + ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0 		+ ZoomLadder.DOCK_BEAT_S + ZoomLadder.DOCK_POWER_S + ZoomLadder.DOCK_ENTER_S
-	_ok("the dock's five steps on LOCAL take %.2f s: the cut, the arrival's own %.1f s, then %.1f + %.1f + %.1f" % [
+	_ok("the dock's five steps (the map's DOCK) take %.2f s: the cut, the arrival's own %.1f s, then %.1f + %.1f + %.1f" % [
 		ZoomLadder.dock_approach_s(), ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0, ZoomLadder.DOCK_BEAT_S, ZoomLadder.DOCK_POWER_S, ZoomLadder.DOCK_ENTER_S],
 		is_equal_approx(ZoomLadder.dock_approach_s(), dock_want))
+	# LOCAL's own DOCK, your ship in sight: no cut, no arrival (Jon, Nov 15)
+	ZoomLadder.dock_from_here = true
+	var here_s := ZoomLadder.dock_approach_s()
+	var here_at := ZoomLadder.dock_step_at(0.0)
+	var here_next := ZoomLadder.dock_step_at(1.0 / 60.0)
+	ZoomLadder.dock_from_here = false
+	_ok("LOCAL's DOCK from where your ship sits takes %.2f s (%.1f + %.1f + %.1f), its first frame the CUT at 0 and the next already the BEAT (%s, %s)" % [
+		here_s, ZoomLadder.DOCK_BEAT_S, ZoomLadder.DOCK_POWER_S, ZoomLadder.DOCK_ENTER_S, here_at, here_next],
+		is_equal_approx(here_s, ZoomLadder.DOCK_BEAT_S + ZoomLadder.DOCK_POWER_S + ZoomLadder.DOCK_ENTER_S) and int(here_next.x) == 2)
 
 	# 4. a fight opened from the map arrives on LOCAL, and its end goes back
 	Router.start_ambush()
@@ -2199,7 +2209,7 @@ func _run() -> void:
 		Router.park_at_station()
 		await _go("to LOCAL at the station", Router.show_local, SectorScreen)
 		loc = Router.current as SectorScreen
-		var dock_b: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
+		var dock_b: DockMouth = loc.find_child("DockMouth", true, false) as DockMouth if loc != null else null
 		_ok("the defaults are 1A 2C 3B", ZoomLadder.design_for(1) == "A" and ZoomLadder.design_for(2) == "C"
 			and ZoomLadder.design_for(3) == "B")
 		_no_fights_at_stations(st)
@@ -2210,7 +2220,7 @@ func _run() -> void:
 			await _first_locals()
 			# (LOCAL's bar built again after its arrival: its DOCK anew)
 			loc = Router.current as SectorScreen
-			dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
+			dock_b = loc.find_child("DockMouth", true, false) as DockMouth if loc != null else null
 			await _hull_flies_in(dock_b)
 			_station_rects["LOCAL's DOCK"] = _station_layout(await _station_settled())
 			_arrival_is_first_locals()
@@ -2228,26 +2238,26 @@ func _run() -> void:
 			await _dock_heard()
 			await _dock_lit()
 			loc = Router.current as SectorScreen
-			dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
+			dock_b = loc.find_child("DockMouth", true, false) as DockMouth if loc != null else null
 			if dock_b != null:
 				await _dock_skipped(dock_b)
 				await _undock_skipped()
 				# (a key in the yard, mid-roar and mid-coughs)
 				for at: float in [0.3, StationScreen.YARD_COUGH_AT_S + 0.2]:
 					loc = Router.current as SectorScreen
-					dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
+					dock_b = loc.find_child("DockMouth", true, false) as DockMouth if loc != null else null
 					if dock_b != null:
 						await _yard_skipped(dock_b, at)
 				loc = Router.current as SectorScreen
-				dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
+				dock_b = loc.find_child("DockMouth", true, false) as DockMouth if loc != null else null
 		await _every_side()
 		loc = Router.current as SectorScreen
-		dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
+		dock_b = loc.find_child("DockMouth", true, false) as DockMouth if loc != null else null
 		if _ok("LOCAL's bar offers DOCK at a station", dock_b != null):
 			for d in ["A", "B", "C", "D"]:
 				ZoomLadder.force_design = {3: d}
 				loc = Router.current as SectorScreen
-				dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
+				dock_b = loc.find_child("DockMouth", true, false) as DockMouth if loc != null else null
 				if dock_b == null:
 					_ok("%s: DOCK still on the bar" % d, false)
 					break

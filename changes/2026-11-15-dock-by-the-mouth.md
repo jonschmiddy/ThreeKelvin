@@ -1,0 +1,4 @@
+- **Changed** — at a station on LOCAL you dock by clicking the station's open bay. Pointing at it lights the bay up: its lamps come on, warm light spills out into space, and DOCK shows on the back wall's grating. The DOCK button is gone from the bottom bar. It works the same with the station on the left, after an undock.
+- **Added** — until you first dock that way, the bottom line says A STATION HERE · CLICK ITS BAY TO DOCK.
+- **Fixed** — docking from LOCAL no longer fades to black and flies your ship in again before it docks. It goes in from where it sits.
+- **Fixed** — the ship stats card in the station yard now opens and glitches like the other tooltips.

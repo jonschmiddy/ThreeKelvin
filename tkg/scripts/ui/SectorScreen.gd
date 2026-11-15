@@ -1024,7 +1024,7 @@ static func here_line(n: MapGen.MapNode) -> String:
 	var line := "NOTHING ELSE HERE"
 	if n.type == MapGen.NodeType.STATION:
 		# (the berth is at the station's own body; elsewhere the map leads to it -- dock:A)
-		line = "A STATION HERE" if Router.at_station(n) else "FLY TO THE STATION TO DOCK"
+		line = DockMouth.hint_line("A STATION HERE") if Router.at_station(n) else "FLY TO THE STATION TO DOCK"
 	elif left > 0:
 		line = "%d THING%s HERE" % [left, "" if left == 1 else "S"]
 	# THE EVENT YOU CAME FOR, how it went and what is left (`LocalEventDrawer`)
@@ -1076,14 +1076,6 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 		lb.custom_minimum_size = EncounterDrawer.BTN
 		lb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(lb)
-	# DOCK shows only where a station is beside you, never at a world, star or open space.
-	# Why: docs/why/SectorScreen.md#local-drawer
-	if n.type == MapGen.NodeType.STATION and ZoomLadder.chosen() and Router.at_station(n):
-		var dk := Widgets.button("DOCK", func() -> void: Router.show_station())
-		dk.name = "Dock"
-		dk.custom_minimum_size = EncounterDrawer.BTN
-		dk.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		row.add_child(dk)
 	# NO CLICK: the page turn is this button's sound. See `_plot_next_jump`.
 	var b := Widgets.button(EncounterDrawer.TO_SECTOR, _plot_next_jump, false)
 	b.custom_minimum_size = EncounterDrawer.BTN
@@ -2133,6 +2125,7 @@ func _ladder_ship() -> Vector2:
 ## hangar behind your ship, the mouth's frame in front of it.
 var _face: StationFace = null
 var _face_front: StationFace = null
+var _mouth: DockMouth = null
 
 
 func _attach_station_face() -> void:
@@ -2148,6 +2141,8 @@ func _attach_station_face() -> void:
 	_view.move_child(_face, _view._row.get_index())
 	_view.add_child(_face_front)
 	_view.move_child(_face_front, _view._row.get_index() + 1)
+	# The mouth is the dock button (Jon, Nov 15). Why: docs/why/DockMouth.md#the-mouth-is-the-button
+	_mouth = DockMouth.attach(self, _face, _face_front)
 	# (the ring stands down: the station is its side now)
 	_view._area.modulate.a = 0.0
 	_view.resized.connect(_place_face)
@@ -2175,6 +2170,11 @@ func _place_face() -> void:
 		f.ship_y = (f.get_global_transform().affine_inverse() * mid).y
 		f.tint = tint
 		f.queue_redraw()
+
+
+## The map's DOCK: LOCAL built with your ship kept off it until the dock's arrival.
+func ship_kept_off() -> bool:
+	return _dock_hidden
 
 
 func _ladder_ring() -> Vector2:

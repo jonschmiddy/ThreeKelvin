@@ -121,3 +121,51 @@ every layer -- the crevice, the layers at their parallax `pars`, the lamps at
 all (the pan's), or space (LOCAL's own). The camera pans through it into the
 yard (`ZoomLadder`).
 ```
+
+## Dock by the mouth
+
+Above `const HOVER_S := 0.15` (Jon, Nov 15; the mockup is look A on
+https://claude.ai/artifact/8cRLENEr1yzXhV4ystMY4W):
+
+```text
+DOCK BY THE MOUTH. The bar's DOCK is gone (`DockMouth`); the bay's opening is
+the button. Under the pointer, over HOVER_S (about 150 ms, eased), four things
+come up, all drawn as light, added to what is under them:
+  - the bay's four lamps (BAY_LAMPS, where the sleeping bay's red emergency
+    lights are), warm, each a `_light` and a 2 x 2 core;
+  - warm light spilling out of the open side into space (`spill_texture`):
+    SPILL_IN over the opening itself, then a falloff (1 - d/R)^2 off the
+    opening's box, R = SPILL_OUT (120 px) out of the open side and SPILL_PLATE
+    (20 px) along the plate, cut into three alpha steps (SPILL_A) on a Bayer
+    4 x 4, one plate pixel a cell. Baked once, at full; the hover fades it;
+  - the back-wall strip beside the inner door full (its lamps and their light);
+  - the word DOCK on the bay's back wall (Caught on the slats, below).
+Drawn in whole plate pixels; nothing that can be clicked moves (the hit area
+is the opening, `mouth()`). The spill is in the front face's glow, so it lies
+on the lips, the plate and your hull as the bay's light would; the lamps and
+the word are in the back face's glow, inside the bay, behind your ship.
+Mirrored (moored on the station's right) the faces are drawn flipped with the
+view, so the light goes out of the open side there too; only the letters are
+turned back about their own middle, so the word reads.
+```
+
+## Caught on the slats
+
+Above `static func slats`:
+
+```text
+W1, CAUGHT ON THE SLATS (Jon's pick, Nov 15, from T1 dithered light and W1-W4):
+the word lights only the ridges of the back wall's grating, never the grooves
+between them: each ridge's top row brighter (RIDGE_TOP at RIDGE_TOP_A), the rest
+of it dimmer (RIDGE at RIDGE_A), scaled by the hover. The 5 x 7 face at WORD_Q
+(4) plate px a cell, a cell between letters (92 x 28 px), centred on the
+opening WORD_LIFT px above its middle. The mockup's 8 px slat was a guess at
+the art: the grating is read off the wall actually drawn there (the
+interior's lit picture, or the side's own bay), row by row across the word's
+columns. A row darker than the wall's middling row by GROOVE_DROP of it (at
+least GROOVE_MIN) is a groove; the first ridge row after one is its top. So
+each wall's own period and phase are used (the Drum's bay repeats every 12
+rows with a 1-row groove; a cargo interior every 2), and a flat wall (the
+hallways) lights the word whole, dimmer, with no top rows. The rows are the
+wall's own, so mirrored the slats stay lined up.
+```

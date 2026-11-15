@@ -411,7 +411,7 @@ func _station_dock(sd: int) -> void:
 		await _tree.process_frame
 	_ok("seed %d station: woken by the time your ship has settled -- lit (%.2f), the warning lights gone, lit for this visit" % [sd, sc._face.power],
 		sc._face.power >= 0.999 and sc._face.warn == 0.0 and SectorScreen._station_lit(Run.node_at()))
-	var dock_b: Button = sc.find_child("Dock", true, false) as Button
+	var dock_b: DockMouth = sc.find_child("DockMouth", true, false) as DockMouth
 	if not _ok("seed %d station: DOCK on the bar" % sd, dock_b != null):
 		return
 	dock_b.pressed.emit()

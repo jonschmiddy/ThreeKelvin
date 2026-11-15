@@ -1422,6 +1422,15 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet tagtest 300 \
 	--headless --path "$PROJECT" -- sheet=TagTest
 }
 
+unit_dockmouthtest() {
+step "The station's mouth is the dock button, and LOCAL's dock starts from where your ship sits"
+# Jon, Nov 15: the bay's opening lights under the pointer (look A, the word
+# caught on the grating's ridges) and docks; the bar's DOCK is gone; the dock
+# no longer cuts to black and replays the arrival over LOCAL; the yard's ship
+# card opens and wears as the tooltips do.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet dockmouthtest 300 	"the mouth docks from where your ship sits, lit as Jon picked" 	"the mouth, its light or LOCAL's dock is wrong (sheet=DockMouthTest)" 	--headless --path "$PROJECT" -- sheet=DockMouthTest
+}
+
 unit_banddroptest() {
 step "The event band drops without a jump"
 # It moved up to 29 px a frame on a middle-length event (a cubic ease-in ends at

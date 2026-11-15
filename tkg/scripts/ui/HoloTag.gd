@@ -313,11 +313,12 @@ static func _band_y(r: Rect2, yf: float, hgt: int) -> int:
 
 
 ## A band `hgt` px tall at `yf` of the way down the box, its fill slid `dx` px with its edge.
-static func _band(ci: CanvasItem, r: Rect2, a: float, yf: float, hgt: int, dx: int) -> void:
+static func _band(ci: CanvasItem, r: Rect2, a: float, yf: float, hgt: int, dx: int,
+		fill: Color = FILL, edge: Color = EDGE) -> void:
 	var band := Rect2(r.position + Vector2(dx, _band_y(r, yf, hgt)), Vector2(r.size.x, hgt))
-	ci.draw_rect(band, Color(FILL, FILL.a * a), true)
-	ci.draw_rect(Rect2(band.position, Vector2(1, hgt)), Color(EDGE, a), true)
-	ci.draw_rect(Rect2(band.end.x - 1.0, band.position.y, 1, hgt), Color(EDGE, a), true)
+	ci.draw_rect(band, Color(fill, fill.a * a), true)
+	ci.draw_rect(Rect2(band.position, Vector2(1, hgt)), Color(edge, edge.a * a), true)
+	ci.draw_rect(Rect2(band.end.x - 1.0, band.position.y, 1, hgt), Color(edge, edge.a * a), true)
 
 
 ## The line's letters this frame, some turned to junk or gone.
@@ -337,14 +338,14 @@ static func _junk(s: String, g: Glitch, line: int) -> String:
 
 
 ## Static dots and bright rows over the box.
-static func _static(ci: CanvasItem, r: Rect2, a: float, g: Glitch) -> void:
+static func _static(ci: CanvasItem, r: Rect2, a: float, g: Glitch, edge: Color = EDGE) -> void:
 	for j in g.rows:
 		var y := 2 + int(_h(g.fr, 20, j) * (r.size.y - 4.0))
 		var x0 := int(_h(g.fr, 21, j) * r.size.x * 0.5)
-		ci.draw_rect(Rect2(r.position + Vector2(x0, y), Vector2(r.size.x - x0 - 1.0, 1)), Color(EDGE, 0.35 * a), true)
+		ci.draw_rect(Rect2(r.position + Vector2(x0, y), Vector2(r.size.x - x0 - 1.0, 1)), Color(edge, 0.35 * a), true)
 	for j in g.noise:
 		var p := Vector2(int(_h(g.fr, 22, j) * r.size.x), int(_h(g.fr, 23, j) * r.size.y))
-		ci.draw_rect(Rect2(r.position + p, Vector2(1, 1)), Color(EDGE, (0.4 + 0.6 * _h(g.fr, 24, j)) * a), true)
+		ci.draw_rect(Rect2(r.position + p, Vector2(1, 1)), Color(edge, (0.4 + 0.6 * _h(g.fr, 24, j)) * a), true)
 
 
 static func _fill(ci: CanvasItem, r: Rect2, a: float) -> void:
@@ -442,3 +443,100 @@ static func place(sz: Vector2, about: Rect2, bound: Rect2) -> Vector2:
 		y = maxf(bound.position.y, about.position.y - GAP - sz.y)
 	x = clampf(x, bound.position.x, maxf(bound.position.x, bound.end.x - sz.x))
 	return Vector2(x, y).round()
+
+
+## THE SAME GLITCH ON A BOX THAT IS NOT A TAG (the yard's ship card, Jon, Nov 15): `wear` puts
+## the tag's open (scanlines wiping down under the words, OPEN) and its wear (the bursts of
+## `glitch_at`, same level, rhythm and seed rules) on any panel, from each time it is shown.
+## Why: docs/why/HoloTag.md#wear-on-a-box
+static func wear(box: Control) -> Wear:
+	# (the box's own fill and edge for the torn bands, read off its panel)
+	var sb := box.get_theme_stylebox(&"panel") as StyleBoxFlat
+	var under := WearScan.new()
+	box.add_child(under)
+	box.move_child(under, 0)
+	var w := Wear.new()
+	if sb != null:
+		w.fill = sb.bg_color
+		w.edge = sb.border_color
+	w.under = under
+	box.add_child(w)
+	return w
+
+
+## The scanlines under a worn box's contents, wiped down as it opens.
+class WearScan extends Control:
+	var t := 1.0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	func _draw() -> void:
+		HoloTag._scan(self, Rect2(Vector2.ZERO, size), 1.0, t)
+
+
+## Over a worn box: the bursts, and the box dimmed, blinked out or nudged a pixel as a tag is.
+class Wear extends Control:
+	var fill := HoloTag.FILL
+	var edge := HoloTag.EDGE
+	var under: WearScan = null
+	var _born := -INF
+	var _jx := 0.0
+	var _set_x := NAN
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_VISIBILITY_CHANGED:
+			_born = GameClock.now() if is_visible_in_tree() else -INF
+			if not is_visible_in_tree():
+				_host(null)
+
+	## Seconds since the box was shown; INF while it is not.
+	func age() -> float:
+		return INF if _born == -INF else GameClock.now() - _born
+
+	## The burst this frame, or null while steady.
+	func glitch() -> HoloTag.Glitch:
+		var a := age()
+		return null if a == INF else HoloTag.glitch_at(maxf(0.0, a - HoloTag.OPEN), get_instance_id())
+
+	func _process(_dt: float) -> void:
+		if not is_visible_in_tree():
+			return
+		var a := age()
+		if under != null and is_instance_valid(under):
+			var t := 1.0 if a == INF else clampf(a / HoloTag.OPEN, 0.0, 1.0)
+			if t != under.t:
+				under.t = t
+				under.queue_redraw()
+		_host(glitch())
+		queue_redraw()
+
+	## The box as this frame's burst has it: dimmed or blinked (its alpha) and nudged (its x).
+	func _host(g: HoloTag.Glitch) -> void:
+		var box := get_parent() as Control
+		if box == null:
+			return
+		var on := g != null and g.on
+		box.modulate.a = 0.0 if on and g.blink else (g.dim if on else 1.0)
+		var jx := g.jit.x if on else 0.0
+		# (moved by its owner since the last nudge: that is where it stands now)
+		if is_nan(_set_x) or box.position.x != _set_x:
+			_jx = 0.0
+		if jx != _jx:
+			box.position.x += jx - _jx
+			_jx = jx
+		_set_x = box.position.x
+
+	func _draw() -> void:
+		var g := glitch()
+		if g == null or not g.on or g.blink:
+			return
+		var r := Rect2(Vector2.ZERO, size)
+		for tr: Array in g.tears:
+			HoloTag._band(self, r, 1.0, tr[0], tr[1], tr[2], fill, edge)
+		HoloTag._static(self, r, 1.0, g, edge)

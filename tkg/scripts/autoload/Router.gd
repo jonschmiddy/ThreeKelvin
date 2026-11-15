@@ -1000,11 +1000,16 @@ func show_station() -> void:
 	# (from the station's right there is no flight in: black, then the landing)
 	if not docked and current is SectorScreen and Moored.here():
 		ZoomLadder.dock_fade_only = true
+	# (from LOCAL with your ship in sight: the dock goes on from where it sits, no cut, no arrival)
+	# Why: docs/why/ZoomLadder.md#dock-from-here
+	var cur_local := current as SectorScreen
+	ZoomLadder.dock_from_here = not docked and cur_local != null and not Moored.here() and not cur_local.ship_kept_off()
 	if not (dock != null and is_instance_valid(dock)) and ZoomLadder.preroll(ZoomLadder.STATION, show_station):
 		return
 	var arriving := not docked
 	docked = true
 	ZoomLadder.dock_fade_only = false
+	ZoomLadder.dock_from_here = false
 	Audio.music_state(&"station")
 	if arriving:
 		Audio.suppress(&"ui_tab", 200)

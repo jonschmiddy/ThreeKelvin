@@ -721,7 +721,7 @@ func _only_at_station() -> void:
 		await _map_dock("dockplace: back at the station", m, true)
 		await _shot("dock_map_station")
 	await _here_tab()
-	var dk: Button = await _at_dock("dockplace: LOCAL back at the station")
+	var dk: DockMouth = await _at_dock("dockplace: LOCAL back at the station")
 	await _shot("dock_local_station")
 	if dk == null:
 		return
@@ -763,9 +763,9 @@ func _only_at_station() -> void:
 
 
 ## LOCAL at the station: its side, DOCK, the bar, the fuel hint. DOCK, or null.
-func _at_dock(what: String) -> Button:
+func _at_dock(what: String) -> DockMouth:
 	var loc := Router.current as SectorScreen
-	var dk: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
+	var dk: DockMouth = loc.find_child("DockMouth", true, false) as DockMouth if loc != null else null
 	_ok("%s: the station's side and DOCK (%s, face %s)" % [what, dk != null, loc != null and loc._face != null],
 		loc != null and dk != null and loc._face != null and Router.at_station())
 	_ok("%s: its bar says a station is here" % what, _bar_has(loc, "A STATION HERE"))
@@ -820,7 +820,7 @@ func _no_dock(what: String) -> void:
 	var loc := Router.current as SectorScreen
 	if not _ok("%s: on LOCAL" % what, loc != null):
 		return
-	_ok("%s: no DOCK button" % what, loc.find_child("Dock", true, false) == null)
+	_ok("%s: no DOCK button" % what, loc.find_child("DockMouth", true, false) == null)
 	_ok("%s: no station side, no ring" % what, loc._face == null and loc._view._area.place_name() == &"")
 	_ok("%s: the bar says to fly to the station" % what, _bar_has(loc, "FLY TO THE STATION TO DOCK"))
 	_ok("%s: the fuel hint: \"%s\"" % [what, Hints.fuel_dock_line()], Hints.fuel_dock_line() == "Fly to the station here to refuel.")

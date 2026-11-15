@@ -492,10 +492,10 @@ func _offer_slab(h: HullData, against: HullData, title: String) -> Control:
 	# Why: docs/why/StationScreen.md#offer-slab
 	var slab := PanelContainer.new()
 	slab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slab.add_theme_stylebox_override("panel",
-		UITheme.flat(Color(0.031, 0.043, 0.066, 0.98),
-			Color(mark.r, mark.g, mark.b, 0.55), 0, 8, 11))
+	slab.add_theme_stylebox_override("panel", UITheme.flat(Color(0.031, 0.043, 0.066, 0.98), Color(mark.r, mark.g, mark.b, 0.55), 0, 8, 11))
 	slab.add_child(col)
+	# It opens and wears as every tooltip does (Jon, Nov 15). Why: docs/why/HoloTag.md#wear-on-a-box
+	HoloTag.wear(slab)
 	return slab
 
 

@@ -190,6 +190,6 @@ func _run() -> void:
 		Router.show_station()
 		await Harness.frames(_tree, 60)
 		_ok("at a world of a station's system: no station side, no DOCK, and docking refused (still on LOCAL, docked %s)" % Router.docked,
-			Router.current == loc and not Router.docked and loc._face == null and loc.find_child("Dock", true, false) == null)
+			Router.current == loc and not Router.docked and loc._face == null and loc.find_child("DockMouth", true, false) == null)
 	h.verdict("moontest")
 	_tree.quit(h.code())

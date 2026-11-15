@@ -2131,3 +2131,10 @@ coroutine, its generation counter and the delay above went with the panel;
 `_readout` and `_readout_for` now name the tag and its card, which the
 keywords lesson reads. The gallery and the deck popups keep the full
 readout as their tooltip (`CardView._make_custom_tooltip`).
+
+## Local drawer, Nov 15
+
+The DOCK the bar offered at a station (dock:A, above) is gone: the station's
+mouth is the way in (`DockMouth`, Jon, Nov 15), offered under the same rule
+(only AT the station). `here_line` carries its first-timer hint
+(`DockMouth.hint_line`).

@@ -255,8 +255,8 @@ func _saved() -> void:
 	_ok("a jump leaves it behind", not Moored.here())
 
 
-## CLICKS LAND WHERE THEY ARE DRAWN: your hull opens it up, the station's mouth is
-## not a button, DOCK on the bar docks (flying in from the left, black from the right).
+## CLICKS LAND WHERE THEY ARE DRAWN: your hull opens it up, the station's mouth lights and
+## docks (from where your ship sits on the left, black from the right; Jon, Nov 15).
 func _clicks(right: bool) -> void:
 	var side := "moored right" if right else "moored left"
 	var loc := await _local(right)
@@ -278,19 +278,30 @@ func _clicks(right: bool) -> void:
 		loc._cutaway.close_now()
 		for i in 30:
 			await _tree.process_frame
-	var was := loc.denied_clicks
-	await _click_window(loc._view.mouth_g.call())
-	_ok("%s: a click on the station's mouth opens nothing and is no dead button" % side,
-		loc._cutaway == null and loc.denied_clicks == was and Router.current == loc and not ZoomLadder.busy())
-	var dk := loc.find_child("Dock", true, false) as Button
-	if not _ok("%s: DOCK on the bar" % side, dk != null):
+	# THE MOUTH IS THE DOCK (Jon, Nov 15): the pointer on it lights the bay, a click docks;
+	# the bar's DOCK is gone. Through the window, as a hand's click is, on either side.
+	var dk := loc.find_child("DockMouth", true, false) as DockMouth
+	if not _ok("%s: the station's mouth is there to click (and no DOCK on the bar: %s)" % [side, _bar_dock(loc)],
+			dk != null and not _bar_dock(loc)):
 		return
-	# (the bar's button takes its click through the window, as a hand's does: the
-	# shell's frame hands it down to the game's view)
-	await _click_window(UiRect.of(dk).get_center())
+	var at := UiRect.of(dk).get_center()
+	_ok("%s: the mouth's hit box is the opening, on the station's side (%s, the mouth at %s)" % [side, UiRect.of(dk), loc._view.mouth_g.call()],
+		UiRect.of(dk).has_point(loc._view.mouth_g.call()) and (at.x < UiRect.of(loc._view).get_center().x) == right)
+	# (headless keeps no GUI hover: the pointer's enter set as the GUI sets it)
+	dk.over = true
+	for i in 20:
+		await _tree.process_frame
+	_ok("%s: the pointer on the mouth lights it (hover %.2f / %.2f), the hand cursor (%d)" % [
+		side, loc._face.hover, loc._face_front.hover, dk.mouse_default_cursor_shape],
+		loc._face.hover >= 1.0 and loc._face_front.hover >= 1.0 and dk.mouse_default_cursor_shape == Control.CURSOR_POINTING_HAND)
+	dk.over = false
+	var was := loc.denied_clicks
+	await _click_window(at)
+	_ok("%s: the click on the mouth is no dead button and opens no cutaway" % side, loc._cutaway == null and loc.denied_clicks == was)
 	var fade := ZoomLadder.dock_fade_only
-	_ok("%s: a click on DOCK docks, %s" % [side, "black and the landing" if right else "flying in"],
-		ZoomLadder.busy() and fade == right)
+	var here := ZoomLadder.dock_from_here
+	_ok("%s: a click on the mouth docks, %s (fade %s, from where it sits %s)" % [side, "black and the landing" if right else "flying in", fade, here],
+		ZoomLadder.busy() and fade == right and here == not right)
 	for i in 900:
 		await _tree.process_frame
 		if Router.current is StationScreen and not ZoomLadder.busy() and ZoomLadder.chain == &"":
@@ -302,6 +313,14 @@ func _clicks(right: bool) -> void:
 		if Router.current is SectorScreen and not ZoomLadder.busy():
 			break
 	_ok("%s: and UNDOCK moors it on the right" % side, Moored.here())
+
+
+## Whether LOCAL's bar still has a DOCK button (it should not: the mouth is the way in).
+func _bar_dock(loc: SectorScreen) -> bool:
+	for b in loc.find_children("*", "Button", true, false):
+		if (b as Button).text == "DOCK" and (b as Button).is_visible_in_tree():
+			return true
+	return false
 
 
 ## A click at a point of the game's view, pushed into the window over it.

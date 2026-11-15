@@ -111,7 +111,7 @@ func _run() -> void:
 		(card._right as Button).pressed.emit()
 	else:
 		var loc := Router.current as SectorScreen
-		var dk := loc.find_child("Dock", true, false) as Button
+		var dk := loc.find_child("DockMouth", true, false) as DockMouth
 		dk.pressed.emit()
 	var last := &""
 	var in_station := -1
@@ -211,7 +211,7 @@ func _redock() -> void:
 	if loc == null:
 		print("  [dockfilm] redock: not on LOCAL")
 		return
-	var dk := loc.find_child("Dock", true, false) as Button
+	var dk := loc.find_child("DockMouth", true, false) as DockMouth
 	if dk == null:
 		print("  [dockfilm] redock: no DOCK")
 		return

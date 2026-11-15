@@ -93,7 +93,40 @@ const HEAT := [Color("#5c280c"), Color("#964214"), Color("#cc641c"), Color("#ffa
 const RED := Color("#ff4a36")
 const INK := Color("#07090e")
 
+## DOCK BY THE MOUTH, look A (Jon, Nov 15): under the pointer the bay's lamps come up, warm light
+## spills out of the open side, the back-wall strip goes full and DOCK is lit on the grating (W1).
+## Why: docs/why/StationFace.md#dock-by-the-mouth
+const HOVER_S := 0.15
+const SPILL_OUT := 120.0
+const SPILL_PLATE := 20.0
+const SPILL_IN := 0.55
+const SPILL_A: Array[float] = [0.0, 0.07, 0.14, 0.22]
+const SPILL_COL := Color("#ffb35c")
+const BAY_LAMPS: Array[Vector2] = [Vector2(125, 214), Vector2(178, 214), Vector2(125, 326), Vector2(178, 326)]
+const LAMP_CORE := Color("#fff6dc")
+const BAYER4: Array[int] = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+## The word: the 5 x 7 face at WORD_Q px a cell, a cell's gap between letters, WORD_LIFT above the middle.
+const WORD := "DOCK"
+const WORD_Q := 4
+const WORD_LIFT := 3
+const GLYPHS := {
+	"D": ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+	"O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+	"C": ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
+	"K": ["10001", "10010", "10100", "11000", "10100", "10010", "10001"]}
+## W1, caught on the slats: a ridge's top row brighter, the rest of it dimmer, a groove never lit.
+const RIDGE_TOP := Color("#ffd79a")
+const RIDGE_TOP_A := 0.42
+const RIDGE := Color("#ffb35c")
+const RIDGE_A := 0.26
+## A row of the back wall is a groove when it is this much darker than the wall's middling row.
+const GROOVE_DROP := 0.15
+const GROOVE_MIN := 3.0
+
 var front := false
+## the mouth's hit area, whose pointer lights the bay (`hover`, eased over HOVER_S)
+var hover_of: DockMouth = null
+var hover := 0.0
 ## your ship's middle (this control's own px), which the hallway is level with
 var ship_y := 270.0
 ## the star's light, which the plate is seen in
@@ -149,6 +182,7 @@ func use_side(id: StringName, interior_id: StringName = StationSides.NONE) -> vo
 	side = StationSides.side(id)
 	interior = StationSides.interior(interior_id)
 	par = {}
+	_word_tex = word_texture(wall_texture(), wall_at())
 	# (the parallax follows the camera this frame: processed after the ladder
 	# that moves it)
 	process_priority = 100
@@ -161,6 +195,7 @@ func _init() -> void:
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	spill_texture()
 	# THE LIGHTS, added to what is under them (light, not paint)
 	_glow = _Glow.new()
 	_glow.face = self
@@ -174,6 +209,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_clock += delta
+	_hover_step(delta)
 	# (the chase's own clock, once the guide lights are on: faster the further in)
 	if power >= ON_GUIDE + ON_SPREAD:
 		_chase += delta * lerpf(40.0, 150.0, clampf(dock_k * 1.6, 0.0, 1.0))
@@ -346,7 +382,7 @@ func _draw_entrance_lamps(lamps: Texture2D, m: Color, strip: Rect2) -> void:
 	var sl := strip.size.y / float(DOOR_SLICES)
 	for j in DOOR_SLICES:
 		var r := Rect2(strip.position.x, strip.position.y + sl * float(j), strip.size.x, ceilf(sl))
-		_lit(lamps, r, _lamp(_door_at(j)), m)
+		_lit(lamps, r, maxf(_lamp(_door_at(j)), hover_k()), m)
 
 
 ## The interior in the recess, over the bay: dark, and lit at the door's power.
@@ -510,14 +546,17 @@ func _door_lights(c: CanvasItem, _flick: float) -> void:
 func _strip_lights(c: CanvasItem, flick: float) -> void:
 	for j in 6:
 		var on := lamp_on(power, _door_at(clampi(DOOR_SLICES - 1 - j, 0, DOOR_SLICES - 1)))
-		_light(c, Vector2(STRIP.position.x + 6.0, STRIP.position.y + 9.0 + float(j) * 22.0), 9, HEAT[3], 0.2 * flick * on)
+		var sk := lerpf(0.2 * flick * on, 0.35, hover_k())
+		_light(c, Vector2(STRIP.position.x + 6.0, STRIP.position.y + 9.0 + float(j) * 22.0), 9, HEAT[3], sk)
 
 
 ## A side's light: the entrance, each lamp as it comes on, and the strobes; none behind your ship.
 func _side_lights(c: CanvasItem) -> void:
 	if not front:
 		_bay_lights(c)
+		_mouth_word(c)
 		return
+	_mouth_spill(c)
 	var sk := Color(1, 1, 1).lerp(tint, 0.2)
 	var flick := 0.92 + 0.08 * sin(_clock * 9.0) * sin(_clock * 3.7)
 	_guides(c, GUIDE_LOW_Y + 1.0, GUIDE_LOW_N, 0.35)
@@ -647,6 +686,200 @@ static func _draw_side_hull(c: CanvasItem, r: Rect2, x0: float, row_y: float, mo
 				var src := Rect2(src0.position + (tile.position - Vector2(tx, top)) / k, tile.size / k)
 				c.draw_texture_rect_region(p[0], tile, src, p[2])
 			i += 1
+
+
+# ------------------------------------------------------------------ dock by the mouth
+
+## The mouth's hit area kept on the opening, and `hover` eased toward the pointer on it.
+func _hover_step(delta: float) -> void:
+	if hover_of == null or not is_instance_valid(hover_of):
+		return
+	var r := mouth()
+	if hover_of.position != r.position or hover_of.size != r.size:
+		hover_of.position = r.position
+		hover_of.size = r.size
+	var want := 1.0 if hover_of.lit() else 0.0
+	if want != hover:
+		hover = move_toward(hover, want, delta / HOVER_S)
+		queue_redraw()
+		if _glow != null:
+			_glow.queue_redraw()
+
+
+## The hover's light now, eased so the fade starts and ends soft.
+func hover_k() -> float:
+	return _ease(hover)
+
+
+## The back wall behind the word: the interior's lit picture, or the side's own bay.
+func wall_texture() -> Texture2D:
+	if not interior.is_empty():
+		return interior[1]
+	return side.bay_lit if side != null else null
+
+
+func wall_at() -> Vector2:
+	if not interior.is_empty():
+		return StationSides.INTERIOR_AT
+	return side.bay_at if side != null else Vector2.ZERO
+
+
+## The word's box on the plate: centred on the mouth, WORD_LIFT above its middle, whole pixels.
+static func word_rect() -> Rect2:
+	var w := float((WORD.length() * 6 - 1) * WORD_Q)
+	var h := float(7 * WORD_Q)
+	var c := SLOT.get_center()
+	return Rect2(Vector2(roundf(c.x - w * 0.5), roundf(c.y - WORD_LIFT - h * 0.5)), Vector2(w, h))
+
+
+## THE GRATING, read off the wall's own picture across the word's columns: one entry a row of the
+## word's box, the row above it first. 0 a groove, 1 a ridge, 2 a ridge's top row.
+## Why: docs/why/StationFace.md#caught-on-the-slats
+static func slats(tex: Texture2D, at: Vector2) -> PackedByteArray:
+	var wr := word_rect()
+	var n := int(wr.size.y) + 1
+	var out := PackedByteArray()
+	out.resize(n)
+	out.fill(1)
+	var img: Image = tex.get_image() if tex != null else null
+	if img == null or img.is_empty():
+		return out
+	if img.is_compressed():
+		img.decompress()
+	var lum := PackedFloat32Array()
+	for i in n:
+		var y := int(wr.position.y) - 1 + i - int(at.y)
+		var sum := 0.0
+		var cnt := 0
+		for x in range(int(wr.position.x), int(wr.end.x)):
+			var tx := x - int(at.x)
+			if y >= 0 and tx >= 0 and y < img.get_height() and tx < img.get_width():
+				var c := img.get_pixel(tx, y)
+				if c.a > 0.0:
+					sum += c.get_luminance() * 255.0
+					cnt += 1
+		lum.append(sum / float(cnt) if cnt > 0 else -1.0)
+	var sorted := lum.duplicate()
+	sorted.sort()
+	var mid := sorted[sorted.size() >> 1]
+	var cut := mid - maxf(GROOVE_MIN, GROOVE_DROP * mid)
+	for i in n:
+		out[i] = 0 if lum[i] >= 0.0 and lum[i] < cut else 1
+	for i in range(1, n):
+		if out[i] == 1 and out[i - 1] == 0:
+			out[i] = 2
+	return out
+
+
+## How many rows apart the grooves start, most often: the grating's period (0 for a flat wall).
+static func slat_period(rows: PackedByteArray) -> int:
+	var starts: Array[int] = []
+	for i in range(1, rows.size()):
+		if rows[i] == 0 and rows[i - 1] != 0:
+			starts.append(i)
+	var count := {}
+	for i in range(1, starts.size()):
+		var d := starts[i] - starts[i - 1]
+		count[d] = int(count.get(d, 0)) + 1
+	var best := 0
+	for d: int in count:
+		if best == 0 or int(count[d]) > int(count[best]):
+			best = d
+	return best
+
+
+static var _words := {}
+var _word_tex: Texture2D = null
+
+
+## The lit word for one back wall, baked once: the letters' cells on the wall's ridges only.
+static func word_texture(tex: Texture2D, at: Vector2) -> Texture2D:
+	var key := "%d:%s" % [tex.get_instance_id() if tex != null else 0, at]
+	if _words.has(key):
+		return _words[key]
+	var rows := slats(tex, at)
+	var wr := word_rect()
+	var img := Image.create(int(wr.size.x), int(wr.size.y), false, Image.FORMAT_RGBA8)
+	for k in WORD.length():
+		var g: Array = GLYPHS[WORD[k]]
+		for j in 7:
+			for i in 5:
+				if String(g[j])[i] != "1":
+					continue
+				for yy in WORD_Q:
+					var y := j * WORD_Q + yy
+					var kind := rows[y + 1]
+					if kind == 0:
+						continue
+					var col := Color(RIDGE_TOP, RIDGE_TOP_A) if kind == 2 else Color(RIDGE, RIDGE_A)
+					for xx in WORD_Q:
+						img.set_pixel(k * 6 * WORD_Q + i * WORD_Q + xx, y, col)
+	var t := ImageTexture.create_from_image(img)
+	_words[key] = t
+	return t
+
+
+static var _spill: Texture2D = null
+
+
+## The light out of the mouth, baked once at full: three alpha steps on a Bayer 4 x 4, reaching
+## SPILL_OUT out of the open side and SPILL_PLATE along the plate; SPILL_IN over the opening.
+static func spill_texture() -> Texture2D:
+	if _spill != null:
+		return _spill
+	var box := spill_rect()
+	var img := Image.create(int(box.size.x), int(box.size.y), false, Image.FORMAT_RGBA8)
+	for y in int(box.size.y):
+		for x in int(box.size.x):
+			var p := box.position + Vector2(x, y) + Vector2(0.5, 0.5)
+			var dx := maxf(maxf(SLOT.position.x - p.x, 0.0), p.x - SLOT.end.x)
+			var dy := maxf(maxf(SLOT.position.y - p.y, 0.0), p.y - SLOT.end.y)
+			var reach := SPILL_OUT if p.x < SLOT.position.x else SPILL_PLATE
+			var v := SPILL_IN if SLOT.has_point(p) else pow(maxf(0.0, 1.0 - Vector2(dx, dy).length() / reach), 2.0)
+			if v <= 0.02:
+				continue
+			var lvl := mini(int(floorf(v * 3.0 + float(BAYER4[(y % 4) * 4 + (x % 4)]) / 16.0)), 3)
+			if lvl > 0:
+				img.set_pixel(x, y, Color(SPILL_COL, SPILL_A[lvl]))
+	_spill = ImageTexture.create_from_image(img)
+	return _spill
+
+
+## Where the spill lies on the plate.
+static func spill_rect() -> Rect2:
+	var x0 := SLOT.position.x - SPILL_OUT
+	var y0 := SLOT.position.y - SPILL_OUT
+	return Rect2(x0, y0, SLOT.end.x + SPILL_PLATE - x0, SLOT.end.y + SPILL_OUT - y0)
+
+
+## Over the plate, your ship and space: the warm light out of the open bay (the front's glow).
+func _mouth_spill(c: CanvasItem) -> void:
+	var k := hover_k()
+	if k <= 0.01 or _spill == null:
+		return
+	c.draw_texture(_spill, origin() + spill_rect().position, Color(1, 1, 1, k))
+
+
+## Behind your ship, in the bay: its four lamps up and the word on the grating (the back's glow).
+func _mouth_word(c: CanvasItem) -> void:
+	var k := hover_k()
+	if k <= 0.01:
+		return
+	for p: Vector2 in BAY_LAMPS:
+		_light(c, p, 9, HEAT[4], 0.45 * k)
+		c.draw_rect(Rect2(origin() + p - Vector2(1, 1), Vector2(2, 2)), Color(LAMP_CORE, k))
+	if _word_tex == null:
+		return
+	var wr := word_rect()
+	var at := origin() + wr.position
+	# (LOCAL mirrored: the letters turned back about their own middle so the word reads; the rows
+	# are the wall's own, so the slats stay lined up)
+	if get_global_transform().x.x < 0.0:
+		c.draw_set_transform(Vector2(2.0 * at.x + wr.size.x, 0.0), 0.0, Vector2(-1.0, 1.0))
+		c.draw_texture(_word_tex, at, Color(1, 1, 1, k))
+		c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	else:
+		c.draw_texture(_word_tex, at, Color(1, 1, 1, k))
 
 
 class _Glow extends Control:

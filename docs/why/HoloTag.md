@@ -81,3 +81,24 @@ drop shows at the next burst, within 4 s: no burst is started early, as
 that would break the calm he asked for.
 `-- tagglitch=1..5|5b` holds a level for the films (`TagGlitchFilm`).
 ```
+
+## Wear on a box
+
+Above `static func wear`:
+
+```text
+THE YARD'S SHIP CARD GLITCHES IN AS THE TOOLTIPS DO (Jon, Nov 15: hovering a
+ship in the yard shows its stats card, name, tier, gauges, mounts, bonus, and
+"other tooltips appear with the GLITCH effect; this one doesn't"). The card is
+the yard's own slab, framed in the ship's colour, so it is not drawn by
+`draw_tag`; `wear` gives any such box the tag's open and wear without a second
+glitch: the same scanlines (`_scan`, one dark row in three, wiped down over
+OPEN under the box's contents), and over them the same bursts (`glitch_at`:
+steady for D_AFTER, then 3-4 s of calm between bursts, at the hull's level,
+off under reduced motion), each burst's torn bands (`_band`, in the box's own
+fill and edge), bright rows and static (`_static`), the dim, the blink and
+the 1-2 px nudge applied to the box. The clock starts each time the box is
+shown. What a box of controls cannot take from a tag: the red/cyan split and
+the junk letters, which `draw_tag` draws into its own words; and a line of
+words under a tear is covered by the band rather than slid with it.
+```
