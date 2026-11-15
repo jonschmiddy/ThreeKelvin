@@ -306,7 +306,7 @@ static func entries() -> Array[Dictionary]:
 			id = &"nine_tonnes",
 			title = "Nine tonnes of nothing",
 			subject = {stage = &"single", pieces = [&"r2_container_freight_box_1"]},
-			body = "A man pays above rate to ship a crate sized for forty tons but listed at nine, if it stays shut.",
+			body = "A trader pays above rate to ship a crate sized for forty tons but listed at nine, if it stays shut.",
 			tags = [&"contract"],
 			group = &"",
 			weight = 8,

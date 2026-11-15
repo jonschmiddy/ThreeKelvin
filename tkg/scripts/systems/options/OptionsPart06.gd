@@ -145,7 +145,7 @@ static func entries() -> Array[Dictionary]:
 			id = &"the_timekeeper",
 			subject = {layers = [{stage = &"fx", fx = &"beam", period = 4.0}, {stage = &"single", pieces = [&"ship_bigdish"], turn = 7.0, dark = 0.6, window = [169, 71], at = Vector2(40.0, -10.0)}]},
 			title = "The timekeeper",
-			body = "An old man will pay you to grapple his clock relay's antenna back onto the pulsar.",
+			body = "An old timekeeper will pay you to grapple his clock relay's antenna back onto the pulsar.",
 			tags = [&"contract"],
 			group = &"",
 			weight = 9,

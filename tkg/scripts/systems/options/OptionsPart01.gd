@@ -288,7 +288,7 @@ static func entries() -> Array[Dictionary]:
 			id = &"paid_in_full",
 			title = "Paid in full",
 			subject = {stage = &"structure", pick = true, pieces = [&"st_dock_face_1", &"st_dock_face_2", &"st_dock_face_3", &"st_dock_face_4"], add_lights = [{at = "collar", off = [-2, 0], r = 12, col = "#ffcf7a", kind = "breathe", period = 6.0, k = 1.8, cone = 90, cone_k = 0.8}]},
-			body = "An old man has waited eleven days at this dock for the parcel, and he asks whether she looked well.",
+			body = "An old pilot has waited eleven days at this dock for the parcel, and he asks whether she looked well.",
 			tags = [&"quest"],
 			group = &"",
 			placed = true,
