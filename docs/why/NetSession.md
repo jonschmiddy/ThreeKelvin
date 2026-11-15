@@ -1061,3 +1061,14 @@ A SECOND HELLO from a peer already on the roster is ignored. It used to
 make a fresh slot: the ship lost its ready flag and its build, and went to
 the bottom of the lobby list.
 ```
+
+## Turning away
+
+`_turn_away` sends the refusal and then waits for the refused ship to hang up, up to
+`TURN_AWAY_GRACE` (3 s), before it shuts the socket itself. Until Nov 14 it waited "one frame",
+but the hello is read in the host's poll and the tree emits `process_frame` after the polls of
+the same frame, so the socket was shut in the very frame the refusal went out. A guest that
+polled after that held the refusal and ENet's disconnect in one read; ENet's disconnect resets
+the peer's queues, the refusal was dropped, and the player was told "The host left." instead of
+why. nettest saw it once under load (sweep 2); `NetTest._refusal_read_late` makes it certain.
+A refused ship is not on the roster, so its messages are dropped meanwhile (`_member_sender`).

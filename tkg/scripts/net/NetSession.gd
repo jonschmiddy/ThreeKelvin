@@ -17,6 +17,8 @@ const MAX_PLAYERS: int = NetTransport.MAX_PLAYERS
 
 ## A variable only so the headless test need not wait ten real seconds.
 const HANDSHAKE_TIMEOUT: float = 10.0
+## How long a refused ship has to read the reason and hang up before the host shuts the socket.
+const TURN_AWAY_GRACE: float = 3.0
 var handshake_timeout: float = HANDSHAKE_TIMEOUT
 ## Host only: when each connected peer not yet on the roster arrived. One that has said nothing
 ## for `hello_timeout` is let go. A variable for the reason `handshake_timeout` is.
@@ -1887,11 +1889,18 @@ func _apply_dive(seed_value: int, unlocked: Array = [], asc: int = 0) -> void:
 
 func _turn_away(who: int, reason: String) -> void:
 	_refuse.rpc_id(who, reason)
-	# One frame so the refusal is sent before the socket shuts, or the client says connection lost.
-	await get_tree().process_frame
-	# And the host may itself have gone in that frame.
-	if multiplayer == null or multiplayer.multiplayer_peer == null:
-		return
+	# The refused ship hangs up once it has read why; the host shuts only one that has not.
+	# Why: docs/why/NetSession.md#turning-away
+	var until := _now() + TURN_AWAY_GRACE
+	while _now() < until:
+		if not is_inside_tree():
+			return
+		await get_tree().process_frame
+		# The host may itself have gone, or the refused ship hung up.
+		if multiplayer == null or multiplayer.multiplayer_peer == null:
+			return
+		if not multiplayer.get_peers().has(who):
+			return
 	multiplayer.multiplayer_peer.disconnect_peer(who)
 
 

@@ -265,3 +265,11 @@ again with the same key, nothing goes; let go of, it is gone on both. Drawn
 px at five moments; at a clock 10 s behind, it leaves from where world 0 is
 at that clock and lands where world 1 is, each end moved with its place.
 ```
+
+## Refusal read late
+
+Sweep 2 saw "a version 17 peer is explained" get "The host left." once under load. The check
+turns the tree's multiplayer polling off and polls by hand: the host every frame, the guest one
+frame in five, so a host that shuts the socket soon after the refusal leaves both in the guest's
+socket at once. On the old `_turn_away` (one frame, which was no frame) it failed every run
+with "The host left."; with the grace (`docs/why/NetSession.md#turning-away`) it reads the reason.

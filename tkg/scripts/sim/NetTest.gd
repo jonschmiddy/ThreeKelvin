@@ -415,6 +415,10 @@ func _refusal_tests() -> void:
 	await _one_refusal("a version 17 peer", PORT_BASE + 36, 17, 0,
 		"Different game version. Host is protocol %d, you are 17." % NetSession.PROTOCOL)
 	ok("PROTOCOL is past 17, when a late ship was dealt a hand at once and the worlds turned at the old pace", NetSession.PROTOCOL >= 18)
+	# THE REFUSAL READ LATE (sweep 2): a refused ship that polls after the host has
+	# already shut the socket got "The host left." The race, made certain.
+	# Why: docs/why/NetTest.md#refusal-read-late
+	await _refusal_read_late(PORT_BASE + 37)
 	await _one_refusal("different content", PORT_BASE + 2, 0, 0x5EEDBAD,
 		"Your content does not match the host's. Compare builds or mods.")
 	# Two exported builds from different commits, refused by name, and the
@@ -468,6 +472,40 @@ func _one_refusal(what: String, port: int, protocol: int, fingerprint: int, want
 	check("%s is explained" % what, c.last_error(), want)
 	print("  %s: %s" % [what, c.last_error()])
 	check("%s leaves the party empty" % what, host.party_size(), 1)
+	await _teardown()
+
+
+## The client polls one frame in five, so a host that shuts the socket a frame after
+## the refusal has both waiting in it at once, and ENet drops the refusal.
+func _refusal_read_late(port: int) -> void:
+	var host := _make_peer("host")
+	var t := DirectTransport.new()
+	t.port = port
+	t.advertise = "127.0.0.1"
+	var code := host.host_party("Vela", &"redline", t)
+	if code.is_empty():
+		fails += 1
+		print("  FAIL could not host for the late refusal: %s" % host.last_error())
+		await _teardown()
+		return
+	var c := _make_peer("late")
+	c.forced_protocol = 17
+	c.join_party(code, "Late", &"korvan", DirectTransport.new())
+	var host_api := host.multiplayer as SceneMultiplayer
+	var guest_api := c.multiplayer as SceneMultiplayer
+	_tree.multiplayer_poll = false
+	var frame := 0
+	var deadline := Time.get_ticks_msec() + 8000
+	while c.state != NetSession.State.FAILED and Time.get_ticks_msec() < deadline:
+		host_api.poll()
+		if frame % 5 == 0 and guest_api.multiplayer_peer != null:
+			guest_api.poll()
+		frame += 1
+		await _tree.process_frame
+	_tree.multiplayer_poll = true
+	ok("a refusal read late is still a refusal", c.state == NetSession.State.FAILED)
+	check("and still says why, not that the host left", c.last_error(),
+		"Different game version. Host is protocol %d, you are 17." % NetSession.PROTOCOL)
 	await _teardown()
 
 
