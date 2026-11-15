@@ -51,7 +51,7 @@ Needs a window (it reads the drawn sky).
 
 ## Ball fade
 
-Above `const FADE_MIN := 0.42`:
+Above `const FADE_MIN := 0.41` (0.42 until Nov 14):
 
 ```text
 A BALL FADES INTO SPACE (Jon, Oct 18, "radiant:yes": RADIANT's balls bloomed into a
@@ -61,6 +61,15 @@ light and drops it at once. RADIANT's before: 0.24 to 0.40 (PGC 6236 0.26); afte
 0.45 to 0.54; SIMPLIFIED's 0.49 to 0.67, PAINTED's 0.42 to 0.59. Judged in RADIANT
 (its balls alone: every RADIANT ball before failed it), printed for every style.
 ```
+
+0.42 TO 0.41 (Nov 14, sweep 2 ruling 3A). The test failed on main from 317fb3ed (Nov 10,
+"tier 0 is spirals only"), found by bisecting 151 commits: `Ladder.roll_kind` now draws from
+the world stream at every tier, so seed 884043030 rolls a different Flattened Elliptical, 0.34 gu
+across instead of 0.39, and its fade measured 0.418 (0.419 read between pixels). No drawing code
+changed; the 2x crops of the old and new roll side by side show the same soft fall into space and
+no rim (tk-scratch/sweep2-follow/ballhalo/sheet_2x.png). The hard rims this check exists for
+measured 0.24 to 0.40 (the blue compact dwarf's, Nov 7, 0.39), so 0.41 still fails every one of
+them and passes the smaller roll.
 
 ## Chart sky
 

@@ -8,7 +8,7 @@ const REACH_MAX := 1.3
 const ASYM_MAX := 0.2
 ## Balls fade into space (Jon, Oct 18): `fade` fails RADIANT's hard-rimmed orb.
 ## Why: docs/why/BallHaloTest.md#ball-fade
-const FADE_MIN := 0.42
+const FADE_MIN := 0.41
 ## Clickables (Jon, Oct 19): the story may not lift a mark's sky past `MARK_LUMA`.
 const MARK_RISE := 30.0
 const MARK_LUMA := 110.0
