@@ -907,9 +907,6 @@ func world_r(b: SystemLayout.Body) -> float:
 	return maxf(b.r, min_r)
 
 
-## Static so a harness (`WowClip`) can film the map without glints and the near half.
-static var belt_glints := true
-static var orbit_depth := true
 ## How big a pulsar's worlds are drawn against any other system's.
 const PULSAR_WORLD_K := 0.45
 ## the zoom the map opened at (the screen sets it): a pulsar's remnant shell is
@@ -2444,7 +2441,6 @@ class _Belts extends Node2D:
 	## Why: docs/why/SystemView.md#belt-performance
 	func _rocks() -> void:
 		var L: SystemLayout = view.layout
-		var glints: bool = view.belt_glints
 		var painted: bool = view.painted
 		var vt: float = view.t
 		var zm: float = view.zoom
@@ -2458,7 +2454,7 @@ class _Belts extends Node2D:
 				continue
 			# (which of its first 300 rocks are glinting now, and how far in: worked
 			# out from a table made once a belt, so the rocks that are not cost nothing)
-			var gl := _glints_now(b.index, view.pose(vt, 8.0) if painted else vt) if glints else {}
+			var gl := _glints_now(b.index, view.pose(vt, 8.0) if painted else vt)
 			var spin: float = vt / b.period * TAU
 			var pulsar: bool = L.star == SystemLayout.StarKind.PULSAR
 			var o: Vector2 = view.origin()
@@ -2675,7 +2671,6 @@ class _Lines extends Node2D:
 		# In a twin the star's hole cuts only behind it: a world in front hid 26% of its ring.
 		# Why: docs/why/SystemView.md#twin-orbit-holes
 		var d2: float = view.star_depth(SystemLayout.STAR_B)
-		var odepth: bool = view.orbit_depth
 		var painted: bool = view.painted
 		var vt: float = view.t
 		var views: Dictionary = view._views
@@ -2765,12 +2760,10 @@ class _Lines extends Node2D:
 				var tr := pow(1.0 - behind / 2.1, 1.6) if behind < 2.1 else 0.0
 				var c := c_far.lerp(c_near, tr)
 				# The near half is bolder so the plane reads as lying back, never by zoom.
-				var dk := 1.0
-				if odepth:
-					var dz := smoothstep(-1.0, 1.0, (op.y - hz) / orb1)
-					if painted:
-						dz = 0.0 if dz < 0.33 else (0.5 if dz < 0.67 else 1.0)
-					dk = lerpf(0.6, 1.45, dz)
+				var dz := smoothstep(-1.0, 1.0, (op.y - hz) / orb1)
+				if painted:
+					dz = 0.0 if dz < 0.33 else (0.5 if dz < 0.67 else 1.0)
+				var dk := lerpf(0.6, 1.45, dz)
 				cols.append(Color(c.x, c.y, c.z, (0.14 + tr * 0.38) * dk))
 			if pts.size() > 1:
 				runs.append([pts, cols])

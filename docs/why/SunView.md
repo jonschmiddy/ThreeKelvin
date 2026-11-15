@@ -45,7 +45,7 @@ compile.
 
 ## Sun zoom
 
-Above `static var k_max := 9.0`:
+Above `const K_MAX := 9.0` (a static `k_max` until Nov 14, so `WowClip` could film the old cap of 4):
 
 ```text
 AS FAR AS THE MAP EVER ZOOMS: the wheel stops at 4, but the dive into LOCAL
@@ -59,7 +59,7 @@ while the map shrank back past it on the way out).
 Above `func set_zoom(k: float, k_disc: float = -1.0) -> void:`:
 
 ```text
-THE MAP'S ZOOM, 0.1 to `k_max`: the star drawn k times its size -- its radius, its
+THE MAP'S ZOOM, 0.1 to `K_MAX`: the star drawn k times its size -- its radius, its
 cells, its plumes and flares, its glow and the box round it -- by its own
 shader, in single game pixels; the same rolled star, nothing re-rolled. Below
 1 since the system grew three times wider and opens zoomed out to show it all

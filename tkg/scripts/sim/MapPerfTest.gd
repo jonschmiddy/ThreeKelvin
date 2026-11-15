@@ -206,7 +206,6 @@ static func _old_runs(view) -> Array:
 	var two := hole2.x > 0.0
 	var d1: float = view.star_depth(-1)
 	var d2: float = view.star_depth(SystemLayout.STAR_B)
-	var odepth: bool = view.orbit_depth
 	var TILT: float = SystemViewS.TILT
 	for bi in L.bodies.size():
 		var b := L.bodies[bi]
@@ -252,12 +251,10 @@ static func _old_runs(view) -> Array:
 			if pts.size() > 0 and pts[pts.size() - 1] == q:
 				continue
 			pts.append(q)
-			var dk := 1.0
-			if odepth:
-				var dz := smoothstep(-1.0, 1.0, (op.z - b.host_at(view.t).y) / maxf(b.orbit, 1.0))
-				if view.painted:
-					dz = 0.0 if dz < 0.33 else (0.5 if dz < 0.67 else 1.0)
-				dk = lerpf(0.6, 1.45, dz)
+			var dz := smoothstep(-1.0, 1.0, (op.z - b.host_at(view.t).y) / maxf(b.orbit, 1.0))
+			if view.painted:
+				dz = 0.0 if dz < 0.33 else (0.5 if dz < 0.67 else 1.0)
+			var dk := lerpf(0.6, 1.45, dz)
 			cols.append(Color(c.x, c.y, c.z, (0.14 + tr * 0.38) * dk))
 		if pts.size() > 1:
 			out.append([pts, cols])

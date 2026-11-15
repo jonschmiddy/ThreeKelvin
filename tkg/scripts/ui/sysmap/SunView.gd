@@ -120,14 +120,14 @@ const GLOW_B := Vector3(1.0, 0.52, 0.18)
 
 ## Cap of 9, not 4: the dive into LOCAL carries the map further, and a 4 cap shrank the sun.
 ## Why: docs/why/SunView.md#sun-zoom
-static var k_max := 9.0
+const K_MAX := 9.0
 
 
 ## Zoom redraws the same rolled star in its shader; `k_disc` holds the disc in whole blocks.
 ## Why: docs/why/SunView.md#sun-zoom
 func set_zoom(k: float, k_disc: float = -1.0) -> void:
-	k = clampf(k, 0.1, k_max)
-	var kd := k if k_disc <= 0.0 else clampf(k_disc, 0.1, k_max)
+	k = clampf(k, 0.1, K_MAX)
+	var kd := k if k_disc <= 0.0 else clampf(k_disc, 0.1, K_MAX)
 	if k == _k and kd == _kd:
 		return
 	_k = k
