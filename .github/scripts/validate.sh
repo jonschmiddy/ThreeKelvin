@@ -1228,6 +1228,95 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet arriveidletest 180 \
 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveIdleTest
 }
 
+unit_combatedgetest() {
+step "A card you cannot pay for stays in hand; a drone's kill leaves the charge unfired"
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet combatedgetest 300 \
+	"an unpayable card is not played, a drone's kill ends the turn cleanly" \
+	"a credit-cost card or a drone kill at the turn's start went wrong" \
+	--headless --path "$PROJECT" -- sheet=CombatEdgeTest
+}
+
+unit_zoomgesturetest() {
+step "The wheel, a scroll gesture and a pinch zoom the chart and the map the same way round"
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet zoomgesturetest 300 \
+	"every zoom input turns the same way on both screens" \
+	"a zoom input turned the wrong way, or a sideways scroll zoomed" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ZoomGestureTest
+}
+
+unit_systemgotest() {
+step "The system map's GO is wide and inked, and no FLY HERE is left"
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet systemgotest 300 \
+	"GO is the commit button on every open-event world page" \
+	"the system panel's GO or the tag's click line is wrong" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=SystemGoTest
+}
+
+unit_closesavetest() {
+step "Closing the window saves what was won and never a fight in progress"
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet closesavetest 300 \
+	"the window's X saves the loot, restarts a fight, writes nothing on the title" \
+	"closing the window saved the wrong thing" \
+	--headless --path "$PROJECT" -- sheet=CloseSaveTest
+}
+
+unit_shipdrifttest() {
+step "The ship does not slide when a module comes off"
+ALLOW_EXTRA="$GATE_LEAKS" GATE_LABEL=shipdrift gate_sheet shipdrifttest 300 \
+	"the hull and the real screen hold still across a loadout change" \
+	"the ship moved with its loadout" \
+	--headless --path "$PROJECT" -- shipdrift
+}
+
+unit_combatstudytest() {
+step "The combat study's enemy scaling flies the scaled numbers and leaves the boss alone"
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet combatstudytest 300 \
+	"enemyhp= and enemydmg= scale every enemy but the boss, in a fight and on the Hellbender" \
+	"the combat study's scaling is wrong" \
+	--headless --path "$PROJECT" -- sheet=CombatStudyTest
+}
+
+unit_convoyslidetest() {
+step "The convoy column slides in and out in whole pixels, a card kept aimed"
+# It hosts a party; a port another copy holds is skipped (one ENet error line, allowed).
+ALLOW_EXTRA="$GATE_LEAKS|Couldn.t create an ENet host" gate_sheet convoyslidetest 300 \
+	"the slide, the aim and STUNNED hold" \
+	"the convoy slide, the aimed card or STUNNED went wrong" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ConvoySlideTest
+}
+
+unit_hullnumbertest() {
+step "A hull's pips and its number tell the same story"
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet hullnumbertest 300 \
+	"the HULL readout matches the hull" \
+	"a hull's pips and number disagree" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=HullNumberTest
+}
+
+unit_mapshiptest() {
+step "The sector map draws your own hull, its flame, and keeps clear of it"
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet mapshiptest 300 \
+	"your ship on the map is your hull's own pixels" \
+	"your ship on the sector map is drawn wrong" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=MapShipTest
+}
+
+unit_tornrulestest() {
+step "TORN AWAY's rules: the dwarf's rings strip to nothing, in order"
+ALLOW_EXTRA="$GATE_LEAKS" GATE_LABEL=torntest gate_sheet tornrulestest 300 \
+	"the torn dwarf's rules hold" \
+	"a TORN AWAY rule failed" \
+	--headless --path "$PROJECT" -- sheet=TornTest rulesonly
+}
+
+unit_meterfittest() {
+step "The frame counter meets nothing on any screen a player sits on"
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet meterfittest 300 \
+	"the meter's ink clears every box and edge" \
+	"the frame counter overlaps something" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=MeterFitTest
+}
+
 unit_jumpseqtest() {
 step "The jump films commit on time, their cues land on their frames, the HUD never moves"
 # Every landed film (JumpRegistry.ALL) through Router.begin_jump on a fixed clock: the commit
@@ -2415,6 +2504,7 @@ gate_weight() {
 		nettest) echo 20 ;; solvetest_*) echo 170 ;;
 		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;; arrivesidetest) echo 60 ;;
 		sciencesimtest) echo 51 ;; routinetest) echo 28 ;; jumpshadertest) echo 90 ;;
+		meterfittest) echo 76 ;; convoyslidetest) echo 30 ;;
 		*) echo 15 ;;
 	esac
 }
