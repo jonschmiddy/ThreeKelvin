@@ -1,0 +1,1 @@
+- **Fixed** — signing a job twice (a quick double click on SIGN) no longer puts the same contract in your ledger twice.
