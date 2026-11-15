@@ -72,8 +72,6 @@ class _StubView extends RefCounted:
 
 ## One world, one radius, two moon counts: each answer has a slot per moon.
 func _ring_slots() -> void:
-	var was: int = PlanetView.ring_style
-	PlanetView.ring_style = Rings.Look.ICY
 	var stub := _StubView.new()
 	var w := _StubWorld.new()
 	stub._views[3] = w
@@ -90,7 +88,6 @@ func _ring_slots() -> void:
 	h._ok("and at 2 again: the first answer", two_again == two)
 	moons.free()
 	w.free()
-	PlanetView.ring_style = was
 
 
 ## Shafts, shocks and glitter land in the band above the fight, spread through it, not on one line.
