@@ -666,7 +666,6 @@ length scripts/ui/ShipBreakup.gd::_style_tick 144
 length scripts/ui/ShipScreen.gd::_build 291
 length scripts/ui/ShipView.gd::draw_ship 135
 length scripts/ui/SideSwap.gd::_content 125
-length scripts/ui/SpaceBackdrop.gd::_bake_world 123
 length scripts/ui/StarchartScreen.gd::_build 178
 length scripts/ui/StarchartScreen.gd::_refresh 123
 length scripts/ui/StationScreen.gd::_build 119

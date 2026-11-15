@@ -1215,6 +1215,14 @@ ALLOW_EXTRA="$GATE_LEAKS|were leaked at exit" gate_sheet wrecksitetest 470 \
 	--headless --path "$PROJECT" -- sheet=WreckSiteTest
 }
 
+unit_stationaheadtest() {
+step "The station's rooms loaded ahead of the first ride leave the same pages as a ride does"
+# Jon's sweep 2 ruling 6A (Nov 14): the Promenade and the Exchange load in small steps once the
+# dock is quiet. Idle, ridden at once and ridden part way through, the pages, the sky's baked
+# bytes and the walkers must match (docs/why/StationScreen.md#rooms-ahead).
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet stationaheadtest 300 	"loaded ahead or on the ride, every level, the same pages" 	"a room loaded ahead differs from one loaded by its ride" 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=StationAheadTest
+}
+
 unit_arriveidletest() {
 step "A new run's arrival: the engines sputter to the idle, no highlight"
 # Jon, Oct 13: "I don't want the engines to turn off... I just want them to
@@ -2504,7 +2512,7 @@ gate_weight() {
 		nettest) echo 20 ;; solvetest_*) echo 170 ;;
 		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;; arrivesidetest) echo 60 ;;
 		sciencesimtest) echo 51 ;; routinetest) echo 28 ;; jumpshadertest) echo 90 ;;
-		meterfittest) echo 76 ;; convoyslidetest) echo 30 ;;
+		meterfittest) echo 76 ;; convoyslidetest) echo 30 ;; stationaheadtest) echo 40 ;;
 		*) echo 15 ;;
 	esac
 }

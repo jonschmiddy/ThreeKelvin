@@ -2,8 +2,8 @@ class_name RoomsAhead
 extends Node
 
 ## A child of `StationScreen`: once the dock has been quiet half a second, the Promenade and the
-## Exchange load their art, a small step a frame (a few pictures, a slice of the sky's bake, one
-## passing ship), so the first ride to them finds it there. A ride that comes first takes the old
+## Exchange load their art, a small step a frame (a few pictures, rows of the sky's bake, the
+## pictures of the ships that pass), so the first ride to them finds it there. A ride that comes first takes the old
 ## way (the room's first draw defers the same load) for whatever is left.
 ## Why: docs/why/StationScreen.md#rooms-ahead
 
