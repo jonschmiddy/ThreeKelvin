@@ -118,9 +118,11 @@ func _station(dev: int, heat: bool) -> MapGen.MapNode:
 			far.posted_at = 2
 			far.pay = 40
 			Run.take_contract(far)
-			var done := Run.take_contract(far)
-			done.posted_at = 3
-			done.manufacturer = &"korvan"
+			# a second, different job (a repeat of `far` is refused)
+			var other := ContractData.from_wire(far.to_wire())
+			other.posted_at = 3
+			other.manufacturer = &"korvan"
+			var done := Run.take_contract(other)
 			done.state = ContractData.State.READY
 		else:
 			Run.heat = (offers[0] as ContractData).amount + 1

@@ -96,8 +96,10 @@ func _fetch() -> void:
 		return
 	var mine := Run.take_contract(job)
 	_ok("signing puts it in the ledger", Run.contracts.has(mine))
-	# `take` itself does not refuse a repeat: the board hides what the ledger holds (`holds`).
 	_ok("and the board then reads the same offer as already held", Run.holds_contract(job))
+	var held := Run.contracts.size()
+	_ok("and signing the same offer again is refused: nothing new in the ledger",
+		Run.take_contract(job) == null and Run.contracts.size() == held)
 
 	var before := Run.credits
 	# Somewhere else entirely: the contract must not close for a pickup anywhere.

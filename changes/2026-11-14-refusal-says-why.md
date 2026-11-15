@@ -1,0 +1,1 @@
+- **Fixed** — in co-op, a friend on a different game version is told why they could not join, not "The host left."

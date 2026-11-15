@@ -92,7 +92,7 @@ LIST+=(
 "dockflytest dockflytest 300 0 --headless --fixed-fps 60 --path tkg -- sheet=DockFlyTest"
 "twindrawtest twindrawtest 300 0 --headless --path tkg -- sheet=TwinDrawTest"
 "subjecttest subjecttest 180 0 --headless --path tkg -- subjecttest"
-"stationdecktest stationdecktest 240 0 --headless --path tkg -- sheet=StationDeckTest"
+"stationdecktest stationdecktest 480 0 --headless --fixed-fps 60 --path tkg -- sheet=StationDeckTest"
 "outcometest outcometest 240 0 --headless --fixed-fps 60 --path tkg -- sheet=OutcomeTest"
 "sciencesimtest sciencesimtest 300 0 --headless --path tkg -- sheet=ScienceSimTest"
 "rewardshowntest rewardshowntest 300 0 --headless --path tkg -- sheet=RewardShownTest"

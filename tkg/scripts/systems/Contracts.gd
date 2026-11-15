@@ -214,7 +214,11 @@ static func _reopen(n: MapGen.MapNode) -> void:
 
 ## Take a job, returning the ledger's copy; the board keeps its own, so a partner is
 ## offered the same work.
+## Signs the offer, or returns null when the ledger already holds it (`holds`): a
+## second click on SIGN before the board redraws must not sign the same work twice.
 static func take(c: ContractData) -> ContractData:
+	if holds(c):
+		return null
 	var mine := ContractData.from_wire(c.to_wire())
 	mine.id = Run.next_contract_id
 	Run.next_contract_id += 1
