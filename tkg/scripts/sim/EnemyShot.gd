@@ -10,8 +10,6 @@ var _args: PackedStringArray
 
 func _ready() -> void:
 	_args = OS.get_cmdline_user_args()
-	if Harness.arg("packlayout") != "":
-		EncounterView.pack_layout = StringName(Harness.arg("packlayout"))
 	_run.call_deferred()
 
 
@@ -191,7 +189,7 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 		var sl: Control = view.get("_slots")
 		var gr := sl.get_global_rect()
 		var ar: Rect2 = view._pack_area()
-		rec["slots"] = [gr.position.x, gr.size.x, String(EncounterView.pack_layout), gr.position.x + ar.position.x, ar.size.x]
+		rec["slots"] = [gr.position.x, gr.size.x, "B", gr.position.x + ar.position.x, ar.size.x]
 		var boxes: Array = []
 		var k := 0
 		while view.slot(k) != null:

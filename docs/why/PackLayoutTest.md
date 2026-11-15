@@ -6,7 +6,7 @@ Above `var _fails := 0`:
 
 ```text
 NOTHING IN A FIGHT SITS ON ANYTHING ELSE, headless:
-  godot --headless --path . -- sheet=PackLayoutTest [packlayout=A|B|C|all] [quick]
+  godot --headless --path . -- sheet=PackLayoutTest [quick]   (packlayout= retired Nov 14 with C: B alone)
 Jon, Oct 13, on three enemies piled on each other: no ship, wreck, name, hull
 bar, chips or intent may overlap another enemy's or yours. For each pack
 layout (`EncounterView.pack_layout`; `all` runs A, B and C), the real fight is

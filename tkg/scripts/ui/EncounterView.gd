@@ -759,7 +759,6 @@ func _area_fade_out() -> void:
 
 ## Nothing in a pack overlaps anything else (Jon, Oct 13): slots are placed by hand as units.
 ## Why: docs/why/EncounterView.md#pack-layout
-static var pack_layout: StringName = &"B"
 const PACK_GAP := 10.0
 const PACK_VGAP := 6.0
 const PACK_MARGIN := 12.0
@@ -856,7 +855,7 @@ func _layout_pack() -> void:
 	# THE WORLD YOU ORBIT, where LOCAL's wrecks lie (`_body_rest`)
 	var body := _body_rest() if _slots_mode == &"wrecks" else Vector3.ZERO
 	# Cache the plan by its inputs: a fight asks for layout dozens of times a turn.
-	var key := "%s|%s|%s|%s|%s" % [pack_layout, _slots_mode, area, mid, body]
+	var key := "%s|%s|%s|%s" % [_slots_mode, area, mid, body]
 	for sl in live:
 		var e: Combat.EnemyState = sl.get("_last_e")
 		key += "|%d:%s:%d:%s:%s:%d" % [sl.get_instance_id(), e.template.id if e != null else &"",
@@ -919,19 +918,12 @@ func _layout_pack() -> void:
 ## half sheets as the pack asks. Empty if it does not fit there.
 func _plan_in(live: Array[EnemySlot], area: Rect2, mid: float) -> Dictionary:
 	var s := 0.5 if live.size() >= PACK_HALF_AT else 1.0
-	var plan := {}
-	if pack_layout == &"C":
-		if s == 1.0:
-			plan = _pack_row(live, s, area, mid)
-		if plan.is_empty():
-			plan = _pack_column(live, s, area, mid)
-	if plan.is_empty():
-		plan = _pack_ranks(live, s, area, mid)
-		# A pair too big for the band at full size is drawn from half sheets, like a pack of three.
-		if s == 1.0 and (plan.is_empty() or float(plan.get("low", INF)) < PACK_GAP_MIN):
-			var half := _pack_ranks(live, 0.5, area, mid)
-			if not half.is_empty():
-				plan = half
+	var plan := _pack_ranks(live, s, area, mid)
+	# A pair too big for the band at full size is drawn from half sheets, like a pack of three.
+	if s == 1.0 and (plan.is_empty() or float(plan.get("low", INF)) < PACK_GAP_MIN):
+		var half := _pack_ranks(live, 0.5, area, mid)
+		if not half.is_empty():
+			plan = half
 	return plan
 
 
@@ -1478,30 +1470,6 @@ static func _room_bottoms(rooms: Array, b: Rect2) -> PackedFloat32Array:
 					continue
 				bt = r.get_center().y + r.size.y * 0.5 * sqrt(1.0 - u * u)
 			out[i] = maxf(out[i], bt - b.position.y)
-	return out
-
-
-## C: one above another, each readout beside its ship.
-func _pack_column(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> Dictionary:
-	var units: Array[Vector2] = []
-	var total := 0.0
-	var wide := 0.0
-	for sl in live:
-		var u := sl.unit(s, true)
-		units.append(u)
-		total += u.y
-		wide = maxf(wide, u.x)
-	total += PACK_VGAP * float(live.size() - 1)
-	if total > area.size.y or wide > area.size.x:
-		return {}
-	var x := _place_span(wide, area, mid)
-	var y := area.position.y + (area.size.y - total) * 0.5
-	var out := {}
-	for i in live.size():
-		var u := units[i]
-		# right-aligned, so the ships stand in a line and the readouts face you
-		out[live[i]] = {scale = s, side = true, rect = Rect2(x + wide - u.x, y, u.x, u.y)}
-		y += u.y + PACK_VGAP
 	return out
 
 

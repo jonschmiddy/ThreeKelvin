@@ -347,7 +347,7 @@ frame and follows the view as the hand comes up.
 
 ## Pack layout
 
-Above `static var pack_layout: StringName = &"B"`:
+Above `static var pack_layout: StringName = &"B"` (retired Nov 14; the text sits above `const PACK_GAP`):
 
 ```text
 The ships already in the row slide to the places a newcomer's arrival gave
@@ -375,8 +375,9 @@ every block the same gap from its neighbours (`_pack_ranks`), each ship with
 its readout under it. More ranks, or more to a rank, when there are more
 ships -- never smaller ships.
 
-`pack_layout` C (a column, each readout beside its ship) is kept to compare
-against, and for the test; B is the game's.
+`pack_layout` C (a column, each readout beside its ship) was kept to compare
+against, and for the test; B is the game's. C and the switch were retired Nov 14 (sweep 2
+ruling 5A), in history at 51d2d5cc.
 ```
 
 Above `func _pack_area() -> Rect2:`:
