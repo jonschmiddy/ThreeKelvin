@@ -333,6 +333,7 @@ func beacon_look(bc) -> Array:
 
 
 func _process(d: float) -> void:
+	_partner_dt += d
 	if flight != null and view.layout != null:
 		# THE PULSE LANDS AS THE BURN ENDS: `reached` turns only once the insertion
 		# is done
@@ -1888,7 +1889,7 @@ var partner_at: Array = []
 ## Where each partner is drawn on the plane, eased toward its last report so a
 ## ship reported six times a second flies rather than steps.
 var _partner_plane: Dictionary = {}
-var _partner_ms: int = 0
+var _partner_dt := 0.0
 ## Partners on an orbit are drawn at its size, as at true offset they sat on the world's disc.
 var _partner_kb: Dictionary = {}
 
@@ -1902,9 +1903,8 @@ func _draw_partners(_t: float) -> void:
 		scr = scr.get_parent()
 	if scr == null:
 		return
-	var now := Time.get_ticks_msec()
-	var dt := clampf(float(now - _partner_ms) / 1000.0, 0.0, 0.25)
-	_partner_ms = now
+	var dt := clampf(_partner_dt, 0.0, 0.25)
+	_partner_dt = 0.0
 	# Held with the map's clock through a move (Jon, Nov 2), so a new report does not move them.
 	var hold: bool = scr.has_method("clock_held") and scr.clock_held()
 	var k := 0.0 if hold else 1.0 - exp(-dt * 8.0)

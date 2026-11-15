@@ -746,3 +746,14 @@ clicks take about 28 frames: on 1b53aa61 the click landed on the ride in
 (mode rail) or after the errand had run (heading to -9), at random
 (Nov 7). The clock runs again for the arrival.
 ```
+
+## Partner drawn on a world's orbit
+
+The check "and drawn on the world's orbit as drawn" (`_partner_at_b`) failed about one run in
+several, on CI and on the PC, more under load, and passed on a re-run (sweep 2). The cause was
+in the game, not the test: `SystemOverlay._draw_partners` eased each partner's drawn point
+toward its report by the time since the last draw read off `Time.get_ticks_msec()`, the wall
+clock, so at `--fixed-fps 60` a fast or a loaded machine still eased by a different amount and
+the partner, riding a moving world, sat a pixel off. Since Nov 14 (Jon's ruling 3A) it eases by
+the frames' own time (`_partner_dt`, summed in `_process`), which is the same thing in play and
+the same every run in a test.

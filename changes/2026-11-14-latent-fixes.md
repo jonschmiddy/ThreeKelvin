@@ -1,0 +1,2 @@
+- **Fixed** — on LOCAL, light shafts, shocks and glitter in the sky above the fight now spread through their band instead of all sitting on one line, and jets can appear there at last.
+- **Fixed** — on the system map, a party member parked by a world is drawn in the same place on every machine, however fast it runs.
