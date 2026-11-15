@@ -1268,7 +1268,9 @@ func _on_card_played(c: CardData) -> void:
 		# What the card mechanically IS picks the family; the files carry
 		# round robins so no two shots are the exact same take.
 		if c.charge_turns > 0:
-			play(&"charge_up", 0.04)           # it starts charging; it fires later
+			# Korvan 3 fires a 1-turn charge on play, and `charge_fired` sounds that.
+			if Combat.charge_turns_for(c) > 0:
+				play(&"charge_up", 0.04)       # it starts charging; it fires later
 		elif c.hits >= 2:
 			play(&"shot_auto", 0.06)           # autocannon burst
 		elif c.heat > 0 or c.damage_equals_heat or c.heat_scale > 0:
