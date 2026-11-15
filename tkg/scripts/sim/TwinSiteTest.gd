@@ -1026,6 +1026,9 @@ func _partner_at_b(n: MapGen.MapNode) -> void:
 		return
 	var B := SystemLayout.STAR_B
 	var L: SystemLayout = m.view.layout
+	# the map's clock held, so the world under the second partner is where it was measured
+	# when it is drawn two frames on. Why: docs/why/TwinSiteTest.md#partner-drawn-on-a-worlds-orbit
+	m.frozen = true
 	# (the sender's ship on B's rail at its own clock, said off B there)
 	var t_them: float = m.view.t - 5.0
 	var off := Vector2(L.star_rail_of(B), 0.0)
@@ -1063,6 +1066,7 @@ func _partner_at_b(n: MapGen.MapNode) -> void:
 	var want_w: Vector2 = (bw + (ov._scr(c3.x + 6.0, c3.z - 2.0) - bw) * kw).round()
 	h._ok("and drawn on the world's orbit as drawn, %.2f times life (at %s, the ring's point %s, the world %s)" % [kw, drawn, want_w, bw],
 		drawn != Vector2.INF and drawn.distance_to(want_w) <= 1.0)
+	m.frozen = false
 	for id in ids:
 		Net.roster.erase(id)
 		Net.spots.erase(id)

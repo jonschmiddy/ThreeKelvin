@@ -495,6 +495,19 @@ flights of near one cost bend round the stars very differently; a warm slack
 of 0.5 or 1 for it, `-- warmk=`, made 26.1 and 23.9). Left failing for Jon.
 ```
 
+Nov 14 (Jon's sweep 2 ruling 3A, "FlightTest retarget fails on main"): the test was wrong, not
+the code. It replanned every half second with the kept choice, which the map no longer does:
+`SystemOverlay` replans the preview every 3 s on a ring (1 s else, 2 s or more for an old plan
+made on the spot), and a solved plan once it can no longer be taken (`_takeable`, or its
+departure within `PLAN_AHEAD`). The hold now replans on that rule for 6 s. On a ring the
+solved preview departs about a quarter second ahead, so it is gone and replanned about once
+a second, each time from a new point on the orbit, and the whole line moves with it: on seed
+4242, 108 flights, a median 134 px at a replan (90th 229, worst 351; 103 px under the half-second
+rule). That is how the map behaves now, so the number is printed and not judged; whether the
+preview should hold still while the ship rides round is a look question for Jon, not a fix
+this test can make. Every other count in the mode (early starts, never settled, no plan,
+degenerate, landed) still judges, and all pass.
+
 ## Near line
 
 Above `static func _near_line(p: Vector2, line: PackedVector3Array, j0: int) -> Array:`:

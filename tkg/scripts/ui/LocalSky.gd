@@ -1618,10 +1618,11 @@ func _wx_event(nm: StringName, ev_i: int, lasts: float, pre: float) -> Dictionar
 		"dir": Vector2.RIGHT, "seed": _wx_rng.randf(), "k": 1.0, "size": 115.0}
 
 
-## Where an event goes, in the cloud's own pixels: always above the fight.
+## Where an event goes, in the cloud's own pixels: always above the fight, in the band from
+## 50 px down to where the play's grade starts (`PLAY.x`); it was 0 px high until Nov 14.
 func _wx_place(ev: Dictionary) -> bool:
 	var off := neb_off()
-	var top := Rect2(Vector2(60.0, 50.0), Vector2(840.0, PLAY.x - 70.0))
+	var top := Rect2(Vector2(60.0, 50.0), Vector2(840.0, PLAY.x - 50.0))
 	match StringName(ev.name):
 		&"tide", &"glints":
 			ev.at = CC
