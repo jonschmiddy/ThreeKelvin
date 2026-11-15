@@ -263,10 +263,6 @@ func refresh() -> void:
 	# hull drops as each shot lands rather than on the click (combat polish).
 	var hp := Run.hp if SectorScreen.shown_hull < 0 else SectorScreen.shown_hull
 	var heat := Run.heat if SectorScreen.shown_heat < 0 else SectorScreen.shown_heat
-	# AND WHAT AN EVENT'S RESULT IS STILL FLYING UP HERE (`OutcomeRow.held`, look
-	# C): the number changes when its flight lands, not before
-	hp = int(OutcomeRow.held.get("hp", hp))
-	heat = int(OutcomeRow.held.get("heat", heat))
 	_hull.set_hull(hp, Run.max_hp())
 	_hint(_hull_label, hull_note)
 	_hull.tooltip_text = Widgets.tip(hull_note)
@@ -292,16 +288,14 @@ func refresh() -> void:
 		UITheme.FLARE if over > 0 else UITheme.COLD)
 	_hint(_heat_text, heat_note)
 
-	_value(_scrap, str(int(OutcomeRow.held.get("credits", Run.credits))))
+	_value(_scrap, str(Run.credits))
 	# One sentence each, in one place (`CreditChit`). CREDITS says both: the two never trade.
 	_hint(_scrap, "%s\n%s" % [CreditChit.WHAT_MONEY_IS, CreditChit.WHAT_DATA_IS])
-	# (a reading counting up holds the figure back: `OutcomeRow.held`)
-	_value(_data, str(int(OutcomeRow.held.get("data", Run.data))))
+	_value(_data, str(Run.data))
 	_hint(_data, CreditChit.WHAT_DATA_IS)
 	# Amber at a third of the tank (where the hint fires); red if the dearest jumps would empty it.
 	var state := fuel_state()
-	# (an outcome counting up holds the figure back: `OutcomeRow.held`)
-	var shown := int(OutcomeRow.held.get("fuel", Run.fuel))
+	var shown := Run.fuel
 	_value(_fuel, "%d/%d" % [shown, Run.fuel_cap()])
 	var fv := _fuel.get_node_or_null("Value") as Label
 	if fv != null:

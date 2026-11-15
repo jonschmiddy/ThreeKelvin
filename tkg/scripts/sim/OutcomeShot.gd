@@ -39,9 +39,6 @@ func _run() -> void:
 			await tree.process_frame
 	print("  outcomeshot: window %s, screen %s, root %s" % [DisplayServer.window_get_size(), DisplayServer.screen_get_size(), tree.root.get_texture().get_size()])
 	LocalEventDrawer.quiet = true
-	var was_layout := LocalEventDrawer.layout
-	if Harness.arg("layout") != "":
-		LocalEventDrawer.layout = StringName(Harness.arg("layout"))
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n := _system()
@@ -52,9 +49,8 @@ func _run() -> void:
 	var cases: Array = Harness.arg("cases", "jon,gain,mix,card,nothing,credits,big,data").split(",")
 	if _film:
 		cases = [Harness.arg("case", "mix")]
-	var looks: Array = Harness.arg("looks", "today,A,B,C,D,E").split(",")
-	if _film:
-		looks = [Harness.arg("film")]
+	# D, the one look since Nov 14 (today's, A, B, C and E were retired)
+	var looks: Array = ["D"]
 	var index: Array = []
 	for c in cases:
 		if not found.has(c):
@@ -67,9 +63,7 @@ func _run() -> void:
 		var fh := FileAccess.open(_out + "/index.json", FileAccess.WRITE)
 		fh.store_string(JSON.stringify({cases = _case_notes(found, cases), shots = index}, "  "))
 		fh.close()
-	OutcomeRow.look = &"today"
 	LocalEventDrawer.quiet = false
-	LocalEventDrawer.layout = was_layout
 	print("  outcomeshot: done")
 	tree.quit()
 
@@ -133,16 +127,15 @@ func _play(n: MapGen.MapNode, case_id: String, f: Dictionary, looks: Array) -> A
 	Rng.loot.seed = int(f.seed) * 7 + 1
 	Rng.world.seed = int(f.seed) * 13 + 5
 	if _film:
-		OutcomeRow.look = StringName(looks[0])
 		print("mark choose %d" % Engine.get_frames_drawn())
 	var got: Dictionary = await d.choose(int(f.j))
 	if d.page != &"result":
 		print("  outcomeshot: FAIL %s: no result page (%s, page %s, text done %s)" % [case_id, got, d.page, d.text.done if d.text != null else "-"])
 		return shots
 	if _film:
-		# the result's text arriving at its own pace, then C's flights
+		# the result's text arriving at its own pace
 		var k := 0
-		while not d.out.get("flown", false) and k < 900:
+		while d.text != null and not d.text.done and k < 900:
 			await get_tree().process_frame
 			k += 1
 		print("mark text_done %d" % Engine.get_frames_drawn())
@@ -150,19 +143,11 @@ func _play(n: MapGen.MapNode, case_id: String, f: Dictionary, looks: Array) -> A
 		print("mark end %d" % Engine.get_frames_drawn())
 		return shots
 	for lk in looks:
-		OutcomeRow.look = StringName(lk)
-		d.out.erase("flown")
 		d._result()
 		await _wait(0.15)
 		if d.text != null:
 			d.text.skip()
-		if lk == "C":
-			# mid-flight: the second change takes off one stagger after the first
-			await _wait(OutcomeRow.FLY_S * 0.5)
-			_shot("C_%s_fly" % case_id, d, shots, case_id, f, "C", true)
-			await _wait(OutcomeRow.FLY_S + OutcomeRow.STAGGER_S * 6.0 + 0.4)
-		else:
-			await _wait(0.5)
+		await _wait(0.5)
 		_shot("%s_%s" % [lk, case_id], d, shots, case_id, f, String(lk), false)
 	return shots
 
@@ -180,18 +165,13 @@ func _shot(name: String, d: LocalEventDrawer, shots: Array, case_id: String, f: 
 	for e: Dictionary in OutcomeCheck.entries(d):
 		var er: Rect2 = e.rect
 		ents.append({text = e.text, rect = [er.position.x, er.position.y, er.size.x, er.size.y]})
-	var flying: Array = []
-	for c in d.get_children():
-		if c is OutcomeRow.Flight:
-			for a: Dictionary in (c as OutcomeRow.Flight).in_air():
-				flying.append({text = OutcomeRow.line_text(a.e), at = [a.at.x, a.at.y]})
 	var cont := d.panel.find_child("Continue", true, false) as Control
 	var cr := cont.get_global_rect() if cont != null else Rect2()
 	shots.append({file = name + ".png", band_crop = name + "_band.png", look = lk, case = case_id,
 		option = f.id, choice = f.j, seed = f.seed, fly = fly,
 		band = [band.position.x, band.position.y, band.size.x, band.size.y],
 		continue_btn = [cr.position.x, cr.position.y, cr.size.x, cr.size.y],
-		entries = ents, in_air = flying, held = OutcomeRow.held.duplicate(),
+		entries = ents,
 		fails = OutcomeCheck.boxes(d, StringName(lk), OutcomeCheck.entries(d))})
 	print("  outcomeshot: %s  %s" % [name, " | ".join(ents.map(func(x: Dictionary) -> String: return String(x.text)))])
 

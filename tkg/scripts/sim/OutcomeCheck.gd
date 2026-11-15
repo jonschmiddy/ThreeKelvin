@@ -68,133 +68,21 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 	var ents := entries(d)
 	var texts: Array = ents.map(func(x: Dictionary) -> String: return String(x.text))
 	var said := ", ".join(texts)
-	var changed := 0
-	for k in WORDS:
+	# Only the four stats and DATA that moved, change alone, no table when none
+	# (Jon, Oct 19; DATA Nov 4, 2A). D is the one look since Nov 14.
+	# Why: docs/why/OutcomeCheck.md#outcome-table
+	var rows: Array = []
+	for k in OutcomeRow.ORDER:
 		var s: Array = want.stats[k]
 		if int(s[0]) != 0:
-			changed += 1
-	var things := (want.gained as Dictionary).size() + (want.lost as Dictionary).size() \
-		+ (1 if want.frame else 0) + (1 if want.place else 0)
-	match look:
-		&"today":
-			for k in WORDS:
-				var s: Array = want.stats[k]
-				var t := "%s %s" % [WORDS[k], "—" if int(s[0]) == 0 else "%+d" % int(s[0])]
-				if not texts.has(t):
-					bad.append("today: no '%s' in [%s]" % [t, said])
-		&"D":
-			# Only the four stats and DATA that moved, change alone, no table when none
-			# (Jon, Oct 19; DATA Nov 4, 2A).
-			# Why: docs/why/OutcomeCheck.md#outcome-table
-			var rows: Array = []
-			for k in OutcomeRow.ORDER:
-				var s: Array = want.stats[k]
-				if int(s[0]) != 0:
-					rows.append("%s %+d" % [WORDS[k], int(s[0])])
-			if texts != rows:
-				bad.append("D: the table says [%s], not [%s]" % [said, ", ".join(rows)])
-			var tab := d.panel.find_child("OutcomeTable", true, false)
-			if rows.is_empty() and tab != null:
-				bad.append("D: none of the stats moved and there is a table [%s]" % said)
-		&"A", &"C", &"B", &"E":
-			for k in WORDS:
-				var s: Array = want.stats[k]
-				if int(s[0]) == 0:
-					continue
-				var t := "%+d %s" % [int(s[0]), WORDS[k]]
-				if look == &"B":
-					t = "%s %+d %d > %d" % [WORDS[k], int(s[0]), int(s[1]), int(s[2])]
-				elif look == &"E":
-					t = "%s %+d %d" % [WORDS[k], int(s[0]), int(s[2])]
-				if not texts.has(t):
-					bad.append("%s: no '%s' in [%s]" % [look, t, said])
-			for nm in want.gained:
-				var c := int(want.gained[nm])
-				if not texts.any(func(t: String) -> bool: return t.begins_with("+%d" % c) and t.contains(nm)):
-					bad.append("%s: gained %d %s not said in [%s]" % [look, c, nm, said])
-			for nm in want.lost:
-				var c2 := int(want.lost[nm])
-				if not texts.any(func(t: String) -> bool: return t.begins_with("-%d" % c2) and t.contains(nm)):
-					bad.append("%s: lost %d %s not said in [%s]" % [look, c2, nm, said])
-			if want.frame and not texts.any(func(t: String) -> bool: return t.begins_with("+1 HULL FRAME")):
-				bad.append("%s: the hull frame not said in [%s]" % [look, said])
-			if want.place and not texts.any(func(t: String) -> bool: return t.begins_with("MARKED")):
-				bad.append("%s: the marked place not said in [%s]" % [look, said])
-			if said.contains("—"):
-				bad.append("%s: a dash in [%s]" % [look, said])
-			var named := texts.filter(func(t: String) -> bool: return t != "")
-			if changed + things == 0:
-				if not texts.has(OutcomeRow.NOTHING):
-					bad.append("%s: nothing moved and it does not say so: [%s]" % [look, said])
-			elif named.size() < changed + (want.gained as Dictionary).size() + (want.lost as Dictionary).size():
-				bad.append("%s: %d entries for %d changes: [%s]" % [look, named.size(), changed + things, said])
+			rows.append("%s %+d" % [WORDS[k], int(s[0])])
+	if texts != rows:
+		bad.append("D: the table says [%s], not [%s]" % [said, ", ".join(rows)])
+	var tab := d.panel.find_child("OutcomeTable", true, false)
+	if rows.is_empty() and tab != null:
+		bad.append("D: none of the stats moved and there is a table [%s]" % said)
 	bad.append_array(boxes(d, look, ents))
-	if look == &"D":
-		bad.append_array(d_place(d))
-	if look == &"E":
-		bad.append_array(prize_place(d, want, texts))
-	return bad
-
-
-## E: D's table plus a plate per part or material that came aboard, each thing said once.
-static func prize_place(d: LocalEventDrawer, want: Dictionary, texts: Array) -> Array:
-	var bad: Array = []
-	var p := d.panel.find_child("OutcomePrizes", true, false) as Control
-	var t := d.panel.find_child("OutcomeTable", true, false) as Control
-	var pile := 0
-	for nm in want.gained:
-		if String(want.kind.get(nm, "")) in ["part", "material"]:
-			pile += 1
-	if (p != null) != (pile > 0):
-		bad.append("E: %d things came aboard and %s" % [pile, "plates are drawn" if p != null else "no plate is drawn"])
-	if p != null:
-		var drawn := (p as OutcomeRow.Prizes).tiles.size()
-		if drawn != mini(pile, OutcomeRow.BIG_MAX):
-			bad.append("E: %d plates for %d things" % [drawn, pile])
-	for nm in want.gained:
-		var said := texts.filter(func(x: String) -> bool: return x.contains(String(nm)))
-		if said.size() > 1:
-			bad.append("E: %s said %d times %s" % [nm, said.size(), said])
-	if t != null:
-		bad.append_array(table_place(d))
-	if p == null:
-		if t == null:
-			bad.append("E: no table and no plates")
-		return bad
-	var pr := p.get_global_rect()
-	var b := d._choices
-	var br := b.get_global_rect() if b != null else Rect2()
-	if LocalEventDrawer.layout != &"card":
-		var col := br if t == null else br.merge(t.get_global_rect())
-		if pr.end.x > col.position.x - 0.5:
-			bad.append("E: the plates %s reach the buttons' column %s" % [pr, col])
-		if d._scroll != null and pr.position.x < d._scroll.get_global_rect().end.x:
-			bad.append("E: the plates %s reach the text" % [pr])
-	else:
-		if absf(pr.end.x - br.end.x) > 0.5:
-			bad.append("E: the plates end at x %d on the card, the buttons at %d" % [int(pr.end.x), int(br.end.x)])
-		if pr.end.y > br.position.y + 0.5 or (t != null and pr.end.y > t.get_global_rect().position.y + 0.5):
-			bad.append("E: the plates %s come down onto the table or the buttons" % [pr])
-	return bad
-
-
-## E's table sits over the buttons, right edge on theirs and at least their width.
-static func table_place(d: LocalEventDrawer, lk: StringName = &"E") -> Array:
-	var bad: Array = []
-	var t := d.panel.find_child("OutcomeTable", true, false) as Control
-	var b := d._choices
-	if t == null or b == null:
-		return ["%s: no table or no buttons" % lk]
-	var tr := t.get_global_rect()
-	var br := b.get_global_rect()
-	if absf(tr.end.x - br.end.x) > 0.5:
-		bad.append("%s: the table ends at x %d, the buttons at %d" % [lk, int(tr.end.x), int(br.end.x)])
-	if tr.size.x < br.size.x - 0.5:
-		bad.append("%s: the table %d wide, narrower than the buttons' %d" % [lk, int(tr.size.x), int(br.size.x)])
-	if tr.end.y > br.position.y + 0.5:
-		bad.append("%s: the table %s comes down onto the buttons %s" % [lk, tr, br])
-	if br.position.y - tr.end.y > 12.0:
-		bad.append("%s: the table %s floats %d px above the buttons" % [lk, tr, int(br.position.y - tr.end.y)])
+	bad.append_array(d_place(d))
 	return bad
 
 
@@ -217,9 +105,8 @@ static func d_place(d: LocalEventDrawer) -> Array:
 		bad.append("D: the buttons %s are off the band %s" % [br, band])
 	if t != null and absf(tr.end.x - br.end.x) > 0.5:
 		bad.append("D: the table ends at x %d, the buttons at %d" % [int(tr.end.x), int(br.end.x)])
-	# (in the band they share a column; on the card the table is at the foot,
-	# only its right edge on theirs)
-	if t != null and LocalEventDrawer.layout != &"card" and tr.size.x < br.size.x - 0.5:
+	# (in the band they share a column)
+	if t != null and tr.size.x < br.size.x - 0.5:
 		bad.append("D: the table %d wide, narrower than the buttons' %d" % [int(tr.size.x), int(br.size.x)])
 	var inner_r := band.end.x - 10.0
 	if absf(br.end.x - inner_r) > 0.5:
@@ -234,29 +121,22 @@ static func d_place(d: LocalEventDrawer) -> Array:
 		bad.append("D: the buttons %s are on the table %s" % [br, tr])
 	var head := d.panel.find_child("Head", true, false) as Control
 	var hr := head.get_global_rect() if head != null else Rect2()
-	if LocalEventDrawer.layout != &"card":
-		# Buttons level with the title (within 2 px); table centred in the room under them.
-		if br.get_center().y < hr.position.y or br.get_center().y > hr.end.y:
-			bad.append("D: the buttons' middle at y %.1f, off the title's row %s" % [br.get_center().y, hr])
-		if t == null:
-			return bad
-		var col := t.get_parent() as Control
-		var over := tr.position.y - br.end.y
-		var under := col.get_global_rect().end.y - tr.end.y
-		if over < 4.0:
-			bad.append("D: the table %s only %d px under the buttons %s" % [tr, int(over), br])
-		elif absf(over - under) > 1.0 and not (over <= 6.5 and under <= over):
-			# (at the least gap, 6, the table is what sets the column's height:
-			# any room left is a pixel or two the left column is taller)
-			bad.append("D: the table not centred under the buttons: %d px over it, %d under" % [int(over), int(under)])
-		if col.get_global_rect().end.y > band.end.y - 5.5:
-			bad.append("D: the right column %s runs past the band's floor %s" % [col.get_global_rect(), band])
-	else:
-		# the card: the buttons on the title's line, or on their own over it
-		if br.position.y > hr.end.y:
-			bad.append("D: the buttons %s are under the title %s on the card" % [br, hr])
-		if t != null and tr.position.y < br.end.y:
-			bad.append("D: the table %s is over the buttons %s on the card" % [tr, br])
+	# Buttons level with the title (within 2 px); table centred in the room under them.
+	if br.get_center().y < hr.position.y or br.get_center().y > hr.end.y:
+		bad.append("D: the buttons' middle at y %.1f, off the title's row %s" % [br.get_center().y, hr])
+	if t == null:
+		return bad
+	var col := t.get_parent() as Control
+	var over := tr.position.y - br.end.y
+	var under := col.get_global_rect().end.y - tr.end.y
+	if over < 4.0:
+		bad.append("D: the table %s only %d px under the buttons %s" % [tr, int(over), br])
+	elif absf(over - under) > 1.0 and not (over <= 6.5 and under <= over):
+		# (at the least gap, 6, the table is what sets the column's height:
+		# any room left is a pixel or two the left column is taller)
+		bad.append("D: the table not centred under the buttons: %d px over it, %d under" % [int(over), int(under)])
+	if col.get_global_rect().end.y > band.end.y - 5.5:
+		bad.append("D: the right column %s runs past the band's floor %s" % [col.get_global_rect(), band])
 	return bad
 
 
@@ -292,12 +172,6 @@ static func boxes(d: LocalEventDrawer, look: StringName, ents: Array) -> Array:
 			var r2: Rect2 = ents[jj].rect
 			if r.intersects(r2):
 				bad.append("%s: '%s' and '%s' overlap" % [look, e.text, ents[jj].text])
-		if int(e.get("col", -1)) >= 0:
-			var led := d.panel.find_child("OutcomeLedger", true, false) as Control
-			if led != null:
-				var x0 := led.global_position.x + (0.0 if int(e.col) == 0 else float(e.cw) + 12.0)
-				if r.position.x < x0 - 0.01 or r.end.x > x0 + float(e.cw) + 0.01:
-					bad.append("%s: '%s' crosses its column" % [look, e.text])
 	return bad
 
 

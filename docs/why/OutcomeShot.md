@@ -6,10 +6,10 @@ Above `var _args: PackedStringArray`:
 
 ```text
 WHAT YOU END UP WITH, photographed in every look (`OutcomeRow`):
-  godot --path . -- sheet=OutcomeShot out=<dir> [cases=jon,gain,...] [looks=today,A,B,C,D,E]
-      [layout=row|column|card]   (the band's layout; Jon's column when left out)
+  godot --path . -- sheet=OutcomeShot out=<dir> [cases=jon,gain,...]
+      (D in the column only since Nov 14: looks= and layout= were retired Nov 14 (sweep 2 ruling 5A), in history at 51d2d5cc)
   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 30
-      -- sheet=OutcomeShot out=<dir> film=C case=mix
+      -- sheet=OutcomeShot out=<dir> film=D case=mix
   godot --headless --path . -- sheet=OutcomeShot survey
 
 REAL OUTCOMES, FOUND NOT MADE UP. Every authored choice is resolved through

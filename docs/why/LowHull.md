@@ -13,7 +13,7 @@ warning state." And then: "Maybe even A.S.H.'s voice could glitch a bit?").
 WHEN: the hull at or under TIER1_AT of its max (a second, slightly stronger
 step of the red at TIER2_AT), read as the HUD reads it -- the figure the fight
 has SHOWN, not the one the click already decided (`SectorScreen.shown_hull`,
-`OutcomeRow.held`) -- so the warning arrives with the number that says so.
+and, until look C was retired on Nov 14, `OutcomeRow.held`) -- so the warning arrives with the number that says so.
 Only inside a run: never on the title, the lobby, the hull pick, RUN ENDED or
 the records room from the title, and never once the hull is at 0 (the
 ship's loss has its own picture, `DeathHandoff`). It eases in and out over

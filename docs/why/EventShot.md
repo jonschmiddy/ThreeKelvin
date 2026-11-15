@@ -7,7 +7,7 @@ Above `const FPS := 30.0`:
 ```text
 EVENTS RESOLVED ON LOCAL, photographed (`LocalEventDrawer`):
   godot --path . --windowed --position 3840,0 -- sheet=EventShot keepwindow
-      out=<dir> [seed=1] [node=11] [layout=row|column|card] [flow] [compare] [reveal]
+      out=<dir> [seed=1] [node=11] [flow] [compare] [reveal]   (layout= retired Nov 14 (sweep 2 ruling 5A), in history at 51d2d5cc)
       [revealav=<dir>]
 
 `flow`     the map's list, an event's page (one sentence and GO), GO -- the

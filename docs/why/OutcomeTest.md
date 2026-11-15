@@ -52,3 +52,6 @@ the reading's result on the real LOCAL, its bill made the sheet's own
 map's card keeps for it says the same. No reading pays exactly this (fuel
 2 is tier 3, which pays 8), so the real case's own row is `_looks`'s.
 ```
+
+Since Nov 14 the test runs D, the one look, in the column, the one layout: today's, A, B, C and E and the
+row and card layouts were retired (sweep 2 ruling 5A), with C's flights and the HUD hold; in history at 51d2d5cc.

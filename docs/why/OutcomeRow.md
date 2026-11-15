@@ -15,7 +15,8 @@ a dash for every stat that did not move, the one real change a small red -5
 among them, and the words and numbers on two baselines. Nothing a part, a
 crate, a document or a marked place could say: those had no line at all.
 
-THREE LOOKS, ONE SWITCH (`look`), today's until Jon picks one:
+THREE LOOKS, ONE SWITCH (`look`), today's until Jon picks one (he picked D; the switch, today's,
+A, B, C and E were retired Nov 14 (sweep 2 ruling 5A), in history at 51d2d5cc):
   A  ONLY WHAT CHANGED, BIG. The dashes go. Each change is the number at
      FS_HEAD with its word beside it on the same baseline, signed and in its
      colour ("-5 HULL" red, "+40 CREDITS" green), in the order it matters:
