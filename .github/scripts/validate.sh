@@ -330,10 +330,12 @@ step "Every station has all five decks, at every level"
 # levels, with and without a berth: five tabs and five floors, RELIC ANALYSIS
 # at the level's price inside the lab's screen, a dock desk's work posted and
 # handed in where nobody berths, and NO WORK POSTED. on a bare board.
+# At --fixed-fps 60 (Nov 14): its rides and the camera's are counted in frames, and on
+# the wall clock one slow CI frame ended a ride before its mid-ride click.
 ALLOW_EXTRA="$GATE_LEAKS" gate_sheet stationdecktest 480 \
 	"all five decks at every station, the lab priced by level, a dock desk where nobody berths" \
 	"a station is missing a deck, the lab or a dock desk is wrong, or a bare board says nothing" \
-	--headless --path "$PROJECT" -- sheet=StationDeckTest
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=StationDeckTest
 }
 
 unit_contracttest() {

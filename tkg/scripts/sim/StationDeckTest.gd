@@ -589,8 +589,9 @@ func _sign_on(st: StationScreen, tag: String, dev: int, deep: bool) -> void:
 		cut.is_empty())
 	# THE CUE: CLICK TO SIGN IN breathes, brightness only
 	var inks: Array[float] = []
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < int(LabLogin.PULSE_S * 1000.0):
+	# a whole pulse of game time, which the cue breathes on, however fast the frames come
+	var t0 := GameClock.now_ms()
+	while GameClock.now_ms() - t0 < int(LabLogin.PULSE_S * 1000.0):
 		inks.append(login.cue_ink())
 		await _tree.process_frame
 	_ok("%s: CLICK TO SIGN IN breathes between %.2f and %.2f" % [tag, inks.min(), inks.max()],
