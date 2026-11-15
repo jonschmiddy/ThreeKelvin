@@ -1524,14 +1524,22 @@ func tip_lines(n: MapGen.MapNode, here: MapGen.MapNode) -> PackedStringArray:
 	return PackedStringArray([l1, l2, l3, l4])
 
 
+## The hover brackets' half-width: YOU's box (`_draw_you` zoomed out, the glyph's
+## `draw_brackets` zoomed in).
+static func hover_e(tiny: bool) -> int:
+	return 10 if tiny else 8
+
+
 ## Zoomed out every system is a two-pixel dot, so the tooltip is what makes places readable.
 func _draw_tip(n: MapGen.MapNode, here: MapGen.MapNode) -> void:
 	var f := UITheme.pixel_font()
 	var at := screen_pos(n)
 
 	# The sector map's brackets settle onto the system as the panel arrives (R1, Nov 15: both maps
-	# mark things one way), pointing the eye at the dot the panel describes. It was a 2 px ring.
-	MarkOutline.draw_bracket_mark(self, at, 5 + roundi(2.0 * (1.0 - _hover_t)), Color(UITheme.MARK, _hover_t))
+	# mark things one way), as wide as YOU's (Jon, Nov 15: they were too tight); none on your own
+	# system, which has YOU's already. Why: docs/why/MapChart.md#hover-brackets
+	if n.index != here.index:
+		MarkOutline.draw_bracket_mark(self, at, hover_e(zoom < 0.78) + roundi(2.0 * (1.0 - _hover_t)), Color(UITheme.MARK, _hover_t))
 	# (the tag keeps the room it had round the old ring)
 	var reach: float = lerpf(13.0, 8.0, _hover_t)
 

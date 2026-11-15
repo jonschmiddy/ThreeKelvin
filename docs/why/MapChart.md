@@ -1467,3 +1467,10 @@ four alone now (the name, what is there with CLEARED, the place line,
 DANGER with FUEL or TOO DEEP) and `survey_lines` is gone with the rows
 nobody shows: the star kind, development and security, the operator, the
 market line and the heading. StationDeckTest and TagTest read the four.
+
+## Hover brackets
+
+Above the hover's `MarkOutline.draw_bracket_mark` in `_draw_tip`. The R1 brackets (Nov 15) settled
+onto a hovered star at 5 px out, inside YOU's own box; Jon, the same day: too tight. They are now
+YOU's size (8 px out zoomed in, where the glyph draws YOU's brackets; 10 zoomed out, `_draw_you`),
+still settling 2 px inward. Your own system draws none on hover: YOU's brackets are already there.
