@@ -7,7 +7,8 @@ Above `const GLOW_HZ := 12.0`:
 ```text
 A SHIP'S HULL TAKING HITS WITHOUT HOLES IN IT (Oct 17). Three looks were made
 for Jon's pick and he picked the fourth, D, all three mixed per hit: it is the
-game's (`ShipHitFx.look`); A, B and C stay as its parts and as looks to compare.
+game's; A, B and C stay as its parts. Retired as looks of their own Nov 14 (sweep 2 ruling 5A; in history at 51d2d5cc): A, B and C
+live on only as D's parts, and `ShipHitFx.look` and `-- hull=` are gone.
 
 James, a playtester, of today's marks: when ships are damaged they get big
 holes in the hull, and ships can't really have holes in them. Jon: "Can we

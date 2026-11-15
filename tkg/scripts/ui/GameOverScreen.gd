@@ -94,29 +94,12 @@ func _arrive(centre: Control, panel: Control, title: Label, rest: Array, look: S
 	block.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(block)
 	var tw := create_tween()
-	if look == &"type":
-		# On the dark screen: the panel's ground, then RUN ENDED a letter at a
-		# time, then what it says under it.
-		panel.self_modulate.a = 0.0
-		title.visible_characters = 0
-		for r in rest:
-			(r as CanvasItem).modulate.a = 0.0
-		tw.tween_property(panel, "self_modulate:a", 1.0, 0.15)
-		tw.tween_property(title, "visible_characters", title.text.length(), 0.05 * title.text.length())
-		var first := true
-		for r in rest:
-			if first:
-				tw.tween_property(r, "modulate:a", 1.0, 0.25)
-				first = false
-			else:
-				tw.parallel().tween_property(r, "modulate:a", 1.0, 0.25)
-	else:
-		# Fades and rises in, 10 px.
-		centre.modulate.a = 0.0
-		centre.position.y += 10.0
-		var y0 := centre.position.y - 10.0
-		tw.tween_property(centre, "modulate:a", 1.0, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		tw.parallel().tween_property(centre, "position:y", y0, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	# Fades and rises in, 10 px (C's typed-in title was retired with C, Nov 14).
+	centre.modulate.a = 0.0
+	centre.position.y += 10.0
+	var y0 := centre.position.y - 10.0
+	tw.tween_property(centre, "modulate:a", 1.0, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(centre, "position:y", y0, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tw.tween_callback(func() -> void:
 		for b in buttons:
 			if is_instance_valid(b):

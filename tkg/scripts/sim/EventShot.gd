@@ -42,7 +42,6 @@ func _run() -> void:
 	await tree.process_frame
 	Rng.forced = Harness.seed_arg(1)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	LocalEventDrawer.layout = StringName(Harness.arg("layout", "column"))
 	var idx := int(Harness.arg("node", "11"))
 	var n: MapGen.MapNode = Run.map[idx]
 	Run.at = idx
@@ -194,8 +193,8 @@ func _compare(n: MapGen.MapNode) -> void:
 	var at := {}
 	for s: Array in sizes:
 		at[s[0]] = _plant(n, StringName(s[1]))
-	for layout: StringName in [&"row", &"column", &"card"]:
-		LocalEventDrawer.layout = layout
+	# (the column, the one layout since Nov 14: the row and the card were retired)
+	for layout: StringName in [&"column"]:
 		for s: Array in sizes:
 			d.open(int(at[s[0]]))
 			await _secs(0.15)
@@ -209,7 +208,6 @@ func _compare(n: MapGen.MapNode) -> void:
 			print("[eventshot] empty %s %s %d %d %.3f h%d" % [layout, s[0], e[0], e[1], float(e[0]) / maxf(1.0, float(e[1])), int(r.size.y)])
 			d._drop()
 			await _secs(0.5)
-	LocalEventDrawer.layout = &"column"
 
 
 ## [bare panel pixels, all pixels] inside r: bare is the panel's own colour,
@@ -234,7 +232,7 @@ func _reveal(n: MapGen.MapNode) -> void:
 	var lo := Router.current as SectorScreen
 	var d: LocalEventDrawer = lo.get("_events")
 	var i := _plant(n, StringName(_sizes()[1][1]))
-	var dir := "%s/reveal_%s" % [_out, LocalEventDrawer.layout]
+	var dir := "%s/reveal_column" % _out
 	DirAccess.make_dir_recursive_absolute(dir)
 	d.open(i)
 	# its clock stepped by hand at 30 a second, so the frames are true speed

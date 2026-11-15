@@ -2,30 +2,24 @@ class_name LocalEventDrawer
 extends Control
 
 ## Jon picked the low band, A. Events resolve here through `OptionResolve`, the one rule.
-## Three layouts on one switch so Jon can pick from stills; the flow and words are identical.
+## The column, Jon's pick of three layouts (the row and the card retired Nov 14).
 ## Why: docs/why/LocalEventDrawer.md#event-drawer
 
 ## Up or down: the bar under the view redraws (OPEN IT only while it is down).
 signal changed
 
-## The band's cap (the fight hand's height) and the card's, game px.
+## The band's cap (the fight hand's height), game px.
 const H := 190.0
-const CARD_W := 320.0
-const CARD_MAX_H := 330.0
-## How long it takes to lift or drop, to pop the card, and to fade the choices
-## in, s.
+## How long it takes to lift or drop, and to fade the choices in, s.
 const LIFT_S := 0.28
-const POP_S := 0.16
 const CHOICES_S := 0.15
 ## The fade in from the map's zoom, s.
 const FADE_S := 0.22
-## The choices' column width, in the column layout.
+## The choices' column width.
 const COL_W := 300.0
 ## D's buttons sit this far down, measured on stills, to line up with the title's baseline.
 const D_BUTTONS_DROP := 3
 
-## Jon picked the column ("Yeah, I like the column").
-static var layout: StringName = &"column"
 ## `-- localeventtest`: the screens a fight or a death would swap in are not
 ## opened; `fought` and `died` say they would have been.
 static var quiet := false
@@ -237,15 +231,8 @@ func _moving() -> bool:
 	return Router.animating() and is_inside_tree()
 
 
-## Where the band or the card sits: 0 up, 1 down.
+## Where the band sits: 0 up, 1 down.
 func _place(down: float) -> void:
-	if layout == &"card":
-		set_anchors_preset(Control.PRESET_FULL_RECT)
-		offset_left = 0.0
-		offset_top = 0.0
-		offset_right = 0.0
-		offset_bottom = 0.0
-		return
 	set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	offset_left = 0.0
 	offset_right = 0.0
@@ -259,19 +246,6 @@ func _lift() -> void:
 		_tw.kill()
 	var again := _up
 	_up = true
-	if layout == &"card":
-		_place(0.0)
-		_seat_card()
-		if again or not _moving():
-			panel.modulate.a = 1.0
-			return
-		var to := panel.position
-		panel.modulate.a = 0.0
-		_tw = create_tween().set_parallel()
-		_tw.tween_property(panel, "modulate:a", 1.0, POP_S)
-		# up into place a few whole pixels, not a smooth scale
-		_tw.tween_method(func(k: float) -> void: panel.position = Vector2(to.x, to.y + roundf(6.0 * (1.0 - k))), 0.0, 1.0, POP_S)
-		return
 	if again or not _moving():
 		_place(0.0)
 		return
@@ -281,7 +255,6 @@ func _lift() -> void:
 
 
 func _drop() -> void:
-	OutcomeRow.settle(self)
 	page = &""
 	_up = false
 	if _tw != null:
@@ -295,10 +268,6 @@ func _drop() -> void:
 		gone.call()
 		return
 	_tw = create_tween()
-	if layout == &"card":
-		_tw.tween_property(panel, "modulate:a", 0.0, POP_S * 0.8)
-		_tw.tween_callback(gone)
-		return
 	_tw.tween_method(_place, 0.0, 1.0, _drop_s()).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	_tw.tween_callback(gone)
 
@@ -356,17 +325,11 @@ func _frame() -> void:
 	panel = PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	var sb := UITheme.flat(Color(UITheme.PANEL, 0.97), UITheme.LINE, 0, 6, 10)
-	if layout == &"card":
-		sb.set_border_width_all(1)
-		sb.shadow_color = Color(0, 0, 0, 0.45)
-		sb.shadow_size = 8
-		panel.custom_minimum_size.x = CARD_W
-	else:
-		sb.border_width_left = 0
-		sb.border_width_right = 0
-		sb.border_width_bottom = 0
-		sb.border_width_top = 1
-		panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	sb.border_width_left = 0
+	sb.border_width_right = 0
+	sb.border_width_bottom = 0
+	sb.border_width_top = 1
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.add_theme_stylebox_override("panel", sb)
 	add_child(panel)
 	_box = VBoxContainer.new()
@@ -391,24 +354,24 @@ func _text_box(words: String, ink: Color) -> ScrollContainer:
 	return _scroll
 
 
-## Fit the band (or the card) to what it holds, then bring it up and start the
+## Fit the band to what it holds, then bring it up and start the
 ## text. A frame first, so the text has its width and knows its lines.
 func _fit_and_show() -> void:
 	_gen += 1
 	var g := _gen
 	height = H
 	visible = true
-	if layout != &"card" and not _up:
+	if not _up:
 		_place(1.0)
 	if _choices != null:
 		_choices.modulate.a = 0.0
-	panel.modulate.a = 0.0 if layout == &"card" and not _up else 1.0
+	panel.modulate.a = 1.0
 	if is_inside_tree():
 		await get_tree().process_frame
 		await get_tree().process_frame
 	if g != _gen or panel == null:
 		return
-	var cap := CARD_MAX_H if layout == &"card" else H
+	var cap := H
 	if text != null and _scroll != null:
 		var want := text.custom_minimum_size.y
 		_scroll.custom_minimum_size.y = 0.0
@@ -424,8 +387,6 @@ func _fit_and_show() -> void:
 			rest += lane.get_combined_minimum_size().y - (lane.get_parent() as Control).get_combined_minimum_size().y
 		_scroll.custom_minimum_size.y = minf(want, maxf(cap - rest, 12.0))
 	height = minf(cap, panel.get_combined_minimum_size().y)
-	if layout == &"card":
-		panel.size = Vector2(CARD_W, height)
 	var was_up := _up
 	_lift()
 	if not was_up:
@@ -439,8 +400,6 @@ func _fit_and_show() -> void:
 
 ## The text is all here: the choices (or the buttons) fade in and take clicks.
 func _text_done() -> void:
-	if page == &"result":
-		OutcomeRow.fly(self)
 	if _choices == null:
 		return
 	if not _moving():
@@ -450,78 +409,12 @@ func _text_done() -> void:
 	tw.tween_property(_choices, "modulate:a", 1.0, CHOICES_S)
 
 
-## The card sits nearest the middle that covers least of the ships and the event's subject.
-func _seat_card() -> void:
-	var area := Rect2(Vector2.ZERO, size)
-	area.size.y -= 40.0
-	var w := CARD_W
-	var h := height
-	var avoid := _avoid_rects()
-	var mid := area.get_center() - Vector2(w, h) * 0.5
-	var best := mid
-	var best_score := INF
-	for dy in [0.0, -40.0, 40.0, -80.0, 80.0, -120.0, 120.0]:
-		for dx in [0.0, 40.0, -40.0, 80.0, -80.0, 120.0, -120.0, 180.0, -180.0, 240.0, -240.0]:
-			var p := (mid + Vector2(dx, dy)).round()
-			p.x = clampf(p.x, 8.0, area.end.x - w - 8.0)
-			p.y = clampf(p.y, 8.0, maxf(8.0, area.end.y - h - 4.0))
-			var r := Rect2(p, Vector2(w, h))
-			var hit := 0.0
-			for a: Rect2 in avoid:
-				hit += r.intersection(a).get_area()
-			# covering anything costs far more than being off the middle
-			var score := hit * 100.0 + p.distance_to(mid)
-			if score < best_score:
-				best_score = score
-				best = p
-	panel.position = best
-
-
-## Your ship and the encounter's subject, in this control's px.
-func _avoid_rects() -> Array:
-	var rs: Array = []
-	var at := UiRect.of(self).position
-	var view = screen.get("_view") if screen != null else null
-	if view == null:
-		return rs
-	# EVERY HULL IN THE VIEW: yours, a partner's, a contact the event is about
-	for c in _hulls(view):
-		if c is ShipView:
-			var sr := (c as ShipView).ship_rect()
-			rs.append(Rect2(sr.position + (c as Control).global_position - at, sr.size).grow(6.0))
-		elif c is EnemyArt:
-			var er := Rect2((c as EnemyArt).used_rect())
-			rs.append(Rect2(er.position + (c as Control).global_position - at, er.size).grow(6.0))
-	var sky = view.get("backdrop")
-	if sky != null:
-		for e: Array in sky.get("_near"):
-			var nd: Node2D = e[0]
-			var r := float(e[3]) if float(e[3]) > 0.0 else 110.0
-			var c := nd.global_position - at
-			rs.append(Rect2(c - Vector2(r, r * 0.6 if e[3] == 0.0 else r), Vector2(r * 2.0, (r * 0.6 if e[3] == 0.0 else r) * 2.0)))
-			break
-	return rs
-
-
-func _hulls(n: Node) -> Array:
-	var outh: Array = []
-	for c in n.get_children():
-		if not (c is CanvasItem) or not (c as CanvasItem).visible:
-			continue
-		if c is ShipView or c is EnemyArt:
-			outh.append(c)
-		else:
-			outh.append_array(_hulls(c))
-	return outh
-
-
 # --------------------------------------------------------------- the event
 
 ## Option i's page: its title, tags and where it is, its whole text, its choices.
 func open(i: int) -> void:
 	if node == null or i < 0 or i >= node.options.size():
 		return
-	OutcomeRow.settle(self)
 	opt = i
 	choice = -1
 	out = {}
@@ -532,10 +425,8 @@ func open(i: int) -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 10)
 	head.add_child(UITheme.body(String(o.get("title", "")).to_upper(), UITheme.HOT, UITheme.FS_SMALL))
-	var where := "%s · %s" % [_tags(o), _place_line(i)]
-	if layout != &"card":
-		head.add_child(UITheme.body(_tags(o), EncounterDrawer.tag_colour(o), UITheme.FS_SMALL))
-		head.add_child(UITheme.body(_place_line(i), UITheme.COLD, UITheme.FS_SMALL))
+	head.add_child(UITheme.body(_tags(o), EncounterDrawer.tag_colour(o), UITheme.FS_SMALL))
+	head.add_child(UITheme.body(_place_line(i), UITheme.COLD, UITheme.FS_SMALL))
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(sp)
@@ -545,34 +436,21 @@ func open(i: int) -> void:
 	later.name = "NotNow"
 	head.add_child(later)
 	_box.add_child(head)
-	if layout == &"card":
-		var wl := UITheme.body(where, EncounterDrawer.tag_colour(o), UITheme.FS_SMALL)
-		wl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_box.add_child(wl)
 	var words := String(o.get("body", ""))
 	if EncounterDrawer.option_state(node, i).kind == &"left":
 		words = "You walked away from this. It is still open. " + words
 	var cards := _choice_cards(i, o)
-	if layout == &"column":
-		var lane := HBoxContainer.new()
-		lane.add_theme_constant_override("separation", 10)
-		lane.add_child(_text_box(words, UITheme.CHILL))
-		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", 4)
-		col.custom_minimum_size.x = COL_W
-		for c in cards:
-			col.add_child(c)
-		_choices = col
-		lane.add_child(col)
-		_box.add_child(lane)
-	else:
-		_box.add_child(_text_box(words, UITheme.CHILL))
-		var row: BoxContainer = VBoxContainer.new() if layout == &"card" else HBoxContainer.new()
-		row.add_theme_constant_override("separation", 4 if layout == &"card" else 6)
-		for c in cards:
-			row.add_child(c)
-		_choices = row
-		_box.add_child(row)
+	var lane := HBoxContainer.new()
+	lane.add_theme_constant_override("separation", 10)
+	lane.add_child(_text_box(words, UITheme.CHILL))
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4)
+	col.custom_minimum_size.x = COL_W
+	for c in cards:
+		col.add_child(c)
+	_choices = col
+	lane.add_child(col)
+	_box.add_child(lane)
 	_fit_and_show()
 
 
@@ -647,14 +525,7 @@ func choose(j: int) -> Dictionary:
 
 # --------------------------------------------------------------- the result
 
-## B's receipt, beside the text, game px.
-const RECEIPT_W := 340.0
-## E's plates at their widest before a row wraps under, game px.
-const PRIZES_W := 330.0
-
 func _result() -> void:
-	# a re-shown result (REWARD shut, a look changed) lands C's flights first
-	OutcomeRow.settle(self)
 	page = &"result"
 	var o := OptionTable.by_id(node.options[opt])
 	var choices: Array = o.get("choices", [])
@@ -689,92 +560,40 @@ func _result() -> void:
 	cl.name = "Chose"
 	cl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(cl)
-	# Looks A to E are Jon's pick of how the outcome shows: changes, receipt, flyer, table.
+	# D, Jon's pick of how the outcome shows (Oct 18): a table on the right with the buttons at its
+	# top, level with the title (Oct 19), the table centred under them.
 	# Why: docs/why/LocalEventDrawer.md#outcome-looks
-	var look := OutcomeRow.look
 	var said := _text_box(String(res.get("text", "")), UITheme.CHILL if ink == UITheme.COLD else ink)
-	var receipt: Control = null
-	if look == &"B":
-		receipt = OutcomeRow.ledger(out, RECEIPT_W if layout != &"card" else CARD_W - 20.0)
-	# D puts a table on the right with buttons at its top; E adds drawn-big arrivals to its left.
-	# Why: docs/why/LocalEventDrawer.md#outcome-looks
-	var right: VBoxContainer = null
-	var prizes: Control = null
-	if look == &"E":
-		prizes = OutcomeRow.prizes(out, PRIZES_W if layout != &"card" else CARD_W - 20.0)
-	var tab: Control = null
-	if look == &"D" or look == &"E":
-		tab = OutcomeRow.table(out, prizes != null, OutcomeRow.D_FS if look == &"D" else UITheme.FS_SMALL, look == &"D")
-	# D's buttons are at the top right level with the title (Jon, Oct 19), the table centred under.
-	# Why: docs/why/LocalEventDrawer.md#outcome-looks
-	var d_top := look == &"D"
-	if receipt != null and layout != &"card":
-		var lane := HBoxContainer.new()
-		lane.add_theme_constant_override("separation", 14)
-		lane.add_child(said)
-		lane.add_child(receipt)
-		_box.add_child(lane)
-	elif (tab != null or prizes != null or d_top) and layout != &"card":
-		var lane2 := HBoxContainer.new()
-		lane2.name = "ResultLane"
-		lane2.add_theme_constant_override("separation", 16)
-		if d_top:
-			# Title and text in one left column, so the right column starts at the band's top.
-			var left := VBoxContainer.new()
-			left.name = "ResultLeft"
-			left.add_theme_constant_override("separation", 4)
-			left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			for c: Control in [head, cl]:
-				_box.remove_child(c)
-				left.add_child(c)
-			left.add_child(said)
-			lane2.add_child(left)
-		else:
-			lane2.add_child(said)
-		if prizes != null:
-			# its foot on the band's floor beside the buttons' column
-			prizes.size_flags_vertical = Control.SIZE_SHRINK_END
-			lane2.add_child(prizes)
-		right = VBoxContainer.new()
-		right.add_theme_constant_override("separation", 6)
-		right.size_flags_horizontal = Control.SIZE_SHRINK_END
-		var push := Control.new()
-		push.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		if d_top:
-			# No gaps of its own, so the two pushes centre the table exactly.
-			right.add_theme_constant_override("separation", 0)
-			push.custom_minimum_size.y = 6.0
-		right.add_child(push)
-		if tab != null:
-			right.add_child(tab)
-		if d_top:
-			# as much room under the table as over it: centred under the buttons
-			var push2 := Control.new()
-			push2.size_flags_vertical = Control.SIZE_EXPAND_FILL
-			right.add_child(push2)
-		lane2.add_child(right)
-		_box.add_child(lane2)
-	else:
-		_box.add_child(said)
-		if receipt != null:
-			_box.add_child(receipt)
-	# THE OUTCOME AS ONE ROW, the buttons at the end of it
-	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 6)
-	if look == &"A" or look == &"C":
-		foot.add_child(OutcomeRow.line(out, look))
-	else:
-		if look == &"today":
-			for r in out.get("bill", []):
-				foot.add_child(UITheme.body(String(r.name), UITheme.COLD, UITheme.FS_SMALL))
-				var v := UITheme.body(String(r.text), r.tone as Color, UITheme.FS_SMALL)
-				v.custom_minimum_size.x = 22
-				v.add_to_group(OutcomeRow.GROUP)
-				v.set_meta(&"outcome_text", "%s %s" % [r.name, r.text])
-				foot.add_child(v)
-		var sp := Control.new()
-		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		foot.add_child(sp)
+	var tab: Control = OutcomeRow.table(out, OutcomeRow.D_FS, true)
+	var lane2 := HBoxContainer.new()
+	lane2.name = "ResultLane"
+	lane2.add_theme_constant_override("separation", 16)
+	# Title and text in one left column, so the right column starts at the band's top.
+	var left := VBoxContainer.new()
+	left.name = "ResultLeft"
+	left.add_theme_constant_override("separation", 4)
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for c: Control in [head, cl]:
+		_box.remove_child(c)
+		left.add_child(c)
+	left.add_child(said)
+	lane2.add_child(left)
+	var right := VBoxContainer.new()
+	right.size_flags_horizontal = Control.SIZE_SHRINK_END
+	# No gaps of its own, so the two pushes centre the table exactly.
+	right.add_theme_constant_override("separation", 0)
+	var push := Control.new()
+	push.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	push.custom_minimum_size.y = 6.0
+	right.add_child(push)
+	if tab != null:
+		right.add_child(tab)
+	# as much room under the table as over it: centred under the buttons
+	var push2 := Control.new()
+	push2.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_child(push2)
+	lane2.add_child(right)
+	_box.add_child(lane2)
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 6)
 	# CONTINUE STAYS WHERE IT IS: at its own height on the band's floor, whatever
@@ -801,56 +620,14 @@ func _result() -> void:
 		var cont := Widgets.button("CONTINUE", continue_on)
 		cont.name = "Continue"
 		buttons.add_child(cont)
-	if right != null:
-		foot.free()
-		buttons.size_flags_horizontal = Control.SIZE_SHRINK_END
-		if d_top:
-			# level with the title: CONTINUE's words on the title's baseline
-			# (`D_BUTTONS_DROP`), the button's middle on RESOLVED's
-			var drop := _dropped(buttons)
-			drop.size_flags_horizontal = Control.SIZE_SHRINK_END
-			right.add_child(drop)
-			right.move_child(drop, 0)
-		else:
-			right.add_child(buttons)
-	elif layout == &"card":
-		# (narrow: the ledger on its line, the buttons under it; D's table
-		# right-aligned over them)
-		var brow := HBoxContainer.new()
-		var sp2 := Control.new()
-		sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		brow.add_child(sp2)
-		if tab != null or prizes != null or d_top:
-			# D: the table and the buttons one right-aligned column, the table at
-			# least as wide as the buttons; E's plates over the table
-			foot.free()
-			var col := VBoxContainer.new()
-			col.add_theme_constant_override("separation", 6)
-			if prizes != null:
-				prizes.size_flags_horizontal = Control.SIZE_SHRINK_END
-				col.add_child(prizes)
-			if tab != null:
-				col.add_child(tab)
-			buttons.size_flags_horizontal = Control.SIZE_SHRINK_END
-			if d_top:
-				_card_top(head, buttons)
-			else:
-				col.add_child(buttons)
-			brow.add_child(col)
-		else:
-			_box.add_child(foot)
-			brow.add_child(buttons)
-		if d_top and tab == null:
-			# D with none of the four stats moved: the buttons on the title's
-			# line and nothing at the foot
-			brow.free()
-		else:
-			_box.add_child(brow)
-	else:
-		foot.add_child(buttons)
-		_box.add_child(foot)
+	buttons.size_flags_horizontal = Control.SIZE_SHRINK_END
+	# level with the title: CONTINUE's words on the title's baseline
+	# (`D_BUTTONS_DROP`), the button's middle on RESOLVED's
+	var drop := _dropped(buttons)
+	drop.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right.add_child(drop)
+	right.move_child(drop, 0)
 	_choices = buttons
-	OutcomeRow.hold(self)
 	_fit_and_show()
 
 
@@ -863,36 +640,6 @@ static func _dropped(buttons: Control) -> MarginContainer:
 		drop.add_theme_constant_override(side, 0)
 	drop.add_child(buttons)
 	return drop
-
-
-## D on the card: buttons on the title line, or their own line for a long name, so it never widens.
-func _card_top(head: Control, buttons: Control) -> void:
-	var top := HBoxContainer.new()
-	top.name = "ResultTop"
-	top.add_theme_constant_override("separation", 10)
-	var at := head.get_index()
-	_box.remove_child(head)
-	head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(head)
-	# level with the title, as in the band (`D_BUTTONS_DROP`)
-	var drop := _dropped(buttons)
-	drop.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	top.add_child(drop)
-	_box.add_child(top)
-	_box.move_child(top, at)
-	if top.get_combined_minimum_size().x <= CARD_W - 20.0:
-		return
-	drop.remove_child(buttons)
-	drop.free()
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(sp)
-	top.move_child(sp, 0)
-	top.add_child(buttons)
-	top.remove_child(head)
-	head.size_flags_horizontal = Control.SIZE_FILL
-	_box.add_child(head)
-	_box.move_child(head, at + 1)
 
 
 ## Starts once the band is down: on the press it threw the band away mid-drop.
@@ -932,7 +679,7 @@ func open_reward() -> void:
 	_transfer = TransferView.new()
 	screen.add_child(_transfer)
 	# (the pile opens at your ship, in the room above this band)
-	if visible and layout != &"card":
+	if visible:
 		_transfer.floor_g = UiRect.of(self).position.y
 	Audio.play(&"wreck_open")
 	_transfer.setup(h, node, func() -> void:

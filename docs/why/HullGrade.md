@@ -78,7 +78,7 @@ still holds, against the sprite's own colours AND the manufacturer's ramp.
 
 ## Markings
 
-Above `static var reg_look: StringName = &"A"`:
+Above `const REG_LIFT` (it was above `static var reg_look`):
 
 ```text
 MARKINGS: the registry painted straight on the hull where its entry puts it
@@ -91,10 +91,11 @@ BAD AND PRINTED ON", of the white number on L1 and H3): "" the white stencil
 as it was; &"A" tone on tone, each stroke the panel under it two shades
 lighter; &"B" the number alone, in dark paint across the band; &"C" no
 number. Jon picked A (Oct 15), "a bit lighter, it's too faint": a fifth
-lighter, up from a tenth.
+lighter, up from a tenth. B and C were retired Nov 14 (sweep 2 ruling 5A), in
+history at 51d2d5cc.
 ```
 
-Inside `_marks()`, above `if reg_look == &"A":`:
+Inside `_marks()`, above the one-ink sum:
 
 ```text
 LOOK A'S ONE INK: a fifth lighter than the panel under the whole number,

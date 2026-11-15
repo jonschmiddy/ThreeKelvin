@@ -15,7 +15,7 @@ func _run() -> void:
 	await get_tree().process_frame
 	var out := Harness.arg("out", OUT)
 	var ships := Harness.arg("ships", "cutter:0,hulk:0,marauder:2").split(",")
-	var looks := Harness.arg("looks", "0,1,2,3,4").split(",")
+	var looks := Harness.arg("looks", "0,4").split(",")
 	var half := float(Harness.arg("scale", "1")) < 1.0
 	var zoom := int(Harness.arg("k", "2"))
 	for s in ships:
@@ -48,12 +48,9 @@ func _run() -> void:
 
 ## One look on one picture: the four moments in a row.
 func _row(pic: Image, look: int, scale: float) -> Image:
-	ShipHitFx.look = look
 	var h: ShipHitFx
 	if look > 0:
-		var hh := HullHitFx.new()
-		hh.style = look
-		h = hh
+		h = HullHitFx.new()
 	else:
 		h = ShipHitFx.new()
 	h.auto = false
@@ -84,13 +81,12 @@ func _row(pic: Image, look: int, scale: float) -> Image:
 		hx2._tone(pi0, 0.5)
 		print("debug: after tone %s" % hx2._col[pi0])
 		var pts := Harness.arg("stamp").split(";")
-		var nk: int = {1: 5, 4: 8}.get(look, 3)
+		var nk := 8
 		var tiles: Array[Image] = []
 		for kk in nk:
 			for ps in pts:
 				var xy := (ps as String).split(",")
 				var hh := HullHitFx.new()
-				hh.style = look
 				hh.auto = false
 				hh.mark_scale = scale
 				add_child(hh)

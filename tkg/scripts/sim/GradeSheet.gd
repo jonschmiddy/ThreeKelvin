@@ -20,8 +20,6 @@ func _run() -> void:
 	var wt := _arg("weight", "medium")
 	var base := _arg("base", "a")
 	var mk := _arg("manufacturer", "korvan")
-	# `reglook=A|B|C`: the registry's look on trial (`HullGrade.reg_look`)
-	HullGrade.reg_look = StringName(_arg("reglook", "A"))
 	var grades := ["c", "b", "a", "s"]
 	if mk == "korvan":
 		for g in grades:

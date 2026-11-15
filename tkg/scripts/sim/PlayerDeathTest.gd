@@ -44,8 +44,7 @@ func _run() -> void:
 		a.get("listened", false) and int(a.get("breaks", 0)) > 0)
 	_ok("animated: the run's screen not up while the hull breaks", not a.get("screen_early", true))
 	# the handoff into RUN ENDED (`DeathHandoff`), as picked
-	var hand := {"A": SectorScreen.LINGER_S, "B": SectorScreen.LOWER_S + 0.18 + SectorScreen.PULL_S,
-		"C": SectorScreen.SIGNAL_S}.get(SectorScreen.DEATH_HANDOFF, 0.0) as float
+	var hand := SectorScreen.LINGER_S
 	var need := float(a.get("duration", 0.0)) + SectorScreen.WRECK_HOLD_S + hand
 	var took := float(a.get("break_to_screen", 0.0))
 	_ok("animated: the run's screen %.2f s after the break began (breakup %.2f + hold %.1f + handoff %.2f)"

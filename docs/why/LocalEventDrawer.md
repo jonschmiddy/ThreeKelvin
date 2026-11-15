@@ -71,7 +71,8 @@ shutter were the other two, and git has them). `-- sheet=BandDropTest`.
 
 ## Outcome looks
 
-Inside `_result()`, above `var look := OutcomeRow.look`:
+Inside `_result()`, above `var look := OutcomeRow.look` (since Nov 14 only D is left: today's, A, B, C
+and E were retired Nov 14 (sweep 2 ruling 5A), in history at 51d2d5cc, with the row and card layouts):
 
 ```text
 WHAT YOU END UP WITH, in the look Jon picks (`OutcomeRow.look`): today's

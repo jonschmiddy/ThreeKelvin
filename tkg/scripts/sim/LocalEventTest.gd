@@ -48,8 +48,7 @@ func run(tree: SceneTree) -> void:
 	var opened := 0
 	var resolved := 0
 	var kinds := {}
-	for layout: StringName in [&"row", &"column", &"card"]:
-		LocalEventDrawer.layout = layout
+	for layout: StringName in [&"column"]:
 		_opt_i = -1
 		for o in OptionTable.all():
 			_opt_i += 1
@@ -107,13 +106,11 @@ func run(tree: SceneTree) -> void:
 				elif what != "":
 					resolved += 1
 					kinds[what] = int(kinds.get(what, 0)) + 1
-				# Outcome rows in every look: Jon's column for every choice, every fifth elsewhere.
-				if what != "" and d.page == &"result" and (layout == &"column" or _opt_i % 5 == 0):
+				# The outcome (D, the one look) for every choice.
+				if what != "" and d.page == &"result":
 					var want := OutcomeCheck.expect(n, before, r.get("res", {}))
 					_tally(want)
-					for lk: StringName in OutcomeRow.LOOKS:
-						OutcomeRow.look = lk
-						d.out.erase("flown")
+					for lk: StringName in [&"D"]:
 						d._result()
 						for f in 3:
 							await tree.process_frame
@@ -121,16 +118,13 @@ func run(tree: SceneTree) -> void:
 						looked += 1
 						for line in bad.slice(0, 3):
 							_fail("%s choice %d (%s): %s" % [o.id, j, layout, line])
-						if not OutcomeRow.held.is_empty():
-							_fail("%s choice %d (%s, %s): HUD numbers left held %s" % [o.id, j, layout, lk, OutcomeRow.held])
-					OutcomeRow.look = &"today"
 				d.queue_free()
 				if Run.dead:
 					Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 					n = _system()
 	print("  %d openings, %d resolutions: %s" % [opened, resolved, kinds])
-	print("  %d outcomes drawn in every look and box-tested, %d renders; what they moved: %s" % [looked / OutcomeRow.LOOKS.size(), looked, _kinds_seen])
-	_ok("every option opened and every choice resolved in all three layouts, and every look said what moved and fit (%d, %d)" % [opened, resolved], opened > 0 and resolved > 0 and _fails == 0)
+	print("  %d outcomes drawn in every look and box-tested, %d renders; what they moved: %s" % [looked, looked, _kinds_seen])
+	_ok("every option opened and every choice resolved, and the outcome said what moved and fit (%d, %d)" % [opened, resolved], opened > 0 and resolved > 0 and _fails == 0)
 	for k in ["hp-", "credits+", "credits-", "fuel+", "fuel-", "heat+", "part+", "material+", "frame+", "nothing"]:
 		_ok("an outcome that moved %s was among them (%d)" % [k, int(_kinds_seen.get(k, 0))], int(_kinds_seen.get(k, 0)) > 0)
 	await _fuel_gate(holder, n)
@@ -144,7 +138,6 @@ func run(tree: SceneTree) -> void:
 ## nothing (no fuel, no DATA, no result), `OptionResolve.take` says "fuel", and
 ## the credits line still resolves.
 func _fuel_gate(holder: Control, n: MapGen.MapNode) -> void:
-	LocalEventDrawer.layout = &"column"
 	_fresh(n, &"the_spare_probe")
 	var short := Run.fuel_floor() + OptionTable.science_fuel() - 1
 	Run.fuel = short
@@ -173,15 +166,14 @@ func _fuel_gate(holder: Control, n: MapGen.MapNode) -> void:
 	Run.fuel = Run.FUEL_TANK
 
 
-## WHAT A READING BURNS IS ON ITS CARD (`EncounterDrawer.choice_card`), in all three layouts,
+## WHAT A READING BURNS IS ON ITS CARD (`EncounterDrawer.choice_card`), in the column,
 ## for every science event, and a card short of fuel reads what it needs and cannot be pressed.
 ## Why: docs/why/LocalEventTest.md#what-a-reading-burns-is-on
 func _fuel_cards(holder: Control, n: MapGen.MapNode) -> void:
 	var looked_at := 0
 	var saw_keep := 0
 	var bad: Array = []
-	for layout: StringName in [&"row", &"column", &"card"]:
-		LocalEventDrawer.layout = layout
+	for layout: StringName in [&"column"]:
 		for o in OptionTable.all():
 			if not OptionTable.is_science(o):
 				continue
@@ -202,7 +194,7 @@ func _fuel_cards(holder: Control, n: MapGen.MapNode) -> void:
 				var at := "%s (%s, %s)" % [o.id, layout, tank]
 				var choices: Array = o.get("choices", [])
 				var band := d.panel.get_global_rect()
-				var cap := LocalEventDrawer.CARD_MAX_H if layout == &"card" else LocalEventDrawer.H
+				var cap := LocalEventDrawer.H
 				if d.panel.get_combined_minimum_size().y > cap + 0.5:
 					bad.append("%s: the band asks for %.0f px of its %.0f" % [at, d.panel.get_combined_minimum_size().y, cap])
 				var rects: Array = []
@@ -252,7 +244,6 @@ func _fuel_cards(holder: Control, n: MapGen.MapNode) -> void:
 		print("    " + String(line))
 	_ok("every science card says the fuel it burns and fits, and a refused one reads 'needs N fuel + K to leave' and is not pressable (%d cards, %d faults, K up to %d)" % [looked_at, bad.size(), saw_keep],
 		looked_at > 0 and saw_keep > 0 and bad.is_empty())
-	LocalEventDrawer.layout = &"column"
 	Run.fuel = Run.FUEL_TANK
 
 
@@ -345,7 +336,6 @@ func _reveal_words(t: SignalText, body: String) -> void:
 
 func _end(tree: SceneTree) -> void:
 	LocalEventDrawer.quiet = false
-	LocalEventDrawer.layout = &"column"
 	print("")
 	verdict("localeventtest")
 	tree.quit(1 if _fails > 0 else 0)

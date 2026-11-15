@@ -46,7 +46,6 @@ func _run() -> void:
 	if not at.is_empty():
 		await _old_save(_live(at.values()[0]))
 	LocalEventDrawer.quiet = false
-	LocalEventDrawer.layout = &"column"
 	print("")
 	h.verdict("derelicttest")
 	_tree.quit(1 if h._fails > 0 else 0)
@@ -235,8 +234,7 @@ func _rail() -> SectorScreen:
 
 func _names_the_frame(n: MapGen.MapNode, w: String) -> void:
 	var first: HullData = null
-	for layout: StringName in [&"row", &"column", &"card"]:
-		LocalEventDrawer.layout = layout
+	for layout: StringName in [&"column"]:
 		var d: LocalEventDrawer = await _open(n)
 		if not h._ok("%s (%s): the derelict's page is up" % [w, layout], d != null):
 			continue
@@ -263,7 +261,6 @@ func _names_the_frame(n: MapGen.MapNode, w: String) -> void:
 				_sig(Run.found_hull), _sig(first)], _sig(Run.found_hull) == _sig(first))
 		d.continue_on()
 		await Harness.frames(_tree, 2)
-	LocalEventDrawer.layout = &"column"
 
 
 # -------------------------------------------------------- 2. the same frame

@@ -24,19 +24,14 @@ func _ready() -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	var scr: Script = _encounter_view()
-	var modes: Array = [&"B", &"C"] if Harness.arg("packlayout", "all") == "all" else [StringName(Harness.arg("packlayout"))]
-	if scr.get("pack_layout") == null:
-		modes = [&"-"]
-		print("packlayouttest: this build has no pack layouts; testing the one it has")
+	# B, Jon's pick; C (a column) was retired Nov 14
+	var modes: Array = [&"B"]
 	var pics: Array = []
 	for k in [&"cutter", &"lancer", &"marauder", &"hulk", &"sentinel", &"hellbender", &"custodian"]:
 		for look in maxi(1, DB.enemy_looks(k)):
 			pics.append([k, look])
 	var quick := "quick" in OS.get_cmdline_user_args()
 	for mode in modes:
-		if mode != &"-":
-			scr.set("pack_layout", mode)
 		var before := h._fails
 		var cases := 0
 		var home := await _home(tree)
@@ -263,8 +258,7 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 	if home != Vector2.INF:
 		_ok("%s: your ship stays where it stood (%s, was %s)" % [tag, you[0].position, home], you[0].position.distance_to(home) <= 1.0)
 	# Evenly spaced with room (Jon): equal gaps across a rank and between ranks, at least GAP_MIN.
-	var scr: Script = _encounter_view()
-	if scr.get("pack_layout") == &"B" and n >= 2:
+	if n >= 2:
 		var blocks: Array[Rect2] = []
 		for k in n:
 			var sl: EnemySlot = view.slot(k)
@@ -544,6 +538,3 @@ func _part_dist(p: Array, q: Array) -> float:
 			d2 = minf(d2, v.distance_to(w))
 	return d2
 
-
-func _encounter_view() -> Script:
-	return load("res://scripts/ui/EncounterView.gd")

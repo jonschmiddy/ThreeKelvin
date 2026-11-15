@@ -33,12 +33,8 @@ const HOLE_K := 0.30
 ## At the core the hole is the backdrop, big behind everything (Jon's pick a, Oct 13).
 ## Measured in the Custodian's fight: its picture stands on the black in none of the looks.
 ## Why: docs/why/LocalSky.md#core-hole
-static var core_look := &"a"
-const CORE_LOOKS := {
-	&"a": [Vector2(480.0, 272.0), 250.0],
-	&"b": [Vector2(480.0, 272.0), 330.0],
-	&"c": [Vector2(480.0, 176.0), 250.0],
-}
+const CORE_AT := Vector2(480.0, 272.0)
+const CORE_R := 250.0
 const MIN_WORLD_R := 3.0
 ## At REF_K of the way to the edge the star is drawn at SUN_K; nearer bigger, further smaller.
 const REF_K := 0.45
@@ -1011,11 +1007,9 @@ func band_origin() -> Vector2:
 	return SystemViewS.block_round(_sun - cam * F_BAND)
 
 
-## THE CORE'S HOLE, by `core_look`: {at (game frame px), R (its disc's outer
-## edge, px)}.
+## THE CORE'S HOLE: {at (game frame px), R (its disc's outer edge, px)}.
 func _core_place() -> Dictionary:
-	var v: Array = CORE_LOOKS.get(core_look, CORE_LOOKS[&"a"])
-	return {at = v[0], R = float(v[1])}
+	return {at = CORE_AT, R = CORE_R}
 
 
 ## How big the core's black shadow is drawn, px (`CoreLegacy`: the shadow is a

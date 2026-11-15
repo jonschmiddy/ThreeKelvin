@@ -15,9 +15,6 @@ var _band_back: ColorRect
 var _band_front: ColorRect
 ## Harness switch: off, small worlds are drawn plain, for comparing.
 static var no_rich := false
-## ICY rings were Jon's pick of three (Oct 3); the others stay as harness options.
-## Why: docs/why/PlanetView.md#ring-look
-static var ring_style := Rings.Look.ICY
 ## Memory covers only blocks the picture can show; nothing seen changes.
 ## Why: docs/why/PlanetView.md#memory-clip
 var mem_clip := false
@@ -180,7 +177,7 @@ func set_world(world: StringName, seed: int, r: float, spec_override: Dictionary
 func _set_rings() -> void:
 	if spec.is_empty():
 		return
-	var on: bool = ring_style != Rings.Look.DOTS and spec.get("ring", false)
+	var on: bool = spec.get("ring", false)
 	_ring_back.visible = not on
 	_ring_front.visible = not on
 	_band_back.visible = on
@@ -189,7 +186,7 @@ func _set_rings() -> void:
 	if not on:
 		return
 	var r: float = spec.r
-	var R := Rings.build(ring_style, spec.world, _seed, float(_cell) / r)
+	var R := Rings.build(spec.world, _seed, float(_cell) / r)
 	_mat.set_shader_parameter("ring_prof", R.tex)
 	_mat.set_shader_parameter("ring_in", R.rin)
 	_mat.set_shader_parameter("ring_out", R.rout)

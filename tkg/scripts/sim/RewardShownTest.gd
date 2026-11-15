@@ -25,7 +25,6 @@ func _run() -> void:
 	_tree = get_tree()
 	await Harness.frames(_tree, 2)
 	LocalEventDrawer.quiet = true
-	LocalEventDrawer.layout = &"column"
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_holder = Control.new()

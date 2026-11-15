@@ -42,7 +42,8 @@ wreck instead of the clean one).
 
 ## Hit looks
 
-Above `static var look := _look_arg()`:
+Above `static var look := _look_arg()` (retired Nov 14, sweep 2 ruling 5A, in history at 51d2d5cc;
+the comment now sits above `const SOOT`):
 
 ```text
 WHICH LOOK A SHIP'S HULL TAKES ITS HITS IN. Jon picked D (Oct 17): A, B and C
@@ -50,5 +51,6 @@ mixed per hit (`HullHitFx`), so D is the game's. 0 is this file's marks,
 Chain's holes and all, which only the Custodian still wears (`HitLayers`:
 it is grown, not built); 1 A battle-worn, 2 B heat and stress and 3 C crack
 and peel are D's parts, kept as looks of their own for comparing.
-`-- hull=today|A|B|C|D` on the command line plays one.
+`-- hull=today|A|B|C|D` on the command line plays one. (Until Nov 14: since then every ship but
+the Custodian wears D, and the switch is gone.)
 ```

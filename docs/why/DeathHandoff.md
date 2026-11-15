@@ -9,7 +9,8 @@ FROM THE WRECK TO RUN ENDED (Jon, Oct 13: "the transition from this to this
 is really abrupt"). It was a cut: the fight holding your wreck, then on the
 next frame the RUN ENDED panel over a different sky with a planet in it.
 
-Three ideas, one picked by `SectorScreen.DEATH_HANDOFF`:
+Three ideas, one picked by `SectorScreen.DEATH_HANDOFF` (A; B and C were retired Nov 14, sweep 2
+ruling 5A, with the constant and CombatClip's `handoff=`; in history at 51d2d5cc):
   A  LINGER AND FADE: the hand lowers as it does on a win, and the whole
      picture, HUD and all, darkens and drains over 1.2 s with the wreck in
      view; RUN ENDED then fades and rises in over that picture.

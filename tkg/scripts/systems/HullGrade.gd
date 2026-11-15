@@ -379,63 +379,47 @@ const STENCIL := {
 	"8": ["111", "1.1", "111", "1.1", "111"], "9": ["111", "1.1", "111", "..1", "111"],
 }
 
-## Registry painted on the hull, not a plate, which looked stuck on. Look A (Jon's
-## pick, Oct 15) is tone on tone. A fifth lighter, up from a tenth, as it was too faint.
+## Registry painted on the hull, not a plate, which looked stuck on: tone on tone (Jon's
+## pick A, Oct 15), a fifth lighter, up from a tenth, as it was too faint.
 ## Why: docs/why/HullGrade.md#markings
-static var reg_look: StringName = &"A"
 
 ## The registry's first letter is the hull's manufacturer's (`_Ramps.mf`):
 ## Solari's ships read S-, Korvan's K-.
 
 
-## How much lighter look A's strokes are than the panel under them.
+## How much lighter the registry's strokes are than the panel under them.
 const REG_LIFT := 0.2
 
 
 static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary) -> void:
-	if not at.has("registry") or reg_look == &"C":
+	if not at.has("registry"):
 		_chevrons(img, r, grade, at)
 		return
 	var reg: Array = at.registry
 	var num := "%d%02d" % [2 + seed_in % 7, (seed_in * 37) % 100]
 	var light := String(reg[2]) != "dark"
-	var n := r.grey.size()
-	var ink: Color = r.grey[int(n * (0.92 if grade == 3 else 0.78))] if light else r.grey[int(n * 0.08)]
-	# where each glyph goes: in a row from the placement, or stacked down the band
+	# where each glyph goes: in a row from the placement
 	var cells: Array = []
-	if reg_look == &"B":
-		var band := _band_box(img, r)
-		if band.size.x < 3:
-			_chevrons(img, r, grade, at)
-			return
-		# across the band's biggest piece, in the middle of it
-		var x0 := band.position.x + (band.size.x - 11) / 2
-		var y0b := band.position.y + (band.size.y - 5) / 2
-		for i in num.length():
-			cells.append([num[i], Vector2i(x0 + i * 4, y0b)])
-		ink = r.accent[0] if not r.accent.is_empty() else r.grey[0]
-	else:
-		var cx := int(reg[0])
-		var letter := r.mf.substr(0, 1).to_upper()
-		for ch in (letter if STENCIL.has(letter) else "K") + "-" + num:
-			cells.append([ch, Vector2i(cx, int(reg[1]))])
-			cx += 4
+	var cx := int(reg[0])
+	var letter := r.mf.substr(0, 1).to_upper()
+	for ch in (letter if STENCIL.has(letter) else "K") + "-" + num:
+		cells.append([ch, Vector2i(cx, int(reg[1]))])
+		cx += 4
 	var src := img.duplicate() as Image
 	# One ink for the whole number: per-stroke lifting
 	# made a speckled number read fainter on some hulls.
 	# Why: docs/why/HullGrade.md#markings
-	if reg_look == &"A":
-		var sum := 0.0
-		var k := 0
-		for cell in cells:
-			var c0: Vector2i = cell[1]
-			for gy in 5:
-				for gx in 3:
-					if _inner(src, c0.x + gx, c0.y + gy):
-						sum += luma(src.get_pixel(c0.x + gx, c0.y + gy))
-						k += 1
-		var under := sum / maxf(1.0, float(k))
-		ink = r.lift(Color(under, under, under), REG_LIFT if light else -REG_LIFT)
+	var sum := 0.0
+	var k := 0
+	for cell in cells:
+		var c0: Vector2i = cell[1]
+		for gy in 5:
+			for gx in 3:
+				if _inner(src, c0.x + gx, c0.y + gy):
+					sum += luma(src.get_pixel(c0.x + gx, c0.y + gy))
+					k += 1
+	var under := sum / maxf(1.0, float(k))
+	var ink := r.lift(Color(under, under, under), REG_LIFT if light else -REG_LIFT)
 	for cell in cells:
 		var glyph: Array = STENCIL.get(cell[0], STENCIL["-"])
 		var at0: Vector2i = cell[1]
@@ -447,9 +431,6 @@ static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictiona
 				var y := at0.y + gy
 				if not _inner(img, x, y):
 					continue
-				# on the band, only where the band is (it reads painted on it)
-				if reg_look == &"B" and not r.is_accent(src.get_pixel(x, y)):
-					continue
 				var on := true
 				match grade:
 					0: on = noise(x, y, seed_in + 11) < 0.3
@@ -458,39 +439,6 @@ static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictiona
 					continue
 				img.set_pixel(x, y, ink)
 	_chevrons(img, r, grade, at)
-
-
-## The band's box: the biggest run of the manufacturer's colour.
-static func _band_box(img: Image, r: _Ramps) -> Rect2i:
-	var w := img.get_width()
-	var h := img.get_height()
-	var seen := PackedByteArray()
-	seen.resize(w * h)
-	var best := Rect2i()
-	var best_n := 0
-	for y0 in h:
-		for x0 in w:
-			if seen[y0 * w + x0] or img.get_pixel(x0, y0).a <= 0.0 or not r.is_accent(img.get_pixel(x0, y0)):
-				continue
-			var run: Array[Vector2i] = [Vector2i(x0, y0)]
-			seen[y0 * w + x0] = 1
-			var i := 0
-			var box := Rect2i(x0, y0, 1, 1)
-			while i < run.size():
-				var p := run[i]
-				i += 1
-				box = box.expand(p).expand(p + Vector2i.ONE)
-				for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-					var q := p + d
-					if q.x < 0 or q.y < 0 or q.x >= w or q.y >= h or seen[q.y * w + q.x]:
-						continue
-					if img.get_pixel(q.x, q.y).a > 0.0 and r.is_accent(img.get_pixel(q.x, q.y)):
-						seen[q.y * w + q.x] = 1
-						run.append(q)
-			if run.size() > best_n:
-				best_n = run.size()
-				best = box
-	return best
 
 
 static func _chevrons(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:

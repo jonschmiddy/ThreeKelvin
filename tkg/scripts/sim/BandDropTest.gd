@@ -32,7 +32,6 @@ func _run() -> void:
 	Router.animate_in_harness = true
 	Rng.forced = 1
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	LocalEventDrawer.layout = &"column"
 	var idx := 11
 	var n: MapGen.MapNode = Run.map[idx]
 	Run.at = idx

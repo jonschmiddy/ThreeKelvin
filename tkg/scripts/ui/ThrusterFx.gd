@@ -5,14 +5,13 @@ extends RefCounted
 ## Only the length moves, in held steps; every frame would fuse into jitter.
 ## Why: docs/why/ThrusterFx.md#coded-engine-flame
 
-enum Look { OVERLOAD, DRIVE, SPILL }
+## A, the overload's plume, Jon's pick (Oct 13); B DRIVE and C SPILL were retired Nov 14.
+enum Look { OVERLOAD }
 enum Thrust { IDLE, CRUISE, FULL }
 
-const LOOK_NAMES := ["A  OVERLOAD", "B  DRIVE", "C  SPILL"]
+const LOOK_NAMES := ["A  OVERLOAD"]
 const LOOK_BLURB := [
 	"The overload's own plume as it is: four held heat bands, white core to red, the outer two dithered.",
-	"A tighter jet with bright knots held along its axis: blue-white for your drive, the warm ramp for theirs.",
-	"A short, dense flame, and its light spilled onto the hull's own stern so the engine sits in the ship.",
 ]
 const THRUST_NAMES := ["IDLE", "CRUISE", "FULL"]
 
@@ -37,15 +36,11 @@ const STEPS := 48
 const SHAPE := {
 	Look.OVERLOAD: {expo = 1.3, spread = 0.12, len = 1.0, thr = [0.72, 0.48, 0.28, 0.12],
 		lv = [1.0, 0.8, 0.55, 0.4], dith = [1.0, 1.0, 0.75, 0.5]},
-	Look.DRIVE: {expo = 0.9, spread = 0.06, len = 1.15, thr = [0.74, 0.5, 0.3, 0.14],
-		lv = [1.0, 0.85, 0.6, 0.42], dith = [1.0, 1.0, 0.75, 0.5]},
-	Look.SPILL: {expo = 0.6, spread = 0.2, len = 0.6, thr = [0.7, 0.45, 0.25, 0.1],
-		lv = [1.0, 0.85, 0.65, 0.42], dith = [1.0, 1.0, 1.0, 0.5]},
 }
 const BAYER: Array[float] = [0.0, 0.5, 0.75, 0.25]
 
 var look: int = Look.OVERLOAD
-## Warm ramp (enemies, and A and C for everyone) or cold (B on the player).
+## The warm ramp; the cold one was look B's on the player.
 var warm: bool = true
 ## Each nozzle: {pts: PackedVector2Array (first air pixel per row, canvas px), dir: +1 or -1}.
 var nozzles: Array = []
@@ -55,7 +50,6 @@ var _w := 0
 var _h := 0
 var _solid := PackedByteArray()   ## 1 where the hull is opaque, over the whole canvas
 var _cache := {}                  ## Vector3i(nozzle, L, loop frame) -> {tex, at}
-var _spill := {}                  ## thrust -> {tex, at}
 var _hold := PackedFloat32Array() ## step start times, STEPS of them, then the loop length
 var _offs: Array = []             ## [step] -> PackedInt32Array, one -1..1 per nozzle
 var _loop := 1.0
@@ -99,7 +93,7 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 	var fx := ThrusterFx.new()
 	fx._take_canvas(img)
 	fx.look = the_look
-	fx.warm = the_look != Look.DRIVE
+	fx.warm = true
 	var n := maxi(1, h.exhaust_frames)
 	# Every strip's flame axis (open space only) and size, first: a mouth goes
 	# to the strip nearest it, and the hull's biggest strip is its MAIN drive.
@@ -771,8 +765,6 @@ func length_at(n: int, thrust: int, t: float) -> int:
 		return nozzle_length(n, thrust)
 	var o: PackedInt32Array = _offs[step_at(t)]
 	var amp := FLICK[thrust]
-	if look == Look.SPILL:
-		amp = maxi(1, amp - 1)
 	return maxi(2, nozzle_length(n, thrust) + o[n] * amp)
 
 
@@ -798,8 +790,6 @@ func warm_up(thrust: int) -> void:
 			var amp := FLICK[thrust]
 			for d in range(-amp, amp + 1):
 				plume(n, maxi(2, b + d))
-	if look == Look.SPILL:
-		spill(thrust)
 
 
 ## Draws every engine at time t onto an ADD canvas. The per-frame cost is a lookup and a texture.
@@ -807,10 +797,6 @@ func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float, wait: bool = t
 		mod: Color = Color.WHITE) -> void:
 	if not wait and not is_ready():
 		return
-	if look == Look.SPILL:
-		var sp := spill(thrust)
-		if sp.tex != null:
-			ci.draw_texture(sp.tex, origin + (sp.at as Vector2))
 	for n in nozzles.size():
 		var p := plume(n, length_at(n, thrust, t), frame_at(n, t))
 		if p.tex != null:
@@ -1291,14 +1277,8 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 				fall = gain * dim * pow(1.0 - float(de2) / float(Lr - skip + 1), expo)
 			# Not wider than the nozzle at its mouth, as a spread of 1 was 2 rows too tall (Jon).
 			var spread := int(float(d) * spk) + (1 if d >= 2 else 0)
-			# B's knots: every fifth axis pixel, held, lifted a band while the jet is hot.
-			var knot := 0.0
-			if look == Look.DRIVE and absf(u) < 0.4 and d >= 3 and d % 5 == 3 and float(d) < float(L) * 0.75:
-				knot = 0.24
 			for dyy in range(-spread, spread + 1):
 				var v := fall * (1.0 - absf(float(dyy)) / float(spread + 1))
-				if knot > 0.0 and absi(dyy) <= 1:
-					v = minf(1.0, v + knot * (1.0 if dyy == 0 else 0.5))
 				var cx := ex + d * dir
 				var cy := ey + dyy
 				# THE WOBBLE: the outline sways a pixel side to side along the
@@ -1339,66 +1319,3 @@ func _quantize(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, s: Dictio
 			im.set_pixel(x, y, FxKit.lv(ramp[band], float(lvs[band])))
 			any = true
 	return {img = im if any else null, at = at}
-
-
-## C's hull light is keyed to thrust, not flicker, or it would double the pixels that change.
-func spill(thrust: int) -> Dictionary:
-	if _spill.has(thrust):
-		return _spill[thrust]
-	var R := clampf(3.0 + float(base_length(thrust)) * 0.5, 4.0, 11.0)
-	var ir := int(ceil(R))
-	var lo := Vector2i(1 << 20, 1 << 20)
-	var hi := Vector2i(-(1 << 20), -(1 << 20))
-	for nz in nozzles:
-		for e in (nz.pts as PackedVector2Array):
-			lo = Vector2i(mini(lo.x, int(e.x)), mini(lo.y, int(e.y)))
-			hi = Vector2i(maxi(hi.x, int(e.x)), maxi(hi.y, int(e.y)))
-	if nozzles.is_empty():
-		_spill[thrust] = {tex = null, at = Vector2i.ZERO}
-		return _spill[thrust]
-	var at := lo - Vector2i(ir, ir)
-	var W := hi.x - lo.x + 2 * ir + 1
-	var Hh := hi.y - lo.y + 2 * ir + 1
-	var buf := PackedFloat32Array()
-	buf.resize(W * Hh)
-	for nz2 in nozzles:
-		var dir: int = nz2.dir
-		for e2 in (nz2.pts as PackedVector2Array):
-			for dy in range(-ir, ir + 1):
-				for dx in range(-ir, ir + 1):
-					if dx * dir > 0:
-						continue
-					var cx := int(e2.x) + dx
-					var cy := int(e2.y) + dy
-					if not _is_solid(cx, cy):
-						continue
-					var dist := sqrt(float(dx * dx + dy * dy))
-					if dist > R:
-						continue
-					var v := pow(1.0 - dist / R, 1.6)
-					var i := (cy - at.y) * W + (cx - at.x)
-					buf[i] = maxf(buf[i], v)
-	var im := Image.create(W, Hh, false, Image.FORMAT_RGBA8)
-	var ramp := _ramp()
-	var any := false
-	for y in Hh:
-		for x in W:
-			var v2 := buf[y * W + x]
-			var bz: float = BAYER[posmod(at.y + y, 2) * 2 + posmod(at.x + x, 2)]
-			var c := Color()
-			if v2 > 0.5:
-				c = FxKit.lv(ramp[2], 0.55)
-			elif v2 > 0.25:
-				if bz >= 0.75:
-					continue
-				c = FxKit.lv(ramp[3], 0.46)
-			elif v2 > 0.08:
-				if bz >= 0.5:
-					continue
-				c = FxKit.lv(ramp[3], 0.3)
-			else:
-				continue
-			im.set_pixel(x, y, c)
-			any = true
-	_spill[thrust] = {tex = ImageTexture.create_from_image(im) if any else null, at = at}
-	return _spill[thrust]

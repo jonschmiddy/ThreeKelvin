@@ -1,0 +1,1 @@
+- **Changed** — for developers: the looks Jon turned down (the old hull damage marks, the outcome looks other than D, the event card and row layouts, the pack column, the rejected rings, flames, registry numbers, death hand-offs and core placements) are gone from the game code and its sheets. Nothing a player sees changes.

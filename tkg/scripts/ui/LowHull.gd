@@ -137,7 +137,6 @@ static func shown() -> Vector2i:
 	if Run.hull == null:
 		return Vector2i(0, 0)
 	var hp := Run.hp if SectorScreen.shown_hull < 0 else SectorScreen.shown_hull
-	hp = int(OutcomeRow.held.get("hp", hp))
 	return Vector2i(hp, Run.max_hp())
 
 

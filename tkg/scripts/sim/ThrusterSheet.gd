@@ -142,7 +142,7 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 		configs = [{look = 0, name = "A  LIVELY (before)", fps = 8.0, rag = 1.0, dyn = false},
 			{look = 0, name = "A  DYNAMIC + SPARKS", fps = 8.0, rag = 1.0, dyn = true}]
 	else:
-		for lk in 3:
+		for lk in ThrusterFx.LOOK_NAMES.size():
 			configs.append({look = lk, name = ThrusterFx.LOOK_NAMES[lk], fps = float(Harness.arg("fps", "8")),
 				rag = float(Harness.arg("rag", "1.0")), dyn = false})
 	var cols := 1 + configs.size()
@@ -195,7 +195,7 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 		looks[ci] = {fx = fx, info = {look = cfg.name, blurb = ThrusterFx.LOOK_BLURB[look], dynamic = bool(cfg.dyn),
 			loop_frames = fx.frames(), flame_fps = fx.fps,
 			nozzles = nz, lengths = lens, find_ms = snappedf(find_ms, 0.01), build_ms = snappedf(build_ms, 0.01),
-			pictures = fx._cache.size() + fx._spill.size()}}
+			pictures = fx._cache.size()}}
 	var starts: Array = _check_starts(h, hull_img, looks) if player else []
 	for r2 in 3:
 		for c2 in cols:

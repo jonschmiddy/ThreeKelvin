@@ -6,17 +6,12 @@ extends ShipHitFx
 ## Why: docs/why/HullHitFx.md#hull-hit-looks
 
 const GLOW_HZ := 12.0
-const NAMES_A := ["DENT", "SOOT", "SCRAPE", "RIVETS", "SPLIT"]
-const NAMES_B := ["BLOOM", "SPLASH", "STRESS"]
-const NAMES_C := ["PEEL", "KNOCK", "SOOT"]
 const NAMES_D := ["DENT", "SCRAPE", "RIVETS", "SOOT", "BLOOM", "PEEL", "KNOCK", "SPLIT"]
 ## D at most this many breaches sputtering and this many split edges, the
 ## newest, so a wrecked hull does not turn into noise.
 const D_BREACHES := 3
 const D_SPLITS := 2
 
-## 1 A, 2 B, 3 C, 4 D (all three mixed per hit; `ShipHitFx.look`).
-var style := 1
 ## Plate marks leave a peeled plate's bared structure alone, so a dent never sits inside
 ## it.
 var _plate := false
@@ -322,7 +317,7 @@ func _pick(edge: bool, rad: float, near: Vector2 = Vector2.INF, around: Vector2 
 			score = -_screen(Vector2i(x, y)).distance_to(near) * 0.05 + 0.4 * lv + _rng.randf() * 0.4
 		else:
 			score = 0.35 * float(facing) * (float(x) - cx) / bw + 1.2 * lv + _rng.randf() * 0.6
-		if style == 4 and _what[i] == 2:
+		if _what[i] == 2:
 			score -= 3.0
 		for m in _marks:
 			var dd := Vector2(x, y).distance_to(m.p)
@@ -344,7 +339,7 @@ func hit(amount: int, hp_after: int, max_hp: int, kind: int = -1, near: Vector2 
 	_sc = SIZE * mark_scale
 	if kind < 0:
 		kind = _roll_x(frac)
-	var edge := (kind == 4 and style == 1) or (kind == 7 and style == 4)
+	var edge := kind == 7
 	var p := _pick(edge, 6.0, near)
 	_one(kind, p, frac, big)
 	rolled.append(_name(kind))
@@ -362,41 +357,24 @@ func hit(amount: int, hp_after: int, max_hp: int, kind: int = -1, near: Vector2 
 	var sp := _screen(p)
 	_bloom(p, (7.0 if big else 5.0) * mark_scale, 0.07, 0.95)
 	_sparks(sp, 16 if big else 8, 150.0 if big else 110.0, Vector2(float(facing) * 0.9, 0.0))
-	if (style == 2 or style == 4) and _hp <= 0.6:
+	if _hp <= 0.6:
 		_stress(p)
 	_gdirty = true
 	return kind
 
 
 func _name(k: int) -> String:
-	match style:
-		1:
-			return NAMES_A[k]
-		2:
-			return NAMES_B[k]
-		4:
-			return NAMES_D[k]
-	return NAMES_C[k]
+	return NAMES_D[k]
 
 
 func _roll_x(frac: float) -> int:
 	var small := frac < 0.12
 	var w: Array
-	match style:
-		1:
-			w = [0.25, 0.35, 0.25, 0.15, 0.0] if small else [0.45, 0.2, 0.2, 0.15, 0.0]
-			if _hp <= VENT_FROM and _vents2.size() < MAX_VENTS:
-				w[4] = 0.3
-		2:
-			w = [0.5, 0.3, 0.2] if small else [0.3, 0.3, 0.4]
-		4:
-			# small hits lean to A's dents and scrapes and C's knocked
-			# panels; big ones to B's blooms and C's peels
-			w = [0.28, 0.24, 0.1, 0.1, 0.1, 0.0, 0.18, 0.0] if small 				else [0.1, 0.05, 0.05, 0.05, 0.35, 0.3, 0.1, 0.0]
-			if _hp <= VENT_FROM and _count_vents(false) < D_SPLITS:
-				w[7] = 0.15
-		_:
-			w = [0.25, 0.45, 0.3] if small else [0.55, 0.35, 0.1]
+	# small hits lean to A's dents and scrapes and C's knocked
+	# panels; big ones to B's blooms and C's peels
+	w = [0.28, 0.24, 0.1, 0.1, 0.1, 0.0, 0.18, 0.0] if small 				else [0.1, 0.05, 0.05, 0.05, 0.35, 0.3, 0.1, 0.0]
+	if _hp <= VENT_FROM and _count_vents(false) < D_SPLITS:
+		w[7] = 0.15
 	var tot := 0.0
 	for x in w:
 		tot += float(x)
@@ -410,14 +388,7 @@ func _roll_x(frac: float) -> int:
 
 func _roll_extra() -> int:
 	var r := _rng.randf()
-	match style:
-		1:
-			return 1 if r < 0.45 else (0 if r < 0.75 else 2)
-		2:
-			return 0 if r < 0.6 else 1
-		4:
-			return 0 if r < 0.3 else (1 if r < 0.55 else (3 if r < 0.8 else 6))
-	return 2 if r < 0.4 else (1 if r < 0.75 else 0)
+	return 0 if r < 0.3 else (1 if r < 0.55 else (3 if r < 0.8 else 6))
 
 
 func _count_vents(breach: bool) -> int:
@@ -430,23 +401,7 @@ func _count_vents(breach: bool) -> int:
 
 func _one(kind: int, p: Vector2i, frac: float, big: bool) -> void:
 	_marks.append({p = Vector2(p), r = 8.0 * _sc / SIZE})
-	match style:
-		1:
-			match kind:
-				0: _dent(p, big)
-				1: _soot(p, big)
-				2: _scrape(p, big)
-				3: _rivets(p, big)
-				4: _split(p, big)
-		2:
-			_heat(p, frac, big, kind)
-		3:
-			match kind:
-				0: _peel(p, big)
-				1: _knock(p, big)
-				2: _soot(p, big)
-		4:
-			_mixed(kind, p, frac, big)
+	_mixed(kind, p, frac, big)
 
 
 ## Every D hit has B's bloom under it: the one mark that reads on a dark hull.
@@ -752,7 +707,7 @@ func _stress(p: Vector2i) -> void:
 	var q := _near_seam(p, int(14.0 * maxf(0.5, mark_scale)))
 	if q.x < 0:
 		return
-	var budget := int((30.0 + 90.0 * clampf((0.6 - _hp) / 0.6, 0.0, 1.0)) * mark_scale * (0.6 if style == 4 else 1.0))
+	var budget := int((30.0 + 90.0 * clampf((0.6 - _hp) / 0.6, 0.0, 1.0)) * mark_scale * 0.6)
 	var seen := {q: 0}
 	var queue: Array[Vector2i] = [q]
 	var head := 0
@@ -1111,7 +1066,7 @@ func _glow_once(step: int, gain: float) -> void:
 					continue
 				_heat_at(i, lvl * pow(1.0 - d, 1.3) * 1.15)
 	_blooms = keep
-	if (style == 2 or style == 4) and _hp <= 0.6:
+	if _hp <= 0.6:
 		for i2 in _lit_px:
 			var base: float = _lit[i2]
 			var pulse := 0.82 + 0.18 * sin(tq * 3.1 + float(i2 % 97) * 0.37)
@@ -1147,8 +1102,8 @@ func _process(_delta: float) -> void:
 func advance(delta: float) -> void:
 	t += delta
 	# B: a glowing line throws sparks now and then, faster the lower the hull
-	if (style == 2 or style == 4) and _hp <= 0.6 and not _lit_px.is_empty() and t >= _next_spark:
-		_next_spark = t + _fx.randf_range(0.15, 0.5) * (1.6 if _hp > 0.3 else 1.0) * (1.8 if style == 4 else 1.0)
+	if _hp <= 0.6 and not _lit_px.is_empty() and t >= _next_spark:
+		_next_spark = t + _fx.randf_range(0.15, 0.5) * (1.6 if _hp > 0.3 else 1.0) * 1.8
 		var i: int = _lit_px[_fx.randi_range(0, _lit_px.size() - 1)]
 		var q := Vector2i(i % _w, i / _w)
 		var up := -1.0 if float(q.y) < float(_H.cy) else 1.0
@@ -1166,15 +1121,14 @@ func advance(delta: float) -> void:
 		# a split edge sputters from 60% hull, a breach from half
 		var low := 0.5 if bool(v.sparks) else VENT_FROM
 		# D: only the newest few go on sputtering
-		if style == 4:
-			if bool(v.sparks):
-				breaches += 1
-				if breaches > D_BREACHES:
-					continue
-			else:
-				splits += 1
-				if splits > D_SPLITS:
-					continue
+		if bool(v.sparks):
+			breaches += 1
+			if breaches > D_BREACHES:
+				continue
+		else:
+			splits += 1
+			if splits > D_SPLITS:
+				continue
 		if t < float(v.until):
 			if _fx.randf() < 0.6:
 				_puff(sp + nv, nv, 1)
