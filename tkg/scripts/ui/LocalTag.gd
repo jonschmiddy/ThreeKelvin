@@ -70,7 +70,10 @@ func fill(n: MapGen.MapNode) -> void:
 			line = "%s IS FIGHTING HERE" % Router.join_fight_names()
 			if Router.join_state() != Router.JOIN_SHUT:
 				doors.append(["JOIN FIGHT", Router.join_fight])
-		if LocalEventDrawer.can_reopen(n) and events != null and events.page == &"":
+		# (only for an event put off: never while one is about to open on its own)
+		if LocalEventDrawer.can_reopen(n) and events != null and events.page == &"" \
+				and events.deferred.is_empty() and LocalEventDrawer.pending.is_empty() \
+				and (events.put_off or EncounterDrawer.option_state(n, LocalEventDrawer.bar_option(n)).kind == &"left"):
 			doors.append(["OPEN IT", events.open.bind(LocalEventDrawer.bar_option(n))])
 		var pile := Run.sector_loot(n)
 		var loose := Run.jetsam_left(n, pile) if pile != null else 0

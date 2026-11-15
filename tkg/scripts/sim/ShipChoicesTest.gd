@@ -246,6 +246,21 @@ func _beat_and_click(_n: MapGen.MapNode) -> void:
 
 
 func _not_now() -> void:
+	# AN EVENT ABOUT TO OPEN ON ITS OWN (held for the arrival, `deferred`) is never offered as
+	# OPEN IT first (Jon, Nov 15): the place's tag waits for the event tag
+	var tag0 := _sc.find_child("LocalTag", false, false) as LocalTag
+	_d.deferred = [_d.node.index, 1]
+	LocalEventDrawer.last = [_d.node.index, 1]
+	if tag0 != null:
+		tag0.fill(_d.node)
+		await Harness.frames(_tree, 2)
+	_ok("an event about to open on its own: no OPEN IT on the place's tag",
+		tag0 != null and tag0.find_child("OPENIT", false, false) == null)
+	_d.deferred = []
+	if tag0 != null:
+		tag0.fill(_d.node)
+		await Harness.frames(_tree, 2)
+	_ok("  nor before it was put off", tag0 != null and tag0.find_child("OPENIT", false, false) == null)
 	if not await _open_settled(1):
 		_ok("%s opened" % _d.node.options[1], false)
 		return
@@ -262,6 +277,9 @@ func _not_now() -> void:
 		await _click(oi)
 		await Harness.frames(_tree, 3)
 		_ok("OPEN IT opens it again on the ship", _d.page == &"event" and _d.opt == 1)
+		# (its text was printed once already: whole now, and the choices with no beat)
+		_ok("  its text whole at once, never printed again, the choices with no beat",
+			_d.text != null and _d.text.done and _ov().showing)
 		_d.not_now()
 		await Harness.frames(_tree, 2)
 
@@ -291,16 +309,36 @@ func _loot() -> void:
 	_ok("a part on the pile shows as a bracketed word (%s)" % (rw.verb if rw != null else "none"), rw != null and rw.loot and rw.verb.contains("PART"))
 	if rw == null:
 		return
+	_ok("  as each thing's picture, not a count (%d)" % rw.things.size(), rw.things.size() >= 1 and rw.things[0][1] != "")
 	_d.text.skip()
 	await _click(rw)
 	await Harness.frames(_tree, 3)
 	var tv := Harness.first(_sc, func(x: Node) -> bool: return x is TransferView)
 	_ok("clicking it opens SECTOR LOOT (TransferView)", tv != null)
 	if tv != null:
+		var left := _shown_over(tv as Control)
+		_ok("  and nothing of the event is drawn while it is up (%s)" % ", ".join(left), left.is_empty())
 		(tv as TransferView).close()
-		await Harness.frames(_tree, 3)
+		var fc := 0
+		while _d.get("_transfer") != null and fc < 120:
+			await Harness.frames(_tree, 1)
+			fc += 1
+		await Harness.frames(_tree, 2)
+		_ok("  DONE brings the event back, its answer whole (never printed twice)",
+			_ov().is_visible_in_tree() and _d.page == &"result" and _d.text != null and _d.text.done)
 	_d.continue_on()
 	await Harness.frames(_tree, 2)
+
+
+## What of the event and the place's tag is still on screen over `tv`, by name.
+func _shown_over(tv: Control) -> Array[String]:
+	var out: Array[String] = []
+	if _ov() != null and _ov().is_visible_in_tree():
+		out.append("ShipChoices")
+	var tag := _sc.find_child("LocalTag", false, false) as LocalTag
+	if tag != null and tag.is_visible_in_tree() and UiRect.of(tag).intersects(UiRect.of(tv)):
+		out.append("LocalTag")
+	return out
 
 
 ## The band's warning on the pointed-at label: taking one of a pair closes the other.

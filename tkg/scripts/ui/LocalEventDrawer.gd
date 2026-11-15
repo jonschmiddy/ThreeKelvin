@@ -233,8 +233,17 @@ static func auto_open(n: MapGen.MapNode) -> int:
 static func forget_auto(index: int = -1) -> void:
 	if index < 0:
 		_auto.clear()
+		printed.clear()
 	else:
 		_auto.erase(index)
+
+
+## THE TEXTS ALREADY PRINTED, by "system:option:page" (Jon, Nov 15: a text you watched arrive
+## never arrives again; after the loot, OPEN IT or LOCAL again it is shown whole).
+static var printed := {}
+## This visit's event was put off (NOT NOW, or walked away from): only then does the place's tag
+## offer OPEN IT, never while the event is about to open on its own.
+var put_off := false
 
 
 ## An event asked for here, waiting for the move to land (`attach`): handed
@@ -512,6 +521,7 @@ func _choice_cards(i: int, o: Dictionary) -> Array:
 func not_now() -> void:
 	if _busy:
 		return
+	put_off = true
 	_drop()
 
 
@@ -562,8 +572,9 @@ func _ship_event(i: int, o: Dictionary) -> void:
 	var words := String(o.get("body", ""))
 	if EncounterDrawer.option_state(node, i).kind == &"left":
 		words = "You walked away from this. It is still open. " + words
+	put_off = false
 	_ship_play(_on_ship().event(String(o.get("title", "")).to_upper(), _tags(o),
-		EncounterDrawer.tag_colour(o), words))
+		EncounterDrawer.tag_colour(o), words), &"event")
 
 
 ## WHAT TAKING choice `c` WOULD CLOSE, as the band says it on a pointed-at card, or "".
@@ -580,7 +591,7 @@ func _show_result() -> void:
 		_result()
 		return
 	page = &"result"
-	_ship_play(_on_ship().result(out))
+	_ship_play(_on_ship().result(out), &"result")
 
 
 func _on_ship() -> ShipChoices:
@@ -596,14 +607,20 @@ func _on_ship() -> ShipChoices:
 	return _ship
 
 
-func _ship_play(t: SignalText) -> void:
+func _ship_play(t: SignalText, kind: StringName) -> void:
 	text = t
 	visible = true
 	if not _up:
 		_up = true
 		changed.emit()
+	var key := "%d:%s:%s" % [node.index, node.options[opt], kind]
+	_ship.whole = printed.has(key)
+	t.finished.connect(func() -> void: printed[key] = true, CONNECT_ONE_SHOT)
 	t.finished.connect(_text_done, CONNECT_ONE_SHOT)
-	t.play()
+	if _ship.whole:
+		t.skip()
+	else:
+		t.play()
 
 
 ## THEY ARE FIRING: the event goes, then the fight.
@@ -751,6 +768,8 @@ func continue_on() -> void:
 	if text != null and not text.done:
 		text.skip()
 		return
+	# (walked away from: the place's tag keeps OPEN IT)
+	put_off = put_off or bool(out.get("stay", false))
 	_drop()
 
 
@@ -767,6 +786,9 @@ func open_reward() -> void:
 		return
 	_transfer = TransferView.new()
 	screen.add_child(_transfer)
+	# (on your ship: the event tag, the reward stack and the labels stand down under the pile)
+	if _ship != null:
+		_ship.visible = false
 	# (the pile opens at your ship, in the room above this band)
 	if visible and _ship == null:
 		_transfer.floor_g = UiRect.of(self).position.y
@@ -774,6 +796,8 @@ func open_reward() -> void:
 	_transfer.setup(h, node, func() -> void:
 		_transfer.queue_free()
 		_transfer = null
+		if _ship != null:
+			_ship.visible = true
 		if page == &"result":
 			_show_result(), true, LOOT_WORD)
 
