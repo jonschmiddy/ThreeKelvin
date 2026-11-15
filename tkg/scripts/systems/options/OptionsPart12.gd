@@ -15,8 +15,8 @@ static func _coma(out: Array[Dictionary]) -> void:
 	out.append_array([
 		{
 			id = &"comet_coma",
-			title = "The coma",
-			body = "The comet's coma sweeps past, and an Okafor crew far off will buy your pass times.",
+			title = "The comet's cloud",
+			body = "A comet is passing close enough to read its gas cloud, and a mining crew will pay to know when it passes.",
 			tags = [&"science"],
 			site = &"comet",
 			group = &"",
@@ -24,17 +24,17 @@ static func _coma(out: Array[Dictionary]) -> void:
 			min_danger = 1,
 			max_danger = 10,
 			choices = [
-				{label = "Read the coma", burns = true, reads = 1, effect = func() -> Dictionary:
+				{label = "Read the gas cloud", burns = true, reads = 1, effect = func() -> Dictionary:
 					Run.drain_fuel(OptionTable.science_fuel())
 					Run.add_data(CometPath.pay_here())
-					CometPath.toll_here("Rock in a comet's coma broke the hull.")
+					CometPath.toll_here("Rock in a comet's gas cloud broke the hull.")
 					return {text = CometPath.by_spot([
-						"The coma is thin this far out, and the reading comes in clean.",
-						"Grit off the head rattles on the plating while the dish reads the thick coma.",
+						"The cloud is thin this far out, and the reading comes in clean.",
+						"Grit off the head rattles on the plating while the dish reads the thick cloud.",
 						"The comet boils this close to the star, and rock and heat come through the plating."])}},
-				{label = "Sell the pass times", effect = func() -> Dictionary:
+				{label = "Sell them the timing", effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(10))
-					return {text = "The Okafor crew reads the coma from far off and pays when their numbers come in."}},
+					return {text = "The mining crew pays and reads the comet themselves."}},
 			],
 		},
 	])
@@ -45,7 +45,7 @@ static func _tail(out: Array[Dictionary]) -> void:
 		{
 			id = &"comet_dust",
 			title = "The dust tail",
-			body = "The comet's dust tail carries rock across your spot, and a late courier will buy your pass times.",
+			body = "A comet's rocky dust tail is crossing your spot, and a courier who will miss it pays for its course.",
 			tags = [&"science"],
 			site = &"comet",
 			group = &"",
@@ -53,17 +53,17 @@ static func _tail(out: Array[Dictionary]) -> void:
 			min_danger = 1,
 			max_danger = 10,
 			choices = [
-				{label = "Put the plate out", burns = true, reads = 1, effect = func() -> Dictionary:
+				{label = "Catch a dust sample", burns = true, reads = 1, effect = func() -> Dictionary:
 					Run.drain_fuel(OptionTable.science_fuel())
 					Run.add_data(CometPath.pay_here())
 					CometPath.toll_here("Rock in a comet's dust tail broke the hull.")
 					return {text = CometPath.by_spot([
 						"The tail is thin out here, and the plate comes back dusted gray.",
-						"The plate comes back pitted, and two rocks hit the hull on the way through.",
+						"The plate comes back pitted, and two rocks hit the hull.",
 						"Near the star the tail scorches the plate, and rock and heat come through the hull."])}},
-				{label = "Sell your pass times", effect = func() -> Dictionary:
+				{label = "Sell its course", effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(10))
-					return {text = "The courier pays and turns to catch the tail where it leaves the system."}},
+					return {text = "The courier pays and goes to meet the tail where it leaves the system."}},
 			],
 		},
 	])
@@ -74,7 +74,7 @@ static func _crust(out: Array[Dictionary]) -> void:
 		{
 			id = &"comet_crust",
 			title = "The dark crust",
-			body = "The comet's jets throw rock off its crust, and a survey crew nearby will buy your camera log.",
+			body = "Gas jets throw rock off a passing comet's crust, and a survey crew will buy your camera log of them.",
 			tags = [&"science"],
 			site = &"comet",
 			group = &"",
@@ -82,7 +82,7 @@ static func _crust(out: Array[Dictionary]) -> void:
 			min_danger = 1,
 			max_danger = 10,
 			choices = [
-				{label = "Map the jets", burns = true, reads = 1, effect = func() -> Dictionary:
+				{label = "Film the jets", burns = true, reads = 1, effect = func() -> Dictionary:
 					Run.drain_fuel(OptionTable.science_fuel())
 					Run.add_data(CometPath.pay_here())
 					CometPath.toll_here("A jet off a comet's crust threw rock into the hull.")
@@ -92,7 +92,7 @@ static func _crust(out: Array[Dictionary]) -> void:
 						"The crust breaks open this near the star, and rock and hot gas hit the hull."])}},
 				{label = "Sell the camera log", effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(10))
-					return {text = "The survey crew pays and will make the map itself."}},
+					return {text = "The survey crew pays and maps the jets from your log."}},
 			],
 		},
 	])
