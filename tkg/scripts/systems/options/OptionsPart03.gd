@@ -23,7 +23,7 @@ static func entries() -> Array[Dictionary]:
 				{label = "Buy fuel at her rates", cost_credits = 4, effect = func() -> Dictionary:
 					Run.add_credits(-4)
 					Run.fuel += 6
-					return {text = "The rate is on a sheet she cannot change and has no reason to doubt. She stamps the receipt twice, once for you and once for a copy no one has collected in eleven years."}},
+					return {text = "The rate is on a sheet she cannot change and has no reason to doubt. She stamps the receipt twice. One stamp is for you, and one is for a copy no one has collected in eleven years."}},
 				{label = "Stay and copy the folder", effect = func() -> Dictionary:
 					Run.drain_fuel(1)
 					return {text = "Copying it takes most of a shift, with the reactor idling. It is other crews' paperwork about the thing at the core. There are transit logs that stop mid line and a mass estimate crossed out four times. There is an order for instruments that were never sent and never cancelled. She reads along with you in silence. In eleven years, no one else has asked to see it.", material_id = &"survey_film", material = &"event"}},
@@ -248,7 +248,7 @@ static func entries() -> Array[Dictionary]:
 					var lost := Run.contraband_count()
 					if lost > 0:
 						Run.add_credits(-20 * lost)
-						return {text = "They find what you are carrying and price it into the paperwork. You pay both bills. What is left in the impound is still worth more than the morning cost you.", module = true}
+						return {text = "They find what you are carrying and price it into the paperwork. You pay both bills. What is left in the impound is still worth more than the stop cost you.", module = true}
 					return {text = "You are clean, so they wave you through, first in line for the impound. You pay the price on the notice.", module = true, material = &"wreck"}},
 				{label = "Talk your way to the front",
 					check = {attr = &"stealth", need = 4},
@@ -320,7 +320,7 @@ static func entries() -> Array[Dictionary]:
 			id = &"dead_hull",
 			title = "A dead hull",
 			subject = {stage = &"single", pieces = [&"role:hauler"], dark = 1.0, turn = 8.0},
-			body = "A hull drifts across the lane, cold all the way through: no heat on any band, no beacon, no claim transponder answering. Whatever registry it flew under is not one your dish can reach from here. The airlocks are shut. The racks, on the long-range read, are still full. It has been here long enough that nobody is coming for it.",
+			body = "A hull drifts across the lane, cold all the way through: no heat on any band, no beacon, no claim transponder answering. Whatever registry it flew under is not one your dish can reach from here. The airlocks are shut. The racks, on the long-range read, are still full. It has been here for a long time.",
 			tags = [&"salvage"], site = &"derelict",
 			group = &"",
 			weight = 14,
@@ -424,7 +424,7 @@ static func entries() -> Array[Dictionary]:
 						return {text = "The handshake takes your registry on the second try. One bay opens, and what is racked inside comes free clean.", module = true},
 					partial = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(20))
-						return {text = "The wreck accepts you, but the bays stay shut. All it will release is the courtesy locker beside the lock. Inside are a few sealed spares with Verity's name on the wrap."},
+						return {text = "The wreck accepts you, but the bays stay shut. All it will release is the courtesy locker beside the lock. Inside are a few sealed spares with Verity's name on the wrap. They do not fit your ship, and you sell them for a few credits."},
 					botched = func() -> Dictionary:
 						Run.add_credits(-15)
 						return {text = "The handshake flags your registry as the wrong holder of record. The bay lock arcs the moment your grapple touches it. The scoring down your flank costs credits to make right."}},
