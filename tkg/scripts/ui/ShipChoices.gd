@@ -1,9 +1,9 @@
 class_name ShipChoices
 extends Control
 
-## THE CHOICES ON YOUR OWN SHIP (Jon, Nov 15, C with BEAT): LOCAL's event with no band. The hail pins
+## THE CHOICES ON YOUR OWN SHIP (Jon, Nov 15, C with BEAT): LOCAL's event with no band. The event tag pins
 ## to whoever talks; a second after its text is in, the choices settle onto the parts of your ship
-## that would do the work (`ShipParts`); then the answer replaces the hail, what you got rises over
+## that would do the work (`ShipParts`); then the answer replaces the event tag, what you got rises over
 ## your ship and the bow flies on. Behind `LocalEventDrawer.layout`. Why: docs/why/ShipChoices.md#on-your-ship
 
 ## After the text is in, before the choices come (BEAT, Jon); the brackets' settle.
@@ -20,16 +20,16 @@ const EDGE := 8.0
 ## A label's stand-off from the hull; labels in a row, apart.
 const LEAD := 14.0
 const GAP := 6.0
-## The hail's tick to whoever talks, at its shortest.
+## The event tag's tick to whoever talks, at its shortest.
 const TICK := 10.0
-## How far whoever talks may drift before the hail and labels are laid again.
+## How far whoever talks may drift before the event tag and labels are laid again.
 const PIN_SLACK := 24.0
 const ROW_H := 11.0
 const FILL := Color(0.039, 0.063, 0.094)
 const WHITE := Color(1, 1, 1)
 
 var drawer: LocalEventDrawer = null
-var hail: Hail = null
+var event_tag: EventTag = null
 ## &"event" or &"result".
 var mode: StringName = &""
 ## The choices are on the ship (after the beat).
@@ -44,14 +44,13 @@ var _hull := Rect2()
 var _bow_left := false
 var _pin := Rect2()
 var _key := ""
-## Where the hail stands for this event, kept from step 1 to step 3: its side of whoever talks,
+## Where the event tag stands for this event, kept from step 1 to step 3: its side of whoever talks,
 ## its width, its tick and its slide along that side.
 var _spot: Dictionary = {}
 var _age := 0.0
-## How long after an event opens its hail may still be placed again.
+## How long after an event opens its event tag may still be placed again.
 const SPOT_SETTLE_S := 0.25
-var _src := ""
-## The pieces of the scene round whoever talks (other ships, loose bits): the hail keeps off them.
+## The pieces of the scene round whoever talks (other ships, loose bits): the event tag keeps off them.
 var _others: Array[Rect2] = []
 
 
@@ -75,13 +74,12 @@ func _init() -> void:
 
 # --------------------------------------------------------------- the pages
 
-## Step 1: the hail on whoever talks, nothing on your ship yet. Returns the hail's text, to play.
-func event(title: String, tag: String, tag_ink: Color, src: String, words: String) -> SignalText:
+## Step 1: the event tag on whoever talks, nothing on your ship yet. Returns the event tag's text, to play.
+func event(title: String, tag: String, tag_ink: Color, words: String) -> SignalText:
 	_clear(&"event")
 	_spot = {}
 	_age = 0.0
-	_src = src
-	_hail(title, tag, tag_ink, src, UITheme.MARK, words, UITheme.CHILL)
+	_event_tag(title, tag, tag_ink, words, UITheme.CHILL)
 	var n := drawer.node
 	var o := OptionTable.by_id(n.options[drawer.opt])
 	var choices: Array = o.get("choices", [])
@@ -103,7 +101,7 @@ func event(title: String, tag: String, tag_ink: Color, src: String, words: Strin
 	showing = false
 	_in = 0.0
 	_show_marks(false)
-	return hail.body
+	return event_tag.body
 
 
 ## The text is all here: the choices come onto the ship a beat later (at once with no motion).
@@ -116,7 +114,7 @@ func text_done() -> void:
 		_arrive(false)
 
 
-## Step 3: their answer in the hail, what you got over your ship, the bow flying on.
+## Step 3: their answer in the event tag, what you got over your ship, the bow flying on.
 func result(out: Dictionary) -> SignalText:
 	_clear(&"result")
 	var o := OptionTable.by_id(drawer.node.options[drawer.opt])
@@ -133,9 +131,8 @@ func result(out: Dictionary) -> SignalText:
 	elif fight:
 		word = "ENGAGED"
 		ink = UITheme.LEAVE
-	# (the same hail, where it stood, with their answer in it: who spoke has not changed)
-	_hail(String(o.get("title", "")).to_upper(), "", UITheme.COLD, _src, UITheme.MARK,
-		String(res.get("text", "")), UITheme.CHILL)
+	# (the same event tag, where it stood, with their answer in it: who spoke has not changed)
+	_event_tag(String(o.get("title", "")).to_upper(), "", UITheme.COLD, String(res.get("text", "")), UITheme.CHILL)
 	if out.get("checked", false):
 		_rows.append(["%s · %s" % [String(out.get("odds", "")), word], ink])
 	elif word != "RESOLVED":
@@ -157,7 +154,7 @@ func result(out: Dictionary) -> SignalText:
 	else:
 		_mark(ShipParts.LEAVE, bow + "FLY ON", "", UITheme.COLD, "Continue", drawer.continue_on)
 	_arrive(false)
-	return hail.body
+	return event_tag.body
 
 
 ## "+1 PART", "+2 PARTS", "+1 THING": what landed on the pile, by what it is.
@@ -186,18 +183,18 @@ func _clear(m: StringName) -> void:
 			mk.hit.queue_free()
 	_marks.clear()
 	_rows.clear()
-	if hail != null:
-		hail.queue_free()
-		hail = null
+	if event_tag != null:
+		event_tag.queue_free()
+		event_tag = null
 	_key = ""
 	queue_redraw()
 
 
-func _hail(title: String, tag: String, tag_ink: Color, src: String, src_ink: Color, words: String, ink: Color) -> void:
-	hail = Hail.new()
-	hail.name = "Hail"
-	add_child(hail)
-	hail.setup(title, tag, tag_ink, src, src_ink, words, ink)
+func _event_tag(title: String, tag: String, tag_ink: Color, words: String, ink: Color) -> void:
+	event_tag = EventTag.new()
+	event_tag.name = "EventTag"
+	add_child(event_tag)
+	event_tag.setup(title, tag, tag_ink, words, ink)
 
 
 ## A choice's label and its click box on part `p` (or, with `p` empty, a word in the reward stack).
@@ -300,7 +297,7 @@ func _process(delta: float) -> void:
 	var pin := _pin_now()
 	if pin.has_area() != _pin.has_area() or pin.position.distance_to(_pin.position) > PIN_SLACK 			or pin.end.distance_to(_pin.end) > PIN_SLACK:
 		_pin = pin
-	var key := "%s|%s|%s|%s|%s" % [_hull, _pin, size, hail.size if hail != null else Vector2.ZERO, showing]
+	var key := "%s|%s|%s|%s|%s" % [_hull, _pin, size, event_tag.size if event_tag != null else Vector2.ZERO, showing]
 	if key != _key:
 		_key = key
 		_lay()
@@ -366,11 +363,11 @@ func _lay() -> void:
 				if m.warn != "" and m.tag.note == "":
 					r = r.grow_individual(0.0, 11.0 if m.side == &"up" else 0.0, 0.0, 0.0 if m.side == &"up" else 11.0)
 				taken.append(r)
-	if hail != null:
-		_lay_hail(room, taken)
-		# (where the hail found no clear place beside whoever talks, the labels give way to it)
+	if event_tag != null:
+		_lay_event_tag(room, taken)
+		# (where the event tag found no clear place beside whoever talks, the labels give way to it)
 		for m in _marks:
-			if m.part != &"" and m.tag.get_rect().intersects(hail.get_rect()):
+			if m.part != &"" and m.tag.get_rect().intersects(event_tag.get_rect()):
 				_free(m, room)
 	if _hull.has_area():
 		_lay_stack(room, taken)
@@ -415,7 +412,7 @@ func _lay_tags(room: Rect2) -> void:
 		_free(m, room)
 
 
-## A label still on whoever talks, the hail or another label finds the nearest clear place in a lane
+## A label still on whoever talks, the event tag or another label finds the nearest clear place in a lane
 ## over or under the hull (the nearest lanes first), searched out from its part.
 func _free(m: Mark, room: Rect2) -> void:
 	if _clear_at(m, m.tag.get_rect(), room):
@@ -442,7 +439,7 @@ func _free(m: Mark, room: Rect2) -> void:
 func _clear_at(m: Mark, r: Rect2, room: Rect2) -> bool:
 	if not room.encloses(r) or r.intersects(_hull) or (_pin.has_area() and r.intersects(_pin)):
 		return false
-	if hail != null and hail.is_inside_tree() and r.intersects(hail.get_rect()):
+	if event_tag != null and event_tag.is_inside_tree() and r.intersects(event_tag.get_rect()):
 		return false
 	for o in _marks:
 		if o != m and o.part != &"" and o.tag.get_rect().intersects(r):
@@ -536,8 +533,8 @@ func _lay_stack(room: Rect2, taken: Array[Rect2]) -> void:
 		return
 	var cx := _hull.get_center().x
 	var y := _hull.position.y - 10.0
-	if hail != null:
-		cx = _off_hail(loot, cx, y, room)
+	if event_tag != null:
+		cx = _off_event_tag(loot, cx, y, room)
 	for i in range(loot.size() - 1, -1, -1):
 		var t := loot[i].tag
 		y -= t.size.y
@@ -555,11 +552,11 @@ func _lay_stack(room: Rect2, taken: Array[Rect2]) -> void:
 		taken.append(r)
 
 
-## THE HAIL RIGHT BESIDE WHOEVER TALKS (Jon, Nov 15): over them, else under, else beside, a short
-## tick between; wider (to `Hail.W_MAX`) before it goes further off. Never on a ship, a label or the
+## THE EVENT TAG RIGHT BESIDE WHOEVER TALKS (Jon, Nov 15): over them, else under, else beside, a short
+## tick between; wider (to `EventTag.W_MAX`) before it goes further off. Never on a ship, a label or the
 ## HUD, and never in a corner. Kept where it stood from step 1 to step 3 (`_spot`).
-func _lay_hail(room: Rect2, taken: Array[Rect2]) -> void:
-	# (labels can give way to the hail, `_free`; the ships, the HUD and the goal line cannot)
+func _lay_event_tag(room: Rect2, taken: Array[Rect2]) -> void:
+	# (labels can give way to the event tag, `_free`; the ships, the HUD and the goal line cannot)
 	var soft := taken.duplicate()
 	var keep: Array[Rect2] = [_hull]
 	if Router.hud != null and Router.hud.goal != null and Router.hud.goal.is_visible_in_tree():
@@ -576,21 +573,22 @@ func _lay_hail(room: Rect2, taken: Array[Rect2]) -> void:
 	# in -- and again if your ship's place moved or the kept place is no longer clear)
 	var moved := not _spot.is_empty() and (_spot.hull as Rect2).position.distance_to(_hull.position) > PIN_SLACK
 	if not _spot.is_empty() and _age > SPOT_SETTLE_S and not moved:
-		hail.set_w(float(_spot.w))
-		var kept := _kept_rect(at, hail.size, room)
+		event_tag.set_w(float(_spot.w))
+		var kept := _kept_rect(at, event_tag.size, room)
 		if mode == &"result" or _cover(kept, keep) + _cover(kept, soft) <= 0.0:
-			hail.position = kept.position.round()
+			event_tag.position = kept.position.round()
 			return
 	var best := {}
 	var least := INF
 	var best_r := Rect2()
 	for gap: float in [TICK, TICK + 30.0, TICK + 70.0]:
-		for w: float in [Hail.W, Hail.W + 20.0, Hail.W_MAX]:
-			hail.set_w(w)
-			for side: StringName in [&"up", &"down", &"right", &"left"]:
+		for w: float in [EventTag.W, EventTag.W + 20.0, EventTag.W_MAX]:
+			event_tag.set_w(w)
+			# UNDER whoever it is about, else beside, never over (Jon, Nov 15)
+			for side: StringName in [&"down", &"right", &"left"]:
 				# (slid along the side, but never past the one it is pinned to)
 				for off: float in [0.0, 60.0, -60.0, 120.0, -120.0, 180.0, -180.0, 240.0, -240.0]:
-					var r := clamp_into(_spot_rect(at, side, gap, off, hail.size), room)
+					var r := clamp_into(_spot_rect(at, side, gap, off, event_tag.size), room)
 					var cover := _cover(r, keep) * 100.0 + _cover(r, soft) + (0.0 if _faces(r, at, side) else 1e6)
 					if cover < least:
 						least = cover
@@ -604,10 +602,10 @@ func _lay_hail(room: Rect2, taken: Array[Rect2]) -> void:
 				break
 		if least <= 0.0:
 			break
-	hail.set_w(float(best.w))
-	best_r.size = hail.size
+	event_tag.set_w(float(best.w))
+	best_r.size = event_tag.size
 	best.hull = _hull
-	# (where it stands against whoever talks, so step 3's taller or shorter hail stands there too:
+	# (where it stands against whoever talks, so step 3's taller or shorter event tag stands there too:
 	# over them it keeps its foot, under or beside them its head)
 	best.dx = best_r.position.x - at.position.x
 	match StringName(best.side):
@@ -618,10 +616,10 @@ func _lay_hail(room: Rect2, taken: Array[Rect2]) -> void:
 		_:
 			best.dy = best_r.position.y - at.position.y
 	_spot = best
-	hail.position = best_r.position.round()
+	event_tag.position = best_r.position.round()
 
 
-## The kept place, for a hail of size `hs` now.
+## The kept place, for a event tag of size `hs` now.
 func _kept_rect(at: Rect2, hs: Vector2, room: Rect2) -> Rect2:
 	var p := Vector2(at.position.x + float(_spot.dx), 0.0)
 	match StringName(_spot.side):
@@ -634,7 +632,7 @@ func _kept_rect(at: Rect2, hs: Vector2, room: Rect2) -> Rect2:
 	return clamp_into(Rect2(p, hs), room)
 
 
-## Whether a hail at `r` still faces `at` across its side (so its tick is short and straight).
+## Whether a event tag at `r` still faces `at` across its side (so its tick is short and straight).
 static func _faces(r: Rect2, at: Rect2, side: StringName) -> bool:
 	if side == &"up":
 		return r.end.y <= at.position.y and r.end.x - 12.0 > at.position.x and r.position.x + 12.0 < at.end.x
@@ -645,7 +643,7 @@ static func _faces(r: Rect2, at: Rect2, side: StringName) -> bool:
 	return r.end.x <= at.position.x and r.end.y - 12.0 > at.position.y and r.position.y + 12.0 < at.end.y
 
 
-## The hail's box on `side` of `at`, `gap` off it, slid `off` along the side.
+## The event tag's box on `side` of `at`, `gap` off it, slid `off` along the side.
 static func _spot_rect(at: Rect2, side: StringName, gap: float, off: float, hs: Vector2) -> Rect2:
 	var c := at.get_center()
 	var p: Vector2
@@ -661,8 +659,8 @@ static func _spot_rect(at: Rect2, side: StringName, gap: float, off: float, hs: 
 	return Rect2(p, hs)
 
 
-## The reward stack's middle, slid along its row off the hail when the hail stood there first.
-func _off_hail(loot: Array[Mark], cx: float, y: float, room: Rect2) -> float:
+## The reward stack's middle, slid along its row off the event tag when the event tag stood there first.
+func _off_event_tag(loot: Array[Mark], cx: float, y: float, room: Rect2) -> float:
 	var wide := 0.0
 	var top := y
 	for m in loot:
@@ -673,7 +671,7 @@ func _off_hail(loot: Array[Mark], cx: float, y: float, room: Rect2) -> float:
 		wide = maxf(wide, f.get_string_size(String(row[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, FS).x)
 		top -= ROW_H
 	var box := Rect2(cx - wide * 0.5, top, wide, y - top)
-	var h := hail.get_rect().grow(GAP)
+	var h := event_tag.get_rect().grow(GAP)
 	if not box.intersects(h):
 		return cx
 	var dl := h.position.x - box.end.x
@@ -700,7 +698,7 @@ static func clamp_into(r: Rect2, room: Rect2) -> Rect2:
 # --------------------------------------------------------------- drawing
 
 func _draw() -> void:
-	if hail != null and _pin.has_area():
+	if event_tag != null and _pin.has_area():
 		_draw_tick()
 	var f := UITheme.pixel_font()
 	var asc := f.get_ascent(FS)
@@ -719,9 +717,9 @@ func _draw() -> void:
 		_draw_leader(m, Color(UITheme.MARK, (0.8 if k == _hover else 0.4) * _in))
 
 
-## The hail's tick down (or across) to whoever talks.
+## The event tag's tick down (or across) to whoever talks.
 func _draw_tick() -> void:
-	var h := hail.get_rect()
+	var h := event_tag.get_rect()
 	var col := Color(UITheme.MARK, 0.7)
 	var x := clampf(_pin.get_center().x, maxf(h.position.x, _pin.position.x) + 6.0, minf(h.end.x, _pin.end.x) - 6.0)
 	if _pin.position.y - 3.0 > h.end.y:
@@ -853,29 +851,25 @@ class Tag extends Control:
 			draw_string(f, Vector2(6, ny), note, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, UITheme.WARN)
 
 
-## The hail: the title (gold) and its tag word, who or where it is from, then the text as it arrives.
-class Hail extends Control:
+## The event tag: the title (gold) and its tag word, who or where it is from, then the text as it arrives.
+class EventTag extends Control:
 	const W := 280.0
 	const W_MAX := 320.0
 	var title := ""
 	var tag := ""
 	var tag_ink := UITheme.COLD
-	var src := ""
-	var src_ink := UITheme.MARK
 	var body: SignalText = null
 	var _below := false
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	func setup(t: String, tg: String, ti: Color, s: String, si: Color, words: String, ink: Color) -> void:
+	func setup(t: String, tg: String, ti: Color, words: String, ink: Color) -> void:
 		title = t
 		tag = tg
 		tag_ink = ti
-		src = s
-		src_ink = si
 		var f := UITheme.pixel_font()
-		var w := clampf(f.get_string_size(src, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS).x + 18.0, W, W_MAX)
+		var w := W
 		var head := f.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS).x
 		if tag != "":
 			head += 8.0 + f.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS).x
@@ -893,7 +887,7 @@ class Hail extends Control:
 		size = Vector2(w, _head_h() + 14.0)
 
 	func _head_h() -> float:
-		return 31.0 + (12.0 if _below else 0.0)
+		return 19.0 + (12.0 if _below else 0.0)
 
 	## A wider box for a tall text: the words laid again at the new width, the height to match.
 	func set_w(w: float) -> void:
@@ -901,7 +895,6 @@ class Hail extends Control:
 		var head := f.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS).x
 		if tag != "":
 			head += 8.0 + f.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS).x
-		w = maxf(w, minf(W_MAX, f.get_string_size(src, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS).x + 18.0))
 		_below = head + 18.0 > w
 		body.position = Vector2(9, _head_h())
 		body.size = Vector2(w - 18.0, maxf(body.size.y, 1.0))
@@ -929,12 +922,9 @@ class Hail extends Control:
 		draw_rect(Rect2(0, 0, 1, size.y), e)
 		draw_rect(Rect2(size.x - 1, 0, 1, size.y), e)
 		draw_string(f, Vector2(9, 7 + asc), title, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, UITheme.HOT)
-		var y := 19.0
 		if tag != "":
 			if _below:
-				draw_string(f, Vector2(9, y + asc), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, tag_ink)
-				y += 12.0
+				draw_string(f, Vector2(9, 19 + asc), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, tag_ink)
 			else:
 				var x := 17.0 + f.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS).x
 				draw_string(f, Vector2(x, 7 + asc), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, tag_ink)
-		draw_string(f, Vector2(9, y + asc), src, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, src_ink)

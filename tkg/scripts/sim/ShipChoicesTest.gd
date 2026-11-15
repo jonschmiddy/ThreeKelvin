@@ -191,10 +191,10 @@ func _beat_and_click(_n: MapGen.MapNode) -> void:
 	_d.open(0)
 	await Harness.frames(_tree, 4)
 	var ov := _ov()
-	if not _ok("the event opened on the ship (a hail, no band)", ov != null and ov.hail != null and _d.panel == null):
+	if not _ok("the event opened on the ship (an event tag, no band)", ov != null and ov.event_tag != null and _d.panel == null):
 		return
 	var c0 := _tag("Choice0")
-	_ok("step 1: the hail prints, nothing on the ship yet", _d.text != null and not _d.text.done and not ov.showing and c0 != null and not c0.visible)
+	_ok("step 1: the event tag prints, nothing on the ship yet", _d.text != null and not _d.text.done and not ov.showing and c0 != null and not c0.visible)
 	await Harness.frames(_tree, 30)
 	_ok("  and still nothing while the text arrives", not ov.showing and not c0.visible)
 	_d.text.skip()
@@ -207,7 +207,7 @@ func _beat_and_click(_n: MapGen.MapNode) -> void:
 	var bad := _boxes(ov)
 	for b in bad:
 		print("  overlap: %s" % b)
-	_ok("box test on %s: labels, hail, HUD, goal line, hull and the one who talks never overlap (%d)" % [Run.hull.display_name(), bad.size()], bad.is_empty())
+	_ok("box test on %s: labels, event tag, HUD, goal line, hull and the one who talks never overlap (%d)" % [Run.hull.display_name(), bad.size()], bad.is_empty())
 	var hit := ov.find_child("Choice0Part", false, false) as Control
 	# (headless, the window never has the pointer, so nothing is "entered": the stills show it)
 	hit.mouse_entered.emit()
@@ -217,17 +217,17 @@ func _beat_and_click(_n: MapGen.MapNode) -> void:
 	_ok("the dim labels keep their price and odds", _tag("Choice0").cost != "" and _tag("Choice0").cost.contains("SENSORS"))
 	var bow := _tag("Choice2")
 	_ok("its own walk-away holds the bow, and NOT NOW is not shown (ruling A)", _tag("NotNow") == null and bow != null and bow.verb.begins_with("BOW: "))
-	var stood := ov.hail.get_rect()
+	var stood := ov.event_tag.get_rect()
 	await _click(hit)
 	f = 0
 	while _d.page != &"result" and f < 120:
 		await Harness.frames(_tree, 1)
 		f += 1
 	_ok("a click on the part took choice 0 (%s)" % _d.out.get("odds", ""), _d.page == &"result" and _d.choice == 0 and _d.out.get("ok", false))
-	_ok("step 3: the hail turned to their answer", ov.hail != null and ov.hail.body.text == String((_d.out.get("res", {}) as Dictionary).get("text", "")))
+	_ok("step 3: the event tag turned to their answer", ov.event_tag != null and ov.event_tag.body.text == String((_d.out.get("res", {}) as Dictionary).get("text", "")))
 	await Harness.frames(_tree, 3)
-	var now := ov.hail.get_rect()
-	var kept := absf(now.position.x - stood.position.x) < 1.0 and (absf(now.position.y - stood.position.y) < 1.0 or absf(now.end.y - stood.end.y) < 1.0)
+	var now := ov.event_tag.get_rect()
+	var kept := now.position.distance_to(stood.position) < 1.0
 	_ok("  in the same place as steps 1 and 2 (%s, then %s)" % [stood, now], kept)
 	var rows: Array = ov.get("_rows")
 	var credits := rows.any(func(r: Array) -> bool: return String(r[0]).ends_with("CREDITS"))
@@ -264,7 +264,7 @@ func _not_now() -> void:
 		await Harness.frames(_tree, 2)
 
 
-## The party's claim: a choice a partner already took says so, and the hail goes.
+## The party's claim: a choice a partner already took says so, and the event tag goes.
 func _too_late(n: MapGen.MapNode) -> void:
 	if not await _open_settled(2):
 		_ok("slipping orbit opened", false)
@@ -430,7 +430,7 @@ func _gap(a: Rect2, b: Rect2) -> float:
 	return Vector2(dx, dy).length()
 
 
-## Every pair of the labels, the hail and the reward lines, and each against the hull, the HUD,
+## Every pair of the labels, the event tag and the reward lines, and each against the hull, the HUD,
 ## the goal line, the screen's edge and whoever talks: the overlaps, named.
 func _boxes(ov: ShipChoices, where := false) -> Array[String]:
 	var bad: Array[String] = []
@@ -438,8 +438,8 @@ func _boxes(ov: ShipChoices, where := false) -> Array[String]:
 	for c in ov.get_children():
 		if c is ShipChoices.Tag and (c as Control).visible and not (c as ShipChoices.Tag).bare:
 			boxes[String(c.name)] = (c as Control).get_rect()
-	if ov.hail != null:
-		boxes["Hail"] = ov.hail.get_rect()
+	if ov.event_tag != null:
+		boxes["EventTag"] = ov.event_tag.get_rect()
 	var keys := boxes.keys()
 	for a in keys.size():
 		for b in range(a + 1, keys.size()):
@@ -448,10 +448,12 @@ func _boxes(ov: ShipChoices, where := false) -> Array[String]:
 	var inv := ov.get_global_transform().affine_inverse()
 	var others := {"hull": ov.get("_hull"), "talker": ov.get("_pin")}
 	var pin: Rect2 = ov.get("_pin")
-	if ov.hail != null and pin.has_area():
-		var gap := _gap(ov.hail.get_rect(), pin)
+	if ov.event_tag != null and pin.has_area():
+		var gap := _gap(ov.event_tag.get_rect(), pin)
 		if gap > 90.0:
-			bad.append("Hail %d px from the talker" % int(gap))
+			bad.append("EventTag %d px from the talker" % int(gap))
+		if ov.event_tag.get_rect().end.y <= pin.position.y:
+			bad.append("EventTag over the talker (under, else beside, never over)")
 	if Router.hud != null:
 		others["HUD"] = inv * UiRect.of(Router.hud)
 		if Router.hud.goal != null and Router.hud.goal.is_visible_in_tree():

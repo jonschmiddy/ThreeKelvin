@@ -382,6 +382,11 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	queue_redraw()
 
 
+## The plate's SALVAGE hidden where a bracket already says it (the Custodian's body, `LocalTag`).
+func hush_salvage(on: bool) -> void:
+	_hp.modulate.a = 0.0 if on else 1.0
+
+
 ## The count came off the hull (Jonathan, 2026-09-03): wrecks say SALVAGE only. The tooltip
 ## keeps the number.
 ## Why: docs/why/EnemySlot.md#salvage-count

@@ -557,13 +557,13 @@ func choose(j: int) -> Dictionary:
 
 # --------------------------------------------------------------- on your ship
 
-## The event on your own ship (`ShipChoices`): the hail, then the choices on its parts.
+## The event on your own ship (`ShipChoices`): the event tag, then the choices on its parts.
 func _ship_event(i: int, o: Dictionary) -> void:
 	var words := String(o.get("body", ""))
 	if EncounterDrawer.option_state(node, i).kind == &"left":
 		words = "You walked away from this. It is still open. " + words
 	_ship_play(_on_ship().event(String(o.get("title", "")).to_upper(), _tags(o),
-		EncounterDrawer.tag_colour(o), String(o.get("source", _place_line(i))).to_upper(), words))
+		EncounterDrawer.tag_colour(o), words))
 
 
 ## WHAT TAKING choice `c` WOULD CLOSE, as the band says it on a pointed-at card, or "".

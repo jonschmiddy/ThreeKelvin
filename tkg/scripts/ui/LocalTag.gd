@@ -64,6 +64,8 @@ func fill(n: MapGen.MapNode) -> void:
 	elif n.type in [MapGen.NodeType.SYSTEM, MapGen.NodeType.STATION] \
 			and not (Run.hellbender_alive() and Run.hellbender_at == n.index):
 		line = SectorScreen.here_line(n)
+		# (beside the station you can see, "A STATION HERE" says nothing the picture does not)
+		line = line.trim_prefix("A STATION HERE").trim_prefix(" · ")
 		if Router.join_state() != Router.JOIN_NONE:
 			line = "%s IS FIGHTING HERE" % Router.join_fight_names()
 			if Router.join_state() != Router.JOIN_SHUT:
@@ -74,6 +76,8 @@ func fill(n: MapGen.MapNode) -> void:
 		var loose := Run.jetsam_left(n, pile) if pile != null else 0
 		if loose > 0:
 			doors.append(["SECTOR LOOT · %d" % loose, screen.call.bind(&"_open_loose")])
+		if line == "" and not doors.is_empty():
+			line = " "
 	else:
 		var q := EncounterDrawer.quiet_lines(n)
 		line = String(q[0])
@@ -158,6 +162,7 @@ func _body_now() -> Rect2:
 	var slot := view.wreck_slot(h) if view != null and h != null else null
 	if slot == null or not slot.is_visible_in_tree():
 		return Rect2()
+	slot.hush_salvage(true)
 	return _inv() * slot.drawn_box()
 
 
@@ -167,9 +172,12 @@ func _pin_now() -> Rect2:
 	var inv := _inv()
 	var face: Variant = screen.get("_face") if screen != null else null
 	if face is StationFace and is_instance_valid(face) and (face as StationFace).is_visible_in_tree():
-		var m: Vector2 = (face as StationFace).mouth_g()
+		var sf := face as StationFace
+		var m: Vector2 = sf.mouth_g()
 		if m.is_finite():
-			return inv * Rect2(m - Vector2(16, 16), Vector2(32, 32))
+			# the mouth, out to the plate's edge: the tag stands off the station's picture
+			var mr := sf.get_global_transform() * sf.mouth()
+			return inv * mr.expand(Vector2(sf.plate_g(Vector2.ZERO).x, m.y))
 	var view := screen.get("_view") as EncounterView if screen != null else null
 	if view == null:
 		return Rect2()
@@ -202,6 +210,11 @@ func _pin_now() -> Rect2:
 	return Rect2()
 
 
+func _at_face() -> bool:
+	var face: Variant = screen.get("_face") if screen != null else null
+	return face is StationFace and is_instance_valid(face) and (face as StationFace).is_visible_in_tree()
+
+
 func _place() -> void:
 	var room := Rect2(Vector2(ShipChoices.EDGE, ShipChoices.TOP), get_parent_area_size() - Vector2(ShipChoices.EDGE * 2.0, ShipChoices.TOP + ShipChoices.EDGE))
 	var p := Vector2(room.get_center().x - size.x * 0.5, room.position.y + 24.0)
@@ -209,6 +222,10 @@ func _place() -> void:
 		p = room.get_center() - size * 0.5
 	elif _body.has_area():
 		p = Vector2(_body.get_center().x - size.x * 0.5, _body.end.y + 6.0)
+	elif _pin.has_area() and _at_face():
+		# beside the station's mouth, on the side toward you, off the station's own picture
+		var left := _pin.get_center().x > room.get_center().x
+		p = Vector2(_pin.position.x - 12.0 - size.x if left else _pin.end.x + 12.0, _pin.get_center().y - size.y * 0.5)
 	elif _pin.has_area():
 		p = Vector2(_pin.get_center().x - size.x * 0.5, _pin.position.y - 12.0 - size.y)
 	position = ShipChoices.clamp_into(Rect2(p, size), room).position.round()
@@ -230,6 +247,13 @@ func _draw() -> void:
 		draw_string(f, Vector2(PAD, PAD + i * LINE_H + asc), _lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, UITheme.CHILL)
 	# the tick down to the place, when there is air between
 	if not card and _pin.has_area() and not _body.has_area():
+		var y := clampf(_pin.get_center().y - position.y, 4.0, size.y - 4.0)
+		if _pin.position.x - position.x - 3.0 > size.x:
+			draw_rect(Rect2(size.x, y, _pin.position.x - position.x - 3.0 - size.x, 1), Color(UITheme.MARK, 0.7))
+			return
+		if _pin.end.x - position.x + 3.0 < 0.0:
+			draw_rect(Rect2(_pin.end.x - position.x + 3.0, y, -(_pin.end.x - position.x + 3.0), 1), Color(UITheme.MARK, 0.7))
+			return
 		var top := _pin.position.y - position.y - 3.0
 		if top > size.y:
 			var x := clampf(_pin.get_center().x - position.x, 6.0, size.x - 6.0)

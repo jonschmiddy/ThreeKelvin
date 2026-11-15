@@ -5,7 +5,7 @@ extends Node
 ## `--resolution 1920x1080`). `short=` swaps in proposed text for the run only, from a file outside the repo.
 ## Why: docs/why/ShipChoices.md#on-your-ship
 
-## A hail, a wreck and nobody talking.
+## A ship, a wreck and a rock.
 const EVENTS: Array[StringName] = [&"one_number_between_two", &"dead_hull", &"long_claim"]
 
 var _out := ""
@@ -50,6 +50,9 @@ func _run() -> void:
 	_out = Harness.arg("out", "user://shipchoices")
 	DirAccess.make_dir_recursive_absolute(_out)
 	LocalEventDrawer.layout = &"ship"
+	# (the doors and the station's side as a player has them: a harness otherwise takes the old flow)
+	ZoomLadder.force = 1
+	Router.animate_in_harness = true
 	SkillCheck.forced = int(SkillCheck.Band.MET)
 	await _tree.process_frame
 	Rng.forced = Harness.seed_arg(1)
@@ -92,10 +95,10 @@ func _steps(k: int, id: String) -> void:
 	var d := _drawer()
 	d.open(k)
 	await _secs(1.2)
-	_shot("%s_1_hail_arriving" % id)
+	_shot("%s_1_tag_arriving" % id)
 	d.text.skip()
 	await _secs(0.3)
-	_shot("%s_1_hail" % id)
+	_shot("%s_1_tag" % id)
 	await _secs(1.6)
 	var ov := d.get("_ship") as ShipChoices
 	var hit := ov.find_child("Choice0Part", false, false) as Control
