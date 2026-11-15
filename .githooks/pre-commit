@@ -45,5 +45,5 @@ if [ "$CODE" -eq 0 ]; then
 	exit 0
 fi
 cat "$OUT"; rm -f "$OUT"
-echo "[pre-commit] fix and commit again; to commit anyway: git commit --no-verify"
-exit 1
+echo "[pre-commit] WARNING: static checks failed (${SECS}s). Committed anyway (warn-only, Jon's Nov 14 ruling); the gate still runs them."
+exit 0

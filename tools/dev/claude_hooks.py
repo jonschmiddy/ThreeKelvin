@@ -741,15 +741,24 @@ def judge_command(cmd, cwd, v, depth=0, scope=None):
         judge_raw(cmd, cur, v)
 
 
-def bash_guard(payload):
+# Jon, Nov 14 (sweep 2 ruling 1A): the guard warns, it never blocks. TK_GUARD_BLOCK=1 turns
+# blocking back on; the self-test runs with it on so every rule is still proved to fire.
+BLOCKING = os.environ.get("TK_GUARD_BLOCK") == "1"
+
+
+def bash_guard(payload, blocking=None):
     """Returns (exit code, stdout text, stderr text)."""
+    if blocking is None:
+        blocking = BLOCKING
     if payload.get("tool_name", "Bash") != "Bash":
         return 0, "", ""
     cmd = (payload.get("tool_input") or {}).get("command") or ""
     v = Verdict()
     judge_command(cmd, payload.get("cwd") or os.getcwd(), v)
-    if v.blocks:
+    if v.blocks and blocking:
         return 2, "", "\n".join(v.blocks) + "\n"
+    if v.blocks:
+        v.warns = ["WARNING (would have blocked; warn-only by Jon's Nov 14 ruling): " + b for b in v.blocks] + v.warns
     if v.warns:
         out = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": " ".join(v.warns)}}
         return 0, json.dumps(out), ""
@@ -1326,7 +1335,12 @@ def selftest():
         for cmd, want, words, setup in GUARD_CASES:
             cwd = main if setup == "main" else wt if setup == "feature" else tmp
             code, out, err = bash_guard({"hook_event_name": "PreToolUse", "tool_name": "Bash", "cwd": cwd,
-                                         "tool_input": {"command": cmd}})
+                                         "tool_input": {"command": cmd}}, blocking=True)
+            if want == "block":     # warn-only (the default) turns the same block into a warning
+                wc, wout, _ = bash_guard({"hook_event_name": "PreToolUse", "tool_name": "Bash", "cwd": cwd,
+                                          "tool_input": {"command": cmd}}, blocking=False)
+                check("guard warn-only %s" % cmd.split("\n")[0][:60], wc == 0 and "would have blocked" in wout,
+                      "exit %d: %s" % (wc, wout[:200]))
             text = (out + err)
             got = "block" if code == 2 else "warn" if (code == 0 and out) else "pass"
             ok = got == want and all(w in text for w in words)

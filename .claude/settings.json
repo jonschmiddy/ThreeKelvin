@@ -19,12 +19,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR/tkg/tools/gdcheck.sh\"",
-            "timeout": 60,
-            "statusMessage": "Checking GDScript..."
-          },
-          {
-            "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/tools/dev/claude_hooks.sh\" edit-ratchets",
             "timeout": 30,
             "statusMessage": "Checking the code ratchets..."
