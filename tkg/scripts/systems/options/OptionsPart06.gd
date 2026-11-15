@@ -29,9 +29,9 @@ static func entries() -> Array[Dictionary]:
 					partial = func() -> Dictionary:
 						Run.drain_fuel(2)
 						Run.add_credits(OptionTable.purse(8))
-						return {text = "The line holds and the body barely moves. You get it half the distance. Then the pod shows on the dish. The hunters cut it loose and run. They pay you for the half."},
+						return {text = "The line holds and the body barely moves. You get it half the distance before the pod shows on the dish, and the hunters cut it loose and run. They pay you for the half."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(OptionTable.toll(5), "Towing a dead one when the pod came back.")
+						Run.take_hull_damage(OptionTable.toll(5), "Towed a dead one until the pod came back.")
 						return {text = "The pod arrives while the body is still on your line. The first of them comes past close and slow, and its flank crushes your plating. It is not hostile, only careless. The hunters are gone, and no one pays."}},
 				{label = "Buy a share", cost_credits = 45, effect = func() -> Dictionary:
 					Run.add_credits(-45)
@@ -44,7 +44,7 @@ static func entries() -> Array[Dictionary]:
 			id = &"the_singer",
 			title = "The singer",
 			subject = {stage = &"single", pieces = [&"pool_lev_throat"]},
-			body = "An old megafauna the size of a station hangs alone, singing. Scars run the length of its leading edge. The song is loud on every channel and whites out the dish for a hundred kilometres. The rest of its pod is gone, and it stays where it is. It is dying slowly, and you can hear that in the song. A hunting ship two days out has been asking on the channel for one like this. They will pay for the bearing. Rendered, it is worth more than your ship.",
+			body = "An old megafauna the size of a station hangs alone, singing. Scars run the length of its leading edge. The song is loud on every channel and whites out the dish for a hundred kilometers. The rest of its pod is gone, and it stays where it is. It is dying slowly, and you can hear that in the song. A hunting ship two days out has been asking on the channel for one like this. They will pay for the bearing. Rendered, it is worth more than your ship.",
 			tags = [&"signal", &"contract"],
 			group = &"",
 			weight = 8,
@@ -60,17 +60,17 @@ static func entries() -> Array[Dictionary]:
 						Run.heat += 8
 						return {text = "You get close, and it turns slowly. You spend the next hour staying out of its way, and you take what came loose in the turn.", material = &"fauna"},
 					partial = func() -> Dictionary:
-						Run.take_hull_damage(OptionTable.toll(2), "Too close to a singer when it turned.")
+						Run.take_hull_damage(OptionTable.toll(2), "Got too close to a singer when it turned.")
 						return {text = "It turns, and you are in its way. You come away with a scraped hull and nothing else."},
 					botched = func() -> Dictionary:
 						Run.heat += 12
-						Run.take_hull_damage(OptionTable.toll(4), "Too close to a singer when it rolled.")
+						Run.take_hull_damage(OptionTable.toll(4), "Got too close to a singer when it rolled.")
 						return {text = "You are close alongside when it rolls, and its weight comes down on your ship for a moment. You come away with nothing and a hull that needs a yard."}},
 				{label = "Sell the bearing", effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(20))
 					return {text = "You give the hunting ship the bearing, and they pay before you finish reading it out. They will be here in two days, and you will be long gone."}},
 				{label = "Leave it", stay = true, effect = func() -> Dictionary:
-					return {text = "You go. The song stays on every channel for a hundred kilometres, and you tell no one about it."}},
+					return {text = "You go. The song stays on every channel for a hundred kilometers, and you tell no one about it."}},
 			],
 		},
 		{
@@ -99,8 +99,8 @@ static func entries() -> Array[Dictionary]:
 						Run.add_credits(OptionTable.purse(8))
 						return {text = "You get half of them turned. The other half go through at their own pace, and the lane is a mess for a week. She pays you for the half, and the station pays her for the half."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(OptionTable.toll(4), "Too close to the herd's flank. One of them turned the wrong way.")
-						return {text = "You get too close to the flank, and one of them turns toward the noise instead of away. Its side comes across your bow and takes a metre of plating. The herd goes into the lane, and no one pays."}},
+						Run.take_hull_damage(OptionTable.toll(4), "Flew too close to the herd's flank, and one of them turned the wrong way.")
+						return {text = "You get too close to the flank, and one of them turns toward the noise instead of away. Its side comes across your bow and takes a meter of plating. The herd goes into the lane, and no one pays."}},
 				{label = "Make noise on the herd's channel", effect = func() -> Dictionary:
 					Run.heat += 12
 					Run.add_credits(OptionTable.purse(16))
@@ -129,10 +129,10 @@ static func entries() -> Array[Dictionary]:
 						Run.heat += 6
 						return {text = "One of them notices you and ignores you. You get one good piece off the drift between them and leave before the others notice. The drive runs warm.", material = &"fauna"},
 					partial = func() -> Dictionary:
-						Run.take_hull_damage(OptionTable.toll(2), "Between three startled ones and the ice.")
+						Run.take_hull_damage(OptionTable.toll(2), "Caught between three startled ones and the ice.")
 						return {text = "One of the young ones startles, and the two beside it startle too. For a minute the herd moves in three directions at once. You back out with a scraped hull and nothing."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(OptionTable.toll(5), "In the middle of a feeding herd when the whole herd startled.")
+						Run.take_hull_damage(OptionTable.toll(5), "Sat in the middle of a feeding herd when the whole herd startled.")
 						return {text = "The whole herd startles at once, and there is nowhere to go that they are not going. For thirty seconds they crowd against your ship. Then they are gone, and the hull is badly dented."}},
 				{label = "Wait at the edge for what drifts out", effect = func() -> Dictionary:
 					Run.drain_fuel(1)
@@ -192,12 +192,12 @@ static func entries() -> Array[Dictionary]:
 				{label = "Sweep the field",
 					check = {attr = &"hull", need = 5},
 					met = func() -> Dictionary:
-						return {text = "You go through slowly with the grapple out, scraping as you go while the hull takes the small hits. Three hours later you come out with a plate of glaze pressed from a hundred thin pieces.", material_id = &"sweep_glass"},
+						return {text = "You go through slowly with the grapple out, scraping as you go. The hull takes the small hits. Three hours later you come out with a plate of glaze pressed from a hundred thin pieces.", material_id = &"sweep_glass"},
 					clean = func() -> Dictionary:
-						Run.take_hull_damage(OptionTable.toll(2), "Three hours in a field of sharp metal, scraping glaze.")
+						Run.take_hull_damage(OptionTable.toll(2), "Spent three hours in a field of sharp metal scraping glaze.")
 						return {text = "You get the glaze, but something in the middle of the field hits hard and takes a piece of your plating.", material_id = &"sweep_glass"},
 					partial = func() -> Dictionary:
-						Run.take_hull_damage(OptionTable.toll(3), "Dodging, not scraping, halfway through a field of sharp metal.")
+						Run.take_hull_damage(OptionTable.toll(3), "Hit while dodging, halfway through a field of sharp metal.")
 						return {text = "Halfway through the field you stop scraping and start dodging. You come out with a dented hull and one piece of an old satellite with almost no glaze on it.", material = &"wreck"},
 					botched = func() -> Dictionary:
 						Run.take_hull_damage(OptionTable.toll(5), "Hit broadside in a debris field, by a piece nobody saw move.")
@@ -237,7 +237,7 @@ static func entries() -> Array[Dictionary]:
 						return {text = "One of the tanks is not dry, and what is in it is not fuel either. Something a hauler was carrying has sat in the cold for years, and it goes when the transfer line opens. The hull takes it on the flank. You come away with nothing but the scorch."}},
 				{label = "Work the nearest holds", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
-					return {text = "You skip the tanks and go hull to hull at a crawl. That costs fuel. You take the best thing out of the nearest three holds. They were full when they stopped. They are still full apart from what you take.", material = &"wreck"}},
+					return {text = "You skip the tanks and go hull to hull at a crawl, which costs fuel. You take the best thing out of the nearest three holds. They were full when they stopped, and they are still full apart from what you take.", material = &"wreck"}},
 				{label = "Check your tank and go", stay = true, effect = func() -> Dictionary:
 					return {text = "You read the numbers on the rock and check your own tank. You go on while you still have the fuel to get home."}},
 			],
@@ -263,7 +263,7 @@ static func entries() -> Array[Dictionary]:
 						return {text = "Four of the valves come free and two do not, and the ship runs hot from warming them. You get three units. The two tanks left on the tether are not enough to get anyone home."},
 					partial = func() -> Dictionary:
 						Run.fuel += 1
-						Run.take_hull_damage(OptionTable.toll(2), "A frozen fuel valve, opened too fast.")
+						Run.take_hull_damage(OptionTable.toll(2), "A frozen fuel valve, opened too fast, emptied its tank across the flank.")
 						return {text = "The first valve lets go before it is warm. The tank empties itself across your flank. You take one unit from the second one, slowly, and stop."},
 					botched = func() -> Dictionary:
 						Run.take_hull_damage(OptionTable.toll(4), "A frozen valve, opened too fast, burst its tank.")
@@ -280,7 +280,7 @@ static func entries() -> Array[Dictionary]:
 			id = &"three_years_in",
 			title = "Three years in",
 			subject = {stage = &"single", pieces = [&"role:survey"], lights = &"run"},
-			body = "A survey ship with four crew is holding station here. A company sent them three years ago to map the approach, log the traffic, and report every ninety days. They have reported on time, but no one has answered in two years or paid them in two and a half. They keep working instead of going home to find out why. Their long-range receiver has been dead since the silence began. They want news and fuel, and will trade three years of measurements for either.",
+			body = "A survey ship with four crew is holding station here. A manufacturer sent them three years ago to map the approach, log the traffic, and report every ninety days. They have reported on time, but no one has answered in two years or paid them in two and a half. They keep working instead of going home to find out why. Their long-range receiver has been dead since the silence began. They want news and fuel, and will trade three years of measurements for either.",
 			tags = [&"contract"],
 			group = &"",
 			weight = 9,
@@ -290,21 +290,21 @@ static func entries() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(30))
-						return {text = "You find the fault in forty minutes: a board that died two years ago. The receiver comes back with two years of messages at once. The company folded eighteen months ago. They pay you from the ship's account, which is now theirs, and give you the three years of measurements."},
+						return {text = "You find the fault in forty minutes: a board that died two years ago. The receiver comes back with two years of messages at once. The manufacturer folded eighteen months ago. They pay you from the ship's account, which is now theirs, and give you the three years of measurements."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(18))
-						return {text = "It takes half a day to find the fault. The receiver comes back. It brings eighteen months of messages and then stops. That is enough. They pay you what they can spare. They give you the measurements."},
+						return {text = "It takes half a day to find the fault. The receiver comes back with eighteen months of messages and then stops, which is enough. They pay you what they can spare and give you the measurements."},
 					partial = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(6))
 						Run.heat += 10
-						return {text = "You get their receiver hearing the near channels and not the far ones. They learn the company is not answering, but not why. They pay for the attempt and go back to their instruments."},
+						return {text = "You get their receiver hearing the near channels and not the far ones. They learn the manufacturer is not answering, but not why. They pay for the attempt and go back to their instruments."},
 					botched = func() -> Dictionary:
 						Run.heat += 14
-						Run.take_hull_damage(OptionTable.toll(3), "A survey ship's power bus, through the connecting line.")
-						return {text = "You trace the fault into their power bus, and the bus fails. Their ship is dark for an hour, and the jolt through the connecting line scorches a metre of your plating. Their receiver is no better, and no one pays."}},
+						Run.take_hull_damage(OptionTable.toll(3), "A survey ship's power bus failed and arced through the connecting line.")
+						return {text = "You trace the fault into their power bus, and the bus fails. Their ship is dark for an hour, and the jolt through the connecting line scorches a meter of your plating. Their receiver is no better, and no one pays."}},
 				{label = "Trade fuel for the measurements", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
-					return {text = "You give them two units. They give you three years of the approach: every hull that went inward or came back, on film and in the log. They add a case of the company's rations, which they have in plenty. You give them what little news you have.", material_id = &"survey_film", material = &"event"}},
+					return {text = "You give them two units. They give you three years of the approach: every hull that went inward or came back, on film and in the log. They add a case of the manufacturer's rations, which they have in plenty. You give them what little news you have.", material_id = &"survey_film", material = &"event"}},
 				{label = "Leave them", stay = true, effect = func() -> Dictionary:
 					return {text = "You give them what news you have on the channel and go. They thank you and go back to their instruments."}},
 			],
@@ -313,7 +313,7 @@ static func entries() -> Array[Dictionary]:
 			id = &"still_inbound",
 			title = "Still inbound",
 			subject = {stage = &"herd", swim = false, pieces = [&"role:hauler"], count = 6, near = 1, span = 420.0, height = 200.0, seed = 5, drive = true, dark = 0.5},
-			body = "Six haulers are crawling across the system in formation toward the core, at a few metres a second. No one answers your hail, and the hulls are cold on every band except the drives. People now long dead set this convoy on automatic, and it is still going where it was told. Their holds are sealed. Working them means matching their slow speed and cutting on the move, inside a formation that still corrects itself.",
+			body = "Six haulers are crawling across the system in formation toward the core, at a few meters a second. No one answers your hail, and the hulls are cold on every band except the drives. People now long dead set this convoy on automatic, and it is still going where it was told. Their holds are sealed. Working them means matching their slow speed and cutting on the move, inside a formation that still corrects itself.",
 			tags = [&"salvage"], site = &"contact",
 			group = &"",
 			weight = 8,
@@ -331,11 +331,11 @@ static func entries() -> Array[Dictionary]:
 						return {text = "The formation shifts, one hauler correcting for another. You spend the pass staying out of the way of six ships that do not know you are there. You come away with nothing, and hot from the dodging."},
 					botched = func() -> Dictionary:
 						Run.heat += 20
-						Run.take_hull_damage(OptionTable.toll(4), "In the gap between two haulers of a dead convoy. One of them corrected.")
+						Run.take_hull_damage(OptionTable.toll(4), "Sat in the gap between two haulers of a dead convoy, and one of them corrected.")
 						return {text = "You match the wrong hauler, and the one behind it slowly corrects into your gap. There is nowhere to go. It crushes your flank and keeps going toward the core."}},
 				{label = "Pace them for a day", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
-					return {text = "You hold a kilometre off and match their crawl for a day. Their drives shake the old hulls, and you take the one good piece that comes loose. Flying that slowly for a day costs fuel.", material = &"wreck"}},
+					return {text = "You hold a kilometer off and match their crawl for a day. Their drives shake the old hulls, and you take the one good piece that comes loose. Flying that slowly for a day costs fuel.", material = &"wreck"}},
 				{label = "Let them go", stay = true, effect = func() -> Dictionary:
 					return {text = "You log their heading and speed and let them go."}},
 			],
@@ -357,12 +357,12 @@ static func entries() -> Array[Dictionary]:
 						return {text = "You fly inward with them for a day. Nobody says much on the channel. At the end of it they thank you, and pay, and go on, and you turn around. Your hull comes through it fine."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(22))
-						Run.take_hull_damage(OptionTable.toll(2), "A day inward with nine people who were not coming back.")
+						Run.take_hull_damage(OptionTable.toll(2), "Flew a day inward with nine people who were not coming back.")
 						return {text = "You fly a day inward with them, and something uncharted out there marks your plating. They pay in full and thank you, and you turn around."},
 					partial = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(10))
-						Run.take_hull_damage(OptionTable.toll(3), "Half a day inward, and the plating did not like it.")
-						return {text = "You turn back at midday. Your plating is reading things a day would not undo. You say so. They understand, and pay you for the half day. They go on without you."},
+						Run.take_hull_damage(OptionTable.toll(3), "Flew half a day inward, and the plating wore through.")
+						return {text = "You turn back after half a day, because your plating is reading things a full day would not undo. You say so, and they understand and pay you for the half day. They go on without you."},
 					botched = func() -> Dictionary:
 						Run.drain_fuel(2)
 						Run.take_hull_damage(OptionTable.toll(4), "Flew a day inward with nine strangers. Hit something that was not on the chart.")
@@ -392,11 +392,11 @@ static func entries() -> Array[Dictionary]:
 						return {text = "You match the ship close enough to pass a line and hold there for six minutes. Two units go across, and a sealed case comes back with equipment from beyond the chart. The voice tells you three things about the core before the ship is gone.", module = true},
 					clean = func() -> Dictionary:
 						Run.drain_fuel(2)
-						return {text = "You hold the match for four minutes. That is long enough for the fuel. It is not quite long enough for what they meant to send. Something smaller comes across instead. The voice says one thing about the core, and it is gone.", material = &"event"},
+						return {text = "You hold the match for four minutes, which is long enough for the fuel. It is not quite long enough for what they meant to send, so something smaller comes across instead. The voice says one thing about the core, and it is gone.", material = &"event"},
 					partial = func() -> Dictionary:
 						Run.drain_fuel(2)
 						Run.heat += 14
-						return {text = "You get the line and the fuel across. Then you lose the match, and the line parts before anything comes back. They have your fuel, and your drive is hot from the chase. The voice apologises but does not slow down."},
+						return {text = "You get the line and the fuel across. Then you lose the match, and the line parts before anything comes back. They have your fuel, and your drive is hot from the chase. The voice apologizes but does not slow down."},
 					botched = func() -> Dictionary:
 						Run.drain_fuel(1)
 						Run.take_hull_damage(OptionTable.toll(4), "Touched hulls with a ship that was not stopping.")
@@ -413,7 +413,7 @@ static func entries() -> Array[Dictionary]:
 			id = &"frost",
 			title = "Frost",
 			subject = {stage = &"single", pieces = [&"r5_tank_pressure_tank_1"], tumble = 2.0},
-			body = "A container ship has split a tank of liquid gas, which stays liquid only while it is kept cold. It has boiled into a cloud two kilometres across that freezes onto whatever it touches. Frost a centimetre thick covers everything, including the radiators. They cannot shed heat through ice. The containers inside the cloud are whole. Working them means an hour in a cloud that will coat your vents in the first ten minutes.",
+			body = "A container ship has split a tank of liquid gas, which stays liquid only while it is kept cold. It has boiled into a cloud two kilometers across that freezes onto whatever it touches. Frost a centimeter thick covers everything, including the radiators. They cannot shed heat through ice. The containers inside the cloud are whole. Working them means an hour in a cloud that will coat your vents in the first ten minutes.",
 			tags = [&"hazard", &"salvage"], site = &"derelict",
 			group = &"",
 			weight = 8,
@@ -431,8 +431,8 @@ static func entries() -> Array[Dictionary]:
 						return {text = "Ten minutes in, the radiators are ice. The heat has nowhere to go. You back out with nothing. The ship has to sit for hours before it can shed what it is carrying."},
 					botched = func() -> Dictionary:
 						Run.heat += 30
-						Run.take_hull_damage(OptionTable.toll(4), "Iced radiators in a frost cloud. The drive section cooked from the inside.")
-						return {text = "You stay in too long, and the heat builds with nowhere to go until something in the drive section fails. You come out of the cloud white and hot, missing a piece of the hull."}},
+						Run.take_hull_damage(OptionTable.toll(4), "The radiators iced over in a frost cloud, and the drive section cooked from the inside.")
+						return {text = "You stay in too long. The heat builds with nowhere to go until something in the drive section fails. You come out of the cloud white and hot, missing a piece of the hull."}},
 				{label = "Wait for the cloud to thin", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
 					return {text = "The cloud is spreading, slowly. You hold outside it for a day and a half, burning to stay put. You go in when it has thinned enough to work the outer racks without icing. You get one container, from the edge.", material = &"wreck"}},
@@ -464,7 +464,7 @@ static func entries() -> Array[Dictionary]:
 						Run.add_credits(OptionTable.purse(8))
 						return {text = "You get them half a day outward and the line parts. You burn an hour of fuel chasing the loose end down and putting it back on. Half a day is not far enough to matter. The ship pays for half a day."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(OptionTable.toll(4), "A sleeping ship, on a tow line, swinging.")
+						Run.take_hull_damage(OptionTable.toll(4), "A sleeping ship swung on the tow line into the flank.")
 						return {text = "The tow line comes tight at a bad angle, and the ship swings slowly into your flank. The sleepers do not wake or pay."}},
 				{label = "Take what they will not miss", effect = func() -> Dictionary:
 					Run.heat += 8

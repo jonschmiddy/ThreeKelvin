@@ -109,6 +109,7 @@ LIST+=(
 "contracttest contracttest 120 0 --headless --path tkg -- contracttest"
 "routinetest routinetest 180 0 --headless --path tkg -- sheet=RoutineTest"
 "augmenttest augmenttest 120 0 --headless --path tkg -- sheet=AugmentTest"
+"setbonustest setbonustest 180 0 --headless --path tkg -- sheet=SetBonusTest"
 "optiontest optiontest 180 0 --headless --path tkg -- optiontest"
 "systemtest systemtest 180 0 --headless --path tkg -- systemtest"
 "corewintest corewintest 180 0 --headless --path tkg -- sheet=CoreWinTest"

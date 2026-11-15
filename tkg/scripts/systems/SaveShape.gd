@@ -97,6 +97,7 @@ static func _lists_bad(d: Dictionary) -> String:
 		return "dross"
 	var fixed: Array = [
 		["trail", not d.has("trail") or _flat(d["trail"])],
+		["hive_drones", not d.has("hive_drones") or _flat(d["hive_drones"])],
 		["board_owned", typeof(d.get("board_owned")) != TYPE_ARRAY or _flat(d["board_owned"])],
 		["rng", not d.has("rng") or (typeof(d["rng"]) == TYPE_DICTIONARY
 			and _row_bad(d["rng"], _RNG_SCALARS, []) == "")],

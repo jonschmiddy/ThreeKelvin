@@ -871,7 +871,7 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 	return b
 
 ## Hazard red, warmer than THEM (an enemy's colour), so a warning wins over the cold blues.
-const _WARN := Color("#d4614f")
+const _WARN := UITheme.LEAVE
 
 ## The blurb the same way: shown for the galaxy at rest, hidden once a star is picked (C3).
 func _blurb(s: String) -> void:

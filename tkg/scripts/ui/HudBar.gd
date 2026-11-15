@@ -311,7 +311,7 @@ static func fuel_state() -> int:
 	return 1 if Run.fuel_low() else 0
 
 ## The figure's colour in each state: the bar's own ice, amber, the hull's red.
-const FUEL_INK: Array[Color] = [UITheme.ICE, UITheme.WARN, Color("#d4614f")]
+const FUEL_INK: Array[Color] = [UITheme.ICE, UITheme.WARN, UITheme.LEAVE]
 
 ## Read at click time so the label and destination cannot disagree (UNDOCK only, Jon, Oct 27).
 func _go_here() -> void:
@@ -554,7 +554,7 @@ class SetChip extends Control:
 class FuelBar extends Control:
 	const W := 24
 	const H := 5
-	const FILL: Array[Color] = [UITheme.GOOD, UITheme.WARN, Color("#d4614f")]
+	const FILL: Array[Color] = [UITheme.GOOD, UITheme.WARN, UITheme.LEAVE]
 	var ratio := 1.0
 	var state := 0
 

@@ -113,16 +113,16 @@ static func entries() -> Array[Dictionary]:
 					clean = func() -> Dictionary:
 						Run.drain_fuel(OptionTable.science_fuel())
 						Run.add_data(OptionTable.reading(2))
-						Run.take_hull_damage(OptionTable.toll(1), "A boulder rolling down a fresh slide, hidden in its own dust.")
+						Run.take_hull_damage(OptionTable.toll(1), "Hit by a boulder rolling down a fresh slide, hidden in its own dust.")
 						return {text = "The dust is thicker low down than it looked from above. The plating takes a steady scour while the drill works. The core comes up whole, and you burn fuel to climb out with a scuffed bow. Neve is still in the dust when you leave orbit."},
 					partial = func() -> Dictionary:
 						Run.drain_fuel(OptionTable.science_fuel())
 						Run.add_data(OptionTable.reading(1))
-						Run.take_hull_damage(OptionTable.toll(3), "A boulder rolling down a fresh slide, hidden in its own dust.")
+						Run.take_hull_damage(OptionTable.toll(3), "Hit by a boulder rolling down a fresh slide, hidden in its own dust.")
 						return {text = "A piece of the slide comes off the face while the drill is in. It hits the bow, and you pull out with half a core. The trip down and up has cost fuel. On the way up you pass Neve's scout. Its lights are on, and it is climbing on its own."},
 					botched = func() -> Dictionary:
 						Run.drain_fuel(OptionTable.science_fuel())
-						Run.take_hull_damage(OptionTable.toll(4), "A boulder rolling down a fresh slide, hidden in its own dust.")
+						Run.take_hull_damage(OptionTable.toll(4), "Hit by a boulder rolling down a fresh slide, hidden in its own dust.")
 						return {text = "The dust hides a boulder rolling down the slide. It hits the ship before the drill is set. You climb with no core and the plating split, and the fuel for the trip is spent. Neve hears the impact on the channel and asks if you are still there."}},
 				{label = "Read Neve Calder out of the dust", effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(10))
@@ -313,16 +313,16 @@ static func entries() -> Array[Dictionary]:
 					clean = func() -> Dictionary:
 						Run.drain_fuel(OptionTable.science_fuel())
 						Run.add_data(OptionTable.reading(2))
-						Run.take_hull_damage(OptionTable.toll(1), "A piece of a rock that a forgotten mining charge had broken apart.")
+						Run.take_hull_damage(OptionTable.toll(1), "Hit by a piece of a rock that a forgotten mining charge had broken apart.")
 						return {text = "You read the faces close and keep most of the spread off you. A small piece catches the stern on the way out. The fuel for the trip is spent. Sabine asks you to log the hit, since the piece that did it is not on her track."},
 					partial = func() -> Dictionary:
 						Run.drain_fuel(OptionTable.science_fuel())
 						Run.add_data(OptionTable.reading(1))
-						Run.take_hull_damage(OptionTable.toll(3), "A piece of a rock that a forgotten mining charge had broken apart.")
+						Run.take_hull_damage(OptionTable.toll(3), "Hit by a piece of a rock that a forgotten mining charge had broken apart.")
 						return {text = "Two pieces turn into your path at once, and you take one on the bow to miss the other. You leave the spread with half the readings and a dent. The burns cost fuel. Sabine asks for what you have, and you send it."},
 					botched = func() -> Dictionary:
 						Run.drain_fuel(OptionTable.science_fuel())
-						Run.take_hull_damage(OptionTable.toll(4), "A piece of a rock that a forgotten mining charge had broken apart.")
+						Run.take_hull_damage(OptionTable.toll(4), "Hit by a piece of a rock that a forgotten mining charge had broken apart.")
 						return {text = "The spread is tighter than the dish showed. A piece the size of your ship comes across the bow, and the plating gives. You pull out with no readings, and the fuel for the trip is gone. Sabine logs the hit in her patrol report and lists your registry as a hazard to traffic."}},
 				{label = "Track the pieces for Lieutenant Orrow", effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(10))

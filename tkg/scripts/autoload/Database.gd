@@ -69,12 +69,12 @@ func _seed_manufacturers() -> void:
 	var raw := [
 		[&"korvan", "Korvan Heavy Works", "It fires. Every time.", "#d97b2e", "#8a4517",
 			"Ex-military surplus parts. Ballistics run cold; ordnance and plate run hot.",
-			"Standard Issue", "Charge cards charge 1 turn faster.",
+			"Standard Issue", "Korvan charge cards fire 1 turn sooner. A 1-turn charge fires at once.",
 			"Full Broadside", "Salvo applies to your first attack too."],
 		# Field is a white heat-shield to match the hulls' pale ceramic tile (Jon, Oct 15).
 		[&"solari", "Solari Foundry", "The line between reactor and weapon is philosophy.", "#ef9f27", "#f2eee6",
 			"Weapons that hit harder the hotter you run.",
-			"Sunward", "Plasma weapons gain +2 damage.",
+			"Sunward", "Solari attacks deal 2 more damage per hit.",
 			"Ignition", "Overheat damage halved."],
 		[&"probate", "The Probate Combine", "Everything is salvage. Even you.", "#b3924e", "#6e5a2e",
 			"Scrap pays and plate holds. It wins slowly and pays well.",
@@ -87,15 +87,15 @@ func _seed_manufacturers() -> void:
 		[&"verity", "Verity Ateliers", "Made once, made properly.", "#8a7340", "#e8e0cc",
 			"Few hulls, each one signed. The parts are rare, exact and costly.",
 			"Bespoke", "Verity cards cost 1 less energy.",
-			"Provenance", "Start each combat with 1 extra energy."],
+			"Provenance", "1 extra energy every turn."],
 		[&"cygnet", "Cygnet Dynamics", "You are never alone.", "#58c8d8", "#16202e",
 			"Autonomous drones that fight and intercept for you.",
-			"Swarm Logic", "Drones act twice on the turn they launch.",
-			"Hive Mind", "Drones persist between encounters."],
+			"Swarm Logic", "A drone attacks twice the first time it attacks.",
+			"Hive Mind", "Up to 3 attack drones stay out into the next fight."],
 		[&"calyx", "Calyx Biosystems", "Grown, not built.", "#3f8f6b", "#e2ece6",
 			"Biotech hulls that regenerate, with cards that change as you use them.",
-			"Cultivar", "Heal 3 after each combat.",
-			"Symbiosis", "Gain 1 exotic material after each fauna encounter."],
+			"Cultivar", "Mend 3 hull after every fight you win.",
+			"Symbiosis", "Each creature you kill leaves 1 more exotic material."],
 	]
 	for r in raw:
 		var m := ManufacturerData.new()

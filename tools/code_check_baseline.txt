@@ -563,7 +563,7 @@ file scripts/ui/sysmap/ShipFlight.gd 4150
 file scripts/ui/sysmap/SystemView.gd 3221
 length scripts/Main.gd::_ready 143
 length scripts/autoload/Database.gd::_seed_modules 453
-length scripts/systems/CardResolver.gd::resolve 139
+length scripts/systems/CardResolver.gd::resolve 138
 length scripts/systems/FlightSolve.gd::_arrival_cusps 103
 length scripts/systems/FlightSolve.gd::_build_in 120
 length scripts/systems/FlightSolve.gd::_integrate 381
@@ -574,7 +574,7 @@ length scripts/systems/MapGen.gd::spread_positions 102
 length scripts/systems/MaterialTable.gd::all 212
 length scripts/systems/NebulaField.gd::_build 120
 length scripts/systems/SaveGame.gd::_node_from 110
-length scripts/systems/SaveGame.gd::load_into_run 197
+length scripts/systems/SaveGame.gd::load_into_run 188
 length scripts/systems/SystemLayout.gd::of 177
 length scripts/systems/options/OptionsPart01.gd::entries 437
 length scripts/systems/options/OptionsPart02.gd::entries 532

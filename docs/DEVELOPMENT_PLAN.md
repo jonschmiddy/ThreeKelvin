@@ -1,5 +1,11 @@
 # Three Kelvin — Build Order
 
+**PHASES 11 TO 13 BROUGHT UP TO DATE 2026-11-14**, from the commits and the
+`changes/` files through sweep 2 (51d2d5cc): science (Phase 12) landed Nov 9,
+the flight work and the jump films (Phase 13) by Nov 11, and what landed that no
+phase named is under "Landed Nov 4 to 14". No build has been cut since 0.4.2
+(Jon, Nov 3: the roadmap before the next zip).
+
 **BROUGHT UP TO DATE 2026-10-23, after the alphas 0.1.0 to 0.4.2.** Each of
 phases 1 to 9 now says what is done, with the build or commit that did it, what
 is partly done, and what is left. Phases 10 to 15 are the work after the alpha,
@@ -468,7 +474,7 @@ while the planet's shader compiles (C, Oct 28; see the table in §4).
 for his OK: windowed timing of the first chart and sector map, VSYNC off on
 his Mac, and the ANGLE renderer test.
 
-### Phase 11 — Make combat matter
+### Phase 11 — Make combat matter — **done, Nov 3 to 10**
 *Jeremy: "combat doesn't feel important", "encounters are way too fast for how
 infrequent they are", "combats need to feel epic". Cody dove star to star.*
 
@@ -512,6 +518,11 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
 4. **Epic battle music and a "legendary" boss track.** Jeremy loves the flying
    music. Pick reference tracks first, then generate. It costs ElevenLabs
    credits, which need Jon's OK.
+   **Landed Nov 10, composed in the music lab instead** (ElevenLabs battle
+   music "doesn't fit"): battle music by danger, on the flying music's tune,
+   Crosswind for EASY and ROUGH, Gallop for HARD, Full Burn for BRUTAL and
+   LETHAL (a409378f), and the Custodian's own theme, Undertow, extended to
+   2:35 (30a1ad3d). The Hellbender keeps Last Stand.
 5. **Re-run the Custodian balance** after steps 2 and 3. It was tuned on Oct 22
    to a 56% win rate for a built ship.
    **Done for step 2, Oct 29.** Korvan only (`manufacturer=korvan
@@ -556,7 +567,7 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
 **Gate:** fights measurably longer and costlier per the step 1 study, the
 Custodian re-tuned, and Jon's pick on each step that needs one.
 
-### Phase 12 — Things to do between fights
+### Phase 12 — Things to do between fights — **science landed Nov 9, comets Nov 9 to 10**
 *Jeremy: science on barren planets, comet interception, explorable asteroids,
 colonisation; "make science and exploration offset the infrequentness of
 combats". About 1 to 2 weeks. Depends on Phase 11's decision on how rare and how
@@ -570,10 +581,38 @@ long fights are.*
   The art goes through PixelLab within its allowance.
 - **Colonisation is later**, with its own design.
 
-**Gate:** the family is in `OptionTable`, passes the gate's lint and prose
-steps, and each batch is reviewed before the next.
+**Built as science** (Jon's Nov 3 idea, science as a currency; picks "1A 2B 3A
+4B", Nov 4), on feat/science in steps S2 to S15, landed Nov 9 (land/science):
+- **DATA**, a third number on the top bar beside CREDITS and FUEL. It is never
+  bought or sold. Eight readings on worlds with no air and on asteroid belts pay
+  it (a reading from a distance burns fuel; going in close pays twice, on a
+  check). Tuned to one event in six being science (`SCIENCE_SHARE`): about 70
+  DATA for the human pilot by the time it reaches the core.
+- **The Lab's research board.** Each run deals nine of twelve routines in three
+  branches (FRAME, CORE, DRIVE), bought in order at any Lab. A row's first step
+  costs 4 DATA (S1A, Nov 8), then 10 and 15. A routine survives a hull swap.
+  SaveGame 42.
+- **AUGMENT** adds one of eight affixes to a part, once per part ever; STRIP,
+  DEVELOP FILM and READ FOR DATA are the Lab's other services.
+- **The Lab screen**: the camera goes into the glass (layout 1C), the research
+  board and RECIPES inside, the elevator slides the decks, and each Lab runs its
+  owner's screensavers (Nov 7). The research board's BUY has its own sound.
+- **DATA in an event's result row** (pick 2A), the ROUTINES row on the ship, the
+  AUGMENTED mark, and the sim pilot flies science (`science=on|off|ignore`).
+  `RoutineTest`, `AugmentTest` and `ScienceSimTest` are in the gate.
+- **Comets you can catch** (Jon's "CC" and C, Nov 9): one per visit on the
+  system's map clock, three catch spots on its path raced as IT and YOU, the
+  wait and the close pass in LOCAL, and three readings of its own. Flight limits
+  M1 (median 4.5 s, 90th 7.5 s). `CometFlightTest` and `CometCatchTest` gate it.
+- **Explorable asteroids, in part**: four of the eight readings are on belts,
+  as events rather than a place to explore.
 
-### Phase 13 — Flight and orbits
+**Gate:** the family is in `OptionTable`, passes the gate's lint and prose
+steps, and each batch is reviewed before the next. Met Nov 9 for science and
+the comets; the readings' text is a first draft that the Phase 14 text rework
+takes in.
+
+### Phase 13 — Flight and orbits — **steps 1, 2, 4 and 5 landed by Nov 11; 3 dropped**
 *Jeremy, with references: the ASTE-589 optimal-transfer PDF and its MATLAB code
 (fuel-optimal low-thrust spiral, RK4), and
 github.com/rtfisher/circular_restricted_three_body_problem. Jon: "a fairly
@@ -611,6 +650,11 @@ seen on a page before it touches the game.*
 4. **Two engine systems, visible.** An ion drive inside a system (blue flame,
    Phase 10) and the jump drive between stars, which looks and sounds different
    (Jeremy: "it only makes sense with two separate engine systems").
+   **Landed Nov 10 to 11 (J1):** a jump is a film of about ten seconds, picked
+   at random from eleven, each with its own sound cut to the picture (Jon on the
+   cinematic takes: "insane, love them all"). After it the film's stars settle
+   into the system map's sky before the panels slide in and the ship warps in
+   (Nov 11). `JumpShaderTest` is in the gate.
 5. **Prototype: two-star and big-Jovian systems** with restricted three-body
    navigation: low-energy paths along the gravity of two bodies, tested in a
    page first. The most distinctive and the riskiest step; it ships only if the
@@ -628,7 +672,7 @@ seen on a page before it touches the game.*
    This takes in step 2's solved flight: the twins need a planner that
    searches, so step 2 is built with it. **Built Oct 30 to Nov 1** on
    feat/twin-fix (FlightSolve and MapGravity; a twin flies two legs where one
-   reaches nothing), not landed yet. **Flight length ruled Nov 1 (ruling 21,
+   reaches nothing), and on main by the Nov 8 handoff. **Flight length ruled Nov 1 (ruling 21,
    "Flight length: C")** from the Autopilot Flight Time page, which played eight
    flights at game speed: TIME_W 16 and T_CAP 16, with the as-built search as a
    fallback where C's own finds nothing. A flight from place to place takes
@@ -656,7 +700,7 @@ seen on a page before it touches the game.*
    Built as a foundation and five areas (solver, flight, view, map, local)
    merged on the branch. Jon passed the built look on Nov 2 ("Orbit look:
    OK": all four styles, PAINTED's hot zone on the balance point, the clock
-   held through zoom moves); it lands through the gate after review.
+   held through zoom moves); landed Nov 3 (SaveGame 39, PROTOCOL 14).
    **Pair calls (Nov 2, "1B 2Y 3OK 4A")**: 1B, a preview line to a world
    round one sun ends where the ship will meet the world, with no marker
    there; 2Y, the solver's check against an eased departure burn the map
@@ -665,6 +709,12 @@ seen on a page before it touches the game.*
    built; 4A, your ship holds with the map's clock through a zoom move, and
    partners' ships with it.
    Design in tk-scratch/orbiting-pair/DESIGN.md.
+   **Faster, then by click (Nov 8 to 11).** The autopilot was "4x too slow" in
+   play (Nov 4): from Nov 8 a flight takes 3 to 7 s from the click to settled
+   in orbit, down from about 14, with the twin-star DIRECT 90th at 6.1 s (Nov 9,
+   "A"). The system map lost FLY HERE (Nov 11): click a place to select it,
+   click again to fly. Every flight to a world arrives on its lit side, with
+   its spin (Nov 11).
 
 Constraints: `ShipFlight` owns the flight; co-op partner positions
 (`Net.report_spot`, sent as offsets from the orbited world) must keep working;
@@ -701,11 +751,45 @@ build is planned yet.
 
 **Gate:** a page of options and Jon's ruling (ruled Oct 27: a design page later).
 
+### Landed Nov 4 to 14 that no phase named
+
+- **Co-op.** Join a fight after its first turn and you arrive stunned until the
+  enemy's turn ends; party size scales enemy hull and pay (Nov 5 ruling, landed
+  Nov 8). One Custodian per galaxy, on the lead ship's jumps (PROTOCOL 16, Nov 4).
+- **The Hellbender only at ascension 7 and up** (Nov 8, landed Nov 9; SaveGame
+  41, PROTOCOL 19). Win rate unchanged over 4,000 runs.
+- **Render styles.** LEGACY is gone (Nov 7); RADIANT is redone with one hard
+  light per scene (Nov 8, landed Nov 9); the round galaxy kinds and the dwarfs
+  are painted in every style (Nov 8).
+- **Stripped-down UI** (Jon's picks, Nov 9): one mint outline on what you point
+  at and nothing at rest, fewer duplicate buttons, loot opens in place, events
+  draw their own place on LOCAL, hologram tooltips that wear thin as the hull
+  fails (Nov 11), and the bottom bands slide between LOCAL, map and chart.
+- **Tiers** (Nov 10 to 11): LAUNCH A RUN has eleven tier stops, each a galaxy
+  with one more rule; winning opens the next; tier 0 always flies a spiral; the
+  tier stack shows every rule in force, and the tier pictures landed by Nov 13.
+- **The shipyard front door** (Nov 10 to 13): the hull pick is the old yard,
+  seven banners, the ships on fixed stands lit as the Shipyard deck (Jon's D),
+  LAUNCH lifts the ship off on its belly jets, docking settles it back (SaveGame
+  43 for mooring on the station's right), and the band shows the manufacturer,
+  the fitted parts, HAND SIZE and the starting deck (Jon's B2).
+- **Sweep 1** (#72, Nov 9) and **sweep 2** (Nov 13 to 14), by James: dead code
+  out, the big files split (encounters, chart, RunState, flight, subjects,
+  breakup), public names, layering and per-frame checks, the fast `check.sh`
+  and its pre-commit hook, the Claude Code guardrails (warn, never block: sweep
+  2 ruling 1A), damaged save files refused cleanly, a party host that ignores
+  bad input, and the relay's limits.
+
 ### Loose ends
 
-- **Set bonus texts that do not match the code.** Cygnet 5, Verity 5 and
-  Calyx 5 by the Oct 17 finding; `CHANGELOG.md`'s 0.1.0 known issues name
-  Cygnet 5, Korvan 3 and Solari 3. Parked until after the alpha (Jon, Oct 18).
+- ~~**Set bonus texts that do not match the code.**~~ Done Nov 14
+  (feat/loose-ends): seven of the fourteen were wrong. Korvan 3, Solari 3 and
+  Cygnet 5 now do what they say; Verity 5, Cygnet 3, Calyx 3 and Calyx 5 say
+  what they do. `SetBonusTest` holds all fourteen;
+  `docs/why/SetBonusTest.md` has each call.
+- ~~**The three reds**~~ (open ruling 4). Swept Nov 14: the literal
+  `#d4614f` and `#c8503c` sites name `UITheme.LEAVE` and `BAD`, with no pixel
+  changed. `docs/why/UITheme.md#leave-colour` lists the two left literal.
 - ~~**Co-op:** two ships starting different fights in one system in the same
   second can mismatch. Rare; left as it is.~~ Fixed Nov 5 (Jon: "Yeah you can
   fix it"): every asker takes the host's fight, with the review's three holes
@@ -741,7 +825,7 @@ and 19 on Oct 29, and rows 17 and 18 on Oct 30; they moved to the table below.
 
 | # | Ruling | From | Blocks |
 |---|---|---|---|
-| 4 | Three reds. `UITheme` now names `LEAVE` for exits and `WARN`/`BAD` for warnings; the older literal sites were left alone on purpose | B3 | Nothing now; a sweep of the literals |
+| 4 | ~~Three reds~~. Swept Nov 14: the literal sites name `UITheme.LEAVE` and `BAD` (see Loose ends) | B3 | Nothing |
 
 ### Ruled since Oct 20
 

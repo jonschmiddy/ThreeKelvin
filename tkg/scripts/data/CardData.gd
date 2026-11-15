@@ -260,7 +260,7 @@ func describe_rich(live: int = -1,
 	# Safe in this order, as no keyword is 'Deal' or a digit.
 	# Why: docs/why/CardData.md#rich-description
 	if live >= 0 and damage > 0 and live != damage:
-		var col := "#7fb89a" if live > damage else "#d4614f"
+		var col := "#7fb89a" if live > damage else "#" + UITheme.LEAVE.to_html(false)
 		out = out.replace("Deal %d" % live,
 			"Deal [color=%s]%d[/color]" % [col, live])
 	return out

@@ -30,7 +30,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.choosing = mini(maxi(c.discard, c.decommission), cb.hand.size())
 
 	if c.damage_equals_heat:
-		var d := maxi(1, Run.heat + 2)
+		var d := maxi(1, Run.heat + 2) + Combat.sunward(c)
 		cb.damage_enemy(d, 1, c.name)
 		cb.attacks_this_turn += 1
 
@@ -38,8 +38,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		var dmg := c.damage
 		if c.heat_scale > 0:
 			dmg += int(Run.heat / c.heat_scale)
-		if c.manufacturer == &"solari" and c.heat_scale > 0 and Run.has_set(&"solari", 3):
-			dmg += 2
+		dmg += Combat.sunward(c)
 		if c.flashpoint > 0 and Run.heat > Run.heat_cap():
 			dmg += c.flashpoint
 			cb.log_line("  flashpoint +%d/hit" % c.flashpoint, &"good")

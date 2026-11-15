@@ -59,6 +59,18 @@ third, a negative stat) rather than an exit, and folding two meanings into one
 constant because they share a hex is how a palette stops meaning anything.
 ```
 
+Swept on Nov 14 anyway, because by then the game itself spent `LEAVE` on damage
+as well as exits (the hull bar under a third, `AttrBlock.LOSS`, a botched check,
+the Dross count), so the hex already meant both. Nine `#d4614f` literals became
+`UITheme.LEAVE` (FLEE and BREAK CONTACT, the fuel gauge's empty end, a long-shot
+check, the chart's hazard line, a card's lowered damage) and LabBoard's own
+`#c8503c` became `UITheme.BAD`; where a site meant hazard it keeps its local name
+(`StarchartScreen._WARN`, `SkillColours`) pointing at the constant. Two stay
+literal: `MapGen.swatch`'s core colour (systems may not reach into ui, which
+`code_graph.py` holds) and `CustodianBadge.C_BAD`, the badge page's own palette
+as 0xRRGGBB beside the other page colours. The sweep changed no pixel
+(`golden_diff.py` on GoldenFrames and the fight, chart, HUD and lab sheets).
+
 ## Tooltip wrap
 
 Above `const TOOLTIP_PAD_V := 6`:

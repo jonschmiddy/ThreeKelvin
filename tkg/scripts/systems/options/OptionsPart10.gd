@@ -60,7 +60,7 @@ static func entries() -> Array[Dictionary]:
 						Run.heat += 5
 						return {text = "It takes two hours with the cutter running hot. The calf pulls once and then holds still until the last length parts. It leaves a broken spine in the cable, and the grapple takes it.", material = &"fauna"},
 					partial = func() -> Dictionary:
-						Run.take_hull_damage(OptionTable.toll(2), "A barge's tow cable, pulled tight by a frightened calf.")
+						Run.take_hull_damage(OptionTable.toll(2), "A barge's tow cable, pulled tight by a frightened calf, whipped across the bow.")
 						return {text = "The calf pulls at the wrong moment, and the cable whips across your bow. It takes a strip of plating with it. The calf tears loose on its own and is gone. The grapple comes back empty."},
 					botched = func() -> Dictionary:
 						return {text = "The cutter catches the calf instead of the cable. It tears itself free in one pull. Then it turns on your ship with its tail up and its spines spread.", fight = true}},
@@ -125,10 +125,10 @@ static func entries() -> Array[Dictionary]:
 						Run.add_credits(OptionTable.purse(18))
 						return {text = "The dish needs a long look before the paint will read, and the drive runs warm holding you that close. You send the record to Harl Station. The clerk takes it and pays less for one this rough."},
 					partial = func() -> Dictionary:
-						Run.take_hull_damage(OptionTable.toll(3), "Too close to a sleeping leviathan when it shifted.")
+						Run.take_hull_damage(OptionTable.toll(3), "Got too close to a sleeping leviathan when it shifted.")
 						return {text = "It shifts in its sleep while you are close. A crystal on its back scrapes the length of your hull. The record you got is too poor to send, and you back off with a damaged hull."},
 					botched = func() -> Dictionary:
-						return {text = "It wakes with your ship a few hundred metres off its flank. The crystals along its back light up, and it comes straight at you.", fight = true}},
+						return {text = "It wakes with your ship a few hundred meters off its flank. The crystals along its back light up, and it comes straight at you.", fight = true}},
 				{label = "Cut the plate out", fight = true, effect = func() -> Dictionary:
 					return {text = "You get the cutter onto the edge of the plate. The leviathan wakes at the first touch and rolls toward your ship. The plate is still in its flank.", fight = true}},
 				{label = "Leave it sleeping", stay = true, effect = func() -> Dictionary:
