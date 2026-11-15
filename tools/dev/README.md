@@ -84,7 +84,9 @@ Python tools run through uv, for example:
   films, and never run one while Jon is playing.
 - **Player text is plain** (a tired engineer's manual), grade 7 or under
   (`python tools/prose_grade.py --all`, `python tools/prose_tells.py`), no
-  dashes in sentences. Encounters go through the encounter-prose skill.
+  dashes in sentences. Encounters go through the encounter-prose skill: since
+  Nov 15 (Jon) one sentence to open, one per result, no quotes or voice
+  (`python tools/encounter_lint.py --strict` checks it).
 - **Releases are built from a clean detached copy** of the landed commit
   (`release.sh` does this). Zips are not uploaded anywhere; Jon shares them.
 - **Saves:** a change to what a save holds raises `SaveGame.VERSION` and keeps

@@ -267,16 +267,27 @@ vocabulary is fixed and was chosen deliberately:
 
 ## 8. Voice
 
+**The short style (Jon, Nov 15) comes first.** The body is ONE plain sentence:
+the situation and what is at stake. Each outcome is ONE sentence. No quotes,
+hails or source tags: the text sits under the thing on screen, so a quote reads
+as the thing talking. Labels run 2-5 words. Big creatures are "leviathan",
+never "megafauna". No number the result row already shows, and nothing the code
+does not give. The full list is `.claude/skills/encounter-prose/SKILL.md` §00;
+the approved example is `tkg/scripts/systems/options/OptionsPart06.gd`. The
+three benchmarks below predate it and are kept for their choices, not their
+length.
+
 Read a dozen entries before writing one. The register, consistently:
 
 - **Second person, present tense, plain declaratives.** "You work the seam
   quietly, in the lee of the ribs."
 - **Concrete over abstract.** Objects, distances, times. "Eleven seconds."
-  "Four years of output." "Two hundred metres in."
+  "Four years of output." "Two hundred meters in."
 - **The universe is indifferent, not hostile.** Things are busy, or old, or
   already dead. Very little is out to get you specifically.
-- **Understatement on the worst outcomes.** "The hull holds. Everything on the
-  hull does not."
+- **Understatement on the worst outcomes**, in one sentence. (The old example,
+  "The hull holds. Everything on the hull does not.", is the punchline pair
+  ruled out on Nov 15.)
 - **No exclamation marks. No rhetorical questions. No winking.**
 - **DETAIL IS NOT COMPRESSION**, and this is the one that went wrong most. A
   clause earns its place by parsing on the *first* read. Four lines had to be
@@ -291,8 +302,9 @@ Read a dozen entries before writing one. The register, consistently:
 - **Credits come from people.** A `contract` pays cash because a client exists.
   A `salvage` or `hazard` with nobody in the body hands over an *object*, and
   the object becomes money at a station.
-- Bodies run roughly 40–70 words; outcome texts 20–45. The drawer will wrap
-  anything, but a plate that needs scrolling stops being scannable.
+- ~~Bodies run roughly 40–70 words; outcome texts 20–45.~~ SUPERSEDED Nov 15
+  (Jon): one sentence each; the approved bodies run 16-20 words and outcomes
+  about 10. `tools/encounter_lint.py` check 9 enforces it.
 
 ### Three quoted in full, as the benchmark
 

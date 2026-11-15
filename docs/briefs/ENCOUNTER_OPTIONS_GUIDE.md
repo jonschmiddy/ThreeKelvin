@@ -253,12 +253,15 @@ down to **6** for a specific manufacturer's specific paperwork, and one entry is
 
 Roughly what is already there, which is worth matching:
 
-- **Body: short, and front-loaded.** The gate holds every encounter to reading
-  grade 7, 17 words a sentence on average and none over 22
-  (`tools/prose_grade.py`). `ENCOUNTER_PROSE.md` has the rest of the rules.
-- **Outcome text: one or two sentences.** Written as fiction, and deliberately
-  never says "you failed" — the band is labelled separately above it.
-- **Labels are plain and imperative.** *Strip it now. Break it. Answer the
+- **Body: one plain sentence** (Jon, Nov 15): the situation and what is at
+  stake. No quotes or voice. The gate holds every encounter to reading grade 7
+  and no sentence over 22 words (`tools/prose_grade.py`), and
+  `tools/encounter_lint.py` fails a body of two sentences.
+  `.claude/skills/encounter-prose/SKILL.md` §00 has the rest of the rules.
+- **Outcome text: one sentence.** Written as fiction, and deliberately
+  never says "you failed" — the band is labelled separately above it. It never
+  repeats a number the result row shows.
+- **Labels are plain and imperative, 2-5 words.** *Strip it now. Break it. Answer the
   notice.* Anything explaining a **rule** is plain English, never in-fiction —
   making a player parse prose to learn a mechanic is the failure mode.
 - **The register.** Dry, procedural, faintly bureaucratic; the universe is

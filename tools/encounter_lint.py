@@ -12,6 +12,11 @@ found turned out to be patterns rather than judgement calls:
     a clause that needs a second read -- NOT a pattern, and the only one worth
                                          a person's time
 
+Since Nov 15 it also holds the text to Jon's short style (check 9): the body is
+one sentence, each result is one sentence, nothing is in quotes, and no
+"megafauna". The old floor (bodies of 300 characters or more) is gone; it
+pushed writers toward the long prose Jon ruled out.
+
 Run:  python tools/encounter_lint.py [--strict]
 
 `--strict` exits non-zero on ERRORs, for the gate. Without it, everything is a
@@ -34,7 +39,13 @@ PAY = [0, 1.0, 1.8, 3.0, 4.7, 7.2]
 TOLL = [0, 1.0, 1.9, 3.0, 4.3, 5.8]
 CRD_MAX = [0, 40, 70, 110, 170, 260]
 HULL_MAX = [0, 6, 10, 15, 20, 28]
-BODY_MIN = 300          # measured: the four reviewed bodies run 402-573
+# The short style (Jon, Nov 15; tk-scratch/textcut/pilot2/pilot2.md is the
+# approved example). Reading is a chore: the body is ONE sentence, each result
+# ONE sentence. The pilot's 14 bodies run 16 to 20 words; past 30 is a body
+# doing a result's job. (prose_grade.py's 22-word sentence cap usually fires
+# first; this one says why in the short style's own words.)
+BODY_WORDS_MAX = 30
+LABEL_WORDS_MAX = 5     # 2-5 words; the pilot's "Decline" shows one is fine
 TIER_NAME = ["", "EASY", "ROUGH", "HARD", "BRUTAL", "LETHAL"]
 
 # What every named material is worth, read off the table rather than guessed.
@@ -56,11 +67,53 @@ PERSON = re.compile(
 	r"\b(she|he|her|his|they|them|their|crew|master|clerk|pilot|somebody|"
 	r"someone|courier|buyer|dockmaster|hail|hails|hailing|voice|asks|offers|"
 	r"wants|says|tells|woman|man|captain|owner|foreman|broker|agent|"
-	r"quartermaster|trader|smuggler|patrol|inspector)\b", re.I)
+	r"quartermaster|trader|smuggler|patrol|inspector|"
+	# the short style (Nov 15) names the payer in a word or two
+	r"hunters?|customs|people|crews|pilots|traders|buyers)\b", re.I)
 
 # A vessel, for the pronoun-slide check.
 VESSEL = re.compile(r"\b(barge|hauler|cutter|freighter|hull|ship|tug|skiff|"
 	r"lighter|tender|relay|station|dock|rig|yard)\b", re.I)
+
+
+# A sentence ends at . ! or ? before the next word. A semicolon or a dash
+# between clauses fakes one sentence out of two (Jon's tell: a statement, then
+# a short punchline), so each counts as a break here.
+_STOP = re.compile(r"(?<=[.!?])\s+(?=\S)|\s*;\s*|\s+[-–—]{1,2}\s+|—")
+# Somebody's words in the text. The tag sits pinned under the thing on screen,
+# so a quote reads as the thing talking. Describe; never voice.
+QUOTE = re.compile(r"\\\"|[“”]|(?:^|\s)'[A-Za-z][^']*[.,!?]'(?=\s|$)")
+# A number the result row already prints (credits, fuel, hull, DATA).
+ROW_NUMBER = re.compile(
+	r"\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|"
+	r"forty|fifty|hundred)\s+(credits?|fuel|hull|data|points? of hull)\b", re.I)
+# A death line, the second argument to take_hull_damage.
+DEATH = re.compile(r'take_hull_damage\([^,]+, "((?:[^"\\]|\\.)*)"')
+STR = r'"((?:[^"\\]|\\.)*)"'
+
+
+def sentences_in(text):
+	"""How many sentences a string reads as, a semicolon or dash a break."""
+	t = text.replace("\\n", " ").strip()
+	return len([s for s in _STOP.split(t) if re.search(r"[A-Za-z]", s)]) if t else 0
+
+
+def results_of(chunk):
+	"""(outcome, text) for each result text in one choice. A comet's result is
+	one text per spot, `CometPath.by_spot([...])`; each one is a result."""
+	out = []
+	for m in re.finditer(r"\b(effect|met|clean|partial|botched) = func\(", chunk):
+		nxt = re.search(r"\b(effect|met|clean|partial|botched) = func\(", chunk[m.end():])
+		part = chunk[m.end():m.end() + nxt.start() if nxt else len(chunk)]
+		t = re.search(r"return \{text = " + STR, part)
+		if t:
+			out.append((m.group(1), t.group(1)))
+			continue
+		spots = re.search(r"return \{text = CometPath\.by_spot\(\[(.*?)\]\)", part, re.S)
+		if spots:
+			for k, s in enumerate(re.findall(STR, spots.group(1))):
+				out.append(("%s spot %d" % (m.group(1), k + 1), s))
+	return out
 
 
 def _key(entry):
@@ -295,9 +348,40 @@ def main():
 			if re.search(r"\b(her|its)\s+(master|pilot|crew|owner)\b", body, re.I):
 				warn("a vessel and a person may be sharing a pronoun -- read it")
 
-		# --- 9. bodies carry their weight -------------------------------
-		if len(body) < BODY_MIN:
-			warn("body is %d chars; the reviewed four run 402-573" % len(body))
+		# --- 9. the short style (Jon, Nov 15) ----------------------------
+		# One sentence to open, one per result, nobody's words in quotes.
+		# Errors where the rule is plain to a machine; the word budgets and
+		# the row's numbers are for reading.
+		n = sentences_in(body)
+		if n > 1:
+			err("body runs %d sentences; the opening is one" % n)
+		words = len(re.findall(r"[A-Za-z0-9']+", body))
+		if words > BODY_WORDS_MAX:
+			warn("body is %d words; one plain sentence, about %d at most"
+				% (words, BODY_WORDS_MAX))
+		if QUOTE.search(body):
+			err("body quotes somebody; describe, never voice")
+		for label, chunk in chs:
+			if len(label.split()) > LABEL_WORDS_MAX:
+				warn('label "%s" is %d words; labels run 2-%d'
+					% (label, len(label.split()), LABEL_WORDS_MAX))
+			for outcome, text in results_of(chunk):
+				n = sentences_in(text)
+				if n > 1:
+					err('"%s" %s runs %d sentences; a result is one'
+						% (label, outcome, n))
+				if QUOTE.search(text):
+					err('"%s" %s quotes somebody; describe, never voice'
+						% (label, outcome))
+				row = ROW_NUMBER.search(text)
+				if row:
+					warn('"%s" %s says "%s"; the result row already shows it'
+						% (label, outcome, row.group(0)))
+		for line in DEATH.findall(blk):
+			if sentences_in(line) > 1:
+				warn('death line "%s" is more than one sentence' % line[:60])
+		if re.search(r"megafauna", blk, re.I):
+			err('says "megafauna"; the word is "leviathan"')
 
 		# --- 10. a science event pays DATA the one way ------------------
 		for e in science_faults(blk, tags, chs):

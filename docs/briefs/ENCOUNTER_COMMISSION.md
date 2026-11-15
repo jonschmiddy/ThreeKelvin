@@ -6,7 +6,15 @@ where the coverage actually thins out. The table is at 47 today and this takes
 it to 127.*
 
 *Status (Oct 20): done. The table holds 135. §2's standard is still the rule for
-new encounters.*
+new encounters, except its prose length and detail.*
+
+*Nov 15, Jon ruled the short style: the body is ONE plain sentence, each
+outcome ONE sentence, no quotes or voice, labels 2-5 words, "leviathan" never
+"megafauna", no number the result row already shows, and nothing the code does
+not give. The rules are in `.claude/skills/encounter-prose/SKILL.md` §00 and the
+approved example is `OptionsPart06.gd`. Where §2 below asks for length or
+detail (the 400-580 character bodies, "plain but detailed", the benchmark
+four), that is struck.*
 
 **Deliverable:** eighty new entries in `tkg/scripts/systems/OptionTable.gd`,
 written to the standard in §2, filling the slots in §3, passing
@@ -33,10 +41,11 @@ the shorthand for what they do.
 
 - **Second person, present tense, plain declaratives.** "You work the seam
   quietly, in the lee of the ribs."
-- **Plain but detailed.** Detail carries the mood; vocabulary does not. Forty-one
+- ~~**Plain but detailed.** Detail carries the mood; vocabulary does not. Forty-one
   years. Four days. Eleven hundred units against a receipt for nine. A second
-  stamp for the copy nobody collects. No word a tired pilot would not say — no
-  *picket*, no *sundries*, no *carcass*.
+  stamp for the copy nobody collects.~~ SUPERSEDED Nov 15 (Jon): keep only the
+  facts a player needs to choose. Still: no word a tired pilot would not say —
+  no *picket*, no *sundries*, no *carcass*.
 - **DETAIL IS NOT COMPRESSION.** This is the one that went wrong most. A clause
   earns its place by parsing on the *first* read. Squeezing a plain sentence
   until it sounds clever buys nothing and costs a second pass, and the second
@@ -47,8 +56,9 @@ the shorthand for what they do.
   negative. If you cannot say the plain version of a clause out loud, cut it.
 - **The universe is indifferent, not hostile.** Things are busy, or old, or
   already dead. Very little is out to get you specifically.
-- **Understatement on the worst outcomes.** "The hull holds. Everything on the
-  hull does not."
+- **Understatement on the worst outcomes**, in one sentence. (The old example,
+  "The hull holds. Everything on the hull does not.", is the statement-plus-
+  punchline pair Jon ruled out on Nov 15.)
 - **THE PLAYER NEVER LEAVES THE SHIP.** No arms, hands, boarding on foot,
   corridors, lamplight. The ship has a grapple, a cutter, a dish and a board.
 - **A ship is `it`. People get the pronouns.** "her master is hailing" then "she
@@ -56,8 +66,10 @@ the shorthand for what they do.
   marking the handover. `master` is retired with it — a nautical rank nobody in
   this game speaks. `dockmaster` is fine, it is a job.
 - **No exclamation marks, no rhetorical questions, no winking.**
-- **Length:** bodies **400–580 characters**. The four run 402–573. Outcome texts
-  run 120–420. Anything under 300 reads as a stub.
+- ~~**Length:** bodies **400–580 characters**. The four run 402–573. Outcome texts
+  run 120–420. Anything under 300 reads as a stub.~~ SUPERSEDED Nov 15 (Jon):
+  the body is one plain sentence (the approved ones run 16-20 words) and each
+  outcome is one sentence. `encounter_lint.py` check 9 enforces it.
 
 ### The decision
 
@@ -174,7 +186,7 @@ already there:
     id = &"unique_snake_case",       # save-stable, never shown, never renamed
     title = "Three words or so",     # shown on the plate; ALSO the chart label
                                      # if the encounter is ever placed
-    body = "400-580 characters.",
+    body = "One plain sentence: the situation and what is at stake.",
     tags = [&"hazard"],              # one, usually; two if it genuinely is both
     group = &"",                     # non-empty makes it ONE ONLY with siblings
     weight = 8,                      # 6-16; the table's own range
@@ -211,8 +223,9 @@ a fight with one ship off the danger's ordinary pool. When the text is about a
 creature, tag the option `foe = &"whale"` (the Voidwhale Calf) or
 `foe = &"leviathan"` (the Void Leviathan): the fight brings that creature and
 nothing else. Jon, Oct 17: the text leading up to the fight "should mention the
-megafauna or whales". A tagged event is `needs_fauna`, names its creature in the
-body (a calf is not a leviathan), and pays what animals pay: hide and `fauna`
+megafauna or whales". The word in the text is "leviathan" (or "calf"), never
+"megafauna" (Jon, Nov 15; `encounter_lint.py` fails it). A tagged event is
+`needs_fauna`, names its creature in the body (a calf is not a leviathan), and pays what animals pay: hide and `fauna`
 rolls, the body's exotic in its wreck, credits only from a person in the text.
 `-- sheet=FoeTagTest` fails a creature after ship text or a ship after creature text.
 

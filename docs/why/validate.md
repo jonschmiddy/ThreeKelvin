@@ -356,6 +356,14 @@ new encounters were about to arrive. `--strict` fails on what is NOT in
 `tools/encounter_lint_baseline.txt`, so old debt stays visible and stops
 blocking new work.
 
+THE SHORT STYLE (check 9, Nov 15). Jon ruled that reading is a chore: an
+encounter's body is one sentence and each result is one sentence, with nobody
+quoted and "leviathan" for the big creatures. Those are errors, not review
+items, because the whole table was rewritten to them the same day, so there is
+no old debt to baseline; a second sentence creeping back in is the long prose
+returning one line at a time. The old check 9 went the other way (a review
+item under 300 characters) and is gone.
+
 
 ## unit_prose
 
