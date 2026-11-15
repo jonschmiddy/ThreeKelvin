@@ -12,8 +12,11 @@ them in here when a build is cut.
 
 ### Roadmap
 
-The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
-[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
+0.4.2-alpha.1 (Oct 23) is still the last build. Jon ruled on Nov 3 that the
+post-alpha roadmap comes before the next one: phases 11 to 13 (harder fights and
+battle music, science and comets, flight, binaries and the jump films) have landed,
+and phase 14 (the text rework) and phase 15 (design only) are left.
+See [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
 ## 2026-10-23
 
