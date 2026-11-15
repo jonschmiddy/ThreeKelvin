@@ -117,6 +117,11 @@ files. The check takes about 2 seconds; the report about 4.
 
 ## The baseline
 
+It gates (Jon, Nov 14, sweep 2 ruling 2A): a NEW key fails `unit_codegraph`, and the gate with it;
+the known reach-ins in the baseline (132 when the sweep landed) stay allowed. Proved on a planted
+tangle, a `scripts/systems` function calling `StationScreen._build`: `GATE_UNITS=codegraph
+validate.sh` printed `NEW layer ...` and `NEW private ...` and exited 1.
+
 A key that is gone is reported `FIXED` and does not fail, so two branches never fight over the
 file. `--update` rewrites it and prints every ADDED key, so growth shows in the diff.
 
