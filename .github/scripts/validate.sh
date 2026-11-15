@@ -1680,6 +1680,21 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 fi
 }
 
+unit_setbonustest() {
+step "Every set bonus does what its text says"
+# The Nov 14 audit: seven of the fourteen texts promised something the code did
+# not do. All fourteen, set on and off, each text pinned to the check that proves it.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+		run_godot setbonustest 180 --headless --path "$PROJECT" -- sheet=SetBonusTest; then
+	if grep -qE '^setbonustest: PASS' "$LOG_DIR/setbonustest.log"; then
+		ok "each set bonus does what it says"
+	else
+		bad "a set bonus does not do what its text says"
+		grep -E '^  FAIL|^setbonustest' "$LOG_DIR/setbonustest.log" | head -n 12 | sed 's/^/        /'
+	fi
+fi
+}
+
 unit_augmenttest() {
 step "The Lab's services: augment, strip, the board and the bench"
 # Science (Phase 12), with no screen in the way: AUGMENT's offer is three of

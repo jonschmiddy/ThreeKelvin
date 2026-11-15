@@ -348,6 +348,11 @@ key is the Hellbender's to read. OLDEST_READ stays at 29.
 undock (`SectorScreen.mirrored_at`, docs/why/SectorScreen.md#mirrored), or -1.
 A 42 save has none and loads moored on the left, as any arrival is.
 OLDEST_READ stays at 29.
+44: `hive_drones`, the attack drones (their damage, at most
+`Combat.HIVE_KEEP`) a fight ended with under Cygnet 5 (Hive Mind), put back out
+at the next fight's start. Its text promised it from the first commit and no
+code did it (Nov 14). A 43 save has none and loads with none. OLDEST_READ stays
+at 29.
 ```
 
 ## Saving

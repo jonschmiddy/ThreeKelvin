@@ -10,11 +10,11 @@ static func badge_colour(check: Dictionary) -> Color:
 		1: return UITheme.CHILL
 		2: return UITheme.EMBER
 		3: return UITheme.FLARE
-	return Color("#d4614f")
+	return UITheme.LEAVE
 
 static func band_colour(band: SkillCheck.Band) -> Color:
 	match band:
 		SkillCheck.Band.MET: return UITheme.GOOD
 		SkillCheck.Band.CLEAN: return UITheme.CHILL
 		SkillCheck.Band.PARTIAL: return UITheme.EMBER
-	return Color("#d4614f")
+	return UITheme.LEAVE

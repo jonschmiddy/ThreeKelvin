@@ -1346,14 +1346,14 @@ func _build_hand() -> Control:
 	_flee_button = flee
 	flee.custom_minimum_size = Vector2(PileView.W, 16)
 	flee.tooltip_text = Widgets.tip("FLEE\n\nGet away on a Maneuver check.")
-	flee.add_theme_color_override("font_color", Color("#d4614f"))
+	flee.add_theme_color_override("font_color", UITheme.LEAVE)
 	flee.add_theme_color_override("font_hover_color", Color("#f08872"))
 	flee.add_theme_stylebox_override("normal",
 		UITheme.flat(Color(0, 0, 0, 0), Color("#8f4034"), 0, 0, 6))
 	flee.add_theme_stylebox_override("hover",
 		UITheme.mark_box(Color("#2a1a18"), 0, 6))
 	flee.add_theme_stylebox_override("pressed",
-		UITheme.flat(Color("#3a2320"), Color("#d4614f"), 0, 0, 6))
+		UITheme.flat(Color("#3a2320"), UITheme.LEAVE, 0, 0, 6))
 	# Same padding as the others, so NO ESCAPE is exactly as tall as FLEE.
 	flee.add_theme_stylebox_override("disabled",
 		UITheme.flat(Color(0, 0, 0, 0), Color("#3a3a3a"), 0, 0, 6))
@@ -1735,7 +1735,7 @@ func _refresh_player() -> void:
 				% [CardData.KW_GROWS.to_upper(), combat.adapt_bonus]))
 	for d2 in combat.drones:
 		_player_chips.add_child(StatusChip.make(&"drone", str(d2.damage),
-			Color("#5a7a94"), "DRONE\n\nAttacks for %d at the end of your turn."
+			Color("#5a7a94"), "DRONE\n\nAttacks for %d at the start of your turn."
 				% d2.damage))
 	if combat.drone_brace > 0:
 		_player_chips.add_child(StatusChip.make(&"wasp", str(combat.drone_brace),
@@ -3441,7 +3441,7 @@ func _on_flee() -> void:
 	if not fighting() or _exit_ask != null or _opening or not combat.can_flee():
 		return
 	# The exact cost, from the same constant the code charges.
-	_ask_exit("BREAK CONTACT?", Color("#d4614f"), Color("#8f4034"),
+	_ask_exit("BREAK CONTACT?", UITheme.LEAVE, Color("#8f4034"),
 		"%s. You lose the salvage and burn %d fuel, %d if it goes badly. Fail and there is no second try."
 			% [SkillCheck.badge(combat.flee_check()), Combat.FLEE_FUEL,
 				Combat.FLEE_FUEL + Combat.FLEE_FUEL_PARTIAL],

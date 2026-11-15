@@ -663,7 +663,7 @@ func run_version_test() -> void:
 
 	# VERSION 40 (Jon, Nov 4) saves the lead ship's jumps; a 39 save grows on its own jumps.
 	# Why: docs/why/SaveTest.md#version-rules
-	# (this build writes 43; the lead ship's jumps came in at 40)
+	# (this build writes 44; the lead ship's jumps came in at 40)
 	Run.start_new_run(&"korvan", 1)
 	Run.jumps = 7
 	Run.party_jumps = 21
@@ -703,7 +703,7 @@ func run_version_test() -> void:
 	check("a new run clears the lead ship's jumps and the badge's seen count", "0 0",
 		"%d %d" % [Run.party_jumps, Run.custodian_seen])
 
-	# THE ASCENSION LEVEL (VERSION 41, Jon, Nov 8; this build writes 43, moored's). The
+	# THE ASCENSION LEVEL (VERSION 41, Jon, Nov 8; this build writes 44). The
 	# Hellbender flies only at 7 and up, so the level is saved and comes back;
 	# a 40 save has none and loads at 0, the game a 40 build played, and keeps
 	# a live Hellbender it already had (pulling one mid-chase is worse).
@@ -746,6 +746,7 @@ func run_version_test() -> void:
 		"%d %s %d" % [Run.ascension, Run.hellbender_alive(), Run.hellbender_max])
 	_science_versions()
 	_moored_versions()
+	_hive_versions()
 	_damaged_saves()
 
 	# THE ONE BEFORE STILL READS (VERSION 30): a 29 save is this shape without
@@ -920,13 +921,37 @@ func _moored_versions() -> void:
 	Moored.at = -1
 
 
-## SCIENCE (VERSION 42, Phase 12): this build writes 43. A 41 save (the Hellbender's
+## CYGNET 5'S DRONES (VERSION 44, Nov 14): kept drones round-trip, a 43 save (none)
+## loads with none, and a new run starts with none.
+func _hive_versions() -> void:
+	Run.start_new_run(&"korvan", 1)
+	Run.hive_drones.assign([5, 3, 3])
+	SaveGame.save()
+	var s44 := _read_save()
+	Run.hive_drones.clear()
+	check("a 44 save keeps Cygnet 5's drones and loads them back", "[5, 3, 3]",
+		str(Run.hive_drones) if SaveGame.load_into_run() else "refused")
+	s44["version"] = 43
+	s44.erase("hive_drones")
+	var w := FileAccess.open(SaveGame.path, FileAccess.WRITE)
+	if w != null:
+		w.store_string(JSON.stringify(s44, "", true, true))
+		w.close()
+	Run.hive_drones.assign([9])
+	check("a 43 save (none) loads with no drones kept", "[]",
+		str(Run.hive_drones) if SaveGame.load_into_run() else "refused")
+	Run.hive_drones.assign([9])
+	Run.start_new_run(&"korvan", 1)
+	check("a new run keeps no drones", 0, Run.hive_drones.size())
+
+
+## SCIENCE (VERSION 42, Phase 12): this build writes 44. A 41 save (the Hellbender's
 ## build, its `ascension` key unread here) and a 40 one load with
 ## no DATA, nothing bought, the black box unspent, no part augmented, and the
 ## board its seed and seat deal; a malformed one is mended, not refused; and a
 ## new run after a used one starts clean.
 func _science_versions() -> void:
-	check("this build writes VERSION 43 (42's science, and where you are moored)", 43, SaveGame.VERSION)
+	check("this build writes VERSION 44 (42's science, 43's mooring, Cygnet 5's drones)", 44, SaveGame.VERSION)
 	Run.start_new_run(&"korvan", 1)
 	var dealt := Run.board.duplicate()
 	check("a new run is dealt a whole board", 9, dealt.size())

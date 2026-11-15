@@ -201,6 +201,9 @@ var found_scrap: Dictionary = {}
 ## Why: docs/why/RunState.md#hulls-bought
 var hulls_bought: int = 0
 var whale_boon: bool = false
+## Cygnet 5 (Hive Mind): the attack drones the last fight ended with, as their damage,
+## put back out at the next fight's start (`Combat.HIVE_KEEP` at most).
+var hive_drones: Array[int] = []
 ## Read once at run start and saved, so CONTINUE finds the world it left.
 ## Why: docs/why/RunState.md#unlocked-manufacturers
 var unlocked_manufacturers: Array[StringName] = [&"korvan"]
@@ -311,6 +314,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	found_hull = null
 	hulls_bought = 0
 	whale_boon = false
+	hive_drones.clear()
 	_roll_galaxy()
 	# Whatever the party has already used up. A run rolled from the host's seed
 	# is generated after the party exists, so the list can predate the map.
