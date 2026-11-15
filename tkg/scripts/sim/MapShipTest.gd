@@ -295,20 +295,43 @@ func _check_fit(map: SystemMapScreen) -> void:
 
 ## THE MARKS (Jon's R1, Nov 15): the selected world wears the four L brackets exactly, at its disc
 ## plus 4; the ship's own world wears no mint mark at all, its orange orbit alone.
-func _check_marks(map: SystemMapScreen) -> void:
+func _check_marks(_was: SystemMapScreen) -> void:
+	# (a one-sun system with two worlds, the ship parked in orbit of the first, as FlyClickShot sets it)
+	var n: MapGen.MapNode = null
+	var worlds: Array[int] = []
+	for raw in Run.map:
+		var m0: MapGen.MapNode = raw
+		if m0.type != MapGen.NodeType.SYSTEM or m0.twin:
+			continue
+		OptionTable.ensure(m0)
+		worlds.clear()
+		for b in SystemLayout.of(m0).bodies:
+			if b.world != &"" and b.kind != &"belt":
+				worlds.append(b.index)
+		if worlds.size() >= 2:
+			n = m0
+			break
+	if not _ok("a system with two worlds to mark", n != null):
+		return
+	Run.at = n.index
+	n.visited = true
+	ParkedShips.spots[n.index] = {"at": worlds[0], "mode": &"rail"}
+	Run.map_clock[n.index] = 30.0
+	Router.show_system()
+	var map: SystemMapScreen = null
+	for i in 900:
+		map = Router.current as SystemMapScreen
+		if not ZoomLadder.busy() and map != null and map.flight != null and map.view.layout != null and map.view.node == n:
+			break
+		await _tree.process_frame
+	if not _ok("the map of system %d is up" % n.index, map != null and map.view.node == n):
+		return
 	var ov = map.overlay
 	var L: SystemLayout = map.view.layout
-	var worlds: Array[int] = []
-	for b in L.bodies:
-		if b.world != &"" and b.kind != &"belt":
-			worlds.append(b.index)
-	if not _ok("two worlds here to mark (%d)" % worlds.size(), worlds.size() >= 2):
-		return
-	ov.ship_park = worlds[0]
-	map._was_at = map.flight.reached()
+	ov.set("record_px", true)
 	map.select_body(worlds[1])
 	ov.hover = {}
-	await Harness.frames(_tree, 3)
+	await Harness.frames(_tree, 4)
 	var md: Array = ov.bracket_log
 	var c0: Vector2 = (ov._place_scr(worlds[0]) as Vector2).round()
 	var near0 := md.filter(func(m: Dictionary) -> bool: return (m.at as Vector2).distance_to(c0) < map.view.draw_r(L.bodies[worlds[0]]) + 12.0)
