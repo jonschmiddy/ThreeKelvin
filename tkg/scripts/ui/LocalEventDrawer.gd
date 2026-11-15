@@ -20,6 +20,25 @@ const COL_W := 300.0
 ## D's buttons sit this far down, measured on stills, to line up with the title's baseline.
 const D_BUTTONS_DROP := 3
 
+## THE LAYOUT (Jon, Nov 15): &"band", the low band as shipped, or &"ship", the choices on your own
+## ship (`ShipChoices`). On in an editor play run (F5), off in exports and harnesses unless asked.
+## Why: docs/why/ShipChoices.md#on-your-ship
+static var layout: StringName = default_layout(OS.get_cmdline_user_args(), DevMode.available)
+## The flags a play run may carry and still be one.
+const PLAY_ARGS: Array[String] = ["nolauncher", "resume", "seed", "shipchoices"]
+
+
+static func default_layout(args: PackedStringArray, dev: bool) -> StringName:
+	if "shipchoices" in args:
+		return &"ship"
+	if not dev or "band" in args:
+		return &"band"
+	for a in args:
+		if not a in PLAY_ARGS and not a.is_valid_int():
+			return &"band"
+	return &"ship"
+
+
 ## `-- localeventtest`: the screens a fight or a death would swap in are not
 ## opened; `fought` and `died` say they would have been.
 static var quiet := false
@@ -47,6 +66,8 @@ var _scroll: ScrollContainer
 var _choices: Control
 var _conseq: Label
 var _transfer: TransferView = null
+## The choices on your ship, in that layout.
+var _ship: ShipChoices = null
 var _tw: Tween = null
 var _busy := false
 var _gen := 0
@@ -257,6 +278,11 @@ func _lift() -> void:
 func _drop() -> void:
 	page = &""
 	_up = false
+	if _ship != null:
+		_ship.clear()
+		visible = false
+		changed.emit()
+		return
 	if _tw != null:
 		_tw.kill()
 	var gone := func() -> void:
@@ -400,6 +426,9 @@ func _fit_and_show() -> void:
 
 ## The text is all here: the choices (or the buttons) fade in and take clicks.
 func _text_done() -> void:
+	if _ship != null:
+		_ship.text_done()
+		return
 	if _choices == null:
 		return
 	if not _moving():
@@ -421,6 +450,9 @@ func open(i: int) -> void:
 	last = [node.index, i]
 	page = &"event"
 	var o := OptionTable.by_id(node.options[i])
+	if layout == &"ship":
+		_ship_event(i, o)
+		return
 	_frame()
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 10)
@@ -519,8 +551,56 @@ func choose(j: int) -> Dictionary:
 		_drop()
 		_fight()
 		return r
-	_result()
+	_show_result()
 	return r
+
+
+# --------------------------------------------------------------- on your ship
+
+## The event on your own ship (`ShipChoices`): the hail, then the choices on its parts.
+func _ship_event(i: int, o: Dictionary) -> void:
+	var words := String(o.get("body", ""))
+	if EncounterDrawer.option_state(node, i).kind == &"left":
+		words = "You walked away from this. It is still open. " + words
+	_ship_play(_on_ship().event(String(o.get("title", "")).to_upper(), _tags(o),
+		EncounterDrawer.tag_colour(o), _place_line(i), words))
+
+
+func _show_result() -> void:
+	if layout != &"ship":
+		_result()
+		return
+	page = &"result"
+	_ship_play(_on_ship().result(out))
+
+
+func _on_ship() -> ShipChoices:
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if panel != null:
+		panel.queue_free()
+		panel = null
+	if _ship == null:
+		_ship = ShipChoices.new()
+		_ship.name = "ShipChoices"
+		_ship.drawer = self
+		add_child(_ship)
+	return _ship
+
+
+func _ship_play(t: SignalText) -> void:
+	text = t
+	visible = true
+	if not _up:
+		_up = true
+		changed.emit()
+	t.finished.connect(_text_done, CONNECT_ONE_SHOT)
+	t.play()
+
+
+## THEY ARE FIRING: the event goes, then the fight.
+func fight_on() -> void:
+	_drop()
+	_fight()
 
 
 # --------------------------------------------------------------- the result
@@ -679,14 +759,14 @@ func open_reward() -> void:
 	_transfer = TransferView.new()
 	screen.add_child(_transfer)
 	# (the pile opens at your ship, in the room above this band)
-	if visible:
+	if visible and _ship == null:
 		_transfer.floor_g = UiRect.of(self).position.y
 	Audio.play(&"wreck_open")
 	_transfer.setup(h, node, func() -> void:
 		_transfer.queue_free()
 		_transfer = null
 		if page == &"result":
-			_result(), true, LOOT_WORD)
+			_show_result(), true, LOOT_WORD)
 
 
 # --------------------------------------------------------------- words

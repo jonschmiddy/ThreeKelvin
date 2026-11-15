@@ -219,10 +219,9 @@ static func tag_colour(opt: Dictionary) -> Color:
 	return UITheme.LINE
 
 
-## Same plate as the encounter, number inside what you commit to; the stripe shows the gate.
-## Why: docs/why/EncounterDrawer.md#choice-cards
-static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
-		_opt: Dictionary, on_take: Callable) -> Control:
+## What a choice's card says under its words (its price, its odds, what it burns), the ink, and
+## whether it can be pressed: the band's card and the choices on your ship (`ShipChoices`) alike.
+static func choice_note(n: MapGen.MapNode, c: Dictionary) -> Dictionary[StringName, Variant]:
 	# Ruling 8: an unaffordable hard gate greys and says by how much.
 	var note := ""
 	var tone := UITheme.COLD
@@ -263,6 +262,21 @@ static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 			tone = UITheme.FLARE
 		else:
 			note = "%d fuel" % burn if note == "" else "%s · %d fuel" % [note, burn]
+	var out: Dictionary[StringName, Variant] = {}
+	out[&"note"] = note
+	out[&"tone"] = tone
+	out[&"open"] = open
+	return out
+
+
+## Same plate as the encounter, number inside what you commit to; the stripe shows the gate.
+## Why: docs/why/EncounterDrawer.md#choice-cards
+static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
+		_opt: Dictionary, on_take: Callable) -> Control:
+	var said := choice_note(n, c)
+	var note: String = said[&"note"]
+	var tone: Color = said[&"tone"]
+	var open: bool = said[&"open"]
 	var made := plate(tone, on_take.bind(i, j))
 	var card: OptionCard = made[0]
 	var col: VBoxContainer = made[1]

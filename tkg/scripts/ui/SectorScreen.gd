@@ -756,7 +756,6 @@ func _build() -> void:
 
 ## These four stay alive as orphans so the refresh code writing to them need not change.
 ## Why: docs/why/SectorScreen.md#removed-side-rail
-
 func _build_orphans() -> void:
 	_enemy_name = UITheme.body("", UITheme.THEM, UITheme.FS_BODY)
 	_enemy_bar = ProgressBar.new()
@@ -919,10 +918,11 @@ func _sync_bleed() -> void:
 
 # -------------------------------------------------------------------- drawer
 
-
 ## Put the right thing in the drawer.
 func _rebuild_drawer(n: MapGen.MapNode) -> void:
 	Widgets.clear(_drawer)
+	if LocalTag.instead(self, n, _quiet_holder, _events):
+		return
 	_size_drawer(n)
 	if Run.dead:
 		_drawer_simple("The ship is lost. The run is over.", "SUMMARY")

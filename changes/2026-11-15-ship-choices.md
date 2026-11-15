@@ -1,0 +1,1 @@
+- **Added** — LOCAL's events can show on your own ship (Jon's pick C, Nov 15): the hail pins to whoever talks, the choices settle onto your ship's parts a second after the text, the answer and what you got show over your ship, and the bow flies on. The shelf's one-liners become a tag on the place. Behind a switch: on in an editor run, off in builds; the band is unchanged.
