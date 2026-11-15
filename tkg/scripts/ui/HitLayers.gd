@@ -62,10 +62,8 @@ func setup(img: Image, used: Rect2i, seed: int, facing: int, hull_max: int, scal
 
 ## Custodian keeps ShipHitFx's older marks: it is grown, not built.
 func _hull_hits() -> ShipHitFx:
-	if ShipHitFx.look > 0 and kind != FaunaMotion.Kind.CUSTODIAN:
-		var h := HullHitFx.new()
-		h.style = ShipHitFx.look
-		return h
+	if kind != FaunaMotion.Kind.CUSTODIAN:
+		return HullHitFx.new()
 	return ShipHitFx.new()
 
 

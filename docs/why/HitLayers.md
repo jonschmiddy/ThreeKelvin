@@ -10,7 +10,7 @@ go:A" -- hits B, the bubble shield, brace I). Laid over a ship's picture in a
 fight, in that picture's canvas pixels, by whoever draws the ship:
   `hits`   HullHitFx (Jon's pick, D: dents, scrapes, heat blooms, knocked and
            peeled plates, mixed per hit, building up; no holes), or for the
-           Custodian ShipHitFx's older marks (`ShipHitFx.look`);
+           Custodian ShipHitFx's older marks;
   `shield` ShieldFx: block as the hex bubble, fitted to the ship;
   `brace`  BraceFx: brace as the plated overlay.
 Driven only by what the screen has SHOWN: `land` on the frame a volley lands

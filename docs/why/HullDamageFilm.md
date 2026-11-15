@@ -13,7 +13,7 @@ can't really have holes in them"). Every hit goes through
 
   one ship, cropped at 2x (the window is the game at 2x):
   godot --path . --resolution 1920x1080 --fixed-fps 30 -- sheet=HullDamageFilm
-      id=<kind>[:<look>] hull=<today|A|B|C|D> crop=<dir> [boxtest=1]
+      id=<kind>[:<look>] crop=<dir> [boxtest=1]   (hull= retired Nov 14: every ship wears D)
   a pack of three and your ship, the whole window (with --write-movie):
   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 30
       -- sheet=HullDamageFilm pack=<kind>[:<look>],<kind>[:<look>],<kind>[:<look>] hull=<...>

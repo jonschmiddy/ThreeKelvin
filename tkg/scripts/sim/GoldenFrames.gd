@@ -162,17 +162,14 @@ func _breakup() -> void:
 
 # ---------------------------------------------------------------- hitfx
 
-## Hull marks (three looks) and the brace on one ship, then a leviathan's wounds and brace.
+## Hull marks (the Custodian's and D) and the brace on one ship, then a leviathan's wounds and brace.
 func _hitfx() -> void:
 	var pic: Array = _ds._ship_image("cutter")
 	var img: Image = pic[0]
-	for look in [0, 2, 4]:
-		ShipHitFx.look = look
+	for look in [0, 4]:
 		var h: ShipHitFx
 		if look > 0:
-			var hh := HullHitFx.new()
-			hh.style = look
-			h = hh
+			h = HullHitFx.new()
 		else:
 			h = ShipHitFx.new()
 		h.auto = false
@@ -192,7 +189,6 @@ func _hitfx() -> void:
 			_run_for(h, 27)
 		stage.queue_free()
 		await get_tree().process_frame
-	ShipHitFx.look = 0
 	var brace := BraceFx.new()
 	brace.auto = false
 	var bstage := _stage()

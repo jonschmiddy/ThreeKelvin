@@ -5,7 +5,8 @@ The reasoning behind `tkg/scripts/sim/HullDamageTest.gd`, moved out of the code 
 Above `const Film := preload("res://scripts/sim/HullDamageFilm.gd")`:
 
 ```text
-THE HULL DAMAGE LOOKS KEEP THEIR RULES (Oct 17; `HullHitFx`, `ShipHitFx.look`).
+THE HULL DAMAGE LOOKS KEEP THEIR RULES (Oct 17; `HullHitFx`). Since Nov 14 only D and the Custodian's marks: A, B and C were
+retired as looks of their own.
   godot --headless --path . -- sheet=HullDamageTest
 Headless. For each look (A, B, C, and D, all three mixed), on three ships' pictures (a light hull, a
 dark one, a white one) from their full sheets and their half sheets, the nine

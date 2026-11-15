@@ -34,7 +34,6 @@ func _pic(spec: String, half: bool) -> Image:
 
 func _make(pic: Image, look: int, scale: float, seed: int) -> HullHitFx:
 	var hx := HullHitFx.new()
-	hx.style = look
 	hx.auto = false
 	hx.mark_scale = scale
 	add_child(hx)
@@ -94,7 +93,7 @@ func _run() -> void:
 	for c in ShipBreakup.HEAT_RAMP:
 		ramp[HullGrade.key(c)] = true
 	var d_kinds := {}
-	for look in [1, 2, 3, 4]:
+	for look in [4]:
 		for spec in SHIPS:
 			for half in [false, true]:
 				var pic := _pic(spec, half)
@@ -210,8 +209,7 @@ func _worst_blob(hx: HullHitFx) -> int:
 
 func _fight() -> void:
 	h.seed_run(4242)
-	for look in [0, 2, 4]:
-		ShipHitFx.look = look
+	for look in [4]:
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		var idx := -1
 		for n: MapGen.MapNode in Run.map:
@@ -260,8 +258,6 @@ func _fight() -> void:
 		Router.combat = null
 		await Harness.frames(_tree, 2)
 	# the Custodian keeps today's
-	ShipHitFx.look = ShipHitFx._look_arg()
-	_ok("D is the game's look (%d)" % ShipHitFx.look, ShipHitFx.look == 4)
 	var L := HitLayers.new()
 	L.kind = FaunaMotion.Kind.CUSTODIAN
 	var older := L._hull_hits()
@@ -269,12 +265,11 @@ func _fight() -> void:
 	older.free()
 	L.kind = -1
 	var mine := L._hull_hits()
-	_ok("every other ship wears D", mine is HullHitFx and (mine as HullHitFx).style == 4)
+	_ok("every other ship wears D", mine is HullHitFx)
 	mine.free()
 	L.free()
 
 
 func _end() -> void:
-	ShipHitFx.look = ShipHitFx._look_arg()
 	h.verdict("hulldamagetest")
 	_tree.quit(h.code())

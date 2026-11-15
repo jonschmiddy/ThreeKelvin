@@ -25,7 +25,6 @@ func _wait(s: float) -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	ShipHitFx.look = {"TODAY": 0, "A": 1, "B": 2, "C": 3, "D": 4}.get(Harness.arg("hull", "today").to_upper(), 0)
 	var pack := Harness.arg("pack", "")
 	var specs := (pack if pack != "" else Harness.arg("id", "cutter")).split(",")
 	var kinds: Array[StringName] = []
@@ -75,7 +74,7 @@ func _run() -> void:
 			r = r.merge(rr)
 	r = r.grow(10.0)
 	var cr := Rect2i(Vector2i((r.position * k2).floor()), Vector2i((r.size * k2).ceil()))
-	print("hulldamage: look %d crop %d %d %d %d" % [ShipHitFx.look, cr.position.x, cr.position.y, cr.size.x, cr.size.y])
+	print("hulldamage: look %d crop %d %d %d %d" % [4, cr.position.x, cr.position.y, cr.size.x, cr.size.y])
 	for k in cb.enemies.size():
 		var s2: EnemySlot = sc._view.slot(k)
 		print("hulldamage: ship %d %s look %d hits %s" % [k, cb.enemies[k].template.id, cb.enemies[k].look,
