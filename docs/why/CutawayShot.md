@@ -64,7 +64,8 @@ Above `func _swaps(cut: CutawayView) -> void:`:
 ```text
 The marks, through a real drag from the hold (the viewport's own: every
 control told it began, the hold's icon hidden as a lift hides it), in both
-looks (`MountPoints.swap_look`): a part of each slot, then a weapon that can
+looks (`MountPoints.swap_look`; the corners look was retired Nov 14, sweep 2 ruling 5A, in
+history at 51d2d5cc, so only the frame is shot): a part of each slot, then a weapon that can
 go nowhere -- every weapon mount holding a part bigger than the cells it
 leaves in the packed hold. `swap_<slot>_<look>.png`; prints what was marked
 and where the exploded ship is in the window's px, for crops.

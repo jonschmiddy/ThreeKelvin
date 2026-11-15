@@ -541,7 +541,7 @@ func _swap_part(s: ModuleData.Slot, size: Vector2i) -> ModuleData:
 	return null
 
 
-## Marks come from a real drag out of the hold, in both looks, then a weapon that can go nowhere.
+## Marks come from a real drag out of the hold, then a weapon that can go nowhere.
 ## Why: docs/why/CutawayShot.md#swap-marks
 func _swaps(cut: CutawayView) -> void:
 	var shell := GameShell.instance
@@ -551,10 +551,8 @@ func _swaps(cut: CutawayView) -> void:
 	print("cutawayshot: picture at %d,%d %dx%d in the window (x%d, home %d,%d)" % [
 		home.x + pic.position.x * kk, home.y + pic.position.y * kk, pic.size.x * kk, pic.size.y * kk, kk, home.x, home.y])
 	var cases := [["weapon", ModuleData.Slot.WEAPON], ["system", ModuleData.Slot.SYSTEM], ["utility", ModuleData.Slot.UTILITY]]
-	for look in [0, 1]:
-		MountPoints.swap_look = look
-		for c in cases:
-			await _swap_still(cut, c[1], "swap_%s_%s" % [c[0], ["frame", "corners"][look]])
+	for c in cases:
+		await _swap_still(cut, c[1], "swap_%s_frame" % c[0])
 	# NOTHING TO TRADE WITH: every weapon mount, the empty one too, holds the
 	# biggest weapon there is; the smallest carried from the packed hold
 	var sizes := _swap_sizes(ModuleData.Slot.WEAPON)
@@ -571,10 +569,7 @@ func _swaps(cut: CutawayView) -> void:
 	pic = cut.get_global_transform() * cut._pic
 	print("cutawayshot: picture at %d,%d %dx%d in the window (nothing case)" % [
 		home.x + pic.position.x * kk, home.y + pic.position.y * kk, pic.size.x * kk, pic.size.y * kk])
-	for look in [0, 1]:
-		MountPoints.swap_look = look
-		await _swap_still(cut, ModuleData.Slot.WEAPON, "swap_nothing_%s" % ["frame", "corners"][look])
-	MountPoints.swap_look = 0
+	await _swap_still(cut, ModuleData.Slot.WEAPON, "swap_nothing_frame")
 
 
 func _swap_still(cut: CutawayView, slot: ModuleData.Slot, name: String) -> void:

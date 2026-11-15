@@ -59,10 +59,6 @@ var hinted: int = 0
 var swapped: int = 0
 var marked: Array[String] = []
 
-## WHICH LOOK THE SWAP MARK WEARS: 0 a frame round the part, 1 its four
-## corners. For the stills that put the two side by side; play uses 0.
-static var swap_look := 0
-
 ## Where the pointer is over the hull, or INF. Drives the hover highlight.
 var _hover: Vector2 = Vector2.INF
 
@@ -325,15 +321,6 @@ func _swap_mark(r: Rect2, k: float) -> void:
 	var g := 1.0 + t
 	var f := Rect2((r.position - Vector2(g, g)).round(), (r.size + Vector2(g, g) * 2.0).round())
 	var c := UITheme.TRACTOR
-	if swap_look == 1:
-		var arm := minf(t * 3.0, floorf(minf(f.size.x, f.size.y) * 0.5))
-		for x: float in [f.position.x, f.end.x - arm]:
-			for y: float in [f.position.y, f.end.y - t]:
-				draw_rect(Rect2(x, y, arm, t), c)
-		for x: float in [f.position.x, f.end.x - t]:
-			for y: float in [f.position.y, f.end.y - arm]:
-				draw_rect(Rect2(x, y, t, arm), c)
-		return
 	draw_rect(Rect2(f.position.x, f.position.y, f.size.x, t), c)
 	draw_rect(Rect2(f.position.x, f.end.y - t, f.size.x, t), c)
 	draw_rect(Rect2(f.position.x, f.position.y + t, t, f.size.y - t * 2.0), c)
