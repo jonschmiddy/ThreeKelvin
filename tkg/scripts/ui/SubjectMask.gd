@@ -150,6 +150,23 @@ static func _image_of(path: String) -> Image:
 	return img
 
 
+## A picture's opaque box (its ink, not its canvas), by path, measured once.
+static var _inks: Dictionary = {}
+
+
+static func ink_of(path: String) -> Rect2i:
+	if _inks.has(path):
+		return _inks[path]
+	var img := _image_of(path) if path != "" else null
+	var r := Rect2i()
+	if img != null and not img.is_empty():
+		if img.is_compressed():
+			img.decompress()
+		r = img.get_used_rect()
+	_inks[path] = r
+	return r
+
+
 ## Small pictures made here, by "path:k".
 static var _smalls: Dictionary = {}
 

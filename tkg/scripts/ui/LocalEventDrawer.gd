@@ -563,7 +563,16 @@ func _ship_event(i: int, o: Dictionary) -> void:
 	if EncounterDrawer.option_state(node, i).kind == &"left":
 		words = "You walked away from this. It is still open. " + words
 	_ship_play(_on_ship().event(String(o.get("title", "")).to_upper(), _tags(o),
-		EncounterDrawer.tag_colour(o), _place_line(i), words))
+		EncounterDrawer.tag_colour(o), String(o.get("source", _place_line(i))).to_upper(), words))
+
+
+## WHAT TAKING choice `c` WOULD CLOSE, as the band says it on a pointed-at card, or "".
+func closes_line(c: Dictionary) -> String:
+	var names := ", ".join(_rivals(opt).map(func(j: int) -> String:
+		return String(OptionTable.by_id(node.options[j]).get("title", "")).to_upper()))
+	if names == "" or bool(c.get("stay", false)) or not OptionResolve.affordable(c):
+		return ""
+	return "WILL MAKE %s UNAVAILABLE" % names
 
 
 func _show_result() -> void:

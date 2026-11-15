@@ -21,6 +21,14 @@ steps") and BEAT over CLICK for when the choices come.
    anything landed on the pile, a bracketed "+1 PART" that opens the pile (`TransferView`, SECTOR
    LOOT) as the band's button did. The bow flies on (CONTINUE), or says THEY ARE FIRING.
 
+Jon's notes on the first stills (Nov 15): the hail sits right beside whoever talks, as in the mockup,
+over them, else under, else beside, with a short tick, never parked in a corner with a long leader. A
+tall text widens the box (to 320) before the hail goes further off. It may cover empty sky, never a
+ship, a label or the HUD; where nothing near is clear, the labels give way to it (`_free`). It stays
+where it stood from step 1 through step 3 (`_spot`: over the speaker it keeps its foot, under or
+beside them its head). The answer keeps the hail's source line; how the check went goes in the
+reward stack. The band's WILL MAKE … UNAVAILABLE shows on the label you point at.
+
 This stage adds the layout beside the band, behind `LocalEventDrawer.layout`. It is on in an editor
 run with no harness flags (F5), and off in exports and every harness unless `-- shipchoices` asks.
 
@@ -31,5 +39,6 @@ a system's or station's line pins to the place as a name tag (the station's mout
 orbit, the event's subject, else the star), with its doors as bracketed words (OPEN IT, JOIN FIGHT,
 SECTOR LOOT, a pulsar's FLY THE BEAM, the Hellbender's ENGAGE). The way to the sector map is the
 HUD's SECTOR tab, so the shelf's own button is not repeated. "The ship is lost" is a card in the
-middle with SUMMARY; SALVAGE THE CUSTODIAN is a word on the tag in this stage, not yet a bracket on
-its body. Rebuilt only when what it says changes, so its words can be clicked.
+middle with SUMMARY; SALVAGE THE CUSTODIAN is a bracket on its body with the word under it. The tag
+has no frame (Jon, Nov 15): it is not pressable, only its bracketed words are. At a station it pins
+to the station. Rebuilt only when what it says changes, so its words can be clicked.

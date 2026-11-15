@@ -9,8 +9,9 @@ would do the work, so you learn what each part is for by using it.
 No encounter is mapped by hand in this stage. The part is read off the choice: a check's stat first
 (maneuver the flank, sensors the comm mast, thrust the engines, hull the plating, thermal and
 stealth the radiators), then a science reading (the mast), a declared fight (the guns), a burn
-(the engines), a price or a material (the hold), and walking away (the bow). NOT NOW owns the bow,
-so a walk-away choice asks for the bow and falls to the next free part. A choice may name its own
+(the engines), a price or a material (the hold), and walking away (the bow). An encounter's own walk-away
+takes the bow and NOT NOW is not shown (Jon, Nov 15, A): to put an event off you fly off, and the
+place's tag keeps OPEN IT. An encounter with no walk-away keeps NOT NOW on the bow. A choice may name its own
 part with a `part` key, which wins over everything.
 
 When two choices want the same part, the later one takes the next free part round the hull in

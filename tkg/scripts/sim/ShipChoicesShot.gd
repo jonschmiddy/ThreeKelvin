@@ -1,7 +1,8 @@
 extends Node
 
 ## Stills of the choices on your own ship (`ShipChoices`), at the size you play at:
-## `-- sheet=ShipChoicesShot out=<dir> [hulls]` (needs a window, `--resolution 1920x1080`).
+## `-- sheet=ShipChoicesShot out=<dir> [hulls] [ids=a,b] [short=<json>] [custodian]` (needs a window,
+## `--resolution 1920x1080`). `short=` swaps in proposed text for the run only, from a file outside the repo.
 ## Why: docs/why/ShipChoices.md#on-your-ship
 
 ## A hail, a wreck and nobody talking.
@@ -54,15 +55,22 @@ func _run() -> void:
 	Rng.forced = Harness.seed_arg(1)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n := _node(int(Harness.arg("node", "11")))
-	n.options.assign(EVENTS)
+	var ids: Array[StringName] = EVENTS.duplicate()
+	if Harness.arg("ids") != "":
+		ids.assign(Array(Harness.arg("ids").split(",")).map(func(x: String) -> StringName: return StringName(x)))
+	n.options.assign(ids)
+	if Harness.arg("short") != "":
+		_shorten(Harness.arg("short"))
 	n.options.append(&"dropped_load")
 	Router.show_local()
 	await _secs(3.0)
 	if "hulls" in OS.get_cmdline_user_args():
 		await _hulls(n)
+	elif "custodian" in OS.get_cmdline_user_args():
+		await _custodian()
 	else:
-		for k in EVENTS.size():
-			await _steps(k, String(EVENTS[k]))
+		for k in ids.size():
+			await _steps(k, String(ids[k]))
 		await _secs(0.6)
 		_shot("4_system_tag")
 		await _station()
@@ -113,6 +121,7 @@ func _station() -> void:
 		var m: MapGen.MapNode = raw
 		if m.type == MapGen.NodeType.STATION:
 			_node(m.index)
+			Router.park_at_station(m)
 			Router.show_local()
 			await _secs(4.0)
 			_shot("5_station_tag")
@@ -134,3 +143,57 @@ func _hulls(n: MapGen.MapNode) -> void:
 		_shot("hull_%s_%s" % [fr.manufacturer if fr.manufacturer != &"" else &"salvage", fr.display_name().to_lower().replace(" ", "_")])
 		d.not_now()
 		await _secs(0.4)
+
+
+## The Custodian dead, its body waiting on LOCAL to be stripped.
+func _custodian() -> void:
+	for raw in Run.map:
+		var m: MapGen.MapNode = raw
+		if m.type != MapGen.NodeType.CORE:
+			continue
+		_node(m.index)
+		m.cleared = true
+		var h := MapGen.Jetsam.new()
+		h.art = &"custodian"
+		h.label = "THE CUSTODIAN"
+		h.site = MapGen.SITE_ANY
+		h.slot = m.jetsam.size()
+		h.items.append(LootGen.roll_module(9))
+		m.jetsam.append(h)
+		Router.await_core_body()
+		await _secs(4.0)
+		_shot("6_custodian_body")
+		return
+
+
+## Proposed text for these encounters, this run only: {id: {source, body, labels{j}, outs{j}{band}}}.
+func _shorten(path: String) -> void:
+	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not d is Dictionary:
+		print("  shipchoicesshot: no short text at %s" % path)
+		return
+	for id: String in d:
+		var o := OptionTable.by_id(StringName(id))
+		var e: Dictionary = d[id]
+		if o.is_empty():
+			continue
+		if e.has("source"):
+			o.source = e.source
+		if e.has("body"):
+			o.body = e.body
+		var cs: Array = o.get("choices", [])
+		for j in cs.size():
+			var c: Dictionary = cs[j]
+			var k := str(j)
+			if (e.get("labels", {}) as Dictionary).has(k):
+				c.label = e.labels[k]
+			var outs: Dictionary = (e.get("outs", {}) as Dictionary).get(k, {})
+			for band: String in outs:
+				if c.has(band) and c[band] is Callable:
+					var was: Callable = c[band]
+					var said: String = outs[band]
+					c[band] = func() -> Dictionary:
+						var r: Dictionary = was.call()
+						r.text = said
+						return r
+		print("  shipchoicesshot: short text for %s" % id)

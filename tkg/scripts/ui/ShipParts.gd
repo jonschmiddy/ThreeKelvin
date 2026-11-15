@@ -85,20 +85,27 @@ static func assign(choices: Array, bow_taken: bool = true) -> Array[StringName]:
 	return out
 
 
-## How many choices in `choices` asked for a part another had already: [among the choices
-## themselves, counting NOT NOW's bow too].
-static func collisions(choices: Array) -> Array[int]:
+## Whether the encounter has a walk-away of its own (it then holds the bow, and NOT NOW goes).
+static func walks_away(choices: Array) -> bool:
+	for c: Dictionary in choices:
+		if wanted(c) == LEAVE:
+			return true
+	return false
+
+
+## How many of the choices asked for a part another already held (the bow is NOT NOW's when the
+## encounter has no walk-away of its own).
+static func collisions(choices: Array) -> int:
 	var seen := {}
-	var own := 0
-	var bow := 0
+	if not walks_away(choices):
+		seen[LEAVE] = true
+	var k := 0
 	for c: Dictionary in choices:
 		var p := wanted(c)
 		if seen.has(p):
-			own += 1
-		elif p == LEAVE:
-			bow += 1
+			k += 1
 		seen[p] = true
-	return [own, own + bow]
+	return k
 
 
 ## Part `p`'s box on a hull drawn at `hull` (global px), the bow to the right unless `bow_left`.

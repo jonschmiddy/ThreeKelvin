@@ -1765,3 +1765,24 @@ func drawn_rects() -> Array[Rect2]:
 		var c := (rec.node as Node2D).get_global_transform().origin
 		out.append(Rect2(c - sz * 0.5, sz))
 	return out
+
+
+## Every placed piece's opaque box on screen (its ink, turned and scaled as drawn, not its canvas):
+## what LOCAL's overlays keep off. A big structure's canvas is mostly air.
+func ink_rects() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for rec: Dictionary in _placed:
+		var spr: Sprite2D = rec.sprite
+		if spr.texture == null or not spr.is_visible_in_tree():
+			continue
+		var ink := SubjectMask.ink_of(spr.texture.resource_path)
+		var box := spr.get_rect()
+		if ink.size.x > 0 and ink.size.y > 0:
+			var k := box.size / Vector2(spr.texture.get_size())
+			box = Rect2(box.position + Vector2(ink.position) * k, Vector2(ink.size) * k)
+		var xf := spr.get_global_transform()
+		var r := Rect2(xf * box.position, Vector2.ZERO)
+		for q: Vector2 in [Vector2(box.end.x, box.position.y), box.end, Vector2(box.position.x, box.end.y)]:
+			r = r.expand(xf * q)
+		out.append(r)
+	return out

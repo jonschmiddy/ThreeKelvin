@@ -28,7 +28,7 @@ func _run() -> void:
 	Rng.forced = 1
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n := _node()
-	n.options.assign([&"dropped_load", &"long_claim", &"slipping_orbit", &"mine_drift", _crowded()])
+	n.options.assign([&"dropped_load", _stays_put(), &"slipping_orbit", &"mine_drift", &"salvage_rights", &"still_under_warranty", _crowded()])
 	Router.show_local()
 	await Harness.frames(_tree, 120)
 	_sc = Router.current as SectorScreen
@@ -40,6 +40,7 @@ func _run() -> void:
 	await _not_now()
 	await _too_late(n)
 	await _loot()
+	await _warns()
 	await _hulls(n)
 	await _sweep(n)
 	await _same_as_the_card()
@@ -62,6 +63,15 @@ func _node() -> MapGen.MapNode:
 	return n
 
 
+## An encounter with no walk-away of its own, so NOT NOW holds the bow.
+func _stays_put() -> StringName:
+	for o in OptionTable.all():
+		var cs: Array = o.get("choices", [])
+		if cs.size() >= 2 and not ShipParts.walks_away(cs):
+			return StringName(o.id)
+	return &""
+
+
 ## The authored encounter with the most choices (the most crowded ship).
 func _crowded() -> StringName:
 	var best: Dictionary = {}
@@ -76,31 +86,31 @@ func _crowded() -> StringName:
 ## Every encounter's choices on parts: how many have two that want the same part (and, with
 ## NOT NOW on the bow, how many more a walk-away choice adds), with examples.
 func _report(all: bool) -> void:
-	var own := 0
-	var with_bow := 0
+	var clash := 0
 	var total := 0
 	var shown := 0
+	var not_now := 0
 	var by_part := {}
 	for o in OptionTable.all():
 		var choices: Array = o.get("choices", [])
 		if choices.is_empty():
 			continue
 		total += 1
+		if not ShipParts.walks_away(choices):
+			not_now += 1
 		var cl := ShipParts.collisions(choices)
-		if cl[0] > 0:
-			own += 1
-		if cl[1] > 0:
-			with_bow += 1
-		var parts := ShipParts.assign(choices)
+		var parts := ShipParts.assign(choices, not ShipParts.walks_away(choices))
 		for p in parts:
 			by_part[p] = int(by_part.get(p, 0)) + 1
-		if cl[0] > 0 and (all or shown < 6):
-			shown += 1
-			var bits: Array = []
-			for j in choices.size():
-				bits.append("%s->%s(%s)" % [String((choices[j] as Dictionary).get("label", "?")), parts[j], ShipParts.wanted(choices[j])])
-			print("  collide %s: %s" % [o.id, " | ".join(bits)])
-	print("  parts report: %d encounters; %d have two choices wanting one part; %d counting a walk-away wanting NOT NOW's bow" % [total, own, with_bow])
+		if cl > 0:
+			clash += 1
+			if all or shown < 8:
+				shown += 1
+				var bits: Array = []
+				for j in choices.size():
+					bits.append("%s->%s(%s)" % [String((choices[j] as Dictionary).get("label", "?")), parts[j], ShipParts.wanted(choices[j])])
+				print("  collide %s: %s" % [o.id, " | ".join(bits)])
+	print("  parts report: %d encounters; %d have two choices wanting one part; %d have no walk-away and keep NOT NOW on the bow" % [total, clash, not_now])
 	print("  where choices landed: %s" % by_part)
 	_ok("every authored choice lands on a part (%d encounters)" % total, total > 0)
 
@@ -202,9 +212,12 @@ func _beat_and_click(_n: MapGen.MapNode) -> void:
 	# (headless, the window never has the pointer, so nothing is "entered": the stills show it)
 	hit.mouse_entered.emit()
 	await Harness.frames(_tree, 2)
-	_ok("the part under the mouse is hot, its label framed, the rest dim", ov.get("_hover") == 0 and c0.hot and not _tag("NotNow").hot)
+	_ok("the part under the mouse is hot, its label framed, the rest dim", ov.get("_hover") == 0 and c0.hot and not _tag("Choice1").hot)
 	hit.mouse_exited.emit()
 	_ok("the dim labels keep their price and odds", _tag("Choice0").cost != "" and _tag("Choice0").cost.contains("SENSORS"))
+	var bow := _tag("Choice2")
+	_ok("its own walk-away holds the bow, and NOT NOW is not shown (ruling A)", _tag("NotNow") == null and bow != null and bow.verb.begins_with("BOW: "))
+	var stood := ov.hail.get_rect()
 	await _click(hit)
 	f = 0
 	while _d.page != &"result" and f < 120:
@@ -212,6 +225,10 @@ func _beat_and_click(_n: MapGen.MapNode) -> void:
 		f += 1
 	_ok("a click on the part took choice 0 (%s)" % _d.out.get("odds", ""), _d.page == &"result" and _d.choice == 0 and _d.out.get("ok", false))
 	_ok("step 3: the hail turned to their answer", ov.hail != null and ov.hail.body.text == String((_d.out.get("res", {}) as Dictionary).get("text", "")))
+	await Harness.frames(_tree, 3)
+	var now := ov.hail.get_rect()
+	var kept := absf(now.position.x - stood.position.x) < 1.0 and (absf(now.position.y - stood.position.y) < 1.0 or absf(now.end.y - stood.end.y) < 1.0)
+	_ok("  in the same place as steps 1 and 2 (%s, then %s)" % [stood, now], kept)
 	var rows: Array = ov.get("_rows")
 	var credits := rows.any(func(r: Array) -> bool: return String(r[0]).ends_with("CREDITS"))
 	_ok("the reward stack says the credits, with nothing to press on them", credits and _tag("Reward") == null)
@@ -228,10 +245,10 @@ func _beat_and_click(_n: MapGen.MapNode) -> void:
 
 func _not_now() -> void:
 	if not await _open_settled(1):
-		_ok("long claim opened", false)
+		_ok("%s opened" % _d.node.options[1], false)
 		return
 	var nn := _tag("NotNow")
-	_ok("NOT NOW is on the bow", nn != null and nn.verb.begins_with("BOW"))
+	_ok("%s has no walk-away: NOT NOW is on the bow" % _d.node.options[1], nn != null and nn.verb.begins_with("BOW"))
 	await _click(nn)
 	await Harness.frames(_tree, 3)
 	_ok("NOT NOW: the event is gone and nothing was taken", _d.page == &"" and _d.choice == -1)
@@ -284,6 +301,24 @@ func _loot() -> void:
 	await Harness.frames(_tree, 2)
 
 
+## The band's warning on the pointed-at label: taking one of a pair closes the other.
+func _warns() -> void:
+	if not await _open_settled(4):
+		_ok("salvage rights opened", false)
+		return
+	var c0 := _tag("Choice0")
+	(_ov().find_child("Choice0Part", false, false) as Control).mouse_entered.emit()
+	await Harness.frames(_tree, 2)
+	_ok("pointed at, the label says what it closes (%s)" % c0.note, c0.note.begins_with("WILL MAKE STILL UNDER WARRANTY"))
+	var bad := _boxes(_ov())
+	_ok("  and still fits (%s)" % ", ".join(bad), bad.is_empty())
+	(_ov().find_child("Choice0Part", false, false) as Control).mouse_exited.emit()
+	await Harness.frames(_tree, 2)
+	_ok("  and says nothing at rest", c0.note == "")
+	_d.call(&"_drop")
+	await Harness.frames(_tree, 2)
+
+
 ## Every hull: the most crowded encounter's choices settled, then the box test.
 func _hulls(n: MapGen.MapNode) -> void:
 	var crowd := n.options.size() - 1
@@ -332,16 +367,15 @@ func _sweep(n: MapGen.MapNode) -> void:
 			if _ov() == null or not _ov().showing:
 				continue
 			opened += 1
-			var bad := _boxes(_ov())
+			var bad := _boxes(_ov(), true)
 			if not bad.is_empty():
 				crowded["%s on %s" % [o.id, fr.display_name()]] = "; ".join(bad.slice(0, 3))
 			_d.not_now()
 			await Harness.frames(_tree, 1)
 	for k in crowded:
 		print("  crowded: %s: %s" % [k, crowded[k]])
-	# MEASURED, NOT YET JUDGED (stage 1): the crowded few are listed for the next stage to place
-	print("  sweep: every encounter on a light, a medium and a heavy hull: %d opened, %d crowd" % [opened, crowded.size()])
-	_ok("every encounter opened on the ship on three hulls (%d)" % opened, opened >= 400)
+	_ok("every encounter on a light, a medium and a heavy hull: %d opened, %d crowd" % [opened, crowded.size()],
+		opened >= 400 and crowded.is_empty())
 	Run.fit_chassis(&"korvan", HullData.Weight.MEDIUM, 0)
 	Router.animate_in_harness = true
 
@@ -389,6 +423,13 @@ func _same_as_the_card() -> void:
 
 # --------------------------------------------------------------- the box test
 
+## The air between two boxes (0 when they touch).
+func _gap(a: Rect2, b: Rect2) -> float:
+	var dx := maxf(0.0, maxf(a.position.x - b.end.x, b.position.x - a.end.x))
+	var dy := maxf(0.0, maxf(a.position.y - b.end.y, b.position.y - a.end.y))
+	return Vector2(dx, dy).length()
+
+
 ## Every pair of the labels, the hail and the reward lines, and each against the hull, the HUD,
 ## the goal line, the screen's edge and whoever talks: the overlaps, named.
 func _boxes(ov: ShipChoices, where := false) -> Array[String]:
@@ -403,9 +444,14 @@ func _boxes(ov: ShipChoices, where := false) -> Array[String]:
 	for a in keys.size():
 		for b in range(a + 1, keys.size()):
 			if (boxes[keys[a]] as Rect2).intersects(boxes[keys[b]]):
-				bad.append("%s on %s" % [keys[a], keys[b]])
+				bad.append("%s on %s%s" % [keys[a], keys[b], " (%s, %s)" % [boxes[keys[a]], boxes[keys[b]]] if where else ""])
 	var inv := ov.get_global_transform().affine_inverse()
 	var others := {"hull": ov.get("_hull"), "talker": ov.get("_pin")}
+	var pin: Rect2 = ov.get("_pin")
+	if ov.hail != null and pin.has_area():
+		var gap := _gap(ov.hail.get_rect(), pin)
+		if gap > 90.0:
+			bad.append("Hail %d px from the talker" % int(gap))
 	if Router.hud != null:
 		others["HUD"] = inv * UiRect.of(Router.hud)
 		if Router.hud.goal != null and Router.hud.goal.is_visible_in_tree():
