@@ -387,7 +387,7 @@ func _process(d: float) -> void:
 func _draw() -> void:
 	var L: SystemLayout = view.layout
 	tip_rect = Rect2()
-	marks_drawn = []
+	bracket_log = []
 	if L == null:
 		# (no picture, no arrows over it)
 		mark_rects = []
@@ -1136,11 +1136,11 @@ func _reticle(at: Vector2, e: int, alpha: float) -> void:
 	_drawn_marks.append(Rect2(at.round() - Vector2.ONE * (e + 1), Vector2.ONE * (e * 2 + 3)).grow(MARK_CLEAR))
 	MarkOutline.draw_bracket_mark(self, at, e, Color(UITheme.MARK, alpha))
 	if record_px:
-		marks_drawn.append({"at": at.round(), "e": e, "a": alpha})
+		bracket_log.append({"at": at.round(), "e": e, "a": alpha})
 
 
 ## the marks drawn this frame, while `record_px` is on: {at, e, a}
-var marks_drawn: Array = []
+var bracket_log: Array = []
 
 
 ## The brackets' corner distance round a place: its disc plus 4.

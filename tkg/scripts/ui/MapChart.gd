@@ -1532,6 +1532,8 @@ func _draw_tip(n: MapGen.MapNode, here: MapGen.MapNode) -> void:
 	# The sector map's brackets settle onto the system as the panel arrives (R1, Nov 15: both maps
 	# mark things one way), pointing the eye at the dot the panel describes. It was a 2 px ring.
 	MarkOutline.draw_bracket_mark(self, at, 5 + roundi(2.0 * (1.0 - _hover_t)), Color(UITheme.MARK, _hover_t))
+	# (the tag keeps the room it had round the old ring)
+	var reach: float = lerpf(13.0, 8.0, _hover_t)
 
 	var lines := tip_lines(n, here)
 	# THE TAG above the star (T1, C3, Q1): the name, what it is, where, danger and fuel, in

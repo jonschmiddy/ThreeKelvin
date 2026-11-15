@@ -309,7 +309,7 @@ func _check_marks(map: SystemMapScreen) -> void:
 	map.select_body(worlds[1])
 	ov.hover = {}
 	await Harness.frames(_tree, 3)
-	var md: Array = ov.marks_drawn
+	var md: Array = ov.bracket_log
 	var c0: Vector2 = (ov._place_scr(worlds[0]) as Vector2).round()
 	var near0 := md.filter(func(m: Dictionary) -> bool: return (m.at as Vector2).distance_to(c0) < map.view.draw_r(L.bodies[worlds[0]]) + 12.0)
 	_ok("the ship's own world (%d, in orbit: %s) wears no mint mark (%d)" % [worlds[0], map.flight.reached() == worlds[0], near0.size()],
