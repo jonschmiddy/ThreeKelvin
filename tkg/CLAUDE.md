@@ -192,10 +192,10 @@ built as it is: `docs/why/check.md` (the static set), `docs/why/claude_hooks.md`
 
 | Check | What failure looks like | What to do |
 |---|---|---|
-| Pre-commit (`.githooks/pre-commit`: `check.sh --static`, about 5 s) | `[pre-commit]` then the failing check's lines; the commit does not happen | fix what it prints and commit again; `--no-verify` only if you must, and say so |
-| Edit hook, import (`tkg/tools/gdcheck.sh`) | `GDScript check failed after writing ...` | fix the script error it names. `--import` misses a syntax error in a script nothing loaded; `TK_GDCHECK=parseall` catches it |
+| Pre-commit (`.githooks/pre-commit`: `check.sh --static`, about 5 s) | `[pre-commit]` then the failing check's lines and `WARNING ... Committed anyway`: it warns, it does not stop the commit (Jon, Nov 14; `TK_GUARD_BLOCK=1` makes it block) | fix what it prints in the next commit; the gate runs the same checks and does stop |
+| Edit hook, import (`tkg/tools/gdcheck.sh`) | off since Nov 14 (19 s a `.gd` edit); the gate still imports | run `-- parseall` yourself, or `check.sh`, which does |
 | Edit hook, ratchets (`tools/dev/claude_hooks.sh edit-ratchets`) | `A ratchet check failed after the edit to ...` then the NEW lines | fix them now, while the edit is fresh |
-| Command guard (`claude_hooks.sh bash-guard`, before every Bash call) | `BLOCKED: ...` with `Why:` and `Run instead:` | run the command it gives; never start Godot directly or push main |
+| Command guard (`claude_hooks.sh bash-guard`, before every Bash call) | `WARNING (would have blocked ...): BLOCKED: ...` with `Why:` and `Run instead:`; the command still runs (Jon, Nov 14; `TK_GUARD_BLOCK=1` makes it block) | stop and run the command it gives instead; never start Godot directly or push main |
 | Stop reminder (`claude_hooks.sh stop-nudge`, once per state of the tree) | `Before you say this change is done: ...` | `bash tools/dev/check.sh --tests`, add the `changes/` line, list what you did not verify |
 | `code_check.py` (function and file length, bare return types) | `NEW length ...`, `GREW ...`, `NEW bare ...` | split the function, type the return; `--update` only for a moved thing |
 | `code_graph.py` (layering, private calls) | `NEW layer a -> b`, `NEW private ...` | call through the right layer or a public method |

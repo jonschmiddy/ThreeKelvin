@@ -40,8 +40,8 @@ fi
 # `core.hooksPath` REPLACES `.git/hooks/` rather than adding to it. So any hook
 # previously installed there stops running the moment this is set, which is
 # what we want — otherwise a graphify rebuild fires twice per commit. pre-commit
-# runs the static checks (tools/dev/check.sh --static); skip it once with
-# `git commit --no-verify`.
+# runs the static checks (tools/dev/check.sh --static) and warns, never blocks
+# (TK_GUARD_BLOCK=1 makes it block); skip it once with `git commit --no-verify`.
 
 current="$(git config core.hooksPath || true)"
 if [ "$current" = ".githooks" ]; then

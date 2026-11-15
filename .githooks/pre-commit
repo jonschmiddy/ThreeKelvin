@@ -4,7 +4,8 @@
 # Tracked in .githooks/ and shared via core.hooksPath (see setup.sh). It calls
 # tools/dev/check.sh --static, which is `GATE_STATIC=1 .github/scripts/validate.sh`:
 # the same checks as the gate, not a copy. Missing python or bash: it says so and
-# lets the commit through. To commit anyway: git commit --no-verify
+# lets the commit through. A failure warns and commits anyway (Jon, Nov 14);
+# TK_GUARD_BLOCK=1 makes it refuse the commit. To skip it: git commit --no-verify
 # Why: docs/why/check.md#pre-commit
 
 # Mid-rebase, merge or cherry-pick the commits are not yours to fix.
@@ -45,5 +46,9 @@ if [ "$CODE" -eq 0 ]; then
 	exit 0
 fi
 cat "$OUT"; rm -f "$OUT"
+if [ "${TK_GUARD_BLOCK:-}" = 1 ]; then
+	echo "[pre-commit] static checks failed (${SECS}s); TK_GUARD_BLOCK=1, so the commit is refused. Skip once: git commit --no-verify"
+	exit 1
+fi
 echo "[pre-commit] WARNING: static checks failed (${SECS}s). Committed anyway (warn-only, Jon's Nov 14 ruling); the gate still runs them."
 exit 0

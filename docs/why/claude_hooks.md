@@ -1,9 +1,13 @@
 The reasoning behind the Claude Code hooks (`.claude/settings.json`, `tools/dev/claude_hooks.sh` and `.py`, `tkg/tools/gdcheck.sh`) and the project skill `.claude/skills/finish-a-change`. Most code here is written by Jon's AI sessions, so the rules that matter have to reach the session at the moment it acts, not only sit in a file it may not reread.
 
+## They warn; they do not block (Jon, Nov 14)
+
+Jon's sweep 2 ruling 1A (51d2d5cc): the command guard and the pre-commit hook say what they would have blocked and let it through. The command guard turns each block into a warning the session sees (`WARNING (would have blocked ...)`, as `additionalContext`); the pre-commit hook prints the failing checks and commits anyway. `TK_GUARD_BLOCK=1` in the environment restores blocking for both. The self-test runs every guard rule both ways, blocking and warn-only. The per-edit import hook (`gdcheck.sh`, about 19 s a `.gd` edit) is off: it is no longer in `.claude/settings.json`, and the gate still imports. Below, "blocks" means what the guard does with `TK_GUARD_BLOCK=1`; by default it is a warning.
+
 ## What each hook is for
 
-- **Command guard** (PreToolUse on Bash, `bash-guard`). Blocks the two things the repo says never to do: starting Godot by hand (`godot`, `godot4`, `Godot`, `godot_console.exe`, `/Applications/Godot.app/...`, `$GODOT`, `open -a Godot`), and pushing to `main` or merging, rebasing or committing on `main` in the main checkout. It splits the command into its simple commands (`;`, `&&`, `||`, `|`, `&`, `$( )`, backticks, `bash -c "..."` and `eval`, skipping heredoc bodies and comments), drops `VAR=value`, `env`, `time`, `timeout N`, `nice`, `command`, and judges the program each one runs. `godot.sh`, `grep godot`, `command -v godot`, `GODOT=... validate.sh` and a path that merely contains "godot" pass. `godot --version` passes (it prints a line and exits). It warns, without blocking, on `git commit --no-verify` and on `--update` of a baseline (the PR must say why each ADDED line is a move, not new debt).
-- **Edit hook, import** (PostToolUse on Write|Edit, `gdcheck.sh`). Compiles the project after a `.gd` edit. It now goes through `tools/dev/godot.sh` (same binary discovery and throwaway profile as every other run) instead of a bare `godot`, and needs no `jq`.
+- **Command guard** (PreToolUse on Bash, `bash-guard`). Warns on (and with `TK_GUARD_BLOCK=1` blocks) the two things the repo says never to do: starting Godot by hand (`godot`, `godot4`, `Godot`, `godot_console.exe`, `/Applications/Godot.app/...`, `$GODOT`, `open -a Godot`), and pushing to `main` or merging, rebasing or committing on `main` in the main checkout. It splits the command into its simple commands (`;`, `&&`, `||`, `|`, `&`, `$( )`, backticks, `bash -c "..."` and `eval`, skipping heredoc bodies and comments), drops `VAR=value`, `env`, `time`, `timeout N`, `nice`, `command`, and judges the program each one runs. `godot.sh`, `grep godot`, `command -v godot`, `GODOT=... validate.sh` and a path that merely contains "godot" pass. `godot --version` passes (it prints a line and exits). It always only warns on `git commit --no-verify` and on `--update` of a baseline (the PR must say why each ADDED line is a move, not new debt).
+- **Edit hook, import** (`gdcheck.sh`). **Off since Nov 14**: not in `.claude/settings.json`. When on (PostToolUse on Write|Edit), it compiles the project after a `.gd` edit. It now goes through `tools/dev/godot.sh` (same binary discovery and throwaway profile as every other run) instead of a bare `godot`, and needs no `jq`.
 - **Edit hook, ratchets** (PostToolUse, `edit-ratchets`). After an edit to `tkg/scripts/**/*.gd`, runs `code_check`, `comment_check`, `code_graph` and `frame_check` side by side. NEW problems come back at once, in the tools' own words; FIXED and SHRANK lines are left out. Silent when clean.
 - **Stop reminder** (Stop, `stop-nudge`). See below.
 - **The skill** `finish-a-change`: the checklist, loaded when a session is finishing, committing or opening a PR.
@@ -45,7 +49,7 @@ Known gap: a session that commits everything and runs no check is only caught wi
 
 ## How to turn one off
 
-Remove its entry from `.claude/settings.json` (or put an override in `.claude/settings.local.json`, which is not tracked). One at a time: the Bash guard is the `PreToolUse` block, the ratchets and the import check are the two entries under `PostToolUse`, the reminder is `Stop`. `TK_GDCHECK=parseall` makes the import hook run `-- parseall` instead of `--import`.
+Remove its entry from `.claude/settings.json` (or put an override in `.claude/settings.local.json`, which is not tracked). One at a time: the Bash guard is the `PreToolUse` block, the ratchets are the entry under `PostToolUse`, the reminder is `Stop`. The import check is already off; to turn it back on, add `"$CLAUDE_PROJECT_DIR/tkg/tools/gdcheck.sh"` under `PostToolUse` beside the ratchets. `TK_GDCHECK=parseall` makes it run `-- parseall` instead of `--import`.
 
 ## The import hook does not see syntax errors
 
@@ -53,7 +57,7 @@ Found while building this: on Godot 4.7.1 `--headless --import` printed nothing 
 
 ## Direct Godot starts that remain in the repo's own scripts
 
-The guard sees the command a session types, not what a script does inside. These documented wrappers start Godot without `godot.sh`: `tkg/tools/bot.sh`, `coplay.sh`, `cofight.sh` (no isolation at all: the real profile), `cojoin.sh` (isolates with `APPDATA` and `XDG_DATA_HOME` only, which does not move `user://` on a Mac, where Godot reads `HOME`), `export.sh` (isolates its smoke run with `APPDATA` only, the same gap on a Mac), `.github/scripts/validate.sh` (isolates every unit with `HOME`, `XDG_DATA_HOME` and `APPDATA`, so it is sound). `tools/dev/godot_quiet.sh` is the gate's own wrapper under `env.sh`. These are not blocked (they are documented); they are the holes in the rule.
+The guard sees the command a session types, not what a script does inside. The documented wrappers that start Godot without `godot.sh` all keep the rule since Nov 14 (Jon's sweep 2 ruling 5A): `tkg/tools/bot.sh`, `coplay.sh`, `cofight.sh`, `cojoin.sh` and `export.sh` source `tools/dev/env.sh`, refuse to start unless `tk_guard` passes, and run every Godot process under `tk_isolated` with its own `tk_new_profile`, removed on exit. Before that the first three used the real profile and the last two isolated with `APPDATA` only, which does not move `user://` on a Mac. `export.sh`'s export step itself still runs in the real user folder, because Godot keeps its export templates there; it runs no game code, and the exported game's smoke runs are isolated. `.github/scripts/validate.sh` isolates every unit with `HOME`, `XDG_DATA_HOME` and `APPDATA`. `tools/dev/godot_quiet.sh` is the gate's own wrapper under `env.sh`.
 
 ## gate_land.sh is not blocked
 
@@ -70,7 +74,7 @@ bash tools/dev/claude_hooks.sh --selftest        # all of them, no Godot, about 
 echo '{"tool_name":"Bash","cwd":".","tool_input":{"command":"godot --path tkg"}}' | bash tools/dev/claude_hooks.sh bash-guard; echo "exit $?"
 echo '{"tool_input":{"file_path":"'"$PWD"'/tkg/scripts/ui/Hud.gd"}}' | bash tools/dev/claude_hooks.sh edit-ratchets; echo "exit $?"
 echo '{"cwd":"'"$PWD"'","stop_hook_active":false}' | bash tools/dev/claude_hooks.sh stop-nudge; echo "exit $?"
-echo '{"tool_input":{"file_path":"'"$PWD"'/tkg/scripts/Main.gd"}}' | bash tkg/tools/gdcheck.sh; echo "exit $?"
+echo '{"tool_input":{"file_path":"'"$PWD"'/tkg/scripts/Main.gd"}}' | bash tkg/tools/gdcheck.sh; echo "exit $?"   # the import hook, off in settings.json
 ```
 
 ## Which tree an edit hook runs in

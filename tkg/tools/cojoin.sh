@@ -7,25 +7,21 @@
 #   tools/cojoin.sh late       the guest joins a dive already under way
 #   tools/cojoin.sh skew       the guest claims a different galaxy: both must say so
 #
-# Each process gets its own user folder (APPDATA on Windows, XDG_DATA_HOME and
-# HOME elsewhere), so neither touches the player's profile or the other's.
+# Each process gets its own throwaway user folder (tools/dev/env.sh tk_isolated), so
+# neither touches the player's profile or the other's.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GODOT="${GODOT:-godot}"
-command -v "$GODOT" >/dev/null 2>&1 || GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
+# Godot, and a throwaway user folder for every process, from tools/dev/env.sh: never the
+# real profile. tk_guard refuses to start anything it cannot prove is isolated.
+source "$HERE/../tools/dev/env.sh"
+tk_guard || exit 3
 MODE="${*:-}"
 OUT="$(mktemp -d)"
-mkdir -p "$OUT/host" "$OUT/guest"
+HOST_P="$(tk_new_profile)"; GUEST_P="$(tk_new_profile)"
+trap 'rm -rf "$HOST_P" "$GUEST_P"' EXIT
 
-as_user() {
-	local dir="$1"; shift
-	local win="$dir"
-	command -v cygpath >/dev/null 2>&1 && win="$(cygpath -w "$dir")"
-	APPDATA="$win" XDG_DATA_HOME="$dir" "$@"
-}
-
-as_user "$OUT/host" "$GODOT" --headless --path "$HERE" -- cojoin host $MODE >"$OUT/host.log" 2>&1 &
+tk_isolated "$HOST_P" "$GODOT" --headless --audio-driver Dummy --path "$HERE" -- cojoin host $MODE >"$OUT/host.log" 2>&1 &
 HOST_PID=$!
 
 CODE=""
@@ -44,7 +40,7 @@ echo "code $CODE"
 # The late guest arrives once the host has dived and flown.
 case " $MODE " in *" late "*) sleep 6 ;; esac
 
-as_user "$OUT/guest" "$GODOT" --headless --path "$HERE" -- cojoin join "$CODE" $MODE >"$OUT/guest.log" 2>&1 &
+tk_isolated "$GUEST_P" "$GODOT" --headless --audio-driver Dummy --path "$HERE" -- cojoin join "$CODE" $MODE >"$OUT/guest.log" 2>&1 &
 GUEST_PID=$!
 wait "$GUEST_PID"; GUEST_RC=$?
 wait "$HOST_PID";  HOST_RC=$?

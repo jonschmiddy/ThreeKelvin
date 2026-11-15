@@ -16,14 +16,19 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GODOT="${GODOT:-godot}"
-command -v "$GODOT" >/dev/null 2>&1 || GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
+# Godot, and a throwaway user folder for every process, from tools/dev/env.sh: never the
+# real profile. tk_guard refuses to start anything it cannot prove is isolated.
+source "$HERE/../tools/dev/env.sh"
+tk_guard || exit 3
 SHIPS="${1:-2}"
 OUT="$(mktemp -d)"
 W=960; H=600
+PROFS=()
+trap 'rm -rf "${PROFS[@]}"' EXIT
 
 echo "hosting..."
-"$GODOT" --path "$HERE" --resolution "${W}x${H}" --position 40,80 \
+PROFS+=("$(tk_new_profile)")
+tk_isolated "${PROFS[0]}" "$GODOT" --path "$HERE" --resolution "${W}x${H}" --position 40,80 \
 	-- lobby host auto wait "$SHIPS" >"$OUT/host.log" 2>&1 &
 PIDS=($!)
 
@@ -41,7 +46,8 @@ fi
 echo "code $CODE"
 
 for i in $(seq 1 $((SHIPS - 1))); do
-	"$GODOT" --path "$HERE" --resolution "${W}x${H}" \
+	PROFS+=("$(tk_new_profile)")
+	tk_isolated "${PROFS[$i]}" "$GODOT" --path "$HERE" --resolution "${W}x${H}" \
 		--position $((40 + i * (W + 20))),80 \
 		-- lobby join "$CODE" auto >"$OUT/guest$i.log" 2>&1 &
 	PIDS+=($!)

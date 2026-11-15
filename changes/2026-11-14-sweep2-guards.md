@@ -1,0 +1,1 @@
+- **Changed** — for developers: the co-op and export helper scripts never touch your own save folder, and the commit checks warn instead of stopping a commit.

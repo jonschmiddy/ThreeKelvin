@@ -3,7 +3,8 @@
 
 Run through the launcher `tools/dev/claude_hooks.sh EVENT` (it finds a working python and fails open).
 
-  bash-guard      PreToolUse on Bash: blocks a direct Godot start and a push or commit that skips the gate
+  bash-guard      PreToolUse on Bash: warns on a direct Godot start and a push or commit that skips the gate
+                  (blocks them only with TK_GUARD_BLOCK=1; Jon's Nov 14 ruling)
   edit-ratchets   PostToolUse on Write|Edit of tkg/scripts/**/*.gd: the four static ratchets, NEW problems only
   stop-nudge      Stop: once per tree state, if code changed and no passing check.sh covers it
   stamp [--tests] record "check.sh passed on this tree" (check.sh calls it after a pass)

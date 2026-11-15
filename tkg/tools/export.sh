@@ -34,8 +34,8 @@
 #     walk, and dropping one is silent in the game: a room comes up unlit;
 #   - the SMOKE TEST: the exported Windows game run headless with -- rngtest,
 #     -- devtest asrelease and -- parseall (every script, as the export
-#     tokenised it). Its user folder is pointed at a scratch one (APPDATA), so
-#     a build never writes into this machine's real %APPDATA%/ThreeKelvinAlpha;
+#     tokenised it). Its user folder is a throwaway one (tools/dev/env.sh
+#     tk_isolated), so a build never writes into this machine's real profile;
 #   - the Mac zip must hold the app's binary with its run permission, its pack
 #     and its signature.
 #
@@ -47,8 +47,11 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PROJ="$ROOT/tkg"
-GODOT="${GODOT:-godot}"
-command -v "$GODOT" >/dev/null 2>&1 || GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
+# Godot and the profile guard from tools/dev/env.sh. The export itself runs in the real
+# user folder, where Godot keeps its export templates; it runs no game code, so it never
+# opens the game's profile. The smoke runs of the exported game are isolated (tk_isolated).
+source "$ROOT/tools/dev/env.sh"
+tk_guard || exit 3
 WHICH="${1:-all}"
 
 # Export log lines that are not a problem, as one extended regex. Empty: there
@@ -102,7 +105,7 @@ OUT="$ROOT/builds/$VERSION-${COMMIT/+/-}"
 mkdir -p "$OUT"
 
 # Scratch user folder for the smoke test; removed on exit with the stamp.
-SMOKE_HOME="$(mktemp -d)"
+SMOKE_HOME="$(tk_new_profile)"
 printf '{"version":"%s","commit":"%s","date":"%s"}\n' "$VERSION" "$COMMIT" "$DATE" > "$PROJ/build.json"
 trap 'rm -f "$PROJ/build.json"; rm -rf "$SMOKE_HOME"' EXIT
 echo "export: $VERSION · $COMMIT -> $OUT"
@@ -179,7 +182,7 @@ if [ "$WHICH" = all ] || [ "$WHICH" = windows ]; then
 		# stamp is in, developer mode is not, and every script loads.
 		if [ -e "$CON" ] && [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
 			smoke() {
-				APPDATA="$(cygpath -w "$SMOKE_HOME")" "$CON" --headless --audio-driver Dummy -- "$@" 2>&1
+				tk_isolated "$SMOKE_HOME" "$CON" --headless --audio-driver Dummy -- "$@" 2>&1
 			}
 			S1="$(smoke rngtest)"
 			echo "$S1" | grep -m1 '^\[build\]' || fail "the exported game printed no build line"

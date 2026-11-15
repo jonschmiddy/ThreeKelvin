@@ -30,7 +30,7 @@ Do these in order. Each step says why, so you can tell when it does not apply.
 7. **Long reasoning goes to `docs/why/<Stem>.md`**, and the code keeps a one-line `# Why:` pointer
    (comments over 5 lines fail the comment check). A new test harness gets a row in `docs/tests.md`.
 8. **Never start Godot directly.** Always `bash tools/dev/godot.sh ...` or `render.sh`: the real
-   profile is never touched. (The Bash hook blocks a direct start.)
+   profile is never touched. (The Bash hook warns on a direct start; it does not stop it, so do not lean on it.)
 9. **Branch in a worktree** under `../tk-wt/<name>`; never commit on `main` in the main checkout.
    Land only with `bash tools/dev/gate_land.sh WORKTREE BRANCH LABEL`; or push the branch and open
    a PR. Merging is the humans' call.

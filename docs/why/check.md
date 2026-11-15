@@ -53,3 +53,7 @@ on disk. It does nothing when the commit touches none of `tkg/ tools/ docs/ chan
 .github/ music/ relay/`, skips itself in a rebase, merge or cherry-pick, and lets the commit
 through (with one line) when python or bash is missing. It never starts Godot; for a new
 script or `class_name` it prints the `--import` reminder instead.
+
+A failure warns and commits anyway (Jon, Nov 14, sweep 2 ruling 1A): it prints the failing
+checks and a `WARNING` line and exits 0. `TK_GUARD_BLOCK=1` in the environment makes it refuse
+the commit, as it did before; the merge gate runs the same checks and always stops.

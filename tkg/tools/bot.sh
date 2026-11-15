@@ -19,8 +19,10 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GODOT="${GODOT:-godot}"
-command -v "$GODOT" >/dev/null 2>&1 || GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
+# Godot, and a throwaway user folder for every process, from tools/dev/env.sh: never the
+# real profile. tk_guard refuses to start anything it cannot prove is isolated.
+source "$HERE/../tools/dev/env.sh"
+tk_guard || exit 3
 
 CODE="${1:-}"
 MAILBOX="${2:-}"
@@ -28,12 +30,14 @@ NAME="${BOT_NAME:-Claude}"
 THINK="${BOT_THINK:-25}"
 OUT="$(mktemp -d)"
 PIDS=()
+HOST_P="$(tk_new_profile)"; BOT_P="$(tk_new_profile)"
+trap 'rm -rf "$HOST_P" "$BOT_P"' EXIT
 
 bot_args=(-- bot join "" name="$NAME" think="$THINK")
 
 if [ -z "$CODE" ]; then
 	echo "opening a window and hosting..."
-	"$GODOT" --path "$HERE" --resolution 1100x700 --position 40,80 \
+	tk_isolated "$HOST_P" "$GODOT" --path "$HERE" --resolution 1100x700 --position 40,80 \
 		-- lobby host relay auto wait 2 >"$OUT/host.log" 2>&1 &
 	PIDS+=($!)
 	for _ in $(seq 1 120); do
@@ -53,7 +57,7 @@ echo "code $CODE"
 args=(--headless --path "$HERE" -- bot join "$CODE" name="$NAME" think="$THINK")
 [ -n "$MAILBOX" ] && args+=("mailbox=$MAILBOX")
 
-"$GODOT" "${args[@]}" 2>&1 | tee "$OUT/bot.log" &
+tk_isolated "$BOT_P" "$GODOT" "${args[@]}" 2>&1 | tee "$OUT/bot.log" &
 PIDS+=($!)
 
 echo "logs in $OUT"

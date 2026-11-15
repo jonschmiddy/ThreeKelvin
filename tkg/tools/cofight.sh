@@ -17,12 +17,16 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GODOT="${GODOT:-godot}"
-command -v "$GODOT" >/dev/null 2>&1 || GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
+# Godot, and a throwaway user folder for every process, from tools/dev/env.sh: never the
+# real profile. tk_guard refuses to start anything it cannot prove is isolated.
+source "$HERE/../tools/dev/env.sh"
+tk_guard || exit 3
 MODE="${*:-}"
 OUT="$(mktemp -d)"
+HOST_P="$(tk_new_profile)"; GUEST_P="$(tk_new_profile)"
+trap 'rm -rf "$HOST_P" "$GUEST_P"' EXIT
 
-"$GODOT" --headless --path "$HERE" -- cofight host $MODE >"$OUT/host.log" 2>&1 &
+tk_isolated "$HOST_P" "$GODOT" --headless --audio-driver Dummy --path "$HERE" -- cofight host $MODE >"$OUT/host.log" 2>&1 &
 HOST_PID=$!
 
 # The host prints its code once, on its own line. Waiting for that line rather
@@ -44,7 +48,7 @@ if [ -z "$CODE" ]; then
 fi
 echo "code $CODE"
 
-"$GODOT" --headless --path "$HERE" -- cofight join "$CODE" $MODE >"$OUT/guest.log" 2>&1 &
+tk_isolated "$GUEST_P" "$GODOT" --headless --audio-driver Dummy --path "$HERE" -- cofight join "$CODE" $MODE >"$OUT/guest.log" 2>&1 &
 GUEST_PID=$!
 
 wait "$GUEST_PID"; GUEST_RC=$?
