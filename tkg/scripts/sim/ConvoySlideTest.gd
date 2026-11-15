@@ -6,6 +6,7 @@ extends Node
 ## Why: docs/why/ConvoySlideTest.md#test-purpose
 
 const PORT := DirectTransport.DEFAULT_PORT + 37
+const PORT_TRIES := 8
 
 var _tree: SceneTree
 var _fails := 0
@@ -58,10 +59,18 @@ func _run() -> void:
 	SectorScreen._approached_at = _idx
 	Router.show_local()
 	await _frames(120)
-	var t := DirectTransport.new()
-	t.port = PORT
-	t.advertise = "127.0.0.1"
-	if not _ok("the game's session hosts a party", Net.host_party("Kevin", &"korvan", t) != ""):
+	# A port another copy of this test holds (a second checkout, a battery beside the gate)
+	# is skipped: no guest joins, so any free port does.
+	var code := ""
+	for k in PORT_TRIES:
+		var t := DirectTransport.new()
+		t.port = PORT + 100 * k
+		t.advertise = "127.0.0.1"
+		code = Net.host_party("Kevin", &"korvan", t)
+		if code != "":
+			break
+		Net.leave_party()
+	if not _ok("the game's session hosts a party", code != ""):
 		_finish()
 		return
 	_partner(777, "Vela", &"redline", -1, 1)

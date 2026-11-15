@@ -1,0 +1,1 @@
+- **Changed** — for developers: eleven tests that nothing ran now run in the merge gate, and the Lab screensaver test in the battery.

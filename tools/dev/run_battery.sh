@@ -60,6 +60,7 @@ T_ALL=$(date +%s)
 LIST=(
 "laddertest laddertest 420 0 --headless --path tkg -- sheet=LadderTest"
 "orbitworldtest orbitworldtest 300 0 --headless --fixed-fps 60 --path tkg -- sheet=OrbitWorldTest"
+"labsavertest labsavertest 600 0 --headless --fixed-fps 60 --path tkg -- sheet=LabSaverTest"
 )
 split_rows() {  # split_rows NAME SHARDS LIMIT godot args (before the shard)...
 	local name="$1" n="$2" lim="$3"; shift 3
