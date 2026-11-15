@@ -757,3 +757,10 @@ clock, so at `--fixed-fps 60` a fast or a loaded machine still eased by a differ
 the partner, riding a moving world, sat a pixel off. Since Nov 14 (Jon's ruling 3A) it eases by
 the frames' own time (`_partner_dt`, summed in `_process`), which is the same thing in play and
 the same every run in a test.
+
+That was half of it. Five runs of each tree under load, after the easing fix, still put the world
+at a different place each run (the test reaches this check after waits on conditions, so the map
+clock stands at a different moment), and one drew the partner a pixel from where the check
+expected it: the check measured the world's centre, then waited two frames while the world moved
+on. The check now holds the map's clock (`frozen`) for its length, so the world stands still
+between the measure and the draw.
