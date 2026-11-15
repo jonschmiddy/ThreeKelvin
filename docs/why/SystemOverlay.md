@@ -79,6 +79,10 @@ second. Each replan blends in over PV_BLEND s, point for point along the path.
 (1,600: at 320 a turn-round a few pixels across was cut into corners)
 ```
 
+Nov 15 (Jon's ruling 1A): from a ring the preview is planned for a departure window and held as
+drawn until a click can no longer fly it. It is no longer replanned every 3 s
+(`PreviewHold.due`; `docs/why/ShipFlight.md#preview-window`).
+
 Inside `_draw_paths()`, above `if flight != _pv_flight:`:
 
 ```text

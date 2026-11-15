@@ -40,6 +40,7 @@ var clicks_held := false
 var _ship_at := Vector2.ZERO
 ## Hull drawn at map scale from the art LOCAL draws, remade when the hull is swapped.
 const MapHullS := preload("res://scripts/ui/sysmap/MapHull.gd")
+const PreviewHoldS := preload("res://scripts/ui/sysmap/PreviewHold.gd")
 var hull_src: Texture2D = null
 var hull_pic: Dictionary = {}
 var _hull_key: Array = []
@@ -1316,25 +1317,20 @@ func _draw_paths(t: float) -> void:
 		var in_orbit: bool = flight.mode == &"rail" and not flight.inserting()
 		# (the AUTOPILOT setting's path too: changed, the line is planned again)
 		var key := "%d:%d:%d:%s:%s:%s" % [preview_to, flight.orbit_body() if in_orbit else -9, roundi(float(flight.rail.get("rt", 0.0))) if in_orbit else 0, flight.mode, flight.flight_opts().path, ArriveSide.key(flight.wish)]
-		# Replan every 3 s on a ring, every 1 s alongside
-		# or round a star orbit, and as departure nears.
-		var every := 3.0 if in_orbit else 1.0
-		# The old planner's plan is made ahead on the worker too and kept the same way.
-		var ahead: bool = _pv_plan != null and (_pv_plan.res != null or _pv_plan.ahead)
-		if _pv_plan != null and not ahead:
-			every = maxf(every, 2.0)
-		var gone: bool = ahead and (t >= float(_pv_plan.t0) - flight.PLAN_AHEAD or flight._takeable(_pv_plan, t).is_empty())
+		# A plan made ahead is held as drawn until it leaves (ruling 1A); none on a cadence.
+		# Why: docs/why/ShipFlight.md#preview-window
+		var due: bool = PreviewHoldS.due(flight, _pv_plan, t, t - _pv_at, _pv_plan != null and flight._takeable(_pv_plan, t).is_empty())
 		if key != _preview_key and _pv_plan != null and int(_pv_plan.to) != preview_to:
 			# ANOTHER PLACE: the last one's flight is not drawn while this one's is made
 			_pv_plan = null
 			_pv_new = PackedVector3Array()
 			_pv_old = PackedVector3Array()
-		if (key != _preview_key or t - _pv_at > every or gone) and not flight.planning(&"preview"):
+		if (key != _preview_key or due) and not flight.planning(&"preview"):
 			var same := key == _preview_key
 			_preview_key = key
 			_pv_at = t
 			# (its line laid out on the worker too, `ShipFlight.lay_out`)
-			if flight.plan_bg(preview_to, t, _pv_choice if same else {}, &"preview", PV_N):
+			if flight.plan_bg(preview_to, t, _pv_choice if same else {}, &"preview", PV_N, PreviewHoldS.ahead(flight)):
 				_pv_req_key = key
 		var got: Dictionary = flight.take_bg(&"preview", t)
 		if not got.is_empty():

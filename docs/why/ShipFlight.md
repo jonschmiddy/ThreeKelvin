@@ -802,6 +802,47 @@ one flown neither cuts a disc nor jumps. (One sun only, at the origin, as
 `_clean` reads it.)
 ```
 
+## Preview window
+
+Jon's ruling 1A (Nov 15): the route line drawn on the sector map holds still while the ship
+rides round its world, and the flight a click flies is the line drawn.
+
+Before, a preview from a ring was planned `PREVIEW_AHEAD` (1 s) on. The solver leaves as soon
+as it can, so the drawn flight left about 1.3 s after it was planned. The overlay planned it
+again a quarter second before it left, from wherever the ship then was on the ring. That was
+about once a second, and each time the whole line moved: on seed 4242's `retarget` flights, 108
+of them, the median biggest move in 6 s of riding was 134 px (90th 229, worst 351). A click on
+a fast flight's line more than `CLICK_LATE` before it left planned a fresh flight and flew that
+when it arrived sooner, so 86 of those 108 clicks flew a different line from the one drawn.
+
+The ship's ring fixes where a flight can leave from. A flight leaves from one point at one time,
+and the ship passes that point once a lap. So a drawn line can only stay still for as long as its
+departure is ahead of the ship. These were tried and measured on the same 108 flights:
+
+- Keeping the departure point and planning it a lap later (the next pass of the same point).
+  The line moved a median 24 px (90th 94), because the worlds have moved on, and laps are long:
+  a median 12 s, up to 21 s.
+- Asking the solver for the same departure angle (`fix`, `afix` in the kept choice). Its warm
+  start and the fresh search behind it still picked other points: a median 136 px.
+- Drawing the old line until a replan "materially differs". The old plan can no longer be
+  flown once its departure passes, so the click would fly a line that is not drawn.
+
+So the preview is planned for a departure window: from a ring, `PreviewHold.WINDOW` (6.5 s) on
+(`PreviewHold.ahead`). It is held as drawn, with no replan on a timer, until a click can no longer
+fly it (`PreviewHold.due`: `PLAN_AHEAD` before it leaves, or `_takeable` fails). A click flies it as
+drawn (`FlightPlan.held` skips the `CLICK_LATE` fresh plan) and the ship rides round to the point
+and leaves there. A click with no line drawn still plans `PLAN_AHEAD` on, and the map no longer
+hands it a window plan that is still being made (`fly_bg`).
+
+The cost is the wait. The ship leaves when it reaches the drawn point, which is up to the window
+after the click. Measured over every frame of those rides: a median 3.83 s, 90th 6.23 s. At a
+3 s window the wait is a median 1.83 s, but the line moves a median 62 px in 6 s. Under the
+old rule, a click on the line drawn left within 1.35 s (a median 0.82 s), or sooner on a fresh
+plan. When a window passes with no click, the next line is a new flight (it moved a median 85 px
+at 6.5 s). That happens once every 6.5 s instead of once a second. `-- window=S` sets the window
+for a harness (`PreviewHold.window_k`). Star orbits and alongside are unchanged: their previews are still
+planned `PREVIEW_AHEAD` on.
+
 ## Click on a late preview
 
 Above `const CLICK_LATE := 0.45`:

@@ -8,6 +8,7 @@ extends Node
 ## own pace. Each sweep is judged per path; click-to-settled times against CLICK_MED, CLICK_P90, CLICK_EDGE.
 ## Why: docs/why/FlightTest.md#two-paths
 const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
+const PreviewHoldS := preload("res://scripts/ui/sysmap/PreviewHold.gd")
 ## Click to settled at the path's own pace, s, each path its own: median, 90th, and a jump's first.
 ## Jon's ruling (Nov 7, "5A"): each path's limits just over what it flies.
 ## Why: docs/why/FlightTest.md#click-limits
@@ -182,6 +183,8 @@ func _ready() -> void:
 			_dump = s.substr(5)
 		elif s == "retarget":
 			_retarget = true
+		elif s.begins_with("window="):
+			PreviewHoldS.window_k = float(s.substr(7))
 		elif s == "starride":
 			_starride = true
 		elif s.begins_with("seed="):
@@ -1329,7 +1332,6 @@ func _click_phase() -> void:
 				# THE PREVIEW, as the overlay keeps it, up to the click
 				var pv = null
 				var pv_at := -99.0
-				var every := 3.0 if fl.mode == &"rail" else 1.0
 				var click_at := t + 0.4 + R.randf() * 1.1
 				var w0 := Time.get_ticks_usec()
 				var fr := 0
@@ -1346,9 +1348,8 @@ func _click_phase() -> void:
 					fr += 1
 					t += dt
 					fl.step(dt, t, NONE)
-					var gone: bool = pv != null and (t >= float(pv.t0) - ShipFlightS.PLAN_AHEAD or fl._takeable(pv, t).is_empty())
-					if not fl.planning(&"preview") and (pv == null and pv_at < -1.0 or gone or t - pv_at > every):
-						if fl.plan_bg(i, t, pv.choice if pv != null else {}, &"preview", PV_LINE):
+					if not fl.planning(&"preview") and (pv == null and pv_at < -1.0 or PreviewHoldS.due(fl, pv, t, t - pv_at, pv != null and fl._takeable(pv, t).is_empty())):
+						if fl.plan_bg(i, t, pv.choice if pv != null else {}, &"preview", PV_LINE, PreviewHoldS.ahead(fl)):
 							asked = true
 							pv_at = t
 					var tu := Time.get_ticks_usec()
@@ -2203,10 +2204,10 @@ static func _dist(xs: Array) -> String:
 	return "median %.2f, 90th %.2f, 99th %.2f, worst %.2f (%d)" % [float(s[n / 2]), float(s[mini(n - 1, int(n * 0.9))]), float(s[mini(n - 1, int(n * 0.99))]), float(s[n - 1]), n]
 
 
-## The drawn line's move at a replan while the ship rides its orbit: printed, not judged since Nov 14
-## (each replan departs from a new point; the old bar was half-second replans the map does not make).
+## The drawn line's biggest move while the ship rides its orbit 6 s, median over flights (ruling 1A).
 ## Why: docs/why/FlightTest.md#drawn-line-held
 const MOVE_MED := 16.0
+const HOLD_S := 6.0
 
 
 ## Counts frames where a flight could start but should not (Jon: be in an orbit, then click).
@@ -2216,8 +2217,10 @@ func _run_retarget() -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var none := NONE
 	var dt := 1.0 / 60.0
-	var tot := {"tries": 0, "none": 0, "bad": 0, "landed": 0, "early": 0, "frames": 0, "late": 0}
+	var tot := {"tries": 0, "none": 0, "bad": 0, "landed": 0, "early": 0, "frames": 0, "late": 0, "redrawn": 0}
 	var moves: Array = []
+	var swaps: Array = []
+	var waits: Array = []
 	var wides: Array = []
 	var turns_r: Array = []
 	var sbs := 0
@@ -2281,8 +2284,8 @@ func _run_retarget() -> void:
 				tot.landed += 1
 				continue
 			# SETTLED: the plan to the place chosen on the way, as the map draws it
-			# (its preview, made PREVIEW_AHEAD on)
-			var pa = fl.make_plan(j, t, {}, ShipFlightS.PREVIEW_AHEAD)
+			# (its preview, `PreviewHold.now`: a ring's window on)
+			var pa = PreviewHoldS.now(fl, j, t)
 			if pa == null:
 				tot.none += 1
 				if shown < 12:
@@ -2309,45 +2312,30 @@ func _run_retarget() -> void:
 			if float(gr[2]) > 300.0:
 				lobes += 1
 			sbs += int(gr[1]) + int(gr[3])
-			# held while it rides its orbit for 6 s, replanned when the map's preview replans
-			# (`SystemOverlay`: every 3 s on a ring, 1 s else, 2 s or more for an old plan made now;
-			# a plan made ahead also once it can no longer be taken)
-			var last := _line_px(pa)
+			# held while it rides its orbit for HOLD_S, replanned when the map's preview is due
+			# (`PreviewHold.due`), each frame's wait a click would have before it leaves
+			# kept; then on to the first replan, how far that one moves
+			var hd: Array = _ride_held(fl, j, pa, t, dt, none)
+			moves.append(float(hd[0]))
+			waits.append_array(hd[3])
+			if float(hd[4]) >= 0.0:
+				swaps.append(float(hd[4]))
+			pa = hd[1]
+			t = float(hd[2])
 			var choice: Dictionary = pa.choice
-			var worst := 0.0
-			var t_pv := t
-			for _s in 360:
-				t += dt
-				fl.step(dt, t, none)
-				var every := 3.0 if fl.mode == &"rail" and not fl.inserting() else 1.0
-				var ahead: bool = pa.res != null or pa.ahead
-				if not ahead:
-					every = maxf(every, 2.0)
-				var gone: bool = ahead and (t >= float(pa.t0) - ShipFlightS.PLAN_AHEAD or fl._takeable(pa, t).is_empty())
-				if t - t_pv <= every and not gone:
-					continue
-				t_pv = t
-				var pn = fl.make_plan(j, t, choice, ShipFlightS.PREVIEW_AHEAD)
-				if pn == null:
-					break
-				var cur := _line_px(pn)
-				var mv := 0.0
-				for q1 in cur:
-					var md := INF
-					for q0 in last:
-						md = minf(md, q1.distance_to(q0))
-					mv = maxf(mv, md)
-				worst = maxf(worst, mv)
-				last = cur
-				choice = pn.choice
-				pa = pn
-			moves.append(worst)
-			if worst > 6.0 and shown < 24:
+			var worst := float(hd[0])
+			if worst > MOVE_MED and shown < 24:
 				shown += 1
 				print("  MOVED %.1f px at a replan: %s" % [worst, where])
 			# and flown from there, the drawn plan as a click flies it
 			var ok := false
 			var pj = fl.fly(j, t, func() -> void: pass, choice, pa)
+			# (the drawn flight, never one planned at the click: ruling 1A)
+			if fl.click_replanned or (pa.res != null and (pj == null or pj.res != pa.res)):
+				tot.redrawn += 1
+				if shown < 24:
+					shown += 1
+					print("  NOT AS DRAWN: the click flew another flight: %s" % where)
 			for _k in int(_fly_max(pj) / dt):
 				t += dt
 				fl.step(dt, t, none)
@@ -2366,12 +2354,60 @@ func _run_retarget() -> void:
 	if not wides.is_empty():
 		print("  how far out it swings, against the farther of its two ends: median %.2fx, 90th %.2fx, worst %.2fx; over 1.3x: %d" % [wides[wides.size() / 2], wides[int(wides.size() * 0.9)], wides[-1], wides.filter(func(x: float) -> bool: return x > 1.3).size()])
 		print("  turning in all, deg: median %.0f, 90th %.0f, worst %.0f; lobes (over 300) %d; S-bends %d" % [turns_r[turns_r.size() / 2], turns_r[int(turns_r.size() * 0.9)], turns_r[-1], lobes, sbs])
+	var held_ok := true
 	if not moves.is_empty():
-		print("  the drawn plan's biggest move at a replan while it rides its orbit, px: median %.2f, 90th %.2f, worst %.1f; over 6 px: %d" % [moves[moves.size() / 2], moves[int(moves.size() * 0.9)], moves[-1], moves.filter(func(x: float) -> bool: return x > 6.0).size()])
-		print("  measured, not judged: the drawn plan's median move at a replan, %.2f px (the Nov 5 bar for half-second replans was %.0f)" % [moves[moves.size() / 2], MOVE_MED])
-	var ok_all: bool = tot.early == 0 and tot.late == 0 and tot.none == 0 and tot.bad == 0 and tot.landed == tot.tries
+		print("  the drawn line's biggest move while the ship rides its orbit %.0f s (window %.1f s), px: median %.2f, 90th %.2f, worst %.1f; over 6 px: %d" % [HOLD_S, PreviewHoldS.window(), moves[moves.size() / 2], moves[int(moves.size() * 0.9)], moves[-1], moves.filter(func(x: float) -> bool: return x > 6.0).size()])
+		held_ok = float(moves[moves.size() / 2]) <= MOVE_MED
+		print("  held: median %.2f px, at most %.0f: %s" % [moves[moves.size() / 2], MOVE_MED, "ok" if held_ok else "FAIL"])
+	print("  printed, not judged: the move when a window passes with no click, px: %s; the wait a click would have before it leaves, s: %s" % [_dist(swaps), _dist(waits)])
+	print("  clicks that flew another flight than the one drawn: %d (want 0)" % tot.redrawn)
+	var ok_all: bool = tot.early == 0 and tot.late == 0 and tot.none == 0 and tot.bad == 0 and tot.landed == tot.tries and held_ok and tot.redrawn == 0
 	print("retarget: %s" % ("PASS" if ok_all else "FAIL"))
 	get_tree().quit(0 if ok_all else 1)
+
+
+## The drawn preview held while the ship rides HOLD_S, replanned only when the map's would be:
+## [its biggest move, the plan drawn at the end, t, each frame's wait to leave, the next replan's move or -1].
+func _ride_held(fl, j: int, pa0, t0: float, dt: float, none: Dictionary) -> Array:
+	var pa = pa0
+	var t := t0
+	var last := _line_px(pa)
+	var worst := 0.0
+	var t_pv := t0
+	var waits: Array = []
+	var swap := -1.0
+	for s in int((HOLD_S + 10.0) / dt):
+		t += dt
+		fl.step(dt, t, none)
+		var riding: bool = s < int(HOLD_S / dt)
+		if riding and (pa.res != null or pa.ahead):
+			waits.append(maxf(float(pa.t0) - t, 0.0))
+		if not PreviewHoldS.due(fl, pa, t, t - t_pv, fl._takeable(pa, t).is_empty()):
+			continue
+		t_pv = t
+		var pn = PreviewHoldS.now(fl, j, t, pa.choice)
+		if pn == null:
+			break
+		var mv := _moved(last, _line_px(pn))
+		last = _line_px(pn)
+		if not riding:
+			swap = mv
+			pa = pn
+			break
+		worst = maxf(worst, mv)
+		pa = pn
+	return [worst, pa, t, waits, swap]
+
+
+## How far the line b strays from the line a, px: its farthest point from any of a's.
+static func _moved(a: PackedVector2Array, b: PackedVector2Array) -> float:
+	var mv := 0.0
+	for q1 in b:
+		var md := INF
+		for q0 in a:
+			md = minf(md, q1.distance_to(q0))
+		mv = maxf(mv, md)
+	return mv
 
 
 ## Checks star orbits because the projected path kept updating into weird shapes (Jon).

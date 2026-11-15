@@ -191,6 +191,7 @@ class FlightPlan:
 	var u_dep := 0.0
 	## Old planner's plan made on a worker for a moment ahead, flown from `t0` on map time.
 	var ahead := false
+	var held := false  # a preview made for a ring's window (`PreviewHold`): a click flies it as drawn
 	var a_dep := 0.0
 	## whether the stretch drawn after it burns (an insertion) or rides on (a
 	## solved flight's ring, which is no burn)
@@ -2311,10 +2312,10 @@ func drop_bg(use: StringName) -> void:
 
 ## Plans are made on a worker; the old planner ran in the taking-in frame for 60 to 275 ms.
 ## Why: docs/why/ShipFlight.md#planning-on-workers
-func plan_bg(i: int, t: float, prefer: Dictionary, use: StringName, lay := 0) -> bool:
+func plan_bg(i: int, t: float, prefer: Dictionary, use: StringName, lay := 0, ahead_s := -1.0) -> bool:
 	if _jobs.has(use) or not SystemLayout.is_place(i):
 		return false
-	var ahead := PREVIEW_AHEAD if use == &"preview" else PLAN_AHEAD
+	var ahead := ahead_s if ahead_s >= 0.0 else (PREVIEW_AHEAD if use == &"preview" else PLAN_AHEAD)
 	var dep := _dep_of(t, ahead)
 	if dep.is_empty():
 		return false
@@ -2348,7 +2349,7 @@ func plan_bg(i: int, t: float, prefer: Dictionary, use: StringName, lay := 0) ->
 			pl.line = snap.lay_out(pl, lay)
 		held.plan = pl, false, "sector map flight plan")
 	_out[task] = true
-	_jobs[use] = {"task": task, "held": held, "i": i, "t": ts, "dep": dep, "prefer": prefer}
+	_jobs[use] = {"task": task, "held": held, "i": i, "t": ts, "dep": dep, "prefer": prefer, "win": use == &"preview" and not free and ahead > PREVIEW_AHEAD}
 	return true
 
 
@@ -2498,6 +2499,7 @@ func take_bg(use: StringName, t: float) -> Dictionary:
 			n_fallback += 1
 		else:
 			n_none += 1
+	if pl != null: pl.held = bool(j.get("win", false))
 	return {"plan": pl, "i": int(j.i), "t": float(j.t)}
 
 
@@ -2511,9 +2513,8 @@ func fly_bg(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: Fligh
 	if pv != null and pv.to == i:
 		var rd := _takeable(pv, t)
 		if not rd.is_empty():
-			# (leaving late: a fresh flight asked for, the drawn one kept to fly if
-			# that is no sooner, `CLICK_LATE`)
-			if pv.res == null or pv.pace <= 1.0 or float(pv.t0) - t <= CLICK_LATE:
+			# (leaving late, not held: a fresh flight asked for, the drawn one flown if it is no sooner)
+			if pv.held or pv.res == null or pv.pace <= 1.0 or float(pv.t0) - t <= CLICK_LATE:
 				_fly_plan(pv, rd, t, done)
 				return true
 			late = pv
@@ -2525,7 +2526,7 @@ func fly_bg(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: Fligh
 		if not plan_bg(i, t, {}, &"fly", LINE_N):
 			_fly_plan(late, _takeable(late, t), t, done)
 			return true
-	elif _jobs.has(&"preview") and int(_jobs[&"preview"].i) == i:
+	elif _jobs.has(&"preview") and int(_jobs[&"preview"].i) == i and not bool(_jobs[&"preview"].get("win", false)):
 		_jobs[&"fly"] = _jobs[&"preview"]
 		_jobs.erase(&"preview")
 	elif not plan_bg(i, t, prefer, &"fly", LINE_N):
@@ -4044,10 +4045,9 @@ func fly(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: FlightPl
 	if pv != null and pv.to == i:
 		var rd := _takeable(pv, t)
 		if not rd.is_empty():
-			# THE DRAWN FLIGHT LEAVING LATE (`CLICK_LATE`): a fresh one planned at
-			# the click, as the map's worker plans it (PLAN_AHEAD on), flown when
-			# it arrives sooner
-			if pv.res != null and pv.pace > 1.0 and float(pv.t0) - t > CLICK_LATE:
+			# THE DRAWN FLIGHT LEAVING LATE (`CLICK_LATE`), not a held one: a fresh one planned at the
+			# click, as the map's worker plans it (PLAN_AHEAD on), flown when it arrives sooner
+			if pv.res != null and pv.pace > 1.0 and float(pv.t0) - t > CLICK_LATE and not pv.held:
 				var pn := make_plan(i, t, {}, PLAN_AHEAD)
 				var rn := _takeable(pn, t) if pn != null else {}
 				if not rn.is_empty() and _sooner(pn, pv):
