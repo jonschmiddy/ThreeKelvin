@@ -112,6 +112,12 @@ func _run() -> void:
 	else:
 		var loc := Router.current as SectorScreen
 		var dk := loc.find_child("DockMouth", true, false) as DockMouth
+		# `hover`: the pointer on the mouth a second and a half first, as a player's would rest
+		# (the window has no pointer of its own: its enter is set as the GUI sets it)
+		if "hover" in _args:
+			dk.over = true
+			await Harness.frames(_tree, 45)
+			print("  [dockfilm] mouth lit at drawn %d, clicked at drawn %d" % [f0, Engine.get_frames_drawn()])
 		dk.pressed.emit()
 	var last := &""
 	var in_station := -1

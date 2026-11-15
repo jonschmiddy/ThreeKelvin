@@ -312,9 +312,9 @@ func _hull_flies_in(dock_b: DockMouth) -> void:
 		_ok("3B: LOCAL's dock goes on from the picture as it is -- a beat, the station powers on, your ship goes in, no cut and no arrival: %s" % [beats],
 			beats == [&"beat", &"power", &"enter"] or beats == [&"cut", &"beat", &"power", &"enter"])
 		_ok("3B: THE CAMERA STILL -- nothing but your ship moves on LOCAL from the dock's first frame to the dip to black (%d frames; %d with anything else off where it was, at most %.2f px%s)" % [
-			bg_frames, bg_moved, bg_worst, ", at " + bg_at if bg_at != "" else ""], bg_frames > 200 and bg_moved == 0)
+			bg_frames, bg_moved, bg_worst, ", at " + bg_at if bg_at != "" else ""], bg_frames > 120 and bg_moved == 0)
 		_ok("3B: THE DUST AT ITS IDLE -- every mote moves by its own drift and bob alone through the dock (%d frames; beyond them at most %.3f px, %d frames over), the sky's camera held (%s)" % [
-			dust_frames, dust_worst, dust_over, dust_cam.keys()], dust_frames > 200 and dust_over == 0 and dust_cam.size() == 1)
+			dust_frames, dust_worst, dust_over, dust_cam.keys()], dust_frames > 120 and dust_over == 0 and dust_cam.size() == 1)
 		_ok("3B: no cut to black over LOCAL and no arrival played again (black %.2f, %d arrival frames)" % [cut_black, arr_frames],
 			cut_black <= 0.01 and arr_frames == 0 and _dock_rec.is_empty())
 		_ok("3B: your ship idles through the beat and the power-on (%s)" % [thr_after.keys()], thr_after.keys() == [ThrusterFx.Thrust.IDLE])

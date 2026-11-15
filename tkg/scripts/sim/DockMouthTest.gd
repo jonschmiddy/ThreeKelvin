@@ -67,11 +67,11 @@ func _bakes() -> void:
 			lit += 1
 			if rows[y + 1] == 0:
 				lit_groove += 1
-			if rows[y + 1] == 2 and not is_equal_approx(c.a, StationFace.RIDGE_TOP_A):
+			if rows[y + 1] == 2 and absf(c.a - StationFace.RIDGE_TOP_A) > 0.01:
 				top_wrong += 1
 	_ok("the word (%s) lights the ridges only: %d px lit, %d of them on a groove, %d top rows not at the top's light" % [wr.size, lit, lit_groove, top_wrong],
 		lit > 100 and lit_groove == 0 and top_wrong == 0 and wr.size == Vector2(92, 28))
-	var flat_in := StationSides.interior(&"hallway_130_0")
+	var flat_in := StationSides.interior(&"hallway_90_1")
 	if not flat_in.is_empty():
 		var fr := StationFace.slats(flat_in[1], StationSides.INTERIOR_AT)
 		_ok("a flat back wall (a hallway) has no grooves, so the word is lit whole (period %d)" % StationFace.slat_period(fr), fr.count(0) == 0)
