@@ -211,6 +211,7 @@ func begin(f: SharedFight) -> void:
 			replan_foes(templates_of(f.foe_ids))
 		_attach(f)
 	Sig.combat_started.emit(enemies[0].template.name)
+	_hive_out()
 	# COLD OPEN (science): heat off before the first hand, never below 0, and a
 	# line only when it moved.
 	if Run.has_routine(&"cold_open"):
@@ -686,14 +687,20 @@ func play(index: int, target_index: int = -1) -> void:
 		log_line("%s decommissioned." % c.name, &"sys")
 	else:
 		discard.append(c)
-	if c.charge_turns > 0:
+	var turns := charge_turns_for(c)
+	if turns > 0:
 		var cc := ChargingCard.new()
 		cc.card = c
-		cc.turns_left = c.charge_turns
-		if Run.has_set(&"korvan", 3) and c.manufacturer == &"korvan":
-			cc.turns_left = maxi(1, cc.turns_left - 1)
+		cc.turns_left = turns
 		charging.append(cc)
 		log_line("%s charging (%d turn)." % [c.name, cc.turns_left], &"you")
+	elif c.charge_turns > 0:
+		# Standard Issue took its one turn off: it fires now, as a charge does.
+		log_line("▸ %s fires at once." % c.name, &"big")
+		Sig.charge_fired.emit(c.name)
+		resolving = c
+		CardResolver.resolve(c, self, true)
+		resolving = null
 	else:
 		resolving = c
 		CardResolver.resolve(c, self, false)
@@ -701,6 +708,20 @@ func play(index: int, target_index: int = -1) -> void:
 	Sig.card_played.emit(c)
 	Sig.hand_changed.emit()
 	Sig.player_combat_state_changed.emit()
+
+## Solari 3 (Sunward): 2 more a hit on every Solari card that deals damage.
+static func sunward(c: CardData) -> int:
+	var hits := c.damage > 0 or c.damage_equals_heat
+	if hits and c.manufacturer == &"solari" and Run.has_set(&"solari", 3):
+		return SUNWARD
+	return 0
+
+## The turns a card waits once played. Korvan 3 (Standard Issue) takes one off its
+## own cards, so a 1-turn charge fires when played (0).
+static func charge_turns_for(c: CardData) -> int:
+	if c.charge_turns > 0 and c.manufacturer == &"korvan" and Run.has_set(&"korvan", 3):
+		return c.charge_turns - 1
+	return c.charge_turns
 
 ## Mirrors CardResolver without mutating, per hit; drift would make the on-screen number a
 ## lie. Separate from `preview_damage` since mitigation depends on the target.
@@ -710,13 +731,11 @@ func card_output(c: CardData) -> int:
 		return 0
 	var per := 0
 	if c.damage_equals_heat:
-		per = maxi(1, Run.heat + 2)
+		per = maxi(1, Run.heat + 2) + sunward(c)
 	elif c.damage > 0:
-		per = c.damage
+		per = c.damage + sunward(c)
 		if c.heat_scale > 0:
 			per += int(Run.heat / c.heat_scale)
-		if c.manufacturer == &"solari" and c.heat_scale > 0 and Run.has_set(&"solari", 3):
-			per += 2
 		if c.flashpoint > 0 and Run.heat > Run.heat_cap():
 			per += c.flashpoint
 		if c.adapt > 0:
@@ -1093,6 +1112,10 @@ const WRECK_PARTS := {
 const WRECK_PARTS_DEFAULT := 1.0
 const WRECK_LAWLESS := 2.0
 const HELLBENDER_PARTS := 3
+## Solari 3's damage a hit (`sunward`).
+const SUNWARD := 2
+## Cygnet 5 keeps this many attack drones into the next fight (`Run.hive_drones`).
+const HIVE_KEEP := 3
 const FAUNA_EXOTIC := 2
 
 ## A ship's purse before the chance and the spread: its reward at this danger.
@@ -1276,6 +1299,7 @@ func _patch_crew() -> void:
 func _finish(res: StringName, text: String) -> void:
 	finished = true
 	waiting = false
+	_hive_in(res)
 	# Leave the crew however the fight ended, or a stale entry blocks the barrier for
 	# everyone.
 	if is_shared():
@@ -1284,6 +1308,35 @@ func _finish(res: StringName, text: String) -> void:
 	result = res
 	summary = text
 	Sig.combat_ended.emit(res, text)
+
+## Cygnet 5 (Hive Mind): last fight's kept drones go back out, not fresh (Swarm Logic
+## doubles a launch, and these launched last fight).
+func _hive_out() -> void:
+	if not Run.has_set(&"cygnet", 5):
+		Run.hive_drones.clear()
+		return
+	for dmg in Run.hive_drones:
+		var d := Drone.new()
+		d.damage = dmg
+		d.fresh = false
+		drones.append(d)
+	if not Run.hive_drones.is_empty():
+		log_line("%d drone%s still out from the last fight." % [Run.hive_drones.size(),
+			"" if Run.hive_drones.size() == 1 else "s"], &"good")
+	Run.hive_drones.clear()
+
+## A fight that did not kill you keeps its strongest attack drones for the next one.
+func _hive_in(res: StringName) -> void:
+	Run.hive_drones.clear()
+	if res == &"dead" or not Run.has_set(&"cygnet", 5):
+		return
+	var dmg: Array[int] = []
+	for d in drones:
+		dmg.append(d.damage)
+	dmg.sort()
+	dmg.reverse()
+	for i in mini(HIVE_KEEP, dmg.size()):
+		Run.hive_drones.append(dmg[i])
 
 # ------------------------------------------------------------------- the party
 

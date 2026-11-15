@@ -13,9 +13,9 @@ static var path: String = TestRun.scratch("run", "save") if TestRun.active() els
 ## tell CONTINUE from a new run (A.S.H.'s introduction is a new run's only).
 static var restoring := false
 ## Bumped whenever the shape changes; an old file is discarded, never guessed at.
-## 43: `moored_right` (LOCAL after an undock); 42 is science's.
+## 44: `hive_drones` (Cygnet 5); 43: `moored_right` (LOCAL after an undock); 42 is science's.
 ## Why: docs/why/SaveGame.md#version-history
-const VERSION := 43
+const VERSION := 44
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -157,6 +157,8 @@ static func _snapshot() -> Dictionary:
 		fuel = Run.fuel,
 		dross = Run.dross.map(func(x: StringName) -> String: return String(x)),
 		whale_boon = Run.whale_boon,
+		# Cygnet 5's drones kept between fights (VERSION 44).
+		hive_drones = Array(Run.hive_drones),
 		# Contracts and standing are run state tied to this galaxy, so they live here.
 		contracts = _contracts_to(),
 		next_contract_id = Run.next_contract_id,
@@ -189,6 +191,26 @@ static func _snapshot() -> Dictionary:
 	}
 
 # ----------------------------------------------------------------------- read
+
+## A save written when dross was a COUNT restores as that many Dross, which is
+## exactly what it meant at the time. Nothing is lost and nothing is invented.
+static func _dross_from(d: Dictionary) -> Array[StringName]:
+	var raw: Variant = d.get("dross", [])
+	var ids: Array[StringName] = []
+	if typeof(raw) == TYPE_FLOAT or typeof(raw) == TYPE_INT:
+		for i in int(raw):
+			ids.append(&"dross")
+	else:
+		for x in (raw as Array):
+			ids.append(StringName(x))
+	return ids
+
+## Cygnet 5's kept drones (VERSION 44); a 43 save kept none.
+static func _hive_from(d: Dictionary) -> Array[int]:
+	var out: Array[int] = []
+	for x in (d.get("hive_drones", []) as Array):
+		out.append(int(x))
+	return out
 
 static func _read() -> Dictionary:
 	if not FileAccess.file_exists(path):
@@ -315,18 +337,9 @@ static func load_into_run() -> bool:
 	Run.heat_cap_bonus = int(d.get("heat_cap_bonus", 0))
 	Run.credits = int(d.get("credits", 0))
 	Run.fuel = int(d.get("fuel", 0))
-	# A save written when dross was a COUNT restores as that many Dross, which is
-	# exactly what it meant at the time. Nothing is lost and nothing is invented.
-	var raw: Variant = d.get("dross", [])
-	var ids: Array[StringName] = []
-	if typeof(raw) == TYPE_FLOAT or typeof(raw) == TYPE_INT:
-		for i in int(raw):
-			ids.append(&"dross")
-	else:
-		for x in (raw as Array):
-			ids.append(StringName(x))
-	Run.dross = ids
+	Run.dross = _dross_from(d)
 	Run.whale_boon = bool(d.get("whale_boon", false))
+	Run.hive_drones = _hive_from(d)
 	Run.contracts = _contracts_from(d.get("contracts", []))
 	Run.next_contract_id = maxi(1, int(d.get("next_contract_id", 1)))
 	# VERSION 35; missing (a 34 save) is none, and `QuestLog` reads the map

@@ -1735,7 +1735,7 @@ func _refresh_player() -> void:
 				% [CardData.KW_GROWS.to_upper(), combat.adapt_bonus]))
 	for d2 in combat.drones:
 		_player_chips.add_child(StatusChip.make(&"drone", str(d2.damage),
-			Color("#5a7a94"), "DRONE\n\nAttacks for %d at the end of your turn."
+			Color("#5a7a94"), "DRONE\n\nAttacks for %d at the start of your turn."
 				% d2.damage))
 	if combat.drone_brace > 0:
 		_player_chips.add_child(StatusChip.make(&"wasp", str(combat.drone_brace),
