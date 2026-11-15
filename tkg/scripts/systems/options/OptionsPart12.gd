@@ -58,7 +58,7 @@ static func _tail(out: Array[Dictionary]) -> void:
 					Run.add_data(CometPath.pay_here())
 					CometPath.toll_here("Rock in a comet's dust tail broke the hull.")
 					return {text = CometPath.by_spot([
-						"The tail is thin out here. The plate comes back dusted grey, and the dish logs every grain. Holding the boom steady burns fuel. The Kell Institute files the sample under your registry.",
+						"The tail is thin out here. The plate comes back dusted gray, and the dish logs every grain. Holding the boom steady burns fuel. The Kell Institute files the sample under your registry.",
 						"The tail is thick this close. The plate comes back pitted, and two rocks hit the hull on the way through. Holding the boom steady burns fuel. The sample goes on file under your registry.",
 						"Near the star the tail is a storm of grit. The plate comes back scorched. Rock hits the hull, and the heat off the comet comes in through the plating. Holding the boom steady burns fuel. The sample goes on file."])}},
 				{label = "Sell the courier your pass times", effect = func() -> Dictionary:

@@ -350,7 +350,7 @@ static func entries() -> Array[Dictionary]:
 		{
 			id = &"the_uncollected_order",
 			title = "The uncollected order",
-			body = "A beacon on the approach repeats a work order every hour. Collect the load at this bearing. Deliver it to this address. Payment on delivery against this vault code. The bearing is a tether four hours off, with the load still on it. The load is counted and sealed and labelled in a script nobody uses now. The address is a station that is not there. The vault code is not one anybody will honor. The beacon has been asking for years, and its cell is good for years more.",
+			body = "A beacon on the approach repeats a work order every hour. Collect the load at this bearing. Deliver it to this address. Payment on delivery against this vault code. The bearing is a tether four hours off, with the load still on it. The load is counted and sealed and labeled in a script nobody uses now. The address is a station that is not there. The vault code is not one anybody will honor. The beacon has been asking for years, and its cell is good for years more.",
 			tags = [&"signal"],
 			group = &"",
 			weight = 8,

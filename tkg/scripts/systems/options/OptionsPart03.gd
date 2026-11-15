@@ -26,7 +26,7 @@ static func entries() -> Array[Dictionary]:
 					return {text = "The rate is on a sheet she cannot change and has no reason to doubt. She stamps the receipt twice. One stamp is for you, and one is for a copy no one has collected in eleven years."}},
 				{label = "Stay and copy the folder", effect = func() -> Dictionary:
 					Run.drain_fuel(1)
-					return {text = "Copying it takes most of a shift, with the reactor idling. It is other crews' paperwork about the thing at the core. There are transit logs that stop mid line and a mass estimate crossed out four times. There is an order for instruments that were never sent and never cancelled. She reads along with you in silence. In eleven years, no one else has asked to see it.", material_id = &"survey_film", material = &"event"}},
+					return {text = "Copying it takes most of a shift, with the reactor idling. It is other crews' paperwork about the thing at the core. There are transit logs that stop mid line and a mass estimate crossed out four times. There is an order for instruments that were never sent and never canceled. She reads along with you in silence. In eleven years, no one else has asked to see it.", material_id = &"survey_film", material = &"event"}},
 				{label = "Leave her be", stay = true, effect = func() -> Dictionary:
 					return {text = "Yours is the first arrival she has logged in a long while. She logs it carefully, down to the minute."}},
 			],

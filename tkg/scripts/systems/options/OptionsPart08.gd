@@ -416,7 +416,7 @@ static func entries() -> Array[Dictionary]:
 						return {text = "You are square in the arm when the twenty minutes run out. It folds on the hour it was built to fold. It closes on your flank and does not notice the difference."}},
 				{label = "Cut the parts locker off the frame", effect = func() -> Dictionary:
 					Run.heat += 6
-					return {text = "The cutter runs hot for half an hour. The bolts were put in to stay. What comes away is a locker of spares kept for four ships that stopped coming. Seals, cable, cells, and a box of parts for a drive nobody makes now. Every drawer is sorted and labelled.", material = &"event"}},
+					return {text = "The cutter runs hot for half an hour. The bolts were put in to stay. What comes away is a locker of spares kept for four ships that stopped coming. Seals, cable, cells, and a box of parts for a drive nobody makes now. Every drawer is sorted and labeled.", material = &"event"}},
 				{label = "Let it keep its schedule", stay = true, effect = func() -> Dictionary:
 					return {text = "You hold off and watch one cycle from a distance. The arm swings out and waits its twenty minutes on an empty approach. Then it folds back. The rota says it will do it again in two hours."}},
 			],
@@ -485,7 +485,7 @@ static func entries() -> Array[Dictionary]:
 			id = &"the_core_drill",
 			title = "The core drill",
 			subject = {stage = &"single", pieces = [&"r4_drill_drill_rig_1"]},
-			body = "A survey rig is anchored to a rock out here. It is still drilling. It has put a line of holes across the face, a few metres apart. It is working on the next one. The cores it cut are stacked in a rack beside it. They are labelled in a code. The code meant something to whoever ordered the survey. A transponder on the mast repeats a claim notice every ninety seconds. The rock is taken, the survey is under way, results pending. The date in the notice is nineteen years old.",
+			body = "A survey rig is anchored to a rock out here. It is still drilling. It has put a line of holes across the face, a few meters apart. It is working on the next one. The cores it cut are stacked in a rack beside it. They are labeled in a code. The code meant something to whoever ordered the survey. A transponder on the mast repeats a claim notice every ninety seconds. The rock is taken, the survey is under way, results pending. The date in the notice is nineteen years old.",
 			tags = [&"signal", &"salvage"], site = &"belt",
 			group = &"",
 			weight = 8,
