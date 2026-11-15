@@ -2707,13 +2707,13 @@ func _old_plan(i: int, t: float, prefer: Dictionary = {}) -> FlightPlan:
 			stp["abs_side"] = true
 			side_p = float(prefer.abs_side)
 		var pp := _manoeuvre(i, t, stp, float(prefer.kf), side_p, bool(prefer.way))
+		# the kept choice's `high` must not carry into the tries below, or out of this call
+		_high = false
 		_mid = false
 		if pp != null and _clean(pp, bool(prefer.strict), stp, i):
 			pp.kind = StringName(prefer.kind)
 			pp.choice = prefer
 			_tcap = 5.0
-			_high = false
-			_mid = false
 			return _tail(pp)
 	var fallback: FlightPlan = null
 	var fb_score := -INF

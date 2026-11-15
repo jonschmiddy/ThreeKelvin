@@ -3059,7 +3059,7 @@ class _Moons extends Node2D:
 				out.append({"i": i, "m": m, "s": s, "r": r, "c": c, "z": mz, "mrad": mrad,
 					"hidden": sin(a) < 0.0 and c.distance_squared_to(s) < r2, "ecl": e})
 		return out
-	## the ring's gaps for each ringed world this size: `(i << 32) | r` -> [radii in world radii]
+	## the ring's gaps for each ringed world this size and moon count: `(i << 40) | (moons << 32) | r` -> [radii in world radii]
 	var _slots := {}
 
 	## Moons of a ringed world sit in its ring gaps, as shepherd moons do, never across a band.
@@ -3069,7 +3069,7 @@ class _Moons extends Node2D:
 		var spec: Dictionary = v.get("spec")
 		if not spec.get("ring", false) or PlanetView.ring_style == Rings.Look.DOTS or r < 2.0:
 			return []
-		var key := (i << 32) | roundi(r)
+		var key := (i << 40) | ((moons & 0xff) << 32) | roundi(r)
 		if _slots.has(key):
 			return _slots[key]
 		var cell: float = float(v.get("_cell")) if v.get("_cell") != null else 2.0
