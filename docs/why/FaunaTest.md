@@ -26,3 +26,14 @@ there is no motion at all.
 No pixels are looked at here (headless draws nothing): the flicker and the
 hand-off to the pixel are `-- sheet=FaunaSheet`'s, in a window.
 ```
+
+## A stale motion
+
+`EnemySlot` cuts a new `FaunaMotion` whenever the picture changes (a mark, a hull step) and
+frees the old one. The fight checks used to keep the first motion they found for the whole
+fight, so after a recut they read a freed object (the "call on a freed object" in sweep 2) or
+a replaced one that was never settled ("at rest on the frame the breakup is cut" failing under
+load, when the cuts land at other moments). Every read now asks the slot for the motion it
+shows. The wind-up is stamped in `GameClock` time, which the shot's timer also counts, with the
+strike's start taken from what it has counted down: on the wall clock a long frame between the
+strike and the test's next look made 350 ms read as 168 to 298 ms on a busy machine.

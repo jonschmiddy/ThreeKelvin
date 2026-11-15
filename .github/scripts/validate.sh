@@ -1613,7 +1613,7 @@ step "The Custodian and the megafauna move, and are still for their deaths"
 ALLOW_EXTRA="$GATE_LEAKS" gate_sheet faunatest 300 \
 	"the three move, wind up and come to rest for their deaths" \
 	"a creature's or the Custodian's motion is wrong" \
-	--headless --path "$PROJECT" -- sheet=FaunaTest
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=FaunaTest
 }
 
 unit_threadstress() {
@@ -2354,9 +2354,9 @@ fi
 #   gameclocktest    the bobs read against wall-clock windows of 800 and 400 ms
 #   playerdeathtest  RUN ENDED timed by the wall clock from the break, to 0.1 s
 #                    early and 1 s late
-#   faunatest        the wind-up must lead the shot by 300 ms of wall clock, and
-#                    its cuts run on worker threads (its rare "wrong RID" was a
-#                    thread race)
+#   faunatest        its cuts run on worker threads (its rare "wrong RID" was a
+#                    thread race); its clock is fixed since Nov 14 (game time,
+#                    --fixed-fps 60), so it no longer times the wall clock
 #   threadstress     workers racing the main thread for 20 s, each take timed in
 #                    microseconds
 #   ashteachcosttest every frame's wall time while A.S.H. teaches the chart,

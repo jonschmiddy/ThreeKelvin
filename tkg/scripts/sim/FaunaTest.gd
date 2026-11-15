@@ -130,8 +130,8 @@ func _open(id: String) -> SectorScreen:
 
 
 func _wait_s(s: float) -> void:
-	var end := Time.get_ticks_msec() + int(s * 1000.0)
-	while Time.get_ticks_msec() < end:
+	var end := GameClock.now_ms() + int(s * 1000.0)
+	while GameClock.now_ms() < end:
 		await _tree.process_frame
 
 
@@ -141,8 +141,8 @@ func _fight(id: String) -> void:
 		return
 	var slot: EnemySlot = sc._view.slot(0)
 	var fm: FaunaMotion = null
-	var end := Time.get_ticks_msec() + 3000
-	while Time.get_ticks_msec() < end:
+	var end := GameClock.now_ms() + 3000
+	while GameClock.now_ms() < end:
 		fm = slot.fauna_motion()
 		if fm != null and fm.ready_to_draw:
 			break
@@ -155,8 +155,11 @@ func _fight(id: String) -> void:
 		e0.intent == null or e0.intent.telegraph or
 		FaunaMotion.still_canvas(e0, e0.hp, 1.0, slot.art.marks).get_data() == slot.art.snapshot().get_data())
 	await _wait_s(0.6)
+	# Read fresh from here on: a new picture is a new cut, and the old motion is freed.
+	# Why: docs/why/FaunaTest.md#a-stale-motion
+	fm = slot.fauna_motion()
 	_ok("%s: the bob is the motion's (%.0f px)" % [id, slot.art.position.y - slot._art_base.y],
-		is_equal_approx(slot.art.position.y - slot._art_base.y, fm.bob_px()))
+		fm != null and is_equal_approx(slot.art.position.y - slot._art_base.y, fm.bob_px()))
 	var cb: Combat = Router.combat
 	var e: Combat.EnemyState = cb.enemies[0]
 	if id == "custodian":
@@ -170,40 +173,46 @@ func _fight(id: String) -> void:
 		e.intent = tele
 		Sig.enemy_changed.emit()
 		await _wait_s(0.8)
-		_ok("custodian: Charging winds it up (charge %.2f)" % float(fm.state().pool),
-			fm._wind_on and float(fm.state().pool) >= 1.0)
+		fm = slot.fauna_motion()
+		_ok("custodian: Charging winds it up (charge %.2f)" % (float(fm.state().pool) if fm != null else -1.0),
+			fm != null and fm._wind_on and float(fm.state().pool) >= 1.0)
 		e.intent = other
 		Sig.enemy_changed.emit()
 		await _wait_s(0.8)
-		_ok("custodian: another intent lets go (charge %.2f)" % float(fm.state().pool),
-			not fm._wind_on and float(fm.state().pool) == 0.0)
+		fm = slot.fauna_motion()
+		_ok("custodian: another intent lets go (charge %.2f)" % (float(fm.state().pool) if fm != null else -1.0),
+			fm != null and not fm._wind_on and float(fm.state().pool) == 0.0)
 	else:
 		# its turn, through END TURN, until it has attacked: the wind-up starts,
 		# and the shot leaves after it, wound up
+		# Stamped in game time (`GameClock`), which the shot's timer counts too: a long
+		# frame on a busy machine then moves both stamps, not one.
 		var struck := false
-		var t_strike := -1
-		var t_fire := -1
+		var t_strike := -1.0
+		var t_fire := -1.0
 		var wind_at_fire := 0.0
 		for turn in 4:
-			if t_fire >= 0:
+			if t_fire >= 0.0:
 				break
 			Run.hp = Run.max_hp()
 			sc._on_end_turn()
-			var t_end := Time.get_ticks_msec() + 4000
-			while Time.get_ticks_msec() < t_end:
-				if fm._strike_left > 0.0 and t_strike < 0:
+			var t_end := GameClock.now_ms() + 4000
+			while GameClock.now_ms() < t_end:
+				fm = slot.fauna_motion()
+				if fm != null and fm._strike_left > 0.0 and t_strike < 0.0:
 					struck = true
-					t_strike = Time.get_ticks_msec()
-				if t_fire < 0:
+					# when the strike began: its age is what it has counted down
+					t_strike = GameClock.now() - (FaunaMotion.STRIKE_S - fm._strike_left)
+				if t_fire < 0.0:
 					for q in sc._volleys.values():
 						if q.to_player:
-							t_fire = Time.get_ticks_msec()
-							wind_at_fire = fm._wind
-				if not sc._playing and not sc._hold and Time.get_ticks_msec() > t_end - 3000:
+							t_fire = GameClock.now()
+							wind_at_fire = fm._wind if fm != null else 0.0
+				if not sc._playing and not sc._hold and GameClock.now_ms() > t_end - 3000:
 					break
 				await _tree.process_frame
-		_ok("%s: before it fires it winds up (%d ms before the shot, wound %.2f)" % [id, t_fire - t_strike, wind_at_fire],
-			struck and t_fire >= 0 and t_fire - t_strike >= 300 and wind_at_fire >= 0.9)
+		_ok("%s: before it fires it winds up (%d ms before the shot, wound %.2f)" % [id, int((t_fire - t_strike) * 1000.0), wind_at_fire],
+			struck and t_fire >= 0.0 and t_fire - t_strike >= 0.3 and wind_at_fire >= 0.9)
 	# a hit that leaves it alive: its mark is in the motion's picture
 	await _settle_turn(sc)
 	if slot.art.marks != null:
@@ -234,11 +243,12 @@ func _fight(id: String) -> void:
 			if cb.can_play(cb.hand[i]):
 				cb.play(i, 0)
 				break
-		var t2 := Time.get_ticks_msec() + 1500
-		while Time.get_ticks_msec() < t2:
+		var t2 := GameClock.now_ms() + 1500
+		while GameClock.now_ms() < t2:
 			if not cut_seen and slot.art.self_modulate.a <= 0.0:
 				cut_seen = true
-				rested_at_cut = fm == null or not is_instance_valid(fm) or fm.rested
+				fm = slot.fauna_motion()
+				rested_at_cut = fm == null or fm.rested
 			if e.hp <= 0 and cut_seen:
 				break
 			await _tree.process_frame
@@ -255,8 +265,8 @@ func _fight(id: String) -> void:
 
 
 func _settle_turn(sc: SectorScreen) -> void:
-	var t := Time.get_ticks_msec() + 6000
-	while Time.get_ticks_msec() < t and (sc._playing or sc._hold):
+	var t := GameClock.now_ms() + 6000
+	while GameClock.now_ms() < t and (sc._playing or sc._hold):
 		await _tree.process_frame
 
 
