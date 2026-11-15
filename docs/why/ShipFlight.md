@@ -827,21 +827,26 @@ departure is ahead of the ship. These were tried and measured on the same 108 fl
 - Drawing the old line until a replan "materially differs". The old plan can no longer be
   flown once its departure passes, so the click would fly a line that is not drawn.
 
-So the preview is planned for a departure window: from a ring, `PreviewHold.WINDOW` (6.5 s) on
+So the preview is planned for a departure window: from a ring, `PreviewHold.WINDOW` on
 (`PreviewHold.ahead`). It is held as drawn, with no replan on a timer, until a click can no longer
 fly it (`PreviewHold.due`: `PLAN_AHEAD` before it leaves, or `_takeable` fails). A click flies it as
-drawn (`FlightPlan.held` skips the `CLICK_LATE` fresh plan) and the ship rides round to the point
+drawn (`FlightPlan.held` skips the `CLICK_LATE` fresh plan), and the ship rides round to the point
 and leaves there. A click with no line drawn still plans `PLAN_AHEAD` on, and the map no longer
 hands it a window plan that is still being made (`fly_bg`).
 
-The cost is the wait. The ship leaves when it reaches the drawn point, which is up to the window
-after the click. Measured over every frame of those rides: a median 3.83 s, 90th 6.23 s. At a
-3 s window the wait is a median 1.83 s, but the line moves a median 62 px in 6 s. Under the
-old rule, a click on the line drawn left within 1.35 s (a median 0.82 s), or sooner on a fresh
-plan. When a window passes with no click, the next line is a new flight (it moved a median 85 px
-at 6.5 s). That happens once every 6.5 s instead of once a second. `-- window=S` sets the window
-for a harness (`PreviewHold.window_k`). Star orbits and alongside are unchanged: their previews are still
-planned `PREVIEW_AHEAD` on.
+The window trades the wait against how often the line moves. Measured over the same flights, the
+wait being every frame of the ride:
+
+| Window | Line's biggest move in 6 s (median, 90th) | Wait from click to leaving (median, 90th) |
+|---|---|---|
+| 1 s (the old rule) | 134 px, 229 | 0.82 s, 1.2 (and 86 of 108 clicks flew a fresh flight) |
+| 3 s | 62 px, 168 | 1.83 s, 3.0 |
+| 6.5 s | 0 px, 0 | 3.83 s, 6.2 |
+
+Jon picked 4B, the 3 s window (Nov 15). He accepts the line moving now and then (about every
+2.75 s, when a window passes with no click) for a wait under two seconds. `WINDOW` is 3.0.
+`-- window=S` sets it for a harness (`PreviewHold.window_k`). Star orbits and alongside are
+unchanged: their previews are still planned `PREVIEW_AHEAD` on.
 
 ## Click on a late preview
 

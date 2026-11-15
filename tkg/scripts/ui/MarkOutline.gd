@@ -72,6 +72,29 @@ static func draw_rect_mark(ci: CanvasItem, r: Rect2, px: float = float(UITheme.M
 	ci.draw_rect(Rect2(q.position + Vector2(q.size.x - px, 0), Vector2(px, q.size.y)), col, true)
 
 
+## FOUR L CORNERS round `c` (Jon's R1, Nov 15: the maps' mark, after the chart's YOU brackets): the
+## corner pixels at c ± e, each arm BRACKET_ARM px on from its corner, 1 px, whole pixels, no AA.
+const BRACKET_ARM := 3
+static func bracket_px(c: Vector2, e: int) -> PackedVector2Array:
+	var cc := c.round()
+	var out := PackedVector2Array()
+	for s: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
+		var k := cc + s * float(e)
+		out.append(k)
+		for j in range(1, BRACKET_ARM + 1):
+			out.append(k + Vector2(-s.x * j, 0.0))
+			out.append(k + Vector2(0.0, -s.y * j))
+	return out
+
+
+## The brackets drawn, in `col`; returns how many pixels.
+static func draw_bracket_mark(ci: CanvasItem, c: Vector2, e: int, col: Color = UITheme.MARK) -> int:
+	var px := bracket_px(c, e)
+	for q: Vector2 in px:
+		ci.draw_rect(Rect2(q, Vector2.ONE), col, true)
+	return px.size()
+
+
 ## A ring of whole pixels, `px` thick, round `c` at radius `r`: the outline of a round thing
 ## drawn elsewhere (a world on the map, a star on the chart). Returns the pixels it set.
 static func draw_ring_mark(ci: CanvasItem, c: Vector2, r: float, px: float = float(UITheme.MARK_PX),

@@ -251,13 +251,13 @@ static func beacon_box(at: Vector2) -> Rect2:
 	return Rect2(at.round() + Vector2(-4, -4), Vector2(10, 10))
 
 
-## THE CORNER TICKS OF THE RETICLE round `at` (`_reticle`), each the 3 px square
-## its two ticks stand in.
-static func reticle_boxes(at: Vector2, reach: float) -> Array:
+## THE BRACKETS' CORNERS round `at` (`_reticle`, e from `bracket_e`), each the square its L fills.
+static func reticle_boxes(at: Vector2, e: int) -> Array:
 	var out: Array = []
+	var n := MarkOutline.BRACKET_ARM + 1
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
-		var kp: Vector2 = (at + corner * reach).round()
-		out.append(Rect2(kp - Vector2(0.0 if corner.x > 0 else 2.0, 0.0 if corner.y > 0 else 2.0), Vector2(3, 3)))
+		var kp: Vector2 = at.round() + corner * float(e)
+		out.append(Rect2(kp - Vector2(0.0 if corner.x > 0 else n - 1.0, 0.0 if corner.y > 0 else n - 1.0), Vector2(n, n)))
 	return out
 
 
@@ -387,6 +387,7 @@ func _process(d: float) -> void:
 func _draw() -> void:
 	var L: SystemLayout = view.layout
 	tip_rect = Rect2()
+	marks_drawn = []
 	if L == null:
 		# (no picture, no arrows over it)
 		mark_rects = []
@@ -545,8 +546,7 @@ func _draw() -> void:
 		var s: Vector2 = _place_scr(selected)
 		var b: SystemLayout.Body = null if SystemLayout.is_star(selected) else L.bodies[selected]
 		if b == null or b.kind != &"belt":
-			var r := _reach(selected)
-			_reticle(s, r, 1.0, 0.95)
+			_reticle(s, bracket_e(selected), 0.95)
 		# in orbit of it, the label under the ship names it instead (the two sat on
 		# top of each other)
 		if (b == null or b.kind != &"belt") and (flight == null or flight.reached() != selected):
@@ -585,11 +585,11 @@ func _draw() -> void:
 				_name_label(at, nm, UITheme.ICE, 2, false)
 			elif names_on:
 				_held_q.append(nm)
-	# THE HOVER: the same reticle, closing in from 13 px to 7 px as it eases in
+	# THE HOVER: the same brackets, fainter, settling 2 px inward as it eases in (nothing grows: R1)
 	var hk: StringName = hover.get("kind", &"")
 	if (hk == &"body" or hk == &"star") and int(hover.body) != selected and _hover_t > 0.0:
 		var hs: Vector2 = _place_scr(int(hover.body))
-		_reticle(hs, _reach(int(hover.body)) + (6.0 - 6.0 * _hover_t), _hover_t, 0.55)
+		_reticle(hs, bracket_e(int(hover.body)) + roundi(2.0 * (1.0 - _hover_t)), 0.5 * _hover_t)
 	var t_paths := Time.get_ticks_usec()
 	_draw_paths(t)
 	view.tick("overlay paths", t_paths)
@@ -1130,12 +1130,22 @@ func _star_occ(q: Vector2) -> Array:
 	return out
 
 
-## The one outline round a body (C1): a ring of whole pixels at `reach`, in MARK. It was four
-## white corner ticks.
-func _reticle(at: Vector2, reach: float, k: float, alpha: float) -> void:
-	var c := Color(UITheme.MARK, alpha * k)
-	_drawn_marks.append(Rect2(at - Vector2.ONE * (reach + 2.0), Vector2.ONE * (reach + 2.0) * 2.0 + Vector2.ONE).grow(MARK_CLEAR))
-	MarkOutline.draw_ring_mark(self, at, reach, float(UITheme.MARK_PX), c)
+## The mark round a body: four L corners at its disc plus 4 (Jon's R1, Nov 15), in MARK.
+## It was a 2 px ring at the disc plus 7 (C1), and before that four white corner ticks.
+func _reticle(at: Vector2, e: int, alpha: float) -> void:
+	_drawn_marks.append(Rect2(at.round() - Vector2.ONE * (e + 1), Vector2.ONE * (e * 2 + 3)).grow(MARK_CLEAR))
+	MarkOutline.draw_bracket_mark(self, at, e, Color(UITheme.MARK, alpha))
+	if record_px:
+		marks_drawn.append({"at": at.round(), "e": e, "a": alpha})
+
+
+## the marks drawn this frame, while `record_px` is on: {at, e, a}
+var marks_drawn: Array = []
+
+
+## The brackets' corner distance round a place: its disc plus 4.
+func bracket_e(body: int) -> int:
+	return roundi(_reach(body) - 3.0)
 
 
 # ---------------------------------------------------------------- rings
@@ -1185,8 +1195,6 @@ func _draw_rings(t: float) -> void:
 	if SystemLayout.is_place(ob):
 		var bw := _body_scr(ob)
 		_ring(bw, _orbit_px(ob, _orbit_r(ob)) * _ok / maxf(_orbit_k(ob, _orbit_r(ob)), 1.0), Color(UITheme.FLARE, 0.95), ob, false)
-		if selected != ob and not _is_belt(ob):
-			_reticle(_place_scr(ob), _reach(ob), 1.0, 0.95)
 	# SETTLED ROUND THE STAR: the arc by the ship pulses once
 	if not _pulse.is_empty() and int(_pulse.body) == -2 and flight.star_orbiting():
 		var age3 := _clock() - float(_pulse.t0)
@@ -1762,9 +1770,9 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 	var cw := _scr(c.x, c.z)
 	var rel: Vector2 = o.rel
 	var under := 0.0
-	# the place it takes you to, its reticle held faintly
+	# the place it takes you to, its brackets held faintly
 	if not _is_belt(body):
-		_reticle(_place_scr(body), _reach(body), 1.0, a)
+		_reticle(_place_scr(body), bracket_e(body), a)
 	if o.kind == &"keep":
 		under = maxf(rel.length() * view.zoom, _reach(body) + 2.0)
 		_ring(cw, under, Color(UITheme.HOT, a * 0.9), body, true)
@@ -2321,8 +2329,8 @@ func _words_off_suns(words: String, on: int, x: Vector2) -> Array:
 		var disc: float = star_disc(on) if SystemLayout.is_star(on) else (_reach(on) - 7.0)
 		under = c.y + maxf(rr * view.TILT, disc) + 13.0
 		over = c.y - maxf(rr * view.TILT, disc) - 5.0
-		if not _is_belt(on):
-			ticks = reticle_boxes(_place_scr(on), _reach(on))
+		if not _is_belt(on) and selected == on:
+			ticks = reticle_boxes(_place_scr(on), bracket_e(on))
 	var ship_y := x.y + maxf(17.0, ship_r() + 11.0)
 	# the words queued under them this frame, each in its box as `_place_labels`
 	# builds it
@@ -2657,7 +2665,7 @@ func _draw_partners_and_comet(t: float) -> void:
 	if selected == SystemLayout.COMET:
 		var cs: Vector2 = comet_scr()
 		if cs != Vector2.INF:
-			_reticle(cs, COMET_R, 1.0, 0.95)
+			_reticle(cs, roundi(COMET_R - 3.0), 0.95)
 			var cn: String = L.comet.name
 			var cw := _font().get_string_size(cn, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 			var cx := cs.x + COMET_R + 4.0
@@ -2667,7 +2675,7 @@ func _draw_partners_and_comet(t: float) -> void:
 	if hk == &"comet" and selected != SystemLayout.COMET and _hover_t > 0.0:
 		var hc: Vector2 = comet_scr()
 		if hc != Vector2.INF:
-			_reticle(hc, COMET_R + (6.0 - 6.0 * _hover_t), _hover_t, 0.55)
+			_reticle(hc, roundi(COMET_R - 3.0) + roundi(2.0 * (1.0 - _hover_t)), 0.55 * _hover_t)
 
 
 ## THE SPOTS on the comet's path while its reading is open and the comet selected (Jon, Nov 11),

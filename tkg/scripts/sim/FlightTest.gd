@@ -2204,9 +2204,10 @@ static func _dist(xs: Array) -> String:
 	return "median %.2f, 90th %.2f, 99th %.2f, worst %.2f (%d)" % [float(s[n / 2]), float(s[mini(n - 1, int(n * 0.9))]), float(s[mini(n - 1, int(n * 0.99))]), float(s[n - 1]), n]
 
 
-## The drawn line's biggest move while the ship rides its orbit 6 s, median over flights (ruling 1A).
+## The drawn line's biggest move while the ship rides its orbit 6 s, median over flights: Jon's 4B
+## window (3 s) measured 62 px, so 80 with a margin; the old rule's 134 fails it.
 ## Why: docs/why/FlightTest.md#drawn-line-held
-const MOVE_MED := 16.0
+const MOVE_MED := 80.0
 const HOLD_S := 6.0
 
 

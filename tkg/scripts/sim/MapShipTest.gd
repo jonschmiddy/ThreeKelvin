@@ -98,6 +98,7 @@ func _run() -> void:
 		await _check_hull(map, "after a swap to a Solari heavy")
 	await _check_flame(map)
 	await _check_fit(map)
+	await _check_marks(map)
 	_cost()
 	_finish()
 
@@ -290,6 +291,47 @@ func _check_fit(map: SystemMapScreen) -> void:
 	Net.spots.erase(pid)
 	map.set_process(true)
 	await Harness.frames(_tree, 1)
+
+
+## THE MARKS (Jon's R1, Nov 15): the selected world wears the four L brackets exactly, at its disc
+## plus 4; the ship's own world wears no mint mark at all, its orange orbit alone.
+func _check_marks(map: SystemMapScreen) -> void:
+	var ov = map.overlay
+	var L: SystemLayout = map.view.layout
+	var worlds: Array[int] = []
+	for b in L.bodies:
+		if b.world != &"" and b.kind != &"belt":
+			worlds.append(b.index)
+	if not _ok("two worlds here to mark (%d)" % worlds.size(), worlds.size() >= 2):
+		return
+	ov.ship_park = worlds[0]
+	map._was_at = map.flight.reached()
+	map.select_body(worlds[1])
+	ov.hover = {}
+	await Harness.frames(_tree, 3)
+	var md: Array = ov.marks_drawn
+	var c0: Vector2 = (ov._place_scr(worlds[0]) as Vector2).round()
+	var near0 := md.filter(func(m: Dictionary) -> bool: return (m.at as Vector2).distance_to(c0) < map.view.draw_r(L.bodies[worlds[0]]) + 12.0)
+	_ok("the ship's own world (%d, in orbit: %s) wears no mint mark (%d)" % [worlds[0], map.flight.reached() == worlds[0], near0.size()],
+		map.flight.reached() == worlds[0] and near0.is_empty())
+	var c1: Vector2 = (ov._place_scr(worlds[1]) as Vector2).round()
+	var sel := md.filter(func(m: Dictionary) -> bool: return m.at == c1)
+	var e := roundi(map.view.draw_r(L.bodies[worlds[1]]) + 4.0)
+	if not _ok("the selected world wears one mark at its disc plus 4 (%s), alpha 0.95" % str(sel),
+			sel.size() == 1 and int(sel[0].e) == e and is_equal_approx(float(sel[0].a), 0.95)):
+		return
+	# the shape, built here apart from MarkOutline: four L corners, arms 3 px on, 1 px thick
+	var want := {}
+	for sx: int in [-1, 1]:
+		for sy: int in [-1, 1]:
+			for j in 4:
+				want[c1 + Vector2(sx * (e - j), sy * e)] = true
+				want[c1 + Vector2(sx * e, sy * (e - j))] = true
+	var got := {}
+	for q: Vector2 in MarkOutline.bracket_px(c1, e):
+		got[q] = true
+	_ok("and it is exactly the brackets: %d pixels, %d wanted, none else" % [got.size(), want.size()],
+		got.size() == 28 and want.size() == 28 and got.keys().all(func(q: Vector2) -> bool: return want.has(q)))
 
 
 func _finish() -> void:

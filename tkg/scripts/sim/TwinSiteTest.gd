@@ -1395,15 +1395,6 @@ static func _on_beacon(ov, box: Rect2) -> Vector2:
 	return Vector2.INF
 
 
-## The reticle's corner ticks round `at`, each the 3 px square it stands in.
-static func _tick_boxes(at: Vector2, reach: float) -> Array[Rect2]:
-	var out: Array[Rect2] = []
-	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
-		var kp: Vector2 = (at + corner * reach).round()
-		out.append(Rect2(kp - Vector2(0.0 if corner.x > 0 else 2.0, 0.0 if corner.y > 0 else 2.0), Vector2(3, 3)))
-	return out
-
-
 ## Ticks alone once moved the words 20 px and hid a selected name a smaller step would show.
 ## Why: docs/why/TwinSiteTest.md#ship-words-off-beacons
 static func _ship_words_off_beacons(ov, full: String, place: int, where: String, st: Dictionary, out: Array[String]) -> void:
@@ -1430,8 +1421,8 @@ static func _ship_words_off_beacons(ov, full: String, place: int, where: String,
 		if clear != &"all" and clear != &"marks":
 			continue
 		st.bc_stepped += 1
-		if SystemLayout.is_place(place) and not ov._is_belt(place):
-			for r: Rect2 in _tick_boxes(ov._place_scr(place), ov._reach(place)):
+		if SystemLayout.is_place(place) and not ov._is_belt(place) and ov.selected == place:
+			for r: Rect2 in ov.reticle_boxes(ov._place_scr(place), ov.bracket_e(place)):
 				if box.intersects(r):
 					st.bc_ticks += 1
 					out.append("%s: %s, stepped, on the reticle's tick at %s" % [where, s, r.position])

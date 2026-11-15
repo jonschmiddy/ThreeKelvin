@@ -484,7 +484,7 @@ n/2-th, as before) is at most CLICK_EDGE where over half of them are.
 
 ## Drawn line held
 
-Above `const MOVE_MED := 16.0`:
+Above `const MOVE_MED := 80.0` (16.0 until Nov 15):
 
 ```text
 THE DRAWN LINE HELD while the ship rides its orbit, judged (the code review,
@@ -508,19 +508,25 @@ preview should hold still while the ship rides round is a look question for Jon,
 this test can make. Every other count in the mode (early starts, never settled, no plan,
 degenerate, landed) still judges, and all pass.
 
-Nov 15 (Jon's ruling 1A, the line holds still while you ride round): judged again. The map now
-plans a ring's preview for a departure window (`PreviewHold.ahead`, `WINDOW` 6.5 s)
-and holds it until a click can no longer fly it (`PreviewHold.due`); `docs/why/ShipFlight.md#preview-window`
-has why. `_ride_held` rides HOLD_S (6 s) with the map's own rule (`PreviewHold.now`, `PreviewHold.due`),
-and the median over flights of the biggest move must be at most MOVE_MED 16 px. Seed 4242, 108
-flights: the old rule 134.08 px, FAIL (this harness run on main with the old overlay rule
-in place of the two calls); the window 0.00 px. It also prints what the window costs and judges
-the click. It prints the move when a window passes with no click (a median 85 px, 90th 227) and
-the wait a click would have before the ship leaves, over every frame of the ride (a median 3.83 s,
-90th 6.23). It judges that the click flies the flight drawn (`click_replanned` and the solved
-result the same): the old rule flew another in 86 of 108 clicks, the window in 0.
-`window=S` sets the window: 3 s gives 62.11 px (FAIL) and a 1.83 s median wait; 1 s is the old
-rule's 134.08.
+Nov 15 (Jon's ruling 1A, then 4B, a 3 s window): judged again. The map plans a ring's preview
+for a departure window (`PreviewHold.ahead`, `WINDOW` 3 s) and holds it until a click can no
+longer fly it (`PreviewHold.due`). `docs/why/ShipFlight.md#preview-window` has why and the
+trade. `_ride_held` rides HOLD_S (6 s) with the map's own rule (`PreviewHold.now`,
+`PreviewHold.due`).
+
+The hard check is the click: every click must fly the flight drawn (`click_replanned` false, and
+the same solved result). The old rule flew another in 86 of 108 clicks; the window in 0.
+
+The line's move is bounded, not held at nought, since a 3 s window still passes inside a 6 s
+ride. Measured at 3 s on seed 4242, 108 flights: median 62.11 px, 90th 168. MOVE_MED is 80 px:
+the measured median and about 30% for another seed's draw or a solver change. That is well under
+the old rule's 134.08 px, which fails it (this harness run on main with the old overlay rule in
+place of the two calls). It is not the Nov 5 bar of 16 px. That bar needs a window longer than
+the 6 s ride (6.5 s measured 0.00 px), with a median 3.8 s wait, which Jon turned down.
+
+It also prints the move when a window passes with no click and the wait a click would have
+before the ship leaves, over every frame of the ride. `window=S` sets the window: 6.5 s gives
+0.00 px and a 3.83 s median wait; 1 s is the old rule's 134.08.
 
 ## Near line
 

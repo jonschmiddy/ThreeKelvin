@@ -6,7 +6,7 @@ extends RefCounted
 const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 
 ## From a ring the preview is planned WINDOW s ahead; `-- window=S` (FlightTest) sets window_k.
-const WINDOW := 6.5
+const WINDOW := 3.0
 static var window_k := -1.0
 
 
