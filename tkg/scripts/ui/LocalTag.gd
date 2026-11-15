@@ -83,6 +83,11 @@ func fill(n: MapGen.MapNode) -> void:
 		line = String(q[0])
 		if String(q[1]) != EncounterDrawer.TO_SECTOR:
 			doors.append([String(q[1]), screen.call.bind(&"_on_action")])
+	# ONLY A TAG THAT CARRIES SOMETHING TO DO (Jon, Nov 15: "this text is unnecessary"): the quiet
+	# flavour lines go; the docking hint stays until the first dock. Why: docs/why/ShipChoices.md#quiet-tag
+	var hint := DockMouth.HINT_LINE.trim_prefix("A STATION HERE").trim_prefix(" · ")
+	if not card and not Router.final_loot and doors.is_empty() and line != hint:
+		line = ""
 	var key := "%s|%s|%s" % [line, card, ",".join(doors.map(func(d: Array) -> String: return String(d[0])))]
 	if key == _key:
 		return

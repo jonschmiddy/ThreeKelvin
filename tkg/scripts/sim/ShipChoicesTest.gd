@@ -239,7 +239,9 @@ func _beat_and_click(_n: MapGen.MapNode) -> void:
 	await Harness.frames(_tree, 3)
 	_ok("FLY ON: the event is gone", _d.page == &"" and not _d.visible)
 	var tag := _sc.find_child("LocalTag", false, false) as LocalTag
-	_ok("and the place's tag says what is left (%s)" % (tag.line if tag != null else "none"), tag != null and tag.visible and tag.line != "")
+	var words := tag.get_child_count() if tag != null else 0
+	_ok("and the place's tag shows only with something to do (%d words, \"%s\")" % [words, tag.line if tag != null else ""],
+		tag != null and (tag.visible == (words > 0)))
 	_ok("the shelf is not shown", not (_sc.get("_quiet_holder") as Control).visible)
 
 

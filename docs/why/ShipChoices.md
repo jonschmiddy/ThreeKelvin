@@ -46,3 +46,8 @@ HUD's SECTOR tab, so the shelf's own button is not repeated. "The ship is lost" 
 middle with SUMMARY; SALVAGE THE CUSTODIAN is a bracket on its body with the word under it. The tag
 has no frame (Jon, Nov 15): it is not pressable, only its bracketed words are. At a station it pins
 to the station. Rebuilt only when what it says changes, so its words can be clicked.
+
+Jon, Nov 15, playing it: the quiet one-liners with nothing to do ("Open space, with the reactor
+running...") are unnecessary. A tag shows only when it carries something to do: OPEN IT, JOIN
+FIGHT, SECTOR LOOT, a pulsar's FLY THE BEAM, ENGAGE, the docking hint until the first dock, the
+death card's SUMMARY and the Custodian's salvage. Everything else says nothing.
