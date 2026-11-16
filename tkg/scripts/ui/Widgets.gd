@@ -658,3 +658,22 @@ static func _perk_rows(box: VBoxContainer, pd: Dictionary) -> void:
 	# Why: docs/why/Widgets.md#perk-tooltip
 	var body := UITheme.body(tip(str(pd.text)), UITheme.COLD, UITheme.FS_SMALL)
 	box.add_child(pad(body, 8, 0))
+
+
+## A check readout on one row, broken only at its " · " when wider than `max_w` game px:
+## never mid-phrase, never a dangling dot (Jon, Nov 16, the FLEE and HAIL asks).
+static func check_line(text: String, ink: Color, max_w: float = 340.0) -> Label:
+	var font := UITheme.pixel_font()
+	var rows: PackedStringArray = []
+	var cur := ""
+	for part in text.split(" · "):
+		var next := part if cur == "" else cur + " · " + part
+		if cur != "" and font.get_string_size(next, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x > max_w:
+			rows.append(cur)
+			cur = part
+		else:
+			cur = next
+	rows.append(cur)
+	var l := UITheme.body("\n".join(rows), ink, UITheme.FS_SMALL)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	return l

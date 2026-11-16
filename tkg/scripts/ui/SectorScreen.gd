@@ -3313,12 +3313,8 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 	var head := UITheme.body(title, ink, UITheme.FS_HEAD)
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(head)
-	var body := UITheme.body(said, UITheme.CHILL, UITheme.FS_SMALL)
-	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.custom_minimum_size = Vector2(220, 0)
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(body)
+	# One check line, sized to itself: the box fits it, no gap above the buttons.
+	box.add_child(Widgets.check_line(said, UITheme.CHILL))
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
@@ -3364,7 +3360,7 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 	box.add_child(row)
 
 	_exit_ask = PanelContainer.new()
-	_exit_ask.custom_minimum_size = EXIT_ASK
+	_exit_ask.custom_minimum_size = Vector2(EXIT_ASK.x, 0)
 	_exit_ask.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL, edge, 0, 10, 12))
 	_exit_ask.add_child(box)
@@ -3404,6 +3400,7 @@ func _exit_ask_result(title: String, ink: Color, said: String,
 		on_go: Callable) -> void:
 	if _exit_ask == null or _exit_box == null:
 		return
+	_exit_ask.custom_minimum_size = EXIT_ASK
 	Widgets.clear(_exit_box)
 	var head := UITheme.body(title, ink, UITheme.FS_HEAD)
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
