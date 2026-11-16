@@ -203,6 +203,7 @@ func _beat_and_click(_n: MapGen.MapNode) -> void:
 		await Harness.frames(_tree, 1)
 		f += 1
 	_ok("step 2: the choices come %d frames after the text is in (a second is 60)" % f, f >= 57 and f <= 63)
+	_ok("  and no SCAN SECTOR while they are up", _tag("ScanSector") == null)
 	await Harness.frames(_tree, 20)
 	var bad := _boxes(ov)
 	for b in bad:
@@ -232,12 +233,19 @@ func _beat_and_click(_n: MapGen.MapNode) -> void:
 	var rows: Array = ov.get("_rows")
 	var credits := rows.any(func(r: Array) -> bool: return String(r[0]).ends_with("CREDITS"))
 	_ok("the reward stack says the credits, with nothing to press on them", credits and _tag("Reward") == null)
-	var go := _tag("Continue")
-	_ok("the bow says FLY ON", go != null and go.verb.ends_with("FLY ON"))
+	var go := _tag("ScanSector")
+	_ok("after it, the bridge says SCAN SECTOR (no FLY ON)", go != null and go.verb == "BRIDGE: SCAN SECTOR" and _tag("Continue") == null)
+	await _cutaway()
 	_d.text.skip()
 	await _click(go)
-	await Harness.frames(_tree, 3)
-	_ok("FLY ON: the event is gone", _d.page == &"" and not _d.visible)
+	var f2 := 0
+	while not Router.current is SystemMapScreen and f2 < 240:
+		await Harness.frames(_tree, 1)
+		f2 += 1
+	_ok("SCAN SECTOR: the event is done and LOCAL gives way to the sector map", Router.current is SystemMapScreen)
+	await _back_to_local()
+	var idle := _tag("ScanSector")
+	_ok("LOCAL again, nothing up: SCAN SECTOR stays on the bridge", idle != null and idle.is_visible_in_tree() and _d.page == &"")
 	var tag := _sc.find_child("LocalTag", false, false) as LocalTag
 	var words := tag.get_child_count() if tag != null else 0
 	_ok("and the place's tag shows only with something to do (%d words, \"%s\")" % [words, tag.line if tag != null else ""],
@@ -284,6 +292,34 @@ func _not_now() -> void:
 		await Harness.frames(_tree, 2)
 
 
+## LOCAL again (after SCAN SECTOR took the map): the screen and its drawer fetched anew.
+func _back_to_local() -> void:
+	# (the map parked the ship at a place; the test's events stand anywhere, as before it)
+	ParkedShips.spots.erase(Run.at)
+	Router.show_local()
+	await Harness.frames(_tree, 90)
+	ParkedShips.spots.erase(Run.at)
+	_sc = Router.current as SectorScreen
+	_d = _sc.get("_events") if _sc != null else null
+
+
+## THE CUTAWAY OVER LOCAL (a click on your ship): nothing of ours drawn through it, then back.
+func _cutaway() -> void:
+	var cut := _sc.open_cutaway()
+	await Harness.frames(_tree, 4)
+	if not _ok("the cutaway opens over a result", cut != null):
+		return
+	var left := _shown_over(cut)
+	_ok("  and nothing of the event or the place's tag is drawn through it (%s)" % ", ".join(left), left.is_empty())
+	cut.close_now()
+	var f := 0
+	while _sc.get("_cutaway") != null and f < 120:
+		await Harness.frames(_tree, 1)
+		f += 1
+	await Harness.frames(_tree, 2)
+	_ok("  and all of it back when it closes", _ov().is_visible_in_tree())
+
+
 ## The party's claim: a choice a partner already took says so, and the event tag goes.
 func _too_late(n: MapGen.MapNode) -> void:
 	if not await _open_settled(2):
@@ -306,6 +342,8 @@ func _loot() -> void:
 		await Harness.frames(_tree, 1)
 		f += 1
 	var rw := _tag("Reward")
+	var bad3 := _boxes(_ov())
+	_ok("step 3 box test: the stack, SCAN SECTOR and the event tag apart (%s)" % ", ".join(bad3), bad3.is_empty())
 	_ok("what landed on the pile is a bracketed count (%s)" % (rw.verb if rw != null else "none"), rw != null and rw.loot and rw.verb == "+1 ITEM")
 	if rw == null:
 		return
@@ -375,10 +413,12 @@ func _hulls(n: MapGen.MapNode) -> void:
 			continue
 		tested += 1
 		var bad := _boxes(_ov(), true)
+		_d.call(&"_drop")
+		await Harness.frames(_tree, 3)
+		for b in _boxes(_ov(), true):
+			bad.append("at rest: " + b)
 		if not bad.is_empty():
 			crowded.append("%s (%s): %s" % [fr.display_name(), fr.manufacturer, "; ".join(bad.slice(0, 3))])
-		_d.not_now()
-		await Harness.frames(_tree, 2)
 	for c in crowded:
 		print("  crowded: %s" % c)
 	_ok("%s on all %d hulls: nothing overlaps (%d crowd)" % [n.options[crowd], tested, crowded.size()], crowded.is_empty() and tested == DB.hull_frames.size())

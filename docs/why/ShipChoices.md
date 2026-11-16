@@ -51,3 +51,12 @@ Jon, Nov 15, playing it: the quiet one-liners with nothing to do ("Open space, w
 running...") are unnecessary. A tag shows only when it carries something to do: OPEN IT, JOIN
 FIGHT, SECTOR LOOT, a pulsar's FLY THE BEAM, ENGAGE, the docking hint until the first dock, the
 death card's SUMMARY and the Custodian's salvage. Everything else says nothing.
+
+## Scan sector
+
+Jon, Nov 15, playing it: "when an encounter ends the player is just awkwardly sitting in LOCAL",
+then "what about instead we go from the bridge (SCAN SECTOR)". After a result, and whenever LOCAL
+has nothing up, a bracket on your ship's bridge (the raised command deck, top front) says BRIDGE:
+SCAN SECTOR; clicking it zooms LOCAL out to the sector map, as the shelf's SCAN SECTOR did. FLY ON
+is gone. Walk-away choices and NOT NOW stay on the bow and only close the event. Never while the
+choices are up, in a fight, or while an event is about to open on its own.

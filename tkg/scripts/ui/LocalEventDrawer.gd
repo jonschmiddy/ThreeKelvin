@@ -155,6 +155,10 @@ static func attach(on: Control, fighting: bool, auto: bool = false, held: bool =
 	d.screen = on
 	d.node = Run.node_at()
 	on.add_child(d)
+	# (on your ship, the bridge's SCAN SECTOR from the first frame: the one way on)
+	if layout == &"ship":
+		d._on_ship().idle()
+		d.visible = true
 	var want: Array = []
 	if not pending.is_empty():
 		want = pending
@@ -234,6 +238,7 @@ static func forget_auto(index: int = -1) -> void:
 	if index < 0:
 		_auto.clear()
 		printed.clear()
+		_put_off.clear()
 	else:
 		_auto.erase(index)
 
@@ -241,9 +246,20 @@ static func forget_auto(index: int = -1) -> void:
 ## THE TEXTS ALREADY PRINTED, by "system:option:page" (Jon, Nov 15: a text you watched arrive
 ## never arrives again; after the loot, OPEN IT or LOCAL again it is shown whole).
 static var printed := {}
-## This visit's event was put off (NOT NOW, or walked away from): only then does the place's tag
-## offer OPEN IT, never while the event is about to open on its own.
-var put_off := false
+## This visit's event was put off (NOT NOW, or walked away from), by system: the visit it was
+## (`visit_key`). Only then does the place's tag offer OPEN IT, never while the event is about to
+## open on its own.
+static var _put_off := {}
+var put_off: bool:
+	get:
+		return node != null and str(_put_off.get(node.index, "")) == visit_key(node)
+	set(v):
+		if node == null:
+			return
+		if v:
+			_put_off[node.index] = visit_key(node)
+		else:
+			_put_off.erase(node.index)
 
 
 ## An event asked for here, waiting for the move to land (`attach`): handed
@@ -288,8 +304,7 @@ func _drop() -> void:
 	page = &""
 	_up = false
 	if _ship != null:
-		_ship.clear()
-		visible = false
+		_ship.idle()
 		changed.emit()
 		return
 	if _tw != null:
@@ -623,6 +638,26 @@ func _ship_play(t: SignalText, kind: StringName) -> void:
 		t.play()
 
 
+## SCAN SECTOR, on the bridge: the event (if any) goes and LOCAL zooms out to the sector map, as the
+## shelf's SCAN SECTOR did (`SectorScreen._plot_next_jump`).
+func scan_sector() -> void:
+	if text != null and not text.done and page != &"":
+		text.skip()
+		return
+	if page != &"":
+		_drop()
+	if screen != null and is_instance_valid(screen) and screen.has_method(&"_plot_next_jump"):
+		screen.call(&"_plot_next_jump")
+
+
+## Whether the bridge's SCAN SECTOR may stand at rest: not in a fight, not while an event is held
+## for the arrival or asked for.
+func idle_ok() -> bool:
+	if not deferred.is_empty() or not pending.is_empty():
+		return false
+	return not (screen != null and is_instance_valid(screen) and screen.has_method(&"fighting") and bool(screen.call(&"fighting")))
+
+
 ## THEY ARE FIRING: the event goes, then the fight.
 func fight_on() -> void:
 	_drop()
@@ -786,9 +821,8 @@ func open_reward() -> void:
 		return
 	_transfer = TransferView.new()
 	screen.add_child(_transfer)
-	# (on your ship: the event tag, the reward stack and the labels stand down under the pile)
-	if _ship != null:
-		_ship.visible = false
+	# (on your ship: the event tag, the reward stack and the labels stand down under the pile,
+	# `ShipChoices.covered`)
 	# (the pile opens at your ship, in the room above this band)
 	if visible and _ship == null:
 		_transfer.floor_g = UiRect.of(self).position.y
@@ -796,8 +830,6 @@ func open_reward() -> void:
 	_transfer.setup(h, node, func() -> void:
 		_transfer.queue_free()
 		_transfer = null
-		if _ship != null:
-			_ship.visible = true
 		if page == &"result":
 			_show_result(), true, LOOT_WORD)
 

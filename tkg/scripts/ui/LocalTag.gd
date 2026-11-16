@@ -144,6 +144,7 @@ func _wrap() -> void:
 
 func _process(_d: float) -> void:
 	var hide := line == "" or (events != null and is_instance_valid(events) and events.page != &"") \
+		or ShipChoices.covered(events) \
 		or (screen != null and screen.has_method(&"fighting") and bool(screen.call(&"fighting")))
 	visible = not hide
 	if hide:

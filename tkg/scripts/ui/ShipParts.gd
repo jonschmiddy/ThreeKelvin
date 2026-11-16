@@ -8,9 +8,11 @@ extends RefCounted
 ## x runs rear (0) to bow (1), y top (0) to keel (1); `side` is where its label goes.
 const SPOTS := {
 	&"engines": {rect = Rect2(0.0, 0.28, 0.14, 0.44), side = &"left", word = "ENGINES"},
-	&"radiators": {rect = Rect2(0.16, 0.0, 0.2, 0.36), side = &"up", word = "RADIATORS"},
-	&"mast": {rect = Rect2(0.4, 0.0, 0.18, 0.36), side = &"up", word = "COMM"},
-	&"guns": {rect = Rect2(0.62, 0.0, 0.18, 0.4), side = &"up", word = "GUNS"},
+	&"radiators": {rect = Rect2(0.14, 0.0, 0.16, 0.36), side = &"up", word = "RADIATORS"},
+	&"mast": {rect = Rect2(0.32, 0.0, 0.14, 0.36), side = &"up", word = "COMM"},
+	&"guns": {rect = Rect2(0.48, 0.0, 0.14, 0.4), side = &"up", word = "GUNS"},
+	# the raised command deck, top front: no choice lands here, it is SCAN SECTOR's (Jon, Nov 15)
+	&"bridge": {rect = Rect2(0.64, 0.0, 0.18, 0.4), side = &"up", word = "BRIDGE"},
 	&"bow": {rect = Rect2(0.86, 0.28, 0.14, 0.44), side = &"right", word = "BOW"},
 	&"plating": {rect = Rect2(0.64, 0.62, 0.2, 0.38), side = &"down", word = "PLATING"},
 	&"flank": {rect = Rect2(0.38, 0.64, 0.24, 0.36), side = &"down", word = "FLANK"},

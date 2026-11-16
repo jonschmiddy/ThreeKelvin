@@ -149,12 +149,11 @@ func result(out: Dictionary) -> SignalText:
 			_rows.append(["TAKEN", UITheme.COLD])
 	if out.get("stay", false):
 		_loot("CHOOSE AGAIN", "ChooseAgain", drawer.open.bind(drawer.opt))
-	var bow := "%s: " % ShipParts.word_of(ShipParts.LEAVE)
 	if fight:
-		var m := _mark(ShipParts.LEAVE, bow + "THEY ARE FIRING", "", UITheme.LEAVE, "TheyAreFiring", drawer.fight_on)
+		var m := _mark(ShipParts.LEAVE, "%s: THEY ARE FIRING" % ShipParts.word_of(ShipParts.LEAVE), "", UITheme.LEAVE, "TheyAreFiring", drawer.fight_on)
 		m.tag.ink = UITheme.LEAVE
 	else:
-		_mark(ShipParts.LEAVE, bow + "FLY ON", "", UITheme.COLD, "Continue", drawer.continue_on)
+		_bridge()
 	_arrive(false)
 	return event_tag.body
 
@@ -167,6 +166,20 @@ static func _loot_word(out: Dictionary) -> String:
 
 func clear() -> void:
 	_clear(&"")
+
+
+## AT REST, THE ONE WAY ON (Jon, Nov 15): nothing up on LOCAL, the bridge's SCAN SECTOR, dim
+## until pointed at. Not in a fight, and not while an event is about to open (`_process`).
+func idle() -> void:
+	_clear(&"idle")
+	event_tag = null
+	_bridge()
+	_arrive(false)
+
+
+## BRIDGE: SCAN SECTOR, LOCAL zooming out to the sector map (as SECTOR does). Why: docs/why/ShipChoices.md#scan-sector
+func _bridge() -> void:
+	_mark(&"bridge", "%s: SCAN SECTOR" % ShipParts.word_of(&"bridge"), "", UITheme.COLD, "ScanSector", drawer.scan_sector)
 
 
 func _clear(m: StringName) -> void:
@@ -276,6 +289,10 @@ func _hovered(on: bool, k: int) -> void:
 # --------------------------------------------------------------- where things go
 
 func _process(delta: float) -> void:
+	# (stood down under the pile and the cutaway: nothing of ours drawn through either)
+	var want := not covered(drawer) and not (mode == &"idle" and not drawer.idle_ok())
+	if visible != want:
+		visible = want
 	if mode == &"" or not is_visible_in_tree():
 		return
 	if _wait >= 0.0:
@@ -303,6 +320,16 @@ func _process(delta: float) -> void:
 
 
 ## Your hull's drawn box here (its opaque pixels, the bob taken out), and which way it faces.
+## Whether the loot screen or the cutaway is up over LOCAL: what is drawn on the scene stands down.
+static func covered(d: LocalEventDrawer) -> bool:
+	if d == null:
+		return false
+	if d.get("_transfer") != null:
+		return true
+	var cut: Variant = d.screen.get("_cutaway") if d.screen != null and is_instance_valid(d.screen) else null
+	return cut is CutawayView and is_instance_valid(cut)
+
+
 func _hull_now() -> Rect2:
 	var view := _view()
 	var sv := view.ship_view() if view != null else null
@@ -533,6 +560,17 @@ func _lay_stack(room: Rect2, taken: Array[Rect2]) -> void:
 	var y := _hull.position.y - 10.0
 	if event_tag != null:
 		cx = _off_event_tag(loot, cx, y, room)
+	# (over the labels standing over the hull, the bridge's among them: nothing under another)
+	var wide := 0.0
+	for m in loot:
+		wide = maxf(wide, m.tag.size.x)
+	var f0 := UITheme.pixel_font()
+	for row: Array in _rows:
+		wide = maxf(wide, f0.get_string_size(String(row[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, FS).x)
+	for m in _marks:
+		var r := m.tag.get_rect()
+		if m.part != &"" and m.side == &"up" and r.end.x > cx - wide * 0.5 - GAP and r.position.x < cx + wide * 0.5 + GAP:
+			y = minf(y, r.position.y - 4.0)
 	for i in range(loot.size() - 1, -1, -1):
 		var t := loot[i].tag
 		y -= t.size.y
