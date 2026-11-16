@@ -1,7 +1,7 @@
 extends Node
 
 ## Stills of the choices on your own ship (`ShipChoices`), at the size you play at:
-## `-- sheet=ShipChoicesShot out=<dir> [hulls] [ids=a,b] [short=<json>] [custodian] [chart]` (needs a window,
+## `-- sheet=ShipChoicesShot out=<dir> [hulls] [ids=a,b] [short=<json>] [custodian] [chart] [scan]` (needs a window,
 ## `--resolution 1920x1080`). `short=` swaps in proposed text for the run only, from a file outside the repo.
 ## Why: docs/why/ShipChoices.md#on-your-ship
 
@@ -73,6 +73,8 @@ func _run() -> void:
 		await _custodian()
 	elif "chart" in OS.get_cmdline_user_args():
 		await _chart()
+	elif "scan" in OS.get_cmdline_user_args():
+		await _scan()
 	else:
 		for k in ids.size():
 			await _steps(k, String(ids[k]))
@@ -225,3 +227,32 @@ func _chart() -> void:
 		await _secs(0.8)
 		print("  shipchoicesshot: chart hovered %d (wanted %d)" % [ch.hovered, int(pair[0])])
 		_shot(String(pair[1]))
+
+
+## After a result: SCAN SECTOR on the bridge (pointed at), then the sector map it zooms out to.
+func _scan() -> void:
+	var d := _drawer()
+	d.open(0)
+	await _secs(0.4)
+	d.text.skip()
+	await _secs(1.6)
+	d.choose(0)
+	await _secs(0.4)
+	if d.text != null:
+		d.text.skip()
+	await _secs(0.6)
+	var ov := d.get("_ship") as ShipChoices
+	var go := ov.find_child("ScanSector", false, false) as Control
+	if go == null:
+		print("  shipchoicesshot: no SCAN SECTOR")
+		return
+	_point(go)
+	go.mouse_entered.emit()
+	await _secs(0.4)
+	_shot("9_scan_sector_before")
+	d.scan_sector()
+	await _secs(4.0)
+	_shot("9_scan_sector_after")
+	Router.show_local()
+	await _secs(4.0)
+	_shot("9_scan_sector_at_rest")
