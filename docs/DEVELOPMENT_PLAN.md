@@ -130,7 +130,8 @@ something real, and all seven manufacturers have modules worth installing.
 - **Left:** the other five manufacturers. They can be unlocked and flown, but
   have 4 to 7 parts each, use Korvan's hull art, and their set bonuses cannot be
   completed (`HANDOFF.md`, Known issues). `docs/building-a-manufacturer.md` is
-  the method. The first half of the gate was not re-measured for this pass.
+  the method. Every new or reworked hull picture (the Phase 16 makers, the Solari
+  rework) declares its part spots in `HullParts.gd` (`HullPartsTest`). The first half of the gate was not re-measured for this pass.
 
 ### Phase 3 — Attributes exist and are visible — **done, less Notoriety**
 *Implements `attributes-and-checks.md` §10.1.*

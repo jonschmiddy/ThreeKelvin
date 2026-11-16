@@ -138,6 +138,12 @@ it as pixen-only (heavy rejected outright).
 | Station | 200 × 240 | Vertical, lit windows with interior silhouettes |
 | Card illustration | **92 × 60** | **Per card** — see Stage 7 |
 
+**Every hull picture declares its part spots** (Jon, Nov 15): a point on the sprite for the bow,
+bridge, guns, comm mast, radiators, engines, hold, flank and plating, where an event's choice for
+that part is bracketed. They go in `tkg/scripts/data/HullParts.gd` under the picture's
+`DB.hull_art_key`, placed by eye on the sprite; `-- sheet=HullPartsTest` fails a hull without them.
+Why: `docs/why/HullParts.md`.
+
 ### Module sizes are DERIVED. Do not write them in this file.
 
 There is no table of module dimensions here because there cannot be a correct

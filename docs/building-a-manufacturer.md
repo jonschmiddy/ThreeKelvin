@@ -78,6 +78,11 @@ the yard's problem**, never a manufacturer's.
 
 ---
 
+**A manufacturer with its own hull art declares each picture's part spots** (bow, bridge, guns,
+comm mast, radiators, engines, hold, flank, plating) in `tkg/scripts/data/HullParts.gd`, by eye on
+the sprite (`docs/art/ART_CONTRACT.md`). The Solari rework and every new hull ship with them;
+`-- sheet=HullPartsTest` fails until they do.
+
 ## §4 Run the gates
 
     godot --headless --path tkg -- holdtest    # the catalogue laws

@@ -343,6 +343,31 @@ func _hull_now() -> Rect2:
 	return Rect2(a, b - a).abs()
 
 
+## Part `p`'s box here: on the point this hull's picture declares for it (`HullParts`), sized as
+## `ShipParts` sizes it; on `ShipParts`' fractions of the hull for a picture with none.
+func _part_rect(p: StringName) -> Rect2:
+	var base := ShipParts.rect_of(p, _hull, _bow_left)
+	var at := _spot_at(p)
+	if not at.is_finite():
+		return base
+	var pos := (at - base.size * 0.5).clamp(_hull.position, _hull.end - base.size)
+	return Rect2(pos.round(), base.size)
+
+
+## The point the hull's picture declares for part `p`, here; INF when it declares none.
+func _spot_at(p: StringName) -> Vector2:
+	var view := _view()
+	var sv := view.ship_view() if view != null else null
+	if sv == null or Run.hull == null:
+		return Vector2.INF
+	var d := HullParts.of(DB.hull_art_key(Run.hull.weight, Run.hull.tier, Run.hull.manufacturer))
+	if not d.has(p):
+		return Vector2.INF
+	var v: Vector2i = d[p]
+	var local := sv.canvas_to_local(Vector2(v) + Vector2(0.5, 0.5)) - Vector2(0.0, float(sv.bob_offset() * sv.zoom_level()))
+	return get_global_transform().affine_inverse() * (sv.get_global_transform() * local)
+
+
 func _view() -> EncounterView:
 	if drawer == null or drawer.screen == null or not is_instance_valid(drawer.screen):
 		return null
@@ -405,7 +430,7 @@ func _lay_tags(room: Rect2) -> void:
 	for m in _marks:
 		if m.part == &"":
 			continue
-		m.rect = ShipParts.rect_of(m.part, _hull, _bow_left)
+		m.rect = _part_rect(m.part)
 		if m.hit != null:
 			m.hit.position = m.rect.position
 			m.hit.size = m.rect.size
