@@ -68,6 +68,16 @@ edge, then rode in with the ship. What is on your ship (the part brackets and la
 the reward stack) shows only once the ship has stopped: LOCAL settled (`SectorScreen.settled_local`,
 no fly-in), the ship not arriving, and its box still for `STILL_S`; then it fades in over `FADE_S`.
 It goes at once when the ship moves (an arrival, a GO, the zoom ladder, a dock flight). The event
-tag is on the subject, not the ship, and is not held. `ShipChoicesTest` watches a first arrival and a
+tag is on the subject, not the ship, and is not held. Jon then: "can the reticle move with the
+ship? The text can stay still": the brackets are drawn on their parts where the ship is as each
+frame is drawn, arriving or zooming, and cannot be clicked until the words show.
+
+The words in a boxed label are centred on their ink (cap tops to the last line's foot, read off the
+font's own glyphs), not on the font's box, whose ascent and descent differ (Jon, Nov 16).
+
+THE FLASH AS AN EVENT OPENED (Jon, Nov 16, on main too): `LocalEventDrawer.open_held` laid a black
+screen over LOCAL and faded it out, a leftover from LOCAL coming up from the map's zoom. By then LOCAL
+had been on screen through its own arrival, so the event's start blacked the whole screen for a
+frame. It no longer does; the cut from the map with no zoom ladder still fades in from black. `ShipChoicesTest` watches a first arrival and a
 GO frame by frame.
 

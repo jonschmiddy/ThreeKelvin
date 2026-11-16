@@ -128,6 +128,8 @@ func _switch() -> void:
 			good = false
 			print("  switch: %s dev=%s gave %s" % [c[0], c[1], got])
 	_ok("the switch: off in exports and harnesses, on in a play run or with -- shipchoices", good)
+	# (a play run with the layout asked for is a player's run: the zoom ladder and the real doors)
+	_ok("-- shipchoices alone is a play run, not a harness", not TestRun.active_for(PackedStringArray(["shipchoices"])) 		and not TestRun.active_for(PackedStringArray(["band"])) and TestRun.active_for(PackedStringArray(["shipchoices", "localeventtest"])))
 	_ok("this harness ran with it off until it asked", LocalEventDrawer.default_layout(OS.get_cmdline_user_args(), DevMode.available) == &"band")
 
 
@@ -489,12 +491,17 @@ func _arrivals(n: MapGen.MapNode) -> void:
 func _watch(what: String, cap: int) -> void:
 	var early := 0
 	var moved := 0
+	var off_px := 0.0
+	var rides := 0
+	var live_hits := 0
+	var blacks := 0
 	var shown_at := -1
 	var at := {}
 	var last := Rect2()
 	var f := 0
 	while f < cap:
-		await Harness.frames(_tree, 1)
+		# (at the top of a frame: the brackets as last drawn against the ship as it stood then)
+		await _tree.process_frame
 		f += 1
 		var sc := Router.current as SectorScreen
 		if sc == null:
@@ -505,9 +512,24 @@ func _watch(what: String, cap: int) -> void:
 		var sv := view.ship_view() if view != null else null
 		if ov == null or sv == null:
 			continue
+		# NO FLASH (Jon, Nov 16): no full-screen black laid over LOCAL as its event opens
+		for c in sc.get_children():
+			if c is ColorRect and (c as ColorRect).color.a > 0.2 and (c as ColorRect).size.x >= sc.size.x * 0.9:
+				blacks += 1
 		var hull := UiRect.of(sv)
 		var moving := sv.arriving() or not sc.settled_local() or bool(sc.get("_flyin")) or hull != last
 		last = hull
+		# THE RETICLE: every drawn bracket on its part where the ship is now, moving or not
+		if ov.showing and ov.is_visible_in_tree():
+			var now := ov._hull_now()
+			for m: ShipChoices.Mark in ov.get("_marks"):
+				if m.part == &"" or not m.drawn.has_area() or not now.has_area():
+					continue
+				off_px = maxf(off_px, m.drawn.position.distance_to(ov._part_rect(m.part, now).position))
+				if moving:
+					rides += 1
+				if moving and m.hit != null and m.hit.is_visible_in_tree():
+					live_hits += 1
 		var seen := {}
 		for c in ov.get_children():
 			if c is ShipChoices.Tag and (c as Control).is_visible_in_tree() and (c as Control).modulate.a > 0.01 and not (c as ShipChoices.Tag).bare:
@@ -526,6 +548,9 @@ func _watch(what: String, cap: int) -> void:
 			break
 	_ok("%s: nothing of ours on the ship while it moves (%d frames), shown at frame %d" % [what, early, shown_at], early == 0 and shown_at > 0)
 	_ok("  and nothing moved once shown (%d)" % moved, moved == 0)
+	_ok("  the brackets ride with the ship: %d bracket-frames while it moved, at most %.1f px off their parts" % [rides, off_px], off_px <= 1.0)
+	_ok("  and none can be clicked while it moves (%d)" % live_hits, live_hits == 0)
+	_ok("  and no black laid over the screen as the event opens (%d frames)" % blacks, blacks == 0)
 
 
 ## The part click and the band's card resolve the same (the same choice, band, text and bill).
@@ -588,6 +613,20 @@ func _boxes(ov: ShipChoices, where := false) -> Array[String]:
 			boxes[String(c.name)] = (c as Control).get_rect()
 	if ov.event_tag != null:
 		boxes["EventTag"] = ov.event_tag.get_rect()
+	# THE WORDS CENTRED ON THEIR INK (Jon, Nov 15): as many empty rows over the cap tops as under the
+	# foot, inside the box's edge, within a pixel
+	for c in ov.get_children():
+		if c is ShipChoices.Tag and (c as Control).visible and not (c as ShipChoices.Tag).bare:
+			var t := c as ShipChoices.Tag
+			var n := 1 + (1 if t.cost != "" and not t.loot else 0) + (1 if t.note != "" and not t.loot else 0)
+			var last_line := t.verb if n == 1 else (t.note if t.note != "" else t.cost)
+			var b0 := t.baseline()
+			var top := b0 + ShipChoices.ink_of(t.verb).x
+			var foot := b0 + float(n - 1) * t.LINE + ShipChoices.ink_of(last_line).y
+			var over := top - 1.0
+			var under := (t.size.y - 1.0) - foot
+			if absf(over - under) > 1.0:
+				bad.append("%s off centre (%d rows over, %d under)" % [t.name, int(over), int(under)])
 	var keys := boxes.keys()
 	for a in keys.size():
 		for b in range(a + 1, keys.size()):

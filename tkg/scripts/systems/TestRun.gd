@@ -2,10 +2,15 @@ class_name TestRun
 extends RefCounted
 
 ## Anything after `--` a player would not type is a harness, and keeps off the player's files.
-const PLAYER_ARGS := ["seed", "asrelease", "resume", "nolauncher", "keepwindow", "hints"]
+const PLAYER_ARGS := ["seed", "asrelease", "resume", "nolauncher", "keepwindow", "hints", "shipchoices", "band"]
 
 static func active() -> bool:
-	for a in OS.get_cmdline_user_args():
+	return active_for(OS.get_cmdline_user_args())
+
+
+## The same, for a given command line (a harness checks the player's flags with it).
+static func active_for(args: PackedStringArray) -> bool:
+	for a in args:
 		var s := String(a)
 		if s in PLAYER_ARGS or s.is_valid_int() or s.begins_with("style=") or s.begins_with("graphics="):
 			continue

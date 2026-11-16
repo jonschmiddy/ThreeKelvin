@@ -1,10 +1,12 @@
 extends Node
 
 ## Stills of the choices on your own ship (`ShipChoices`), at the size you play at:
-## `-- sheet=ShipChoicesShot out=<dir> [hulls] [ids=a,b] [short=<json>] [custodian] [chart] [scan]` (needs a window,
+## `-- sheet=ShipChoicesShot out=<dir> [hulls] [ids=a,b] [short=<json>] [custodian] [chart] [scan] [flash [band]]` (needs a window,
 ## `--resolution 1920x1080`). `short=` swaps in proposed text for the run only, from a file outside the repo.
 ## Why: docs/why/ShipChoices.md#on-your-ship
 
+## The most a frame's mean light may jump while an event starts (a black frame was 0.045).
+const FLASH := 0.02
 ## A ship, a wreck and a rock.
 const EVENTS: Array[StringName] = [&"one_number_between_two", &"dead_hull", &"long_claim"]
 
@@ -49,7 +51,7 @@ func _run() -> void:
 	_tree = get_tree()
 	_out = Harness.arg("out", "user://shipchoices")
 	DirAccess.make_dir_recursive_absolute(_out)
-	LocalEventDrawer.layout = &"ship"
+	LocalEventDrawer.layout = &"band" if "band" in OS.get_cmdline_user_args() else &"ship"
 	# (the doors and the station's side as a player has them: a harness otherwise takes the old flow)
 	ZoomLadder.force = 1
 	Router.animate_in_harness = true
@@ -75,6 +77,8 @@ func _run() -> void:
 		await _chart()
 	elif "scan" in OS.get_cmdline_user_args():
 		await _scan()
+	elif "flash" in OS.get_cmdline_user_args():
+		await _flash(n)
 	else:
 		for k in ids.size():
 			await _steps(k, String(ids[k]))
@@ -256,3 +260,58 @@ func _scan() -> void:
 	Router.show_local()
 	await _secs(4.0)
 	_shot("9_scan_sector_at_rest")
+	# the SCAN SECTOR box alone at game scale (each game px two), for the centring by eye
+	var d2 := _drawer()
+	var ov2 := d2.get("_ship") as ShipChoices if d2 != null else null
+	var tag := ov2.find_child("ScanSector", false, false) as Control if ov2 != null else null
+	if tag != null:
+		tag.mouse_entered.emit()
+		await _secs(0.3)
+		var im := GameShell.input_target(_tree).get_texture().get_image()
+		var r := Rect2i(UiRect.of(tag).grow(4.0))
+		var c := im.get_region(r)
+		c.resize(c.get_width() * 2, c.get_height() * 2, Image.INTERPOLATE_NEAREST)
+		c.save_png("%s/9_scan_sector_box.png" % _out)
+		print("  shipchoicesshot: 9_scan_sector_box %s" % r)
+
+
+## AN EVENT STARTING, filmed frame by frame with each frame's mean light: a first arrival that opens
+## its event on its own, then a GO from the map. `band` films the shipped layout for comparison.
+func _flash(n: MapGen.MapNode) -> void:
+	n.options.assign([&"dropped_load", &"long_claim"])
+	SectorScreen._approached_at = -1
+	LocalEventDrawer.pending = []
+	LocalEventDrawer.forget_auto()
+	Router.show_local()
+	await _film("arrive", 300)
+	Router.show_system()
+	await _secs(2.0)
+	var map := Router.current as SystemMapScreen
+	if map != null:
+		map.go_event(1)
+		await _film("go", 420)
+
+
+func _film(what: String, frames: int) -> void:
+	DirAccess.make_dir_recursive_absolute("%s/%s" % [_out, what])
+	var lums := PackedFloat32Array()
+	for i in frames:
+		await RenderingServer.frame_post_draw
+		var im := GameShell.input_target(_tree).get_texture().get_image()
+		im.save_png("%s/%s/f_%04d.png" % [_out, what, i])
+		var sm := im.duplicate() as Image
+		sm.resize(96, 54, Image.INTERPOLATE_BILINEAR)
+		var t := 0.0
+		for y in 54:
+			for x in 96:
+				t += sm.get_pixel(x, y).get_luminance()
+		lums.append(t / (96.0 * 54.0))
+	var worst := 0.0
+	var at := -1
+	for i in range(1, lums.size()):
+		if absf(lums[i] - lums[i - 1]) > worst:
+			worst = absf(lums[i] - lums[i - 1])
+			at = i
+	print("  shipchoicesshot: %s %d frames, biggest jump %.3f at frame %d" % [what, lums.size(), worst, at])
+	# (an event starting may not flash the screen: no frame's mean light jumps by more than FLASH)
+	print("  flash %s: %s" % [what, "PASS" if worst <= FLASH else "FAIL (frame %d)" % at])

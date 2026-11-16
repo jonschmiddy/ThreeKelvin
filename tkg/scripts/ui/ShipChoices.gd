@@ -73,6 +73,8 @@ class Mark:
 	var act := Callable()
 	## What taking it would close, said on its label while you point at it.
 	var warn := ""
+	## Where its brackets were last drawn (riding with the ship).
+	var drawn := Rect2()
 
 
 func _init() -> void:
@@ -332,6 +334,9 @@ func _process(delta: float) -> void:
 ## with the ship): what is on your ship shows once the ship has stopped (LOCAL settled, no arrival,
 ## its box still for `STILL_S`) and fades in over `FADE_S`; it goes at once when the ship moves.
 func _settle_on_ship(delta: float) -> void:
+	# (the brackets ride with the ship, drawn where it is this frame: `_draw`)
+	if showing:
+		queue_redraw()
 	var still := _settled() and _hull.has_area() and _hull.position.distance_to(_last_hull) < 0.5
 	_last_hull = _hull.position
 	_still = _still + delta if still else 0.0
@@ -387,12 +392,14 @@ func _hull_now() -> Rect2:
 
 ## Part `p`'s box here: on the point this hull's picture declares for it (`HullParts`), sized as
 ## `ShipParts` sizes it; on `ShipParts`' fractions of the hull for a picture with none.
-func _part_rect(p: StringName) -> Rect2:
-	var base := ShipParts.rect_of(p, _hull, _bow_left)
+func _part_rect(p: StringName, hull: Rect2 = Rect2()) -> Rect2:
+	if not hull.has_area():
+		hull = _hull
+	var base := ShipParts.rect_of(p, hull, _bow_left)
 	var at := _spot_at(p)
 	if not at.is_finite():
 		return base
-	var pos := (at - base.size * 0.5).clamp(_hull.position, _hull.end - base.size)
+	var pos := (at - base.size * 0.5).clamp(hull.position, hull.end - base.size)
 	return Rect2(pos.round(), base.size)
 
 
@@ -791,6 +798,32 @@ static func _cover(r: Rect2, keep: Array) -> float:
 	return cover
 
 
+## A line's ink rows against its baseline at `FS`: (cap top, foot) as offsets, the foot exclusive;
+## read off the font's own glyphs, as the pixel face's ascent and descent are not its ink.
+static var _inks := {}
+
+
+static func ink_of(text: String) -> Vector2:
+	if _inks.has(text):
+		return _inks[text]
+	var f := UITheme.pixel_font()
+	var rid: RID = f.get_rids()[0]
+	var ts := TextServerManager.get_primary_interface()
+	var top := INF
+	var bot := -INF
+	for i in text.length():
+		var g := ts.font_get_glyph_index(rid, FS, text.unicode_at(i), 0)
+		var sz := ts.font_get_glyph_size(rid, Vector2i(FS, 0), g)
+		if sz.x <= 0.0 or sz.y <= 0.0:
+			continue
+		var off := ts.font_get_glyph_offset(rid, Vector2i(FS, 0), g)
+		top = minf(top, off.y)
+		bot = maxf(bot, off.y + sz.y)
+	var out := Vector2(top, bot) if top < INF else Vector2(-float(FS) + 2.0, 0.0)
+	_inks[text] = out
+	return out
+
+
 static func clamp_into(r: Rect2, room: Rect2) -> Rect2:
 	var p := r.position
 	p.x = clampf(p.x, room.position.x, maxf(room.position.x, room.end.x - r.size.x))
@@ -808,16 +841,23 @@ func _draw() -> void:
 	for row: Array in _rows:
 		if row.size() >= 3:
 			draw_string(f, Vector2(row[2]) + Vector2(0, asc), String(row[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, FS, Color(row[1] as Color, (row[1] as Color).a * _on_ship))
-	if not showing or _on_ship <= 0.0:
+	if not showing:
 		return
+	# THE RETICLE RIDES WITH THE SHIP (Jon, Nov 15: "the reticle can stay 'fixed' to the ship"): each
+	# bracket on its part where the ship is as this frame is drawn, arriving or zooming; the words
+	# wait for the ship to stop (`_settle_on_ship`). Why: docs/why/ShipChoices.md#nothing-on-a-moving-ship
+	var hull := _hull_now()
 	for k in _marks.size():
 		var m := _marks[k]
 		if m.part == &"":
 			continue
-		var a := (HOT_A if k == _hover else DIM_A) * _in * _on_ship
-		var r := m.rect.grow((1.0 - _in) * SETTLE_PX)
-		draw_brackets(self, r, Color(UITheme.MARK, a))
-		_draw_leader(m, Color(UITheme.MARK, (0.8 if k == _hover else 0.4) * _in * _on_ship))
+		var live := _part_rect(m.part, hull) if hull.has_area() else m.rect
+		m.drawn = live
+		var hot := k == _hover and _on_ship > 0.0
+		var a := (HOT_A if hot else DIM_A) * _in
+		draw_brackets(self, live.grow((1.0 - _in) * SETTLE_PX), Color(UITheme.MARK, a))
+		if _on_ship > 0.0:
+			_draw_leader(m, Color(UITheme.MARK, (0.8 if hot else 0.4) * _in * _on_ship))
 
 
 ## The event tag's tick down (or across) to whoever talks.
@@ -908,6 +948,20 @@ class Tag extends Control:
 		mouse_entered.connect(func() -> void: hovered.emit(true))
 		mouse_exited.connect(func() -> void: hovered.emit(false))
 
+	## The rows a label's lines stand on: its first baseline, so the ink (cap tops to the last
+	## line's foot) has as many empty rows over it as under it inside the box (Jon, Nov 15).
+	func baseline() -> float:
+		var lines: Array[String] = [verb]
+		if cost != "" and not loot:
+			lines.append(cost)
+		if note != "" and not loot:
+			lines.append(note)
+		var top := ShipChoices.ink_of(lines[0]).x
+		var bot := ShipChoices.ink_of(lines[lines.size() - 1]).y
+		return floorf((size.y - top - float(lines.size() - 1) * LINE - bot) * 0.5)
+
+	const LINE := 11.0
+
 	func want() -> Vector2:
 		var f := UITheme.pixel_font()
 		var w := f.get_string_size(verb, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS).x
@@ -932,9 +986,10 @@ class Tag extends Control:
 		var f := UITheme.pixel_font()
 		var asc := f.get_ascent(ShipChoices.FS)
 		var r := Rect2(Vector2.ZERO, size)
+		var b0 := baseline()
 		if loot:
 			ShipChoices.draw_brackets(self, r, Color(UITheme.MARK, ShipChoices.HOT_A if hot else ShipChoices.DIM_A))
-			draw_string(f, Vector2(6, 4 + asc), verb, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, UITheme.HOT)
+			draw_string(f, Vector2(6, b0), verb, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, UITheme.HOT)
 			return
 		draw_rect(r, Color(ShipChoices.FILL, 0.92 if hot else 0.75))
 		if hot:
@@ -944,13 +999,15 @@ class Tag extends Control:
 			draw_rect(Rect2(0, 0, 1, size.y), e)
 			draw_rect(Rect2(size.x - 1, 0, 1, size.y), e)
 		var vi := ShipChoices.WHITE if hot else Color(ink, 0.8 if live else 0.5)
-		draw_string(f, Vector2(6, 5 + asc), verb, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, vi)
+		draw_string(f, Vector2(6, b0), verb, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, vi)
+		var y := b0
 		if cost != "":
 			# the price and the odds stay legible on a dim label: danger is read at a glance
-			draw_string(f, Vector2(6, 16 + asc), cost, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, Color(cost_ink, 1.0 if hot else 0.85))
+			y += LINE
+			draw_string(f, Vector2(6, y), cost, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, Color(cost_ink, 1.0 if hot else 0.85))
 		if note != "":
-			var ny := (27.0 if cost != "" else 16.0) + asc
-			draw_string(f, Vector2(6, ny), note, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, UITheme.WARN)
+			y += LINE
+			draw_string(f, Vector2(6, y), note, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, UITheme.WARN)
 
 
 ## The event tag: the title (gold) and its tag word, who or where it is from, then the text as it arrives.

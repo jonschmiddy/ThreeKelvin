@@ -198,7 +198,8 @@ func open_held() -> void:
 		return
 	var i := int(deferred[1])
 	deferred = []
-	_fade_in()
+	# (no fade from black: LOCAL has been on screen through its own arrival, and a black frame
+	# here flashed the whole screen as the event opened -- Jon, Nov 16)
 	open(i)
 
 
