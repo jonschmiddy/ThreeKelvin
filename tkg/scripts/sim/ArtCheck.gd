@@ -84,7 +84,7 @@ func run() -> void:
 				c.name, c.glyph_kind(), c.type_name(),
 				c.describe().replace("
 ", " "),
-				c.manufacturer if c.manufacturer != &"" else "-",
+				c.look_manufacturer() if c.look_manufacturer() != &"" else "-",
 				str(row["from"]),
 				src.name if src != null else "-",
 				(src.flavour if src != null else "").replace("

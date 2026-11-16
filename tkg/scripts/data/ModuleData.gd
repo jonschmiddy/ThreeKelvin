@@ -151,10 +151,10 @@ func resolved_cards() -> Array[CardData]:
 		c.base_glyph = c.glyph_kind()
 		c.source_module = name
 		c.source_id = id
-		# Shared cards stay common and unbranded; only `source_module` points back at the part.
+		# Every card belongs to its part's manufacturer for the rules; a shared one only LOOKS unbranded.
 		# Why: docs/why/ModuleData.md#shared-card-identity
+		c.manufacturer = manufacturer
 		if not c.shared:
-			c.manufacturer = manufacturer
 			c.source_rarity = int(rarity)
 		# The law fills in whatever the card did not declare. Authoring a rarity
 		# is for the exceptions; the shape of the part decides the rest.

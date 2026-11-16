@@ -131,7 +131,7 @@ func setup(c: CardData, can_play: bool, scale_step: int = 1) -> void:
 	card = c
 	playable = can_play
 	_s = maxi(1, scale_step)
-	_tint = DB.manufacturer_colour(c.manufacturer)
+	_tint = DB.manufacturer_colour(c.look_manufacturer())
 	custom_minimum_size = Vector2(CARD_W * _s, CARD_H * _s)
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -288,7 +288,7 @@ func _junk_banner() -> void:
 
 func _banner() -> void:
 	var s := float(_s)
-	var manufacturer: ManufacturerData = DB.manufacturers.get(card.manufacturer)
+	var manufacturer: ManufacturerData = DB.manufacturers.get(card.look_manufacturer())
 	var b := _z(Z_BANNER)
 	var field := manufacturer.field if manufacturer != null else UITheme.PANEL
 	var mark := manufacturer.colour if manufacturer != null else UITheme.COLD
@@ -309,7 +309,7 @@ func _banner() -> void:
 ## Carve the bottom edge into the manufacturer's shape by painting the card back over
 ## it. Cheaper than authoring seven polygons and it stays on the pixel grid.
 func _cut(b: Rect2, mark: Color) -> void:
-	draw_cut(self, card.manufacturer, b, mark, UITheme.PANEL2, float(_s))
+	draw_cut(self, card.look_manufacturer(), b, mark, UITheme.PANEL2, float(_s))
 
 ## Static so chassis select can draw them at 4x. `back` must be the banner's ground.
 ## Why: docs/why/CardView.md#banner-hems
@@ -384,7 +384,7 @@ static func draw_cut(ci: CanvasItem, manufacturer: StringName, b: Rect2, mark: C
 ## Offsets are halves (-6.5 for 13): whole numbers put all seven emblems half a pixel off.
 ## Why: docs/why/CardView.md#emblem-centring
 func _emblem(c: Vector2, mark: Color, field: Color) -> void:
-	draw_emblem(self, card.manufacturer, c, float(_s), mark, field)
+	draw_emblem(self, card.look_manufacturer(), c, float(_s), mark, field)
 
 ## Static so the ship tab wears the same emblems; two copies of the offsets would drift.
 ## Why: docs/why/CardView.md#emblems

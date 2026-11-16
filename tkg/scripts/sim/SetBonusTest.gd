@@ -45,6 +45,7 @@ func _run() -> void:
 	print("-- korvan")
 	_korvan_3()
 	_korvan_5()
+	_shared_stamp()
 	print("-- solari")
 	_solari_3()
 	_solari_5()
@@ -184,6 +185,19 @@ func _korvan_5() -> void:
 		var hit := _play(cb, c)
 		_ok("first attack, salvo 3, %s: %d (shown %d)" % ["set" if on else "no set", hit, preview],
 			hit == (5 if on else 2) and preview == hit)
+
+
+## A shared card counts as its part's for the rules but is drawn unbranded (Jon, Oct 18).
+func _shared_stamp() -> void:
+	var slug: CardData = null
+	for c in (DB.modules[&"kh20"] as ModuleData).resolved_cards():
+		if (c as CardData).shared:
+			slug = c
+	_ok("the Chatterbox grants a shared card", slug != null)
+	if slug == null:
+		return
+	_ok("its shared card is Korvan's for the rules (%s)" % slug.manufacturer, slug.manufacturer == &"korvan")
+	_ok("and drawn unbranded, common", slug.look_manufacturer() == &"" and slug.source_rarity == 0)
 
 
 func _solari_3() -> void:

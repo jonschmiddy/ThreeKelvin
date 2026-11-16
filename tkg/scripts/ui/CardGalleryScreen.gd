@@ -113,13 +113,13 @@ func _fill(col: VBoxContainer) -> int:
 		# Count Law decides what a module puts in a deck.
 		for c in m.resolved_cards():
 			var cd: CardData = c
-			# Filed by the card's own manufacturer, not its part's (Jon, Oct 18):
+			# Filed by the card's LOOK, not its part's (Jon, Oct 18; `look_manufacturer()`):
 			# a shared card a Korvan part grants is drawn unbranded, so it files under UNBRANDED.
 			# Why: docs/why/CardGalleryScreen.md#card-manufacturer
 			if manufacturer == &"(unbranded)":
-				if cd.manufacturer != &"":
+				if cd.look_manufacturer() != &"":
 					continue
-			elif manufacturer != &"" and cd.manufacturer != manufacturer:
+			elif manufacturer != &"" and cd.look_manufacturer() != manufacturer:
 				continue
 			if grade >= 0 and cd.rarity != grade:
 				continue

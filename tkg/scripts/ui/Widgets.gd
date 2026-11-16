@@ -353,7 +353,7 @@ static func card_readout(c: CardData) -> PanelContainer:
 	var panel := PanelContainer.new()
 	var sb := UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 7, 8)
 	sb.border_width_left = 3
-	sb.border_color = DB.manufacturer_colour(c.manufacturer)
+	sb.border_color = DB.manufacturer_colour(c.look_manufacturer())
 	panel.add_theme_stylebox_override("panel", sb)
 	panel.custom_minimum_size = Vector2(178, 0)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE

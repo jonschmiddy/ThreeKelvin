@@ -344,10 +344,18 @@ CONSTRUCTION and there is no review step to forget.
 
 ## Shared card identity
 
-Inside `resolved_cards()`, above `if not c.shared:`:
+Inside `resolved_cards()`, above `c.manufacturer = manufacturer`:
+
+Nov 16 (Job B4 of the Korvan pass): the RULES and the LOOK split. Every card,
+shared or not, is stamped with its part's manufacturer, so the set bonuses
+(Standard Issue, Full Broadside, Sunward, Bespoke) count a shared card as the
+granting part's, as `docs/rulings.md` says a card belongs to the part that
+granted it. What the card is drawn and filed as comes from
+`CardData.look_manufacturer()`, which is none for a shared card, per Jon's
+Oct 18 ruling below. Shared cards keep `source_rarity` 0, their common tick.
 
 ```text
-THE PART'S IDENTITY IS NOT THE CARD'S, for anything out of the shared
+THE PART'S IDENTITY IS NOT THE CARD'S LOOK, for anything out of the shared
 vocabulary. Branding a shared card with whatever granted it put four
 Ranges in the catalogue under two manufacturers and three rarity ticks,
 all with the same rules line. `source_module`/`source_id` still point
