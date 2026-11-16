@@ -49,6 +49,12 @@ var _key := ""
 ## Where the event tag stands for this event, kept from step 1 to step 3: its side of whoever talks,
 ## its width, its tick and its slide along that side.
 var _spot: Dictionary = {}
+## What is on your ship, faded in once the ship has stood still (`_settle_on_ship`).
+var _on_ship := 0.0
+var _still := 0.0
+var _last_hull := Vector2.INF
+const STILL_S := 0.2
+const FADE_S := 0.15
 var _age := 0.0
 ## How long after an event opens its event tag may still be placed again.
 const SPOT_SETTLE_S := 0.25
@@ -185,6 +191,8 @@ func _bridge() -> void:
 func _clear(m: StringName) -> void:
 	mode = m
 	showing = false
+	# (each page's marks fade in once laid out, never at their unplaced corner)
+	_on_ship = 0.0
 	_wait = -1.0
 	_hover = -1
 	for mk in _marks:
@@ -250,10 +258,10 @@ func _arrive(settle: bool) -> void:
 
 func _show_marks(on: bool) -> void:
 	for m in _marks:
-		m.tag.visible = on
-		m.tag.modulate.a = _in
+		m.tag.visible = on and _on_ship > 0.0
+		m.tag.modulate.a = _in * _on_ship
 		if m.hit != null:
-			m.hit.visible = on
+			m.hit.visible = on and _on_ship > 0.0
 
 
 func _press(k: int) -> void:
@@ -305,7 +313,7 @@ func _process(delta: float) -> void:
 	if showing and _in < 1.0:
 		_in = minf(1.0, _in + delta / SETTLE_S)
 		for m in _marks:
-			m.tag.modulate.a = _in
+			m.tag.modulate.a = _in * _on_ship
 		queue_redraw()
 	_hull = _hull_now()
 	# (a tumbling subject's box changes every frame: nothing that can be clicked follows it closely)
@@ -317,6 +325,40 @@ func _process(delta: float) -> void:
 		_key = key
 		_lay()
 		queue_redraw()
+	_settle_on_ship(delta)
+
+
+## NOTHING OF OURS ON A MOVING SHIP (Jon, Nov 15: SCAN SECTOR sat at the screen's edge, then rode in
+## with the ship): what is on your ship shows once the ship has stopped (LOCAL settled, no arrival,
+## its box still for `STILL_S`) and fades in over `FADE_S`; it goes at once when the ship moves.
+func _settle_on_ship(delta: float) -> void:
+	var still := _settled() and _hull.has_area() and _hull.position.distance_to(_last_hull) < 0.5
+	_last_hull = _hull.position
+	_still = _still + delta if still else 0.0
+	var was := _on_ship
+	if _still < STILL_S:
+		_on_ship = 0.0
+	else:
+		_on_ship = minf(1.0, _on_ship + delta / FADE_S)
+	for m in _marks:
+		var on := showing and _on_ship > 0.0
+		m.tag.visible = on
+		m.tag.modulate.a = _in * _on_ship
+		if m.hit != null:
+			m.hit.visible = on
+	if was != _on_ship:
+		queue_redraw()
+
+
+func _settled() -> bool:
+	var view := _view()
+	var sv := view.ship_view() if view != null else null
+	if sv == null or not sv.is_visible_in_tree() or sv.arriving():
+		return false
+	var sc := drawer.screen
+	if sc != null and sc.has_method(&"settled_local") and not bool(sc.call(&"settled_local")):
+		return false
+	return not (sc != null and (bool(sc.get("_flyin")) or bool(sc.get("_flyin_wait"))))
 
 
 ## Your hull's drawn box here (its opaque pixels, the bob taken out), and which way it faces.
@@ -765,17 +807,17 @@ func _draw() -> void:
 	var asc := f.get_ascent(FS)
 	for row: Array in _rows:
 		if row.size() >= 3:
-			draw_string(f, Vector2(row[2]) + Vector2(0, asc), String(row[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, FS, row[1])
-	if not showing:
+			draw_string(f, Vector2(row[2]) + Vector2(0, asc), String(row[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, FS, Color(row[1] as Color, (row[1] as Color).a * _on_ship))
+	if not showing or _on_ship <= 0.0:
 		return
 	for k in _marks.size():
 		var m := _marks[k]
 		if m.part == &"":
 			continue
-		var a := (HOT_A if k == _hover else DIM_A) * _in
+		var a := (HOT_A if k == _hover else DIM_A) * _in * _on_ship
 		var r := m.rect.grow((1.0 - _in) * SETTLE_PX)
 		draw_brackets(self, r, Color(UITheme.MARK, a))
-		_draw_leader(m, Color(UITheme.MARK, (0.8 if k == _hover else 0.4) * _in))
+		_draw_leader(m, Color(UITheme.MARK, (0.8 if k == _hover else 0.4) * _in * _on_ship))
 
 
 ## The event tag's tick down (or across) to whoever talks.

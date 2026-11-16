@@ -60,3 +60,14 @@ has nothing up, a bracket on your ship's bridge (the raised command deck, top fr
 SCAN SECTOR; clicking it zooms LOCAL out to the sector map, as the shelf's SCAN SECTOR did. FLY ON
 is gone. Walk-away choices and NOT NOW stay on the bow and only close the event. Never while the
 choices are up, in a fight, or while an event is about to open on its own.
+
+## Nothing on a moving ship
+
+Jon, Nov 15, playing it: entering the first sector, BRIDGE: SCAN SECTOR stood at the screen's left
+edge, then rode in with the ship. What is on your ship (the part brackets and labels, SCAN SECTOR,
+the reward stack) shows only once the ship has stopped: LOCAL settled (`SectorScreen.settled_local`,
+no fly-in), the ship not arriving, and its box still for `STILL_S`; then it fades in over `FADE_S`.
+It goes at once when the ship moves (an arrival, a GO, the zoom ladder, a dock flight). The event
+tag is on the subject, not the ship, and is not held. `ShipChoicesTest` watches a first arrival and a
+GO frame by frame.
+

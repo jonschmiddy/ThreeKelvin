@@ -43,6 +43,7 @@ func _run() -> void:
 	await _warns()
 	await _hulls(n)
 	await _sweep(n)
+	await _arrivals(n)
 	await _same_as_the_card()
 	_end()
 
@@ -178,10 +179,10 @@ func _open_settled(i: int) -> bool:
 	if _d.text != null:
 		_d.text.skip()
 	var f := 0
-	while _ov() != null and not _ov().showing and f < 240:
+	while _ov() != null and not (_ov().showing and float(_ov().get("_on_ship")) >= 1.0) and f < 300:
 		await Harness.frames(_tree, 1)
 		f += 1
-	await Harness.frames(_tree, 20)
+	await Harness.frames(_tree, 4)
 	return _ov() != null and _ov().showing
 
 
@@ -442,7 +443,10 @@ func _sweep(n: MapGen.MapNode) -> void:
 			n.taken.clear()
 			n.left.clear()
 			_d.open(0)
-			await Harness.frames(_tree, 6)
+			var fs := 0
+			while _ov() != null and not (_ov().showing and float(_ov().get("_on_ship")) >= 1.0) and fs < 120:
+				await Harness.frames(_tree, 1)
+				fs += 1
 			if _ov() == null or not _ov().showing:
 				continue
 			opened += 1
@@ -457,6 +461,71 @@ func _sweep(n: MapGen.MapNode) -> void:
 		opened >= 400 and crowded.is_empty())
 	Run.fit_chassis(&"korvan", HullData.Weight.MEDIUM, 0)
 	Router.animate_in_harness = true
+
+
+## NOTHING OF OURS ON A MOVING SHIP: a real first arrival (LOCAL's approach) and a GO from the map
+## (the zoom down and the fly-in): no mark of ours shows until the ship has stopped, and none moves
+## once it has shown.
+func _arrivals(n: MapGen.MapNode) -> void:
+	SkillCheck.forced = -1
+	SectorScreen._approached_at = -1
+	LocalEventDrawer.pending = []
+	Router.show_local()
+	await _watch("the first arrival", 900)
+	ZoomLadder.force = 1
+	n.options.assign([&"dropped_load"])
+	n.taken.clear()
+	n.results.clear()
+	Router.show_system()
+	await Harness.frames(_tree, 60)
+	var map := Router.current as SystemMapScreen
+	if _ok("the sector map is up for GO", map != null):
+		map.go_event(0)
+		await _watch("a GO", 4000)
+	ZoomLadder.force = -1
+
+
+## Frame by frame: our marks while the ship moves, and where they stand once they show.
+func _watch(what: String, cap: int) -> void:
+	var early := 0
+	var moved := 0
+	var shown_at := -1
+	var at := {}
+	var last := Rect2()
+	var f := 0
+	while f < cap:
+		await Harness.frames(_tree, 1)
+		f += 1
+		var sc := Router.current as SectorScreen
+		if sc == null:
+			continue
+		var d: LocalEventDrawer = sc.get("_events")
+		var ov: ShipChoices = d.get("_ship") if d != null else null
+		var view: EncounterView = sc.get("_view")
+		var sv := view.ship_view() if view != null else null
+		if ov == null or sv == null:
+			continue
+		var hull := UiRect.of(sv)
+		var moving := sv.arriving() or not sc.settled_local() or bool(sc.get("_flyin")) or hull != last
+		last = hull
+		var seen := {}
+		for c in ov.get_children():
+			if c is ShipChoices.Tag and (c as Control).is_visible_in_tree() and (c as Control).modulate.a > 0.01 and not (c as ShipChoices.Tag).bare:
+				seen[String(c.name)] = (c as Control).global_position
+		if seen.is_empty():
+			continue
+		if moving:
+			early += 1
+		if shown_at < 0:
+			shown_at = f
+			at = seen
+		for k in seen:
+			if at.has(k) and (seen[k] as Vector2).distance_to(at[k]) > 0.5:
+				moved += 1
+		if f - shown_at > 40:
+			break
+	_ok("%s: nothing of ours on the ship while it moves (%d frames), shown at frame %d" % [what, early, shown_at], early == 0 and shown_at > 0)
+	_ok("  and nothing moved once shown (%d)" % moved, moved == 0)
 
 
 ## The part click and the band's card resolve the same (the same choice, band, text and bill).
