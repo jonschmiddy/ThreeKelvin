@@ -259,7 +259,7 @@ static func all() -> Array[Dictionary]:
 			text = "Deck plating with a seized hull's registry still in the grain. Scrubbing it off is illegal, and leaving it on is worse."},
 		{id = &"counterfeit_seals", name = "COUNTERFEIT SEALS", tier = &"contraband", cells = "1x1",
 			value = 130, drops = &"event",
-			text = "Fake Korvan delivery seals that pass for real. Korvan says that makes them real, and Korvan's property."},
+			text = "Fake Korvan delivery seals that pass for real. Korvan says that makes them real, and real ones are Korvan's property."},
 		{id = &"orphan_charts", name = "ORPHAN CHARTS", tier = &"contraband", cells = "1x1",
 			value = 88, drops = &"wreck",
 			text = "Survey charts of shells no manufacturer has claimed. Owning them is legal, but reading them is not."},

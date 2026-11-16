@@ -834,9 +834,11 @@ const PASSIVE_AXIS := {
 	# gauge at all, which for a part whose entire job is relief was an omission.
 	&"blowout": [&"thermal"],
 	# Not being hit and going first, which is also one gauge.
-	&"chaff": [&"maneuver"], &"singing": [&"maneuver"], &"servo": [&"maneuver"],
+	&"chaff": [&"maneuver"], &"singing": [&"maneuver"],
 	# Seeing.
 	&"auspex": [&"sensors"], &"board": [&"sensors"], &"scope": [&"sensors"],
+	# Korvan leaves maneuver to Redline and Cygnet (catalogue §5): its servo aims.
+	&"servo": [&"sensors"],
 	&"optics": [&"sensors"], &"coldsights": [&"sensors"], &"director": [&"sensors"],
 	&"evoke": [&"sensors"], &"organ": [&"sensors"],
 	# Not being seen.

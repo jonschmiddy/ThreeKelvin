@@ -669,8 +669,10 @@ either.
   in pockets that fit a 3×3 in 1,226 places and a 10×6 in three. An S differs
   from a C by 116 pixels. It needs a PLAINER BASE HULL, not tuning.
 
-**Hull art:** twelve Korvan pictures (every weight and grade) and one Solari picture per
-weight, under `art/sprites/hulls/`. A hull without a picture still falls back to the
+**Hull art:** three Korvan pictures and three Solari ones, one per weight, under
+`art/sprites/hulls/`; `HullGrade` bakes the four grades from each. Korvan's folder still
+holds nine older per-grade files (`hull_*_{a,b,c,s}` beyond the three in `HULL_ART`)
+that no game path draws. A hull without a picture still falls back to the
 procedural path, and `ShipView` picks per hull. Meta-progression is now exactly one
 thing: manufacturer unlocks, which grant no power. See both rulings above.
 

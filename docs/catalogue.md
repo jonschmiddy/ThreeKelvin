@@ -113,7 +113,7 @@ A manufacturer's cards should be recognisable as that manufacturer *without the 
 
 | Manufacturer | What its cards do |
 | --- | --- |
-| Korvan Heavy Works | Ballistics, armour, cold. Big numbers, no heat. |
+| Korvan Heavy Works | Guns that run cold, charged shots and plate that cost heat. |
 | Solari Forge | Heat as a resource. Pays in temperature for everything. |
 | The Probate Combine | Salvage, credits, taking things apart. |
 | Redline Shipyards | Cheap, improvised, hot. Draw attached to everything. |

@@ -159,7 +159,7 @@ The roster of seven:
 
 | Manufacturer | Identity | Mechanics | Weakness |
 |---|---|---|---|
-| **Korvan Heavy Works** | *"It fires. Every time."* Ex-military surplus; ugly, riveted, reliable | Two lanes — **Ballistics** (cheap multi-hit kinetics, near-zero heat; Salvo) and **Ordnance** (Charge mega-weapons, banked payoffs) — plus heat-costing persistent armor (Brace). Full spec: `catalogue.md` and `Database.gd` | Poor dissipation; low dodge/initiative; if the alpha misses the window, panic |
+| **Korvan Heavy Works** | *"It fires. Every time."* Ex-military surplus; ugly, riveted, reliable | Two lanes — **Ballistics** (cheap multi-hit kinetics, near-zero heat; Salvo) and **Ordnance** (Charge mega-weapons, banked payoffs) — plus heat-costing persistent armor (Brace). Full spec: `catalogue.md` and `Database.gd` | Low dodge and initiative; plate and charged shots cost heat; if the alpha misses the window, panic |
 | **Solari Forge** | Sun-worshipping industrial cult | Weaponized heat: plasma damage scales with current heat, deliberate overheating for payoff, offensive venting | Self-damage is real; heat-reduction loot is anti-synergy (inverted chase items) |
 | **The Probate Combine** | Breaker yards that stopped competing and started invoicing | Credit & salvage galore: credits-on-kill, salvage→armor conversion, armor sustain, salvage bonuses from wrecks | Low burst, bad initiative; fights drag |
 | **Redline Shipyards** | Chop-shop salvage-tech; jury-rigged refits | Stealth, refitting, stolen tech: evasion, initiative, mid-combat module reconfiguration, **innate contraband affinity** (smuggling capacity, black-market access) | Paper hull; cornered = dead |
