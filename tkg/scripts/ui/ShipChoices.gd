@@ -161,8 +161,8 @@ func result(out: Dictionary) -> SignalText:
 
 
 ## What landed on the pile, each with its picture, name and ink: [[Texture2D, name, Color], ...].
-static func _things(out: Dictionary) -> Array:
-	var got: Array = []
+static func _things(out: Dictionary) -> Array[Array]:
+	var got: Array[Array] = []
 	for g: Dictionary in out.get("got", []):
 		if not bool(g.get("gain", false)) or not g.has("item"):
 			continue
