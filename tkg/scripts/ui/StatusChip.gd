@@ -116,6 +116,15 @@ class Glyph extends Control:
 
 
 ## `text` is the number; pass empty for an on or off status and the chip is the icon alone.
+## A Feed's Salvo (F2): it lasts into next turn and sits on no card in hand, so it is a chip.
+static func add_feed(row: Control, cb: Combat) -> void:
+	if cb.salvo_boost > 0 and cb.turn <= cb.salvo_boost_until:
+		row.add_child(make(&"salvo", "+%d" % cb.salvo_boost, Color("#6e5a3a"),
+			"SALVO
+
+Your guns get %d more Salvo until the end of next turn." % cb.salvo_boost))
+
+
 static func make(kind: StringName, text: String, colour: Color,
 		tip: String) -> StatusChip:
 	var chip := StatusChip.new()

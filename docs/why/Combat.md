@@ -409,8 +409,8 @@ made it the one you could least afford to spam and the only one you could.
 
 Above `func salvo_live(_c: CardData) -> bool:`:
 
-Nov 16: Full Broadside is gone (Jon picked pairing B, "Load, then fire",
-`tk-scratch/makers/korvan/setbonus.md`), so Salvo pays after your first attack
+Nov 16: Full Broadside is gone (Jon picked pairing B, "Load, then fire", from
+the Nov 16 Korvan set-bonus design in tk-scratch), so Salvo pays after your first attack
 this turn and never before, for every card. That brings back the opening puzzle:
 lead with a cheap gun so the big one gets Salvo. A charge that lands at the start
 of the turn is an attack, so on a firing turn every gun already has it. A Feed

@@ -896,6 +896,14 @@ func salvo_bonus(c: CardData) -> int:
 	return c.salvo + (salvo_boost if turn <= salvo_boost_until else 0)
 
 
+## The Salvo a resolving gun adds to each hit, logged.
+func salvo_hit(c: CardData) -> int:
+	var sv := salvo_bonus(c)
+	if sv > 0:
+		log_line("  salvo +%d/hit" % sv, &"good")
+	return sv
+
+
 ## Feed (F2, Nov 16): every gun gets this much more Salvo until the end of next turn.
 func feed_salvo(amount: int) -> void:
 	if turn > salvo_boost_until:

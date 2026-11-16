@@ -1715,16 +1715,11 @@ func _refresh_player() -> void:
 	# Named by the card keywords `KW_NEGATE` and `KW_GROWS` (tutorial audit, Oct 22).
 	if combat.negate_next:
 		_player_chips.add_child(StatusChip.make(&"slip", "", UITheme.GOOD,
-			"%s\n\nThe next attack on you does nothing." % CardData.KW_NEGATE.to_upper()))
-	# No salvo chip: it was not a status, and the live number now prints on the card.
-	# Why: docs/why/SectorScreen.md#status-chips
-	# A Feed's Salvo IS a status: it lasts into next turn and is on no card in hand.
-	if combat.salvo_boost > 0 and combat.turn <= combat.salvo_boost_until:
-		_player_chips.add_child(StatusChip.make(&"salvo", "+%d" % combat.salvo_boost,
-			Color("#6e5a3a"), "SALVO
+			"%s
 
-Your guns get %d more Salvo until the end of next turn."
-				% combat.salvo_boost))
+The next attack on you does nothing." % CardData.KW_NEGATE.to_upper()))
+	# A card's Salvo prints on the card; only a Feed's, which outlasts the turn, is a chip.
+	StatusChip.add_feed(_player_chips, combat)  # Why: docs/why/SectorScreen.md#status-chips
 	if combat.feedback > 0:
 		_player_chips.add_child(StatusChip.make(&"feedback", str(combat.feedback),
 			Color("#6e3a4a"), "FEEDBACK\n\nWhen an enemy attacks you, it takes %d damage." % combat.feedback))

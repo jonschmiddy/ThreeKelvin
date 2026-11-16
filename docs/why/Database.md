@@ -272,7 +272,11 @@ fired nothing; Fire Mission (5) pays 2 for each Korvan charge that lands. A
 charge landing at the start of a turn counts as the first attack, so every gun
 that turn has its Salvo, and Feed loads more Salvo on the quiet turn. Full Auto
 became a charge gun so three weapon parts (KM-4, KH-88, Widowmaker) feed the
-5-set. The old reason, kept for the record: Full Broadside made salvo fire on
+5-set. The Nov 16 retune gave each dominated card a job: Bore Sight is the
+biggest mark under epic, paid in energy (Cold Read is the free one, Cold Sights
+cools); Bulkhead is the most plate one energy buys, paid in heat (Standfast and
+Cold Store cool); Siege Round hits for 60, well past Drumfire's 40, to pay for
+the wait and the heat. The old reason, kept for the record: Full Broadside made salvo fire on
 the first attack, so every point of it was worth double to a committed build.
 
 Utility is built on LOCK-ON for the mirror reason: lock-on adds per HIT, so

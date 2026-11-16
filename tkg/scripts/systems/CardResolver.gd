@@ -44,10 +44,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 			cb.log_line("  flashpoint +%d/hit" % c.flashpoint, &"good")
 		if c.adapt > 0:
 			dmg += cb.adapt_bonus
-		var sv := cb.salvo_bonus(c)
-		if sv > 0:
-			dmg += sv
-			cb.log_line("  salvo +%d/hit" % sv, &"good")
+		dmg += cb.salvo_hit(c)
 		if cb.lock_on > 0:
 			dmg += cb.lock_on
 			cb.log_line("  lock-on +%d/hit" % cb.lock_on, &"good")
@@ -57,10 +54,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.lock_on = 0
 		cb.attacks_this_turn += 1
 
-	# Salvo on a card that fires nothing is a Feed: it loads the guns and is not an attack.
-	if c.salvo > 0 and c.damage <= 0 and not c.damage_equals_heat:
-		cb.feed_salvo(c.salvo)
-
+	if c.salvo > 0 and c.damage <= 0: cb.feed_salvo(c.salvo)  # a Feed: loads the guns, not an attack
 	if c.drone_damage > 0:
 		var d2 := Combat.Drone.new()
 		d2.damage = c.drone_damage

@@ -328,15 +328,12 @@ func _seed_modules() -> void:
 	_module(&"servo", "Targeting Servo", &"korvan", U, C0,
 		"Paints the target for whatever fires next.",
 		## Bore Sight and not Lock On: Lock on is the keyword, as with Brace and Bolt On.
-		## The biggest mark under epic, paid in energy; Cold Read is the free one, Cold Sights cools.
 		[{name = "Bore Sight", energy = 1, lock_on = 6, copies = 1}])
 	_module(&"kh88", "KH-88 Jackhammer", &"korvan", W, C2,
 		"Rotary cannon. It fires many small rounds.",
-		## Ordnance since Hold Fire (Nov 16): it spins up for a turn, so Fire Mission backs three guns.
 		[{name = "Full Auto", energy = 2, heat = 2, damage = 3, hits = 5, charge_turns = 1}, &"feed"])
 	_module(&"widow", "Widowmaker Siege Driver", &"korvan", W, C3,
 		"Charges for two turns, then hits very hard.",
-		## One shot well past Drumfire's best, to pay for the wait and the heat.
 		[{name = "Siege Round", energy = 3, heat = 6, damage = 60, charge_turns = 2, copies = 1}])
 	_module(&"reactive", "Reactive Plating Array", &"korvan", S, C4,
 		"Armor that hits back at attackers.",
@@ -367,7 +364,6 @@ func _seed_modules() -> void:
 		"For the turn you have nothing to shoot with.",
 		[{name = "Dig In", energy = 1, block = 8, brace = 2},
 			{name = "Set Feet", energy = 1, block = 12, feedback = 3}])
-	# Bulkhead is the most plate one energy buys, paid in heat; Standfast and Cold Store cool.
 	_module(&"bulkhead", "Bulkhead Array", &"korvan", S, C3,
 		"Heavy plate, which is Korvan's fix for most problems.",
 		[{name = "Bulkhead", energy = 1, heat = 2, brace = 12},
