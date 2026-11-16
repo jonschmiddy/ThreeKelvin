@@ -156,7 +156,7 @@ static func flashpoint_live(c: CardData) -> bool:
 	return c.flashpoint > 0 and Run.heat + c.heat > Run.heat_cap()
 
 
-## Solari 3 (Heat Blast): any vent, any maker's card, hits for half the heat shed, rounded up.
+## Solari 3 (Heat Blast): any vent from any card hits for half the heat shed, rounded up.
 ## Why: docs/why/CardResolver.md#heat-blast
 static func heat_blast(shed: int, cb: Combat) -> void:
 	if shed <= 0 or not Run.has_set(&"solari", 3):

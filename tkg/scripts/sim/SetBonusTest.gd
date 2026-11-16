@@ -228,7 +228,7 @@ func _solari_3() -> void:
 	for on in [false, true]:
 		_used(&"solari", 3 if on else 2)
 		var cb := _fight()
-		# Any vent, any maker's card, half the heat shed rounded up; a gun gets nothing extra.
+		# Any vent from any card: half the heat shed rounded up; a gun gets nothing extra.
 		var rows := [
 			["a Solari vent", _card(&"solari", {vent = 4}), 11],
 			["a Korvan vent", _card(&"korvan", {vent = 4}), 11],
