@@ -145,7 +145,6 @@ func result(out: Dictionary) -> SignalText:
 	if OptionResolve.shows_reward(out) and not Run.dead:
 		if Run.jetsam_left(drawer.node, Run.sector_jetsam(drawer.node, false)) > 0:
 			_loot(_loot_word(out), "Reward", drawer.open_reward)
-			_marks[_marks.size() - 1].tag.set_things(_things(out))
 		else:
 			_rows.append(["TAKEN", UITheme.COLD])
 	if out.get("stay", false):
@@ -160,26 +159,10 @@ func result(out: Dictionary) -> SignalText:
 	return event_tag.body
 
 
-## What landed on the pile, each with its picture, name and ink: [[Texture2D, name, Color], ...].
-static func _things(out: Dictionary) -> Array[Array]:
-	var got: Array[Array] = []
-	for g: Dictionary in out.get("got", []):
-		if not bool(g.get("gain", false)) or not g.has("item"):
-			continue
-		var it: Variant = g.item
-		var tex: Variant = (it as Object).get("sprite") if it is Object else null
-		got.append([tex as Texture2D if tex is Texture2D else null, String(g.get("name", "")), g.get("tone", UITheme.HOT)])
-	return got
-
-
-## "+1 PART", "+2 PARTS", "+1 THING": what landed on the pile, by what it is.
+## "+1 ITEM", "+2 ITEMS": how many things landed on the pile (Jon, Nov 15: a count, not pictures).
 static func _loot_word(out: Dictionary) -> String:
 	var k := maxi(int(out.get("loot", 0)), 1)
-	var parts := true
-	for g: Dictionary in out.get("got", []):
-		if bool(g.get("gain", false)) and StringName(g.get("kind", &"")) != &"part" and StringName(g.get("kind", &"")) != &"place":
-			parts = false
-	return "+%d %s%s" % [k, "PART" if parts else "THING", "" if k == 1 else "S"]
+	return "+%d ITEM%s" % [k, "" if k == 1 else "S"]
 
 
 func clear() -> void:
@@ -814,30 +797,6 @@ class Tag extends Control:
 	var loot := false
 	## The click box on a part: draws nothing.
 	var bare := false
-	## A loot row's things, each its picture and name (up to `SHOWN`, then "+N").
-	var things: Array = []
-	const SHOWN := 3
-	## Each picture 16 px tall (as the hold shows things), no wider than `PIC_W`.
-	const PIC := 16.0
-	const PIC_W := 36.0
-	var _ws: Array[float] = []
-
-	func set_things(t: Array) -> void:
-		things = t
-		_ws.clear()
-		for th: Array in things:
-			var tex: Texture2D = th[0]
-			var ts := Vector2(tex.get_size()) if tex != null else Vector2(PIC, PIC)
-			_ws.append(clampf(roundf(ts.x * PIC / maxf(ts.y, 1.0)), 8.0, PIC_W))
-		size = want()
-		queue_redraw()
-
-	func _pic_x(i: int) -> float:
-		var x := 6.0
-		for j in i:
-			x += _ws[j] + 3.0
-		return x
-
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		focus_mode = Control.FOCUS_NONE
@@ -852,29 +811,11 @@ class Tag extends Control:
 		if note != "":
 			w = maxf(w, f.get_string_size(note, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS).x)
 		var extra := 11.0 if note != "" else 0.0
-		if loot and not things.is_empty():
-			var more := things.size() - SHOWN
-			var pw := _pic_x(mini(things.size(), SHOWN)) - 9.0
-			if more > 0:
-				pw += 4.0 + f.get_string_size("+%d" % more, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS).x
-			return Vector2(ceilf(pw) + 12.0, PIC + 8.0 + extra)
 		if loot:
 			return Vector2(ceilf(w) + 12.0, 16.0)
 		return Vector2(ceilf(w) + 12.0, (27.0 if cost != "" else 16.0) + extra)
 
 	func _gui_input(e: InputEvent) -> void:
-		# (a loot row names the thing under the pointer)
-		if e is InputEventMouseMotion and not things.is_empty():
-			var px := (e as InputEventMouseMotion).position.x
-			var i := -1
-			for j in mini(things.size(), SHOWN):
-				if px >= _pic_x(j) - 1.5 and px < _pic_x(j) + _ws[j] + 1.5:
-					i = j
-			var nm := String(things[i][1]) if i >= 0 and i < mini(things.size(), SHOWN) else ""
-			if nm != note:
-				note = nm
-				size = want()
-				queue_redraw()
 		var mb := e as InputEventMouseButton
 		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 			accept_event()
@@ -886,27 +827,6 @@ class Tag extends Control:
 		var f := UITheme.pixel_font()
 		var asc := f.get_ascent(ShipChoices.FS)
 		var r := Rect2(Vector2.ZERO, size)
-		if loot and not things.is_empty():
-			var box := Rect2(Vector2.ZERO, Vector2(size.x, PIC + 8.0))
-			ShipChoices.draw_brackets(self, box, Color(UITheme.MARK, ShipChoices.HOT_A if hot else ShipChoices.DIM_A))
-			var x := 6.0
-			for i in mini(things.size(), SHOWN):
-				var tex: Texture2D = things[i][0]
-				var bw: float = _ws[i]
-				if tex != null:
-					var ts := Vector2(tex.get_size())
-					var k := minf(PIC / maxf(ts.y, 1.0), bw / maxf(ts.x, 1.0))
-					var d := (ts * k).round()
-					draw_texture_rect(tex, Rect2(Vector2(x + (bw - d.x) * 0.5, 4.0 + (PIC - d.y) * 0.5).round(), d), false)
-				else:
-					# (a thing with no picture of its own: a block in its tier's colour, as the hold draws it)
-					draw_rect(Rect2(x + 4.0, 8.0, bw - 8.0, PIC - 8.0), things[i][2] if things[i].size() > 2 else UITheme.HOT)
-				x += bw + 3.0
-			if things.size() > SHOWN:
-				draw_string(f, Vector2(x + 1.0, 4.0 + (PIC - 8.0) * 0.5 + asc), "+%d" % (things.size() - SHOWN), HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, UITheme.HOT)
-			if note != "":
-				draw_string(f, Vector2(6, PIC + 8.0 + asc), note, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, UITheme.ICE)
-			return
 		if loot:
 			ShipChoices.draw_brackets(self, r, Color(UITheme.MARK, ShipChoices.HOT_A if hot else ShipChoices.DIM_A))
 			draw_string(f, Vector2(6, 4 + asc), verb, HORIZONTAL_ALIGNMENT_LEFT, -1, ShipChoices.FS, UITheme.HOT)

@@ -306,10 +306,9 @@ func _loot() -> void:
 		await Harness.frames(_tree, 1)
 		f += 1
 	var rw := _tag("Reward")
-	_ok("a part on the pile shows as a bracketed word (%s)" % (rw.verb if rw != null else "none"), rw != null and rw.loot and rw.verb.contains("PART"))
+	_ok("what landed on the pile is a bracketed count (%s)" % (rw.verb if rw != null else "none"), rw != null and rw.loot and rw.verb == "+1 ITEM")
 	if rw == null:
 		return
-	_ok("  as each thing's picture, not a count (%d)" % rw.things.size(), rw.things.size() >= 1 and rw.things[0][1] != "")
 	_d.text.skip()
 	await _click(rw)
 	await Harness.frames(_tree, 3)

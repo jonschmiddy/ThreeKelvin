@@ -116,17 +116,6 @@ func _steps(k: int, id: String) -> void:
 		d.text.skip()
 	await _secs(0.5)
 	_shot("%s_3_result" % id)
-	var rw := ov.find_child("Reward", false, false) as Control
-	if rw != null:
-		# the pointer on the first thing's picture: its name under the row
-		rw.mouse_entered.emit()
-		var fr := GameShell.instance.get("_frame") as SubViewportContainer
-		var mv := InputEventMouseMotion.new()
-		mv.position = fr.get_global_transform() * ((UiRect.of(rw).position + Vector2(14, 12)) * float(fr.stretch_shrink))
-		mv.global_position = mv.position
-		_tree.root.push_input(mv)
-		await _secs(0.3)
-		_shot("%s_3_loot_hover" % id)
 	d.continue_on()
 	await _secs(0.8)
 
