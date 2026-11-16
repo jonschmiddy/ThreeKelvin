@@ -97,22 +97,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.log_line("Next attack on you will be negated.", &"good")
 
 	# After everything that reads heat: Thermal Purge once zeroed the gauge, then hit for 2.
-	var shed := 0
-	if c.vent_all:
-		shed = Run.heat
-		Run.heat = 0
-		if shed > 0:
-			cb.log_line("Purged %d heat." % shed, &"heat")
-
-	if c.vent > 0:
-		# Vent adds the ship's dissipation, which no longer sheds on its own, making it a decision.
-		# Why: docs/why/CardResolver.md#vent-dissipation
-		var v := mini(Run.heat, c.vent + Run.dissipation())
-		Run.heat -= v
-		shed += v
-		if v > 0:
-			cb.log_line("Vented %d heat." % v, &"heat")
-	heat_blast(shed, cb)
+	heat_blast(_vent(c, cb), cb)
 
 	if c.heal > 0 or c.heal_scale > 0:
 		var amount := c.heal_now()
@@ -144,6 +129,25 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 			cb.log_line("  +%d heat from discharge." % c.heat, &"heat")
 
 	Sig.resources_changed.emit()
+
+
+## Sheds the card's vent and returns the heat it took off.
+static func _vent(c: CardData, cb: Combat) -> int:
+	var shed := 0
+	if c.vent_all:
+		shed = Run.heat
+		Run.heat = 0
+		if shed > 0:
+			cb.log_line("Purged %d heat." % shed, &"heat")
+	if c.vent > 0:
+		# Vent adds the ship's dissipation, which no longer sheds on its own, making it a decision.
+		# Why: docs/why/CardResolver.md#vent-dissipation
+		var v := mini(Run.heat, c.vent + Run.dissipation())
+		Run.heat -= v
+		shed += v
+		if v > 0:
+			cb.log_line("Vented %d heat." % v, &"heat")
+	return shed
 
 
 ## Flashpoint pays when the card's own heat leaves you over the cap (Jon, Nov 16, 3B):
