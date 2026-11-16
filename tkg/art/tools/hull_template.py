@@ -25,6 +25,9 @@ light-to-dark break), the plating is divided in the manufacturer's own rhythm,
 rivets ride the seams, there are ports, hatches, fittings and materials, and
 the light bands meet through ordered dithering rather than a hard edge.
 
+Korvan's own row draws a template of its base sprites' shape, so its guide is
+the spec the other six are measured against, written down (Nov 16).
+
 THE GUIDE is measured off Korvan's base for the weight (L1, the medium A, H3),
 which passes -- mounts, MouthSize and YardSeatTest:
   envelope  the base's ink box: inside it the station's mouth and the screens fit
@@ -80,6 +83,7 @@ HEAT = R('#5c280c', '#964214', '#cc641c', '#ffa63c', '#ffdca0')
 
 # the mark and the field (Database._seed_manufacturers)
 YARDS = {
+    'korvan': ('#d97b2e', '#8a4517'),
     'solari': ('#ef9f27', '#3a2408'), 'probate': ('#b3924e', '#6e5a2e'),
     'redline': ('#e24b4a', '#1c2127'), 'cygnet': ('#58c8d8', '#16202e'),
     'verity': ('#8a7340', '#e8e0cc'), 'calyx': ('#3f8f6b', '#e2ece6'),
@@ -201,6 +205,37 @@ def crest(x0, x1, top, n):
 
 
 SPECS = {
+ # Korvan's own, written down off its three base sprites (Nov 16): a long riveted
+ # steel hull, a cone nose at the right, one upright band, a stepped bridge with
+ # twin masts on top, gun pods slung under the belly, paired nozzles low at the stern.
+ 'korvan': {
+  'light': {'parts': [
+     P(('prof', [(0, .40, .80), (.66, .36, .82), (.84, .44, .74), (1, .56, .62)]), 'steel', seams=10, rivets=True,
+       belt=.5, ports=[(.3, .3, .62, 3, 3, 2, 1)], band=(.70, .78)),
+     P(('rect', .40, .20, .60, .38), 'steel', seams=6, rivets=True, ports=[(.4, .25, .8, 2, 3, 2, 1)]),
+     P(('rect', .46, .12, .56, .22), 'dark', seams=4),
+     P(('rect', .26, .80, .58, .90), 'gun', seams=8)],
+   'kit': [[(.48, .12), (.48, .0)], [(.54, .12), (.55, .03)]],
+   'noz': [(.56, .12), (.70, .12)]},
+  'medium': {'parts': [
+     P(('prof', [(0, .40, .80), (.72, .36, .82), (.88, .44, .74), (1, .55, .62)]), 'steel', seams=12, rivets=True,
+       belt=.5, ports=[(.3, .6, .84, 4, 3, 2, 2)], band=(.44, .52)),
+     P(('rect', .30, .20, .54, .38), 'steel', seams=7, rivets=True, ports=[(.4, .2, .8, 3, 3, 2, 1)]),
+     P(('rect', .38, .10, .50, .22), 'dark', seams=4),
+     P(('rect', .62, .28, .72, .38), 'gun', greeb=2),
+     P(('rect', .20, .80, .44, .90), 'gun', seams=8), P(('rect', .56, .80, .78, .90), 'gun', seams=8)],
+   'kit': [[(.42, .10), (.42, .0)], [(.47, .10), (.48, .02)], [(.20, .40), (.20, .30)]],
+   'noz': [(.56, .12), (.72, .12)]},
+  'heavy': {'parts': [
+     P(('prof', [(0, .38, .82), (.74, .34, .86), (.88, .42, .76), (1, .55, .63)]), 'steel', seams=14, rivets=True,
+       belt=.5, ports=[(.3, .2, .64, 5, 3, 2, 2)], band=(.74, .82)),
+     P(('rect', .34, .18, .62, .36), 'steel', seams=8, rivets=True, ports=[(.4, .2, .8, 3, 3, 2, 1)]),
+     P(('rect', .42, .08, .56, .20), 'dark', seams=4),
+     P(('rect', .66, .24, .76, .36), 'gun', greeb=3), P(('rect', .14, .28, .24, .38), 'gun', greeb=2),
+     P(('rect', .16, .82, .40, .92), 'gun', seams=8), P(('rect', .48, .82, .72, .92), 'gun', seams=8)],
+   'kit': [[(.46, .08), (.46, .0)], [(.52, .08), (.53, .01)]],
+   'noz': [(.54, .12), (.70, .12)]},
+ },
  'solari': {
   'light': {'parts': crest_on([(.04, .40, .72), (.18, .34, .82), (.38, .35, .82), (.50, .40, .74), (.60, .45, .68)], 0.08, 0.49, 0.25, 6) + [
      keel([(.04, .40, .72), (.18, .34, .82), (.38, .35, .82), (.50, .40, .74), (.60, .45, .68)], .08, .48, .91, seams=6),
