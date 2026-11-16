@@ -1211,6 +1211,11 @@ combine that invoices other people's disasters, baffled vents for the atelier
 that makes things properly, deep tanks for the company that grows them.
 ```
 
+Nov 16: Solari's A was `overspec_reactor`, the perk its hull already carries.
+`has_perk` is a yes or no, so a Solari A got nothing over a B. It is
+`deep_tanks` now: Solari burns more fuel than most (+0.1), and Baffled Vents
+stays the S, as the strongest answer to Solari's worst venting.
+
 Inside `_seed_perks()`, above `&"deep_tanks": {name = "Deep Tanks", text = "Every jump costs 10% less fuel."},`:
 
 ```text

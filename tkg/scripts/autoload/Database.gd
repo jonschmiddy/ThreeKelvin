@@ -1594,7 +1594,7 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 ## Why: docs/why/Database.md#tier-perks
 const TIER_PERKS := {
 	&"korvan":  [&"salvage_rack", &"deep_tanks", &"overspec_reactor"],
-	&"solari":  [&"salvage_rack", &"overspec_reactor", &"baffled_vents"],
+	&"solari":  [&"salvage_rack", &"deep_tanks", &"baffled_vents"],
 	&"probate": [&"deep_tanks", &"salvage_rack", &"overspec_reactor"],
 	&"redline": [&"deep_tanks", &"baffled_vents", &"quick_hands"],
 	&"cygnet":  [&"salvage_rack", &"deep_tanks", &"baffled_vents"],
