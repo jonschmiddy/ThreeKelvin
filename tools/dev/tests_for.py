@@ -188,6 +188,17 @@ def gate_solo():
     return out
 
 
+def gate_weights():
+    """{unit: seconds} from validate.sh's gate_weight: how long each gate unit takes, so the pool
+    starts the long runs first. A unit's name is its command's label for most sheets."""
+    f = ROOT / ".github" / "scripts" / "validate.sh"
+    if not f.is_file():
+        return {}
+    text = f.read_text(encoding="utf-8", errors="replace")
+    m = re.search(r"^gate_weight\(\)\s*\{(.*?)^\}", text, re.M | re.S)
+    return dict((k, int(v)) for k, v in re.findall(r"([a-z0-9_]+)\) echo ([0-9]+)", m.group(1) if m else ""))
+
+
 def solo_reason(row, cmd, solo):
     """Why this command must run alone (after the pool, one at a time), or ''."""
     if row.mode == "windowed":
@@ -738,7 +749,10 @@ def run_all(picked, jobs, cap, outdir):
                 alone[i] = why
     pool = [i for i in range(len(picked)) if i not in alone]
     if jobs > 1:
-        pool.sort(key=lambda i: -picked[i][0].minutes)   # the long ones first; row order among equals
+        # the long ones first (the gate's weights, else the row's ~N min), row order among equals,
+        # so a four-minute sheet does not start last and hold the tail
+        w = gate_weights()
+        pool.sort(key=lambda i: -max(w.get(picked[i][1].label, 15), picked[i][0].minutes * 60))
     after = [i for i in range(len(picked)) if i in alone]
     if jobs > 1:
         print("\nrunning %d at once, then %d alone (logs in %s):" % (jobs, len(after), outdir))

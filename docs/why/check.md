@@ -60,7 +60,7 @@ reasons that are not the code's:
 gives every process its own fresh profile (APPDATA and LOCALAPPDATA on Windows, HOME and XDG
 elsewhere), so user:// and `TestRun.scratch` are never shared; harnesses write nothing under
 res://, and the gate already runs six Godots on one imported `tkg/` at once. Logs are numbered
-per row. On Windows a run is started suspended inside a job object and then resumed, so
+per row. The pool starts the longest first, by the gate's `gate_weight` seconds. On Windows a run is started suspended inside a job object and then resumed, so
 everything it starts (bash, `timeout`, `godot_console.exe`, `godot.exe`) belongs to the job;
 the job is ended after every run, at its time limit and on Ctrl-C, which a plain kill of bash
 did not do (it left `godot.exe` running). Elsewhere a run is its own process group.
