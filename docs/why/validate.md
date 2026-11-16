@@ -535,6 +535,43 @@ that a limit is about twice the unit's CI time: `stationdecktest` took 194 to 24
 450, `wrecksitetest` 132 to 233 s against 420, `laddertest` 257 to 275 s against 540. Their limits
 are now 480, 630, 470 and 560.
 
+## gate_jobs
+
+Jon, Nov 16: the PC has 16 logical CPUs (8 cores) and 32 GB, and six at once took 26:35
+(the units add up to 124 minutes). The default is now twelve, still never more than one a
+core (a 4-core CI runner stays at four) and never more than one per 1.2 GB of memory (a
+headless Godot holds about 600 MB; MemTotal from /proc/meminfo, which Git Bash and Linux
+have, or hw.memsize on a Mac, where `tools/dev/env.sh` still sets three on 8 GB or less).
+`GATE_JOBS` in the environment still wins. `tools/dev/tests_for.py --run` uses the same default.
+
+The SOLO_UNITS rule is unchanged: a unit that times something on the wall clock runs alone.
+Units still in the pool whose harness reads the wall clock without `--fixed-fps` were read for
+this change; none was moved, but these could fail on a starved CPU and are the first to look
+at if twelve proves flaky:
+
+- `chartaheadtest`: `ShaderWarm`'s quiet window is checked to 50 ms and, on the node's own
+  input, to 1 ms (`_quiet_until >= now + QUIET_MS - 1`): a descheduled thread fails it.
+- `nettest`: "a shot of two billion hits returns promptly" is under 2000 ms of wall time.
+- `killholdtest` (8 s and 12 s windows), `wrecksitetest`, `subjecttest` and `cutawaytest`
+  (3 s for a cut to finish): deadlines on animations that advance by real frame time, so
+  they hold unless a frame takes seconds.
+
+The rest (`midjointest`, `menutest`, `bindtest`, `hinttest`, `quittest`, `boardsigntest`,
+`torntest`, `scrollcheck`) only wait with a deadline for a screen to arrive, or print how long
+a phase took (`twindrawtest`, `flighthand`, `mapperftest`).
+
+## crash-retry
+
+Jon, Nov 16, after `jumpshadertest` exited 139 in a gate and passed when run again alone. A
+Godot that dies of a signal (exit 132 to 136 or 139: SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE,
+SIGSEGV; Git Bash turns a Windows access violation into 139) is run once more, in
+`run_godot` and in `unit_jumpshadertest`, which starts its own Godot. Its output says
+`note: NAME retried after crash (exit N)`, the crashed run's log is kept beside the new one as
+`NAME.log.crash`, the time table tags the unit, and a "Retried after a crash" list follows it
+even when the gate passes, so a flake stays visible. A run that printed a FAIL line, reported a
+script error or hit its limit (124) is never retried; neither is 130 (Ctrl-C), 137 (killed) or
+143 (terminated), which are someone stopping the gate. A second crash fails the unit as before.
+
 ## Pinned downloads
 
 Above the Godot install step and on each `uses:` line of `.github/workflows/validate.yml`:

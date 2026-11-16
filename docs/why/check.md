@@ -41,8 +41,8 @@ verdict line, and a PASS line (a row its cell calls a MEASUREMENT or a Profiler 
 
 A change to a core file (`Database`, `Combat`, `CardData`) maps to 40 rows or more, each a
 Godot run of 20 to 60 seconds: one at a time that was 15 to 30 minutes. `--run` now starts
-`--jobs` of them at once (default `TK_TEST_JOBS`, else six or the cores less two, at least
-one), as the gate's pool does, and prints each result whole and in row order, so the output
+`--jobs` of them at once (default `TK_TEST_JOBS`, else the gate's default: twelve, one a core,
+one per 1.2 GB), as the gate's pool does, and prints each result whole and in row order, so the output
 reads as it did serially and `check.sh` greps the same lines.
 
 Some rows still run alone, after the pool, one at a time, because a busy CPU fails them for

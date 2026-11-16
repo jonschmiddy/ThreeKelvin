@@ -5,7 +5,7 @@
     python3 tools/dev/tests_for.py --base <commit>  # changed since that commit
     python3 tools/dev/tests_for.py --staged         # only what is staged for the next commit
     python3 tools/dev/tests_for.py --run            # also run the headless ones (tools/dev/godot.sh)
-    python3 tools/dev/tests_for.py --run --jobs 1   # one at a time (default TK_TEST_JOBS, or min(6, cores - 2))
+    python3 tools/dev/tests_for.py --run --jobs 1   # one at a time (default TK_TEST_JOBS, or the gate's 12)
     python3 tools/dev/tests_for.py --list-all       # every row of docs/tests.md, as this tool reads it
 
 It does by machine what tkg/CLAUDE.md asks a session to do by hand: for each changed
@@ -223,7 +223,31 @@ def default_jobs():
             return max(1, int(env))
         except ValueError:
             sys.stderr.write("tests_for: TK_TEST_JOBS must be a whole number (got %r); using the default\n" % env)
-    return max(1, min(6, (os.cpu_count() or 3) - 2))
+    # validate.sh's own default (docs/why/validate.md#gate_jobs): twelve, one a core, one per 1.2 GB
+    jobs = min(12, os.cpu_count() or 1)
+    mem = total_memory()
+    if mem:
+        jobs = min(jobs, int(mem // (1.2 * 1024 ** 3)))
+    return max(1, jobs)
+
+
+def total_memory():
+    """The machine's memory in bytes, or 0 when it cannot be read."""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class Status(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_uint32), ("dwMemoryLoad", ctypes.c_uint32)] + \
+                           [(n, ctypes.c_uint64) for n in ("total", "avail", "pf", "pfa", "vt", "va", "ve")]
+            st = Status()
+            st.dwLength = ctypes.sizeof(st)
+            return st.total if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st)) else 0
+        if sys.platform == "darwin":
+            return int(subprocess.check_output(["sysctl", "-n", "hw.memsize"]).strip())
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except Exception:
+        return 0
 
 
 def parse_table():
@@ -815,7 +839,7 @@ def main():
     ap.add_argument("--slow", action="store_true", help="also run rows that say they take 3 minutes or more")
     ap.add_argument("--max-secs", type=int, default=0, help="cap on one run's time limit (0: the row's own)")
     ap.add_argument("-j", "--jobs", type=int, default=default_jobs(),
-                    help="runs at once with --run (default TK_TEST_JOBS, else min(6, cores - 2)); "
+                    help="runs at once with --run (default TK_TEST_JOBS, else validate.sh's: 12, one a core, one per 1.2 GB); "
                          "timing rows still run alone after")
     a = ap.parse_args()
 

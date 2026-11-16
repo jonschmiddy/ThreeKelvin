@@ -102,7 +102,7 @@ Windows or the Mac.
 
 Run one gate at a time on a machine; two at once compete for the same resources
 and fail each other. The gate runs its steps side by side: `GATE_JOBS` at once
-(6, or the core count if lower), longest first, each with its own scratch user
+(12, or the core count or one per 1.2 GB of memory if lower), longest first, each with its own scratch user
 folder, then the timing-sensitive steps alone. A full run takes about 10
 minutes. `GATE_JOBS=1` runs them one after another, about 45 minutes.
 

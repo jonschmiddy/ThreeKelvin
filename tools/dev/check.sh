@@ -6,7 +6,7 @@
 # code_graph, comment_check, prose, vocab, ...; the same code as
 # `GATE_STATIC=1 .github/scripts/validate.sh`), then `-- parseall` if Godot is found.
 # --tests also runs the headless test rows this change needs (tests_for.py --run),
-# --jobs N of them at once (default TK_TEST_JOBS, else min(6, cores - 2)); rows that time
+# --jobs N of them at once (default TK_TEST_JOBS, else the gate's: 12, one a core); rows that time
 # something run alone after, as the gate's SOLO_UNITS do.
 # --staged limits the test advice to what is staged. The merge gate is still the gate.
 # --static stops after the static checks (the pre-commit hook's call); --quiet then
