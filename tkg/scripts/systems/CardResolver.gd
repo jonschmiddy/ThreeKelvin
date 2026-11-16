@@ -54,7 +54,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.lock_on = 0
 		cb.attacks_this_turn += 1
 
-	if c.salvo > 0 and c.damage <= 0: cb.feed_salvo(c.salvo)  # a Feed: loads the guns, not an attack
+	if c.is_feed(): cb.feed_salvo(c.salvo)  # a Feed: loads the guns, not an attack
 	if c.drone_damage > 0:
 		var d2 := Combat.Drone.new()
 		d2.damage = c.drone_damage

@@ -146,13 +146,14 @@ static func _heat() -> int:
 	var run := _run()
 	return int(run.heat) if run != null else 0
 
-## The turns this card waits once played. Korvan 3 (Standard Issue) takes one off its
-## own cards, so a 1-turn charge fires when played (0). `Combat.charge_turns_for` asks here.
+## The turns this card waits once played; no set shortens it since Stockpile (Nov 16).
+## `Combat.charge_turns_for` asks here, so a later rule has one door.
 func charge_turns_now() -> int:
-	var run := _run()
-	if charge_turns > 0 and manufacturer == &"korvan" and run != null and run.has_set(&"korvan", 3):
-		return charge_turns - 1
 	return charge_turns
+
+## Salvo on a card that fires nothing is a Feed: it loads every gun until next turn ends.
+func is_feed() -> bool:
+	return salvo > 0 and damage <= 0 and not damage_equals_heat
 
 ## Kept though its hazard is gone: the glyph is decided once, on the base card.
 ## Empty on unresolved cards; `glyph_kind()` then computes the same answer.
@@ -226,12 +227,13 @@ func keywords() -> Array:
 		out.append(["Feedback", "When an enemy attacks you, it takes %d damage." % feedback])
 	if negate_next:
 		out.append([KW_NEGATE, "The next attack on you does nothing."])
-	if salvo > 0:
+	if is_feed():
+		out.append(["Salvo", "Your guns get +%d Salvo until the end of next turn." % salvo])
+	elif salvo > 0:
 		out.append(["Salvo", "+%d damage per hit if you already attacked this turn." % salvo])
 	if charge_turns > 0:
 		var t := charge_turns_now()
-		out.append(["Charge", "Fires as soon as you play it." if t <= 0
-			else "Fires %d turn%s after you play it." % [t, "" if t == 1 else "s"]])
+		out.append(["Charge", "Fires %d turn%s after you play it." % [t, "" if t == 1 else "s"]])
 	if adapt > 0:
 		out.append([KW_GROWS, "Playing any Grows card gives all Grows cards +%d damage per hit this fight."
 			% adapt])
@@ -338,7 +340,9 @@ func describe(live: int = -1) -> String:
 		bits.append("Flashpoint +%d" % flashpoint)
 	if charge_turns > 0:
 		bits.append("Charge %d" % charge_turns)
-	if salvo > 0:
+	if is_feed():
+		bits.append("Guns get Salvo +%d until next turn ends" % salvo)
+	elif salvo > 0:
 		bits.append("Salvo +%d" % salvo)
 	if adapt > 0:
 		bits.append("Grows +%d" % adapt)
