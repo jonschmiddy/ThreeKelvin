@@ -24,6 +24,7 @@ extends Resource
 @export_group("Defence")
 @export var brace: int = 0              ## persists between turns, costs heat to hold
 @export var block: int = 0              ## decays at end of enemy turn
+@export var block_heat_scale: int = 0   ## +1 block per N current heat (Shimmer)
 @export var brace_from_heat: bool = false
 @export var feedback: int = 0
 @export var negate_next: bool = false
@@ -36,6 +37,7 @@ extends Resource
 ## An out sharpens the greed clock: you push one jump further, so the death is still self-authored.
 ## Why: docs/why/CardData.md#heal-scale
 @export var heal_scale: int = 0
+@export var heal_heat_scale: int = 0    ## +1 repair per N current heat (Cauterise)
 @export var draw: int = 0
 @export var lock_on: int = 0
 @export var energy_gain: int = 0
@@ -151,6 +153,14 @@ static func _heat() -> int:
 func charge_turns_now() -> int:
 	return charge_turns
 
+## The block this card gives at the current heat; the card's own heat lands after.
+func block_now() -> int:
+	return block + (_heat() / block_heat_scale if block_heat_scale > 0 else 0)
+
+## The flat repair at the current heat, before any missing-hull part (`heal_scale`).
+func heal_now() -> int:
+	return heal + (_heat() / heal_heat_scale if heal_heat_scale > 0 else 0)
+
 ## Salvo on a card that fires nothing is a Feed: it loads every gun until next turn ends.
 func is_feed() -> bool:
 	return salvo > 0 and damage <= 0 and not damage_equals_heat
@@ -215,7 +225,10 @@ const KW_GROWS := "Grows"
 func keywords() -> Array:
 	var out: Array = []
 	# Each definition carries this card's real number (Jon, Nov 16: no "this much").
-	if block > 0:
+	if block > 0 and block_heat_scale > 0:
+		out.append(["Block", ("Stops the next %d damage, plus 1 for every %d heat you have, until the end"
+			+ " of the enemy's turn. Right now that is %d.") % [block, block_heat_scale, block_now()]])
+	elif block > 0:
 		out.append(["Block", "Stops the next %d damage until the end of the enemy's turn." % block])
 	if brace > 0 or brace_from_heat:
 		# BRACE, not 'brace': it is the word the card prints, and a glossary must match the card.
@@ -239,11 +252,14 @@ func keywords() -> Array:
 			% adapt])
 	if heat_scale > 0:
 		out.append(["Heat scaling", "+1 damage per hit for every %d heat you have." % heat_scale])
+	if heal_heat_scale > 0:
+		out.append(["Heal", "Repairs %d hull, plus 1 for every %d heat you have. Right now that is %d."
+			% [heal, heal_heat_scale, heal_now()]])
 	if heal_scale > 0:
 		out.append(["Emergency repair",
 			"Repairs %d hull, plus 1 for every %d hull you are missing." % [heal, heal_scale]])
 	if flashpoint > 0:
-		out.append(["Flashpoint", "+%d damage per hit if your heat is over the cap when you play it." % flashpoint])
+		out.append(["Flashpoint", "+%d damage per hit if playing it puts your heat over the cap." % flashpoint])
 	if damage_equals_heat:
 		out.append(["Damage from heat", "Hits once for your heat, plus 2. Right now that is %d."
 			% maxi(1, _heat() + 2)])
@@ -351,7 +367,7 @@ func describe(live: int = -1) -> String:
 	if brace_from_heat:
 		bits.append("Brace from heat")
 	if block > 0:
-		bits.append("Block %d" % block)
+		bits.append("Block %d%s" % [block, ", +1 per %d heat" % block_heat_scale if block_heat_scale > 0 else ""])
 	if feedback > 0:
 		bits.append("Feedback %d" % feedback)
 	if negate_next:
@@ -366,6 +382,8 @@ func describe(live: int = -1) -> String:
 		# Why: docs/why/CardData.md#heal-scale-text
 		if heal_scale > 0:
 			bits.append("Emergency repair %d" % heal)
+		elif heal_heat_scale > 0:
+			bits.append("Heal %d, +1 per %d heat" % [heal, heal_heat_scale])
 		else:
 			bits.append("Heal %d" % heal)
 	if discard > 0:

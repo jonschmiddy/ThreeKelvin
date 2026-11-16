@@ -175,8 +175,8 @@ func score(c: CardData, cb: Combat) -> float:
 		# Salvo pays from the second gun: open with the cheapest, then the big ones get it.
 		if cb.attacks_this_turn == 0 and _salvo_in_hand(cb):
 			return 60.0 - 5.0 * c.energy
-		# Flashpoint pays only over the cap, so the pilot reaches for it there.
-		var per := c.damage + (c.flashpoint if Run.heat > Run.heat_cap() else 0)
+		# Flashpoint pays when the card takes you over the cap, so the pilot reaches for it there.
+		var per := c.damage + (c.flashpoint if CardResolver.flashpoint_live(c) else 0)
 		return 40.0 + float(per * maxi(1, c.hits)) / 4.0
 	return 5.0
 

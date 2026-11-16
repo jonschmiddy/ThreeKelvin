@@ -17,6 +17,9 @@ first commit, and nothing that tested a single bonus. What changed, and which wa
   Solari cards with heat scaling: in the first commit that was the Plasma Lance, which
   was the only plasma weapon, and the flashpoint guns and heat-damage cards that came
   later never got it. CODE to the text: every Solari card that deals damage.
+  Nov 16: replaced by **Heat Blast** (Jon's pick 2A): "When you vent heat, the
+  enemy takes half of it as damage." Any vent, rounded up
+  (`docs/why/CardResolver.md#heat-blast`).
 - **Verity 5, Provenance.** Said "Start each combat with 1 extra energy". The code
   gives 1 every turn (`RunState.reactor`, kept flat on purpose). TEXT to the code:
   a 5-set worth one energy a fight would be the weakest bonus in the game.

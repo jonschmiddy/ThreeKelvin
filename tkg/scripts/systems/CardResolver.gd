@@ -30,7 +30,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.choosing = mini(maxi(c.discard, c.decommission), cb.hand.size())
 
 	if c.damage_equals_heat:
-		var d := maxi(1, Run.heat + 2) + Combat.sunward(c)
+		var d := maxi(1, Run.heat + 2)
 		cb.damage_enemy(d, 1, c.name)
 		cb.attacks_this_turn += 1
 
@@ -38,8 +38,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		var dmg := c.damage
 		if c.heat_scale > 0:
 			dmg += int(Run.heat / c.heat_scale)
-		dmg += Combat.sunward(c)
-		if c.flashpoint > 0 and Run.heat > Run.heat_cap():
+		if flashpoint_live(c):
 			dmg += c.flashpoint
 			cb.log_line("  flashpoint +%d/hit" % c.flashpoint, &"good")
 		if c.adapt > 0:
@@ -86,8 +85,9 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.log_line("%s +%d brace from heat." % [c.name, a2], &"you")
 
 	if c.block > 0:
-		cb.block += c.block
-		cb.log_line("Block +%d (decays)." % c.block, &"you")
+		var b := c.block_now()
+		cb.block += b
+		cb.log_line("Block +%d (decays)." % b, &"you")
 
 	if c.feedback > 0:
 		cb.feedback += c.feedback
@@ -97,22 +97,25 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.log_line("Next attack on you will be negated.", &"good")
 
 	# After everything that reads heat: Thermal Purge once zeroed the gauge, then hit for 2.
+	var shed := 0
 	if c.vent_all:
-		var purged := Run.heat
+		shed = Run.heat
 		Run.heat = 0
-		if purged > 0:
-			cb.log_line("Purged %d heat." % purged, &"heat")
+		if shed > 0:
+			cb.log_line("Purged %d heat." % shed, &"heat")
 
 	if c.vent > 0:
 		# Vent adds the ship's dissipation, which no longer sheds on its own, making it a decision.
 		# Why: docs/why/CardResolver.md#vent-dissipation
 		var v := mini(Run.heat, c.vent + Run.dissipation())
 		Run.heat -= v
+		shed += v
 		if v > 0:
 			cb.log_line("Vented %d heat." % v, &"heat")
+	heat_blast(shed, cb)
 
 	if c.heal > 0 or c.heal_scale > 0:
-		var amount := c.heal
+		var amount := c.heal_now()
 		if c.heal_scale > 0:
 			# Missing hull is read at the moment of play; see `CardData.heal_scale`.
 			var missing := maxi(0, Run.max_hp() - Run.hp)
@@ -141,3 +144,21 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 			cb.log_line("  +%d heat from discharge." % c.heat, &"heat")
 
 	Sig.resources_changed.emit()
+
+
+## Flashpoint pays when the card's own heat leaves you over the cap (Jon, Nov 16, 3B):
+## you cross, then vent or burn. Already over still counts.
+static func flashpoint_live(c: CardData) -> bool:
+	return c.flashpoint > 0 and Run.heat + c.heat > Run.heat_cap()
+
+
+## Solari 3 (Heat Blast): any vent, any maker's card, hits for half the heat shed, rounded up.
+## Why: docs/why/CardResolver.md#heat-blast
+static func heat_blast(shed: int, cb: Combat) -> void:
+	if shed <= 0 or not Run.has_set(&"solari", 3):
+		return
+	cb.damage_enemy(heat_blast_damage(shed), 1, "Heat Blast")
+
+
+static func heat_blast_damage(shed: int) -> int:
+	return (shed + 1) / 2

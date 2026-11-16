@@ -1,0 +1,4 @@
+- **Changed** — Solari's 3-set is now Heat Blast: when you vent heat, the enemy takes half of it as damage. It was 2 more damage a hit on Solari guns.
+- **Changed** — Flashpoint now pays when the card's own heat takes you over the cap, not only when you were over already.
+- **Changed** — Solari cards: Long Noon hits for 12 plus all your heat, Plasma Lance hits twice, Shimmer's block grows with your heat, and Cauterise repairs more the hotter you run.
+- **Fixed** — A grade A Solari hull now gets a perk, Deep Tanks. Its old one repeated the hull's own and did nothing.

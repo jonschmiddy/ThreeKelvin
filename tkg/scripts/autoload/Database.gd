@@ -74,7 +74,7 @@ func _seed_manufacturers() -> void:
 		# Field is a white heat-shield to match the hulls' pale ceramic tile (Jon, Oct 15).
 		[&"solari", "Solari Forge", "The line between reactor and weapon is philosophy.", "#ef9f27", "#f2eee6",
 			"Weapons that hit harder the hotter you run.",
-			"Sunward", "Solari attacks deal 2 more damage per hit.",
+			"Heat Blast", "When you vent heat, the enemy takes half of it as damage.",
 			"Ignition", "Overheat damage halved."],
 		[&"probate", "The Probate Combine", "Everything is salvage. Even you.", "#b3924e", "#6e5a2e",
 			"Scrap pays and plate holds. It wins slowly and pays well.",
@@ -388,7 +388,7 @@ func _seed_modules() -> void:
 	# --- Solari: heat as ammunition
 	_module(&"plasma", "Solari Plasma Lance", &"solari", W, C1,
 		"Hits harder the hotter you run.",
-		[{name = "Plasma Lance", energy = 1, heat = 3, damage = 4, heat_scale = 3, copies = 2}])
+		[{name = "Plasma Lance", energy = 1, heat = 3, damage = 2, hits = 2, heat_scale = 3, copies = 2}])
 	_module(&"ventcan", "Thermal Purge Cannon", &"solari", W, C2,
 		"Fires all your heat at the enemy.",
 		[{name = "Thermal Purge", energy = 1, damage_equals_heat = true, vent_all = true, copies = 1}])
@@ -415,20 +415,20 @@ func _seed_modules() -> void:
 		"Issued to every new hand on the floor.",
 		[{name = "Glowshot", energy = 1, heat = 2, damage = 4, heat_scale = 4},
 			{name = "Kindle", energy = 0, heat = 3, damage = 2, heat_scale = 3}])
-	# The multi-hit lane: heat scaling adds per hit, and so does Sunward's +2.
+	# The multi-hit lane: heat scaling adds per hit.
 	# Sparkfall is the first Flashpoint card a player meets.
 	_module(&"sparkthrower", "Spark Thrower", &"solari", W, C1,
 		"Sprays what the reactor could not hold.",
 		[{name = "Spatter", energy = 1, heat = 3, damage = 2, hits = 3, heat_scale = 6},
 			{name = "Sparkfall", energy = 1, heat = 2, damage = 4, hits = 2, flashpoint = 2}])
 	# Charge plus heat scaling: the shot reads your heat when it fires, so every
-	# hot card played while it charges makes it bigger.
+	# hot card played while it charges makes it bigger. Long Noon reads all of it.
 	_module(&"sunspot", "Sunspot Mortar", &"solari", W, C2,
 		"Fill it, wait a shift, then aim it.",
 		[{name = "Sunspot", energy = 2, heat = 4, damage = 12, heat_scale = 2, charge_turns = 1},
-			{name = "Long Noon", energy = 3, heat = 6, damage = 16, heat_scale = 2, charge_turns = 2}])
-	# The Flashpoint gun, for a build that lives over its cap on purpose.
-	# Ignition (5-set, overheat halved) is what makes that survivable.
+			{name = "Long Noon", energy = 3, heat = 6, damage = 12, heat_scale = 1, charge_turns = 2}])
+	# The Flashpoint gun: it pays on the card that takes you over the cap.
+	# Vent back before the turn ends, or Ignition (5-set) halves the burn.
 	_module(&"overpressure", "Overpressure Cannon", &"solari", W, C3,
 		"Rated for the pressure. The crew was not.",
 		[{name = "Overpressure", energy = 2, heat = 5, damage = 9, hits = 2, flashpoint = 5},
@@ -451,7 +451,7 @@ func _seed_modules() -> void:
 	_module(&"heathaze", "Heat Haze Projector", &"solari", S, C1,
 		"The air bends, and their gunners guess.",
 		[{name = "Heat Haze", energy = 1, heat = 2, block = 9},
-			{name = "Shimmer", energy = 0, heat = 3, block = 5}])
+			{name = "Shimmer", energy = 0, heat = 3, block = 3, block_heat_scale = 4}])
 	_module(&"heatbank", "Heat Bank", &"solari", S, C2,
 		"Allocated warmth, held until the schedule calls it.",
 		[{name = "Bank the Fire", energy = 2, brace = 6, brace_from_heat = true},
@@ -586,10 +586,10 @@ func _seed_modules() -> void:
 	_module(&"weldkit", "Field Weld Kit", &"korvan", U, C1,
 		"A surplus kit for one weld, and the weld holds.",
 		[{name = "Field Weld", energy = 1, heal = 3, heal_scale = 3}, &"patch"])
-	## Heat as the torch: good on a cold turn, deadly on a hot one. Ignition (5-set) fixes that.
+	## Heat as the torch: the hotter you run, the more it seals (Nov 16, 4A), and it adds heat.
 	_module(&"cautery", "Cauterising Torch", &"solari", S, C2,
 		"Seals hull breaches with heat, and runs hot doing it.",
-		[{name = "Cauterise", energy = 1, heat = 4, heal = 2, heal_scale = 3}, &"patch"])
+		[{name = "Cauterise", energy = 1, heat = 4, heal = 2, heal_heat_scale = 2}, &"patch"])
 	## Spends credits for hull mid-fight, the only card that does. Company Rates pays for it.
 	_module(&"reclaim", "Hull Reclamation Rig", &"probate", S, C1,
 		"Rebuilds the frame from salvage, for a price.",

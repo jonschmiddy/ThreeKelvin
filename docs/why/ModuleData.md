@@ -348,7 +348,7 @@ Inside `resolved_cards()`, above `c.manufacturer = manufacturer`:
 
 Nov 16 (Job B4 of the Korvan pass): the RULES and the LOOK split. Every card,
 shared or not, is stamped with its part's manufacturer, so the set bonuses
-(Korvan's Stockpile and Payday, Sunward, Bespoke) count a shared card as the
+(Korvan's Stockpile and Payday, Bespoke) count a shared card as the
 granting part's, as `docs/rulings.md` says a card belongs to the part that
 granted it. What the card is drawn and filed as comes from
 `CardData.look_manufacturer()`, which is none for a shared card, per Jon's

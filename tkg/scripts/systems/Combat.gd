@@ -715,13 +715,6 @@ func play(index: int, target_index: int = -1) -> void:
 	Sig.hand_changed.emit()
 	Sig.player_combat_state_changed.emit()
 
-## Solari 3 (Sunward): 2 more a hit on every Solari card that deals damage.
-static func sunward(c: CardData) -> int:
-	var hits := c.damage > 0 or c.damage_equals_heat
-	if hits and c.manufacturer == &"solari" and Run.has_set(&"solari", 3):
-		return SUNWARD
-	return 0
-
 ## The turns a card waits once played; the rule lives on the card (`CardData.charge_turns_now`).
 static func charge_turns_for(c: CardData) -> int:
 	return c.charge_turns_now()
@@ -734,12 +727,12 @@ func card_output(c: CardData) -> int:
 		return 0
 	var per := 0
 	if c.damage_equals_heat:
-		per = maxi(1, Run.heat + 2) + sunward(c)
+		per = maxi(1, Run.heat + 2)
 	elif c.damage > 0:
-		per = c.damage + sunward(c)
+		per = c.damage
 		if c.heat_scale > 0:
 			per += int(Run.heat / c.heat_scale)
-		if c.flashpoint > 0 and Run.heat > Run.heat_cap():
+		if CardResolver.flashpoint_live(c):
 			per += c.flashpoint
 		if c.adapt > 0:
 			per += adapt_bonus
@@ -759,7 +752,7 @@ func card_hot(c: CardData) -> PackedStringArray:
 		return out
 	if c.heat_scale > 0 and int(Run.heat / c.heat_scale) > 0:
 		out.append("Heat scaling")
-	if c.flashpoint > 0 and Run.heat > Run.heat_cap():
+	if CardResolver.flashpoint_live(c):
 		out.append("Flashpoint")
 	if c.adapt > 0 and adapt_bonus > 0:
 		out.append("Grows")
@@ -1135,8 +1128,6 @@ const WRECK_PARTS := {
 const WRECK_PARTS_DEFAULT := 1.0
 const WRECK_LAWLESS := 2.0
 const HELLBENDER_PARTS := 3
-## Solari 3's damage a hit (`sunward`).
-const SUNWARD := 2
 ## Cygnet 5 keeps this many attack drones into the next fight (`Run.hive_drones`).
 const HIVE_KEEP := 3
 const FAUNA_EXOTIC := 2

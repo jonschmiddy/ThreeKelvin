@@ -12,7 +12,7 @@ const SEED := 5151
 const TEXTS: Array = [
 	[&"korvan", 3, "After a turn where you fire nothing, you start with 1 more energy."],
 	[&"korvan", 5, "When a charge shot fires, you get 2 more energy that turn."],
-	[&"solari", 3, "Solari attacks deal 2 more damage per hit."],
+	[&"solari", 3, "When you vent heat, the enemy takes half of it as damage."],
 	[&"solari", 5, "Overheat damage halved."],
 	[&"probate", 3, "+50% credits from wrecks."],
 	[&"probate", 5, "Brace cards give +2."],
@@ -227,22 +227,25 @@ func _shared_stamp() -> void:
 func _solari_3() -> void:
 	for on in [false, true]:
 		_used(&"solari", 3 if on else 2)
-		Run.heat = 0
 		var cb := _fight()
-		var add := 2 if on else 0
+		# Any vent, any maker's card, half the heat shed rounded up; a gun gets nothing extra.
 		var rows := [
-			["a plain Solari hit", _card(&"solari", {damage = 4}), 4 + add],
-			["a Solari heat-scaling hit", _card(&"solari", {damage = 4, heat_scale = 3}), 4 + add],
-			["a Solari three-hit card", _card(&"solari", {damage = 2, hits = 3}), 3 * (2 + add)],
-			["a Solari damage-from-heat card", _card(&"solari", {damage_equals_heat = true}), 2 + add],
-			["a Korvan hit", _card(&"korvan", {damage = 4}), 4],
+			["a Solari vent", _card(&"solari", {vent = 4}), 11],
+			["a Korvan vent", _card(&"korvan", {vent = 4}), 11],
+			["a vent of 3 heat", _card(&"korvan", {vent = 2}), 3],
+			["a vent-all card", _card(&"solari", {vent_all = true}), 9],
+			["a vent with no heat to shed", _card(&"solari", {vent = 4}), 0],
+			["a Solari gun", _card(&"solari", {damage = 4}), 10],
 		]
 		for row: Array in rows:
 			var c: CardData = row[1]
-			var per := cb.card_output(c)
+			Run.heat = row[2]
+			var shed := Run.heat
 			var hit := _play(cb, c)
-			_ok("%s, %s: %d (want %d, shown %d a hit)" % [row[0], "set" if on else "no set", hit, row[2], per],
-				hit == row[2] and per * maxi(1, c.hits) == hit)
+			shed -= Run.heat
+			var want := c.damage + (ceili(shed / 2.0) if on else 0)
+			_ok("%s, %s: shed %d, foe took %d (want %d)" % [row[0], "set" if on else "no set", shed, hit, want],
+				hit == want)
 
 
 func _solari_5() -> void:
