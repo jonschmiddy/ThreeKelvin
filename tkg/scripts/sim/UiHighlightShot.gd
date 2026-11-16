@@ -7,6 +7,8 @@ extends Node
 
 var _tree: SceneTree
 var _out := ""
+## Window px per game px: 1 at the game's 960x540, 2 with `big=1` (1920x1080 through the shell).
+var _k := 1.0
 
 
 func _ready() -> void:
@@ -31,6 +33,7 @@ func _secs(s: float) -> void:
 
 ## The pointer put at `at` (game px) with a motion event, so hovers fire as a real move would.
 func _hover(at: Vector2) -> void:
+	at *= _k
 	_tree.root.warp_mouse(at)
 	var mm := InputEventMouseMotion.new()
 	mm.position = at
@@ -109,6 +112,26 @@ func _card(sc: SectorScreen, pick: Callable) -> CardView:
 	return null
 
 
+## A real card from the catalogue that prints keyword `kw`.
+func _with_word(kw: String) -> CardData:
+	for id in DB.modules:
+		for c: CardData in (DB.modules[id] as ModuleData).resolved_cards():
+			for pair: Array in c.keywords():
+				if String(pair[0]) == kw:
+					return c
+	return null
+
+
+## Where `kw` sits on the card, in game px, found with the card's own measure (`word_at`).
+func _word_spot(v: CardView, kw: String) -> Vector2:
+	var b := v._body
+	for y in range(1, int(b.size.y), 2):
+		for x in range(1, int(b.size.x), 2):
+			if v.word_at(Vector2(x, y)) == kw:
+				return b.get_global_transform() * Vector2(x + 3, y + 1)
+	return v.get_global_rect().get_center()
+
+
 func _aim(sc: SectorScreen, view: CardView, to: Vector2) -> void:
 	var from := view.get_global_rect().get_center()
 	sc._on_card_grabbed(view, from)
@@ -126,8 +149,14 @@ func _run() -> void:
 	_out = _arg("out", "user://ui_highlight.png")
 	var stage := _arg("stage", "fight_hover")
 	# The window at the game's own size, as `Main._shoot` has it: root px are game px.
-	get_window().size = Vector2i(960, 540)
-	await _frames(8)
+	# `big=1` keeps render.sh's --resolution 1920x1080, the shell's 2x, as a player sees it.
+	if _arg("big") == "1":
+		get_window().size = Vector2i(1920, 1080)
+		await _frames(8)
+		_k = float(get_window().size.x) / 960.0
+	else:
+		get_window().size = Vector2i(960, 540)
+		await _frames(8)
 	print("[stage] ", stage)
 	match stage:
 		"fight_hover", "fight_readout", "fight_word":
@@ -148,6 +177,53 @@ func _run() -> void:
 					await _secs(0.4)
 				await _hover(at)
 				await _secs(0.5 if stage == "fight_hover" else 1.8)
+		"fight_kw":
+			# a card with keyword `kw=` dealt into the hand and its word pointed at; `bonus=N` sets
+			# the fight's Grows bonus first, so a Grows card's face and chip show it
+			var sc := await _fight()
+			var kw := _arg("kw", "Block")
+			sc.combat.adapt_bonus = int(_arg("bonus", "0"))
+			var c := _with_word(kw)
+			if c != null:
+				sc.combat.hand[0] = c
+				Sig.hand_changed.emit()
+				sc._refresh_player()
+				await _secs(0.8)
+				var v := _card(sc, func(x: CardData) -> bool: return x == c)
+				if v != null:
+					await _hover(v.get_global_rect().get_center())
+					await _secs(0.5)
+					var at := _word_spot(v, kw)
+					await _hover(at)
+					await _secs(0.4)
+					await _hover(at)
+					await _secs(0.8)
+		"chip_brace", "chip_enemy":
+			var sc := await _fight()
+			var chip: Control = null
+			if stage == "chip_brace":
+				sc.combat.brace = 6
+				sc._refresh_player()
+				chip = sc._self_brace
+			else:
+				sc.combat.enemies[0].block = 8
+				sc._refresh_enemy()
+				await _frames(4)
+				var row := sc._view.chips_for(0)
+				if row != null and row.get_child_count() > 0:
+					chip = row.get_child(0) as Control
+			await _frames(4)
+			if chip != null:
+				await _hover(chip.get_global_rect().get_center())
+			await _secs(0.8)
+		"flee_ask", "hail_ask":
+			var sc := await _fight()
+			if stage == "flee_ask":
+				sc._on_flee()
+			else:
+				sc._on_hail()
+			await _hover(Vector2(480, 30))
+			await _secs(1.2)
 		"fight_aim":
 			var sc := await _fight()
 			var v := _card(sc, func(c: CardData) -> bool: return c.damage > 0 and sc.combat.can_play(c))
