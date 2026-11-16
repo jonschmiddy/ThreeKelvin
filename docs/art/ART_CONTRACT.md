@@ -84,8 +84,11 @@ manufacturer, and keep it to 5 stops with the same value spacing.
 **Heat / combustion** (the only warm ramp on a ship)
 `#5c280c` `#964214` `#cc641c` `#ffa63c` `#ffdca0` `#fff6e2`
 
-**Korvan brass-olive** (weapon housings)
+**Brass-olive** (weapon housings, any manufacturer's; once labelled Korvan's)
 `#2c2212` `#4a3a20` `#6c542e` `#927440` `#bc9a5c` — hazard stripe `#a8873f`
+A material, not Korvan's colour: `art/pixelart.py` draws gun housings with it and
+`EnemyArt.gd` paints the Rustjaw Cutter's slung Korvan gun in it. Korvan's colour is its
+accent ramp below.
 
 **Cygnet cold blue** (drone tech)
 `#182636` `#283e56` `#3a5876` `#5c82a4` `#8cb6d4`
@@ -108,7 +111,16 @@ descriptions predated the colours being picked and then outlived them.
 
 What is still owed, and is genuinely not in code: **each manufacturer needs a
 5-stop ramp interpolated between its `field` and its `colour`**, defined before
-generating that manufacturer's modules. Korvan's is the only one built.
+generating that manufacturer's modules. Korvan's is the only one built:
+
+**Korvan accent** (the hull band, the card hem, the banner) — field `#8a4517` and mark
+`#d97b2e` from `Database.gd` are the anchors, stops 2 and 4:
+`#4c260d` `#8a4517` `#b16022` `#d97b2e` `#f0a35a`
+The shadow is the field at 55%; the middle is the two anchors averaged; the highlight
+is the draft's stripe light. The painted band on the three base hull sprites sits in
+this ramp's upper half, desaturated by the sprite's lighting (sampled `#ce9255`,
+`#e4b266`). The Nov 14 manufacturer draft gave Korvan a grey ramp (`#1f2529` to
+`#8a949a`): that was hull steel, and it is superseded by the cold steel above.
 
 ---
 
