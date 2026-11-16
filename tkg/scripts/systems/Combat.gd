@@ -144,8 +144,8 @@ var peaceful_turns: int = 0
 ## Salvo a Feed adds to every gun, and the last turn it lasts (`feed_salvo`).
 var salvo_boost: int = 0
 var salvo_boost_until: int = 0
-## Energy Korvan 5 (Fire Mission) pays for each Korvan charge that lands.
-const FIRE_MISSION := 2
+## Energy Korvan 5 (Payday) pays for each Korvan charge that lands.
+const PAYDAY := 2
 var new_dross: int = 0
 
 ## Kept because what an enemy lodges in you is rolled against danger.
@@ -393,10 +393,10 @@ func begin_turn() -> void:
 	# WARM START (science): one more energy on this ship's first turn only.
 	if opening and Run.has_routine(&"warm_start"):
 		energy += 1
-	# Korvan 3 (Hold Fire): a turn you fired nothing pays 1 energy now. A landed charge is a shot.
+	# Korvan 3 (Stockpile): a turn you fired nothing pays 1 energy now. A landed charge is a shot.
 	if not opening and peaceful_turns > 0 and Run.has_set(&"korvan", 3):
 		energy += 1
-		log_line("Hold Fire: +1 energy.", &"good")
+		log_line("Stockpile: +1 energy.", &"good")
 
 	# Charge weapons fire on their own schedule.
 	var fired: Array[CardData] = []
@@ -428,10 +428,10 @@ func begin_turn() -> void:
 	for c in fired:
 		log_line("▸ %s detonates." % c.name, &"big")
 		Sig.charge_fired.emit(c.name)
-		# Korvan 5 (Fire Mission): each Korvan charge that lands pays its energy back.
+		# Korvan 5 (Payday): each Korvan charge that lands pays its energy back.
 		if c.manufacturer == &"korvan" and Run.has_set(&"korvan", 5):
-			energy += FIRE_MISSION
-			log_line("Fire Mission: +%d energy." % FIRE_MISSION, &"good")
+			energy += PAYDAY
+			log_line("Payday: +%d energy." % PAYDAY, &"good")
 		resolving = c
 		CardResolver.resolve(c, self, true)
 		resolving = null

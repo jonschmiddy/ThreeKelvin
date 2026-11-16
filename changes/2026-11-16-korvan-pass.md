@@ -1,4 +1,4 @@
-- **Changed** — Korvan's set bonuses: Hold Fire (3) gives 1 more energy after a turn you fire nothing, and Fire Mission (5) gives 2 more energy when a Korvan charge shot lands. Salvo pays only after your first attack again.
+- **Changed** — Korvan's set bonuses: Stockpile (3) gives 1 more energy after a turn you fire nothing, and Payday (5) gives 2 more energy when a Korvan charge shot lands. Salvo pays only after your first attack again.
 - **Changed** — Feed and Chain Feed now load your guns: every gun gets their Salvo until the end of next turn, and they do not count as an attack.
 - **Changed** — Korvan cards: Full Auto is a charge gun (3 x5, 2 heat when it fires), Bore Sight marks for 6, Bulkhead braces 12 for 2 heat, and Siege Round hits for 60.
 - **Changed** — Solari Foundry is now Solari Forge, its Foundry Bus is the Furnace Bus, and Probate's Foundry Line set is Reclaimed Plate.

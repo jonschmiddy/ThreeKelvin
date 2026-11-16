@@ -32,7 +32,7 @@ const OWNERS := {
 		s5 = [
 			["mark", "KORVAN", "IT FIRES. EVERY TIME."],
 			["big", "ROUNDS FIRED.", "NO MISFIRES.", "71,204 SO FAR."],
-			["big", "HOLD FIRE", "A TURN WITH NO SHOT.", "1 MORE ENERGY NEXT TURN."],
+			["big", "STOCKPILE", "A TURN WITH NO SHOT.", "1 MORE ENERGY NEXT TURN."],
 			["big", "THE FRAMES WERE", "DRAWN FOR A WAR.", "THE WAR ENDED. THEY STILL FIT."],
 			LIGHTENED,
 		],

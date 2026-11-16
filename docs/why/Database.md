@@ -267,8 +267,8 @@ The spine of the weapon line is SALVO. Salvo pays from your second attack
 in a turn, so a Korvan turn is ordered: cheap gun first, big gun after.
 
 Nov 16, pairing B ("Load, then fire", Jon): the sets reward a two-turn
-rhythm instead of doubling salvo. Hold Fire (3) pays 1 energy after a turn you
-fired nothing; Fire Mission (5) pays 2 for each Korvan charge that lands. A
+rhythm instead of doubling salvo. Stockpile (3) pays 1 energy after a turn you
+fired nothing; Payday (5) pays 2 for each Korvan charge that lands. A
 charge landing at the start of a turn counts as the first attack, so every gun
 that turn has its Salvo, and Feed loads more Salvo on the quiet turn. Full Auto
 became a charge gun so three weapon parts (KM-4, KH-88, Widowmaker) feed the

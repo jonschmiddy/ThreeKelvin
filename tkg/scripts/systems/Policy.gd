@@ -170,7 +170,7 @@ func score(c: CardData, cb: Combat) -> float:
 	if c.charge_turns > 0:
 		return 65.0
 	if c.damage > 0:
-		if _hold_fire(c, cb):
+		if _stockpile(c, cb):
 			return -1.0
 		# Salvo pays from the second gun: open with the cheapest, then the big ones get it.
 		if cb.attacks_this_turn == 0 and _salvo_in_hand(cb):
@@ -181,9 +181,9 @@ func score(c: CardData, cb: Combat) -> float:
 	return 5.0
 
 
-## Korvan 3 (Hold Fire): with a charge loading or in hand, fire nothing this turn,
+## Korvan 3 (Stockpile): with a charge loading or in hand, fire nothing this turn,
 ## unless this gun kills.
-func _hold_fire(c: CardData, cb: Combat) -> bool:
+func _stockpile(c: CardData, cb: Combat) -> bool:
 	if not Run.has_set(&"korvan", 3) or cb.attacks_this_turn > 0 or cb.enemy == null:
 		return false
 	if cb.card_output(c) * maxi(1, c.hits) >= cb.enemy.hp:

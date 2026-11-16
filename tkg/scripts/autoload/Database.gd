@@ -69,8 +69,8 @@ func _seed_manufacturers() -> void:
 	var raw := [
 		[&"korvan", "Korvan Heavy Works", "It fires. Every time.", "#d97b2e", "#8a4517",
 			"Ex-military surplus parts. Ballistics run cold; ordnance and plate run hot.",
-			"Hold Fire", "After a turn where you fire nothing, you start with 1 more energy.",
-			"Fire Mission", "When a charge shot fires, you get 2 more energy that turn."],
+			"Stockpile", "After a turn where you fire nothing, you start with 1 more energy.",
+			"Payday", "When a charge shot fires, you get 2 more energy that turn."],
 		# Field is a white heat-shield to match the hulls' pale ceramic tile (Jon, Oct 15).
 		[&"solari", "Solari Forge", "The line between reactor and weapon is philosophy.", "#ef9f27", "#f2eee6",
 			"Weapons that hit harder the hotter you run.",
