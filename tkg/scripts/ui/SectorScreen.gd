@@ -1734,8 +1734,8 @@ func _refresh_player() -> void:
 			"WASP\n\nGives you %d brace at the start of each of your turns." % combat.drone_brace))
 	for c2 in combat.charging:
 		_player_chips.add_child(StatusChip.make(&"charging", str(c2.turns_left),
-			UITheme.EMBER, "%s\n\n%s" % [c2.card.name, "Goes off at the start of your next turn."
-				if c2.turns_left <= 1 else "Goes off at the start of your turn in %d turns." % c2.turns_left]))
+			UITheme.EMBER, "%s\n\n%s" % [c2.card.name, "Fires at the start of your next turn."
+				if c2.turns_left <= 1 else "Fires at the start of your turn in %d turns." % c2.turns_left]))
 	# Solo only, as pacifying is (`Combat.end_turn`): in a party the count led nowhere.
 	if combat.enemy.template.fauna and combat.peaceful_turns > 0 and not combat.is_shared():
 		_player_chips.add_child(StatusChip.make(&"peaceful", "%d/2" % combat.peaceful_turns, Color("#4a6e5a"),

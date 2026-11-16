@@ -226,8 +226,8 @@ func keywords() -> Array:
 		out.append(["Salvo", "+%d damage per hit if you already attacked this turn." % salvo])
 	if charge_turns > 0:
 		var t := charge_turns_now()
-		out.append(["Charge", "Goes off as soon as you play it." if t <= 0
-			else "Goes off %d turn%s after you play it." % [t, "" if t == 1 else "s"]])
+		out.append(["Charge", "Fires as soon as you play it." if t <= 0
+			else "Fires %d turn%s after you play it." % [t, "" if t == 1 else "s"]])
 	if adapt > 0:
 		out.append([KW_GROWS, "Playing any Grows card gives all Grows cards +%d damage per hit this fight."
 			% adapt])
