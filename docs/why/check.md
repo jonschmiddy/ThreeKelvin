@@ -45,6 +45,9 @@ Godot run of 20 to 60 seconds: one at a time that was 15 to 30 minutes. `--run` 
 one per 1.2 GB), as the gate's pool does, and prints each result whole and in row order, so the output
 reads as it did serially and `check.sh` greps the same lines.
 
+Measured Nov 16 on the PC, on Korvan's 44 rows (`Database`, `Combat`, `CardData`): one at a
+time 33:06, six at once 10:08, twelve at once 7:59, with the same verdict on every row.
+
 Some rows still run alone, after the pool, one at a time, because a busy CPU fails them for
 reasons that are not the code's:
 

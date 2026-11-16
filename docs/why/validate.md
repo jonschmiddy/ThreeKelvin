@@ -543,6 +543,11 @@ core (a 4-core CI runner stays at four) and never more than one per 1.2 GB of me
 headless Godot holds about 600 MB; MemTotal from /proc/meminfo, which Git Bash and Linux
 have, or hw.memsize on a Mac, where `tools/dev/env.sh` still sets three on 8 GB or less).
 `GATE_JOBS` in the environment still wins. `tools/dev/tests_for.py --run` uses the same default.
+Measured the same day on the PC: twelve took 22:13 against six's 26:35 (the pool 15:47 against
+20:14; import and the SOLO units are about 6:25 either way), and the units add up to 188 minutes
+against 124: eight real cores, so each Godot runs about half as fast. The slowest units stayed
+under two thirds of their limits (`laddertest` 302 s of 560, `wrecksitetest` 220 of 470,
+`stationdecktest` 199 of 480).
 
 The SOLO_UNITS rule is unchanged: a unit that times something on the wall clock runs alone.
 Units still in the pool whose harness reads the wall clock without `--fixed-fps` were read for
