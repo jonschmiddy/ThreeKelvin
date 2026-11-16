@@ -132,10 +132,12 @@ func best_card(cb: Combat) -> int:
 		var c := cb.hand[i]
 		if not cb.can_play(c):
 			continue
-		var projected := Run.heat + c.heat - Run.dissipation()
+		# Nothing sheds at end of turn now, so the card's heat is all of it.
+		var projected := Run.heat + c.heat
 		# Same ceiling for both models; the hot one is willing to stay over it longer.
 		var ceiling := Run.heat_cap() + (12 if hot else 3)
-		if projected > ceiling and c.heat > 0 and cb.enemy != null and cb.enemy.hp > 30:
+		# Over the ceiling only for a kill: a low enemy is not one this card finishes.
+		if projected > ceiling and c.heat > 0 and cb.enemy != null and not _kills(c, cb):
 			continue
 		var s := score(c, cb)
 		if s > best_score:
@@ -152,7 +154,8 @@ func score(c: CardData, cb: Combat) -> float:
 	var incoming := 0
 	if cb.enemy != null and cb.enemy.intent != null:
 		incoming = cb.enemy.intent.damage * maxi(1, cb.enemy.intent.hits)
-	if c.energy_gain > 0:
+	# Energy that would take you over the cap is not free: score it as its other half.
+	if c.energy_gain > 0 and Run.heat + c.heat <= Run.heat_cap():
 		return 95.0
 	if c.lock_on > 0:
 		return 90.0
@@ -179,6 +182,11 @@ func score(c: CardData, cb: Combat) -> float:
 		var per := c.damage + (c.flashpoint if CardResolver.flashpoint_live(c) else 0)
 		return 40.0 + float(per * maxi(1, c.hits)) / 4.0
 	return 5.0
+
+
+## This card's damage finishes the current enemy.
+func _kills(c: CardData, cb: Combat) -> bool:
+	return cb.card_output(c) * maxi(1, c.hits) >= cb.enemy.hp
 
 
 ## Korvan 3 (Stockpile): with a charge loading or in hand, fire nothing this turn,

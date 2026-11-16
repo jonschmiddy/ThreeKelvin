@@ -283,6 +283,13 @@ Below a fifth of your hull it outranks everything except a lock that is
 already paid for. Between a fifth and a half it sits where it used to.
 ```
 
+Nov 16, the Solari audit's three pilot flaws, fixed in `best_card()` and `score()`:
+the heat projection took off dissipation, but nothing sheds at end of turn now, so
+it planned 1 heat short. The ceiling dropped whenever the enemy had 30 hull or less,
+so a losing ship burned its last hull on cards that did not kill; it now lifts only
+for a card that finishes the enemy (`_kills`). And every energy card scored 95
+whatever the heat; one that would take you over the cap now scores as its other half.
+
 ## Shopping
 
 Above `func shop(n: MapGen.MapNode) -> void:`:
