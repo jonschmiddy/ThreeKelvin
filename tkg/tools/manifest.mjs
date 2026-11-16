@@ -73,13 +73,13 @@ function vet(mods) {
   }
 }
 
-const MANUFACTURER_ORDER = ['Korvan Heavy Works','Solari Foundry','The Probate Combine',
+const MANUFACTURER_ORDER = ['Korvan Heavy Works','Solari Forge','The Probate Combine',
   'Redline Shipyards','Cygnet Dynamics','Verity Ateliers','Calyx Biosystems','Unbranded'];
-const SHORT = {'Korvan Heavy Works':'Korvan','Solari Foundry':'Solari',
+const SHORT = {'Korvan Heavy Works':'Korvan','Solari Forge':'Solari',
   'The Probate Combine':'Probate','Redline Shipyards':'Redline',
   'Cygnet Dynamics':'Cygnet','Verity Ateliers':'Verity',
   'Calyx Biosystems':'Calyx','Unbranded':'Unbranded'};
-const TARGET = {'Korvan Heavy Works':40,'Unbranded':20,'Solari Foundry':40,
+const TARGET = {'Korvan Heavy Works':40,'Unbranded':20,'Solari Forge':40,
   'The Probate Combine':40,'Redline Shipyards':40,'Cygnet Dynamics':40,
   'Verity Ateliers':40,'Calyx Biosystems':40};
 // The gauge names as the block prints them. An axis IS a gauge now — THERMAL is

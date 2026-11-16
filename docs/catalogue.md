@@ -114,7 +114,7 @@ A manufacturer's cards should be recognisable as that manufacturer *without the 
 | Manufacturer | What its cards do |
 | --- | --- |
 | Korvan Heavy Works | Ballistics, armour, cold. Big numbers, no heat. |
-| Solari Foundry | Heat as a resource. Pays in temperature for everything. |
+| Solari Forge | Heat as a resource. Pays in temperature for everything. |
 | The Probate Combine | Salvage, credits, taking things apart. |
 | Redline Shipyards | Cheap, improvised, hot. Draw attached to everything. |
 | Cygnet Dynamics | Drones. Things that keep fighting after the card is gone. |
@@ -270,7 +270,7 @@ Cygnet, Verity or Calyx part says who made it in both its cards.
 version would only be the plain card in that manufacturer's colours.** Jon: "Let's
 just have it be the unbranded card." A Solari plate that is Bolt On with a new
 name is Bolt On, and §7 would catch the near-duplicate anyway. Solari's four
-(Foundry Bus: Bleed Heat; Heat Shroud: Bolt On; Flare Rack: Range; Cauterising
+(Furnace Bus: Bleed Heat; Heat Shroud: Bolt On; Flare Rack: Range; Cauterising
 Torch: Patch) are each the plain half of a part whose other card is the
 manufacturer's.
 
@@ -563,7 +563,7 @@ six cells, and a point of energy where the step falls.
 | --- | --- | --- | --- |
 | Jumper Cable | Uncommon | 1 | **+5** |
 | Bus Coupling | Common | 2 | **+4** |
-| Foundry Bus | Rare | 2 | **+4** |
+| Furnace Bus | Rare | 2 | **+4** |
 | Salvaged Trunk Line | Uncommon | 3 | **+3** |
 | Main Bus Armature | Rare | 4 | **+2** |
 

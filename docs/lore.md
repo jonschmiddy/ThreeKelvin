@@ -67,7 +67,7 @@ Their backstories are already written and live in `Database.BACKSTORY` — that 
 
 **Korvan Heavy Works** — *"The frames were drawn for a war that ended. They will outlast this too."* Korvan does not discuss the end because Korvan does not discuss anything. The jigs are set, the parts are stamped, and the invoices go out on the same schedule they have gone out on for two hundred years. Nobody has asked who is still receiving them.
 
-**Solari Foundry** — *"Heat is only waste if you fail to aim it."* The only manufacturer that sounds pleased. Solari's position is that a universe full of unspent warmth is an engineering opportunity that has been sitting there the entire time, and that everyone else's grief is a failure of nerve.
+**Solari Forge** — *"Heat is only waste if you fail to aim it."* The only manufacturer that sounds pleased. Solari's position is that a universe full of unspent warmth is an engineering opportunity that has been sitting there the entire time, and that everyone else's grief is a failure of nerve.
 
 **The Probate Combine** — *"Everything ends. We file first."* Probate does not prospect and does not speculate. It follows disasters and it invoices. The end of the universe is the largest disaster on the schedule and the Combine's only observable preparation for it is paperwork.
 

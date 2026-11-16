@@ -455,7 +455,7 @@ const _LINES := {
 	},
 	&"solari": {
 		ContractData.Kind.FETCH: [
-			"There is a Foundry part sitting cold at {PLACE}. That offends me personally. Fetch it.",
+			"There is a Forge part sitting cold at {PLACE}. That offends me personally. Fetch it.",
 			"Somebody abandoned good hardware at {PLACE} because they were afraid of it. Go and be less afraid.",
 		],
 		ContractData.Kind.HUNT: [
@@ -463,7 +463,7 @@ const _LINES := {
 			"Contact at {PLACE}. Aim something at it. Heat is only waste if you fail to aim it.",
 		],
 		ContractData.Kind.HEAT: [
-			"Come in hot. {N} on the hull, any Foundry yard, and do not vent on the approach like a coward.",
+			"Come in hot. {N} on the hull, any Forge yard, and do not vent on the approach like a coward.",
 		],
 	},
 	&"probate": {

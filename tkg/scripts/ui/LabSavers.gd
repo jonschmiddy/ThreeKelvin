@@ -137,7 +137,7 @@ func paint(style: String) -> void:
 			_solari().paint(style)
 
 
-## The Solari Foundry's own savers (`LabSaversSolari`).
+## The Solari Forge's own savers (`LabSaversSolari`).
 var _sol: LabSaversSolari = null
 
 
@@ -801,7 +801,7 @@ func _paint_1() -> void:
 				col = LabBoard.ICE
 			var bp := _painter()
 			if style == "heat":
-				# the Foundry draws its star in the heat ramp
+				# the Forge draws its star in the heat ramp
 				bp._dither_ring(g, sun.x, sun.y, 4, 9, _solari()._heat(0.55, 0.6 * dim), 0.9 + 0.1 * sin(tr * 3.0))
 				bp._disc(g, int(sun.x), int(sun.y), 3, _solari()._heat(0.85, dim))
 			else:
@@ -916,7 +916,7 @@ func _paint_1() -> void:
 		var temp := "TEMP %d K" % int(278.0 / sqrt(maxf(0.2, dist)) + 3.0 * noise(int(tick), 2))
 		var dist_s := ("RANGE %.2f AU" if style == "navy" else "DIST %.2f AU") % dist
 		if style == "heat":
-			# heat is what the Foundry cares about: TEMP first, in its colour
+			# heat is what the Forge cares about: TEMP first, in its colour
 			text(cx0, y, fit(temp, cw), acc(0.9))
 			y += pitch
 			text(cx0, y, fit(dist_s, cw), ink(0.7))
@@ -1846,7 +1846,7 @@ func _paint_6() -> void:
 	var core_a := LabBoard.mixc(LabBoard.BG, LabBoard.HOT, 0.9 * dim)
 	var core_b := LabBoard.mixc(LabBoard.BG, LabBoard.NEXT, 0.75 * dim)
 	if bool(dz.s6_heat):
-		# the Foundry's disc in its heat ramp, the core white hot
+		# the Forge's disc in its heat ramp, the core white hot
 		dark = _solari()._heat(0.3, dim)
 		mid = _solari()._heat(0.48, dim)
 		lite = _solari()._heat(0.66, dim)

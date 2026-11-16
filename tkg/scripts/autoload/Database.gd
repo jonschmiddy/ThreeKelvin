@@ -72,14 +72,14 @@ func _seed_manufacturers() -> void:
 			"Standard Issue", "Korvan charge cards fire 1 turn sooner. A 1-turn charge fires at once.",
 			"Full Broadside", "Salvo applies to your first attack too."],
 		# Field is a white heat-shield to match the hulls' pale ceramic tile (Jon, Oct 15).
-		[&"solari", "Solari Foundry", "The line between reactor and weapon is philosophy.", "#ef9f27", "#f2eee6",
+		[&"solari", "Solari Forge", "The line between reactor and weapon is philosophy.", "#ef9f27", "#f2eee6",
 			"Weapons that hit harder the hotter you run.",
 			"Sunward", "Solari attacks deal 2 more damage per hit.",
 			"Ignition", "Overheat damage halved."],
 		[&"probate", "The Probate Combine", "Everything is salvage. Even you.", "#b3924e", "#6e5a2e",
 			"Scrap pays and plate holds. It wins slowly and pays well.",
 			"Company Rates", "+50% credits from wrecks.",
-			"Foundry Line", "Brace cards give +2."],
+			"Reclaimed Plate", "Brace cards give +2."],
 		[&"redline", "Redline Shipyards", "Still flying? Then we did our job.", "#e24b4a", "#1c2127",
 			"Salvaged tech, stealth and refits. Deals in contraband.",
 			"Chop Shop", "Draw 1 extra card each turn.",
@@ -435,7 +435,7 @@ func _seed_modules() -> void:
 			{name = "Flashover", energy = 1, heat = 6, damage = 8, flashpoint = 8}])
 	# Capstone, four across. Sunburst is the once-a-fight peak, not 'Nova' (the heavy hull).
 	_module(&"heliostat", "Heliostat Lance", &"solari", W, C4,
-		"Ground for a sun the Foundry no longer has.",
+		"Ground for a sun the Forge no longer has.",
 		[{name = "Noon Lance", energy = 3, heat = 6, damage = 10, heat_scale = 1},
 			{name = "Sunburst", energy = 3, heat = 8, damage = 4, hits = 3, heat_scale = 2,
 				self_decommission = true}])
@@ -730,7 +730,7 @@ func _seed_modules() -> void:
 	_module(&"buscoupling", "Bus Coupling", &"", S, C0,
 		"A second line to the same reactor. Every ship from a yard has one.",
 		[{name = "Shunt", energy = 1, vent = 2, draw = 1}, &"reroute"])
-	_module(&"foundrybus", "Foundry Bus", &"solari", S, C2,
+	_module(&"foundrybus", "Furnace Bus", &"solari", S, C2,
 		"A power bus that runs hot, with its covers off.",
 		[{name = "Cold Start", energy = 0, vent = 4, energy_gain = 1}, &"vent"])
 	_module(&"trunkline", "Salvaged Trunk Line", &"probate", S, C1,

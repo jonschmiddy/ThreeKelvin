@@ -22,7 +22,7 @@ contract, not decoration**:
 | Manufacturer | The line |
 | --- | --- |
 | Korvan Heavy Works | It fires. Every time. |
-| Solari Foundry | The line between reactor and weapon is philosophy. |
+| Solari Forge | The line between reactor and weapon is philosophy. |
 | The Probate Combine | Everything is salvage. Even you. |
 | Redline Shipyards | Still flying? Then we did our job. |
 | Cygnet Dynamics | You are never alone. |

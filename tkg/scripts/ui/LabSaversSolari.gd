@@ -1,8 +1,8 @@
 class_name LabSaversSolari
 extends RefCounted
 
-## Three screensavers only a Solari Foundry Lab runs (review_lab r6 owners, Nov 7).
-## Why: docs/why/LabSaversSolari.md#three-screensavers-only-a-solari-foundry
+## Three screensavers only a Solari Forge Lab runs (review_lab r6 owners, Nov 7).
+## Why: docs/why/LabSaversSolari.md#three-screensavers-only-a-solari-forge
 
 var k: LabSavers
 var g: LabLogin
@@ -72,7 +72,7 @@ static func _ramp(stops: Array[Color], pos: Array[float]) -> PackedColorArray:
 	return out
 
 
-## The Foundry's heat ramp: dark, ember, amber, straw, white (0..1).
+## The Forge's heat ramp: dark, ember, amber, straw, white (0..1).
 func _heat(u: float, dim: float) -> Color:
 	if _heat_lut.is_empty():
 		_heat_lut = _ramp([LabBoard.BG, Color("#3a1408"), LabBoard.EMBER, LabBoard.NEXT, LabBoard.HOT, LabBoard.WHITE],
@@ -90,7 +90,7 @@ func _iron(u: float, dim: float) -> Color:
 	return c if dim >= 1.0 else LabBoard.mixc(LabBoard.BG, c, dim)
 
 
-## The Foundry's own parts, by name, for the test stand.
+## The Forge's own parts, by name, for the test stand.
 func _solari_parts() -> Array[String]:
 	if _parts.is_empty():
 		var ids: Array = DB.modules.keys()
@@ -182,11 +182,11 @@ func _paint_1() -> void:
 	# the axes
 	g.draw_rect(Rect2(cl, ct, 1, cb - ct + 1), k.ink(0.35 * dim))
 	g.draw_rect(Rect2(cl, cb, cr - cl, 1), k.ink(0.35 * dim))
-	# THE TWO LIMITS: the guild's, dotted; the Foundry's, solid, in its colour
+	# THE TWO LIMITS: the guild's, dotted; the Forge's, solid, in its colour
 	var y_old: int = yv.call(M_OLD)
 	var y_ours: int = yv.call(M_OURS)
 	var lo_s := _pick("OLD SAFE LIMIT 1400 K", "OLD LIMIT 1400 K", cr - cl - 40)
-	var hi_s := _pick("FOUNDRY LIMIT 2100 K", "OUR LIMIT 2100 K", cr - cl - 40)
+	var hi_s := _pick("FORGE LIMIT 2100 K", "OUR LIMIT 2100 K", cr - cl - 40)
 	k.text(cl + 4, y_old + 4, lo_s, k.ink(0.6))
 	k.text(cl + 4, y_ours - 8, hi_s, LabBoard.mixc(LabBoard.BG, mk, 0.95))
 	k._keep.append(Rect2i(cl + 2, y_ours - 10, LabBoard.tw(hi_s) + 4, 9))

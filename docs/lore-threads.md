@@ -208,10 +208,10 @@ One new entry only. This thread must stay thin — it is the closest the archive
 
 *The auditor gets to the edge of the only question that matters and — declines to minute it. This is `lore.md` §1's commitment enforced from inside the fiction: the answer is not withheld from the player; it is withheld from everyone.*
 
-> **`solari_schedule`** — "SCHEDULE EXTRACT, THERMAL" — *a scheduling clerk, Solari Foundry* — "foundry year 890" — solari — **depth 8**
-> Queue as held, foundry year 890, extract for the floor meeting.
+> **`solari_schedule`** — "SCHEDULE EXTRACT, THERMAL" — *a scheduling clerk, Solari Forge* — "forge year 890" — solari — **depth 8**
+> Queue as held, forge year 890, extract for the floor meeting.
 >
-> Smelt charge, four allocations, two urgent. Habitat mains, two, the north ring again, their pipes are older than my grandmother. Foundry restart, one, priority, dated.
+> Smelt charge, four allocations, two urgent. Habitat mains, two, the north ring again, their pipes are older than my grandmother. Forge restart, one, priority, dated.
 >
 > TERMINAL APPLICATION, last line, no date, no site, no allocation, carried at the last line since before my ledger and before the ledger I inherited. I asked what feeds its date field, being new, and Ansel said the field is not fed, it is awaited, and went back to his soup. I have written it here the way he said it because I was told extracts are verbatim.
 >
@@ -526,7 +526,7 @@ Web-checked every invented name and load-bearing concept against fiction, games,
   literally: one half changed, "Combine" kept. Probate-as-in-wills turned out
   to fit better than the name it replaced — a manufacturer whose only preparation for
   the heat death is paperwork.
-- **Solari — MEDIUM, keep with care.** League of Legends' sun-worship faction is the Solari; legally clear (Dune's *solari* currency dilutes it further). Always use the full "Solari Foundry" in surfaces the player reads.
+- **Solari — MEDIUM, keep with care.** League of Legends' sun-worship faction is the Solari; legally clear (Dune's *solari* currency dilutes it further). Always use the full "Solari Forge" in surfaces the player reads.
 - **Calyx — LOW-MEDIUM.** Real clinical-research company of the same name, distant goods class; fine as-is.
 
 Manufacturer renames touch `Database.BACKSTORY`, manufacturer ids, and the design docs — a decision for the design owner, not a lore-pass side effect. Nothing in this document depends on the outcome; the constants roster contains no flagged name.
