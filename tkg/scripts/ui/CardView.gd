@@ -227,7 +227,7 @@ func _draw() -> void:
 
 	# The real cost shows: junk is Patchable, so a dashed corner would tell a lie.
 	_gem(_z(Z_ENERGY), str(card.energy), UITheme.ICE)
-	_gem(_z(Z_HEAT), _heat_text(), UITheme.EMBER if card.net_heat() >= 0 else UITheme.GOOD)
+	_gem(_z(Z_HEAT), _heat_text(), UITheme.EMBER if card.shown_heat() >= 0 else UITheme.GOOD)
 
 	# Art window. Recessed, one shade darker, so vector type over it stays legible.
 	var art := _z(Z_ART)
@@ -615,7 +615,7 @@ func _gem(r: Rect2, text: String, col: Color) -> void:
 func _heat_text() -> String:
 	if card.vent_all:
 		return "-A"
-	var n := card.net_heat()
+	var n := card.shown_heat()
 	return str(n) if n >= 0 else "-%d" % absi(n)
 
 func set_playable(can_play: bool) -> void:

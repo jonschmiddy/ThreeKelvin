@@ -58,6 +58,12 @@ static func badge(check: Dictionary) -> String:
 		attr_name(check), need, have, pct, verdict(check)]
 
 
+## The fight's exit asks: the check and its real odds, nothing more (Jon, Nov 16).
+static func exit_line(check: Dictionary) -> String:
+	return "%s %d · you have %d · %d%% · %s" % [attr_name(check), int(check.get("need", 0)),
+		value_of(check), int(round(odds(check) * 100.0)), verdict(check)]
+
+
 ## One word per rung; the bottom is not certain failure, as the 5% floor must stay a bet.
 ## Why: docs/why/SkillCheck.md#odds-in-words
 const VERDICTS: Array[String] = ["certain success", "likely", "uncertain",

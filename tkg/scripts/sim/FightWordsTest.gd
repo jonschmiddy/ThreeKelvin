@@ -103,8 +103,8 @@ func _run() -> void:
 	# 1. THE CHIPS
 	var negate := _card_where(func(c: CardData) -> bool: return c.negate_next)
 	var grows := _card_where(func(c: CardData) -> bool: return c.adapt > 0)
-	var kw_negate := _keyword(negate, "Cancels the next attack")
-	var kw_grows := _keyword(grows, "Gains this permanently")
+	var kw_negate := _keyword(negate, "The next attack on you")
+	var kw_grows := _keyword(grows, "Playing any Grows card")
 	_ok("a card that negates prints its keyword (%s: \"%s\")" % [negate.name if negate else "none", kw_negate],
 		kw_negate != "")
 	_ok("a card that grows prints its keyword (%s: \"%s\")" % [grows.name if grows else "none", kw_grows],
@@ -160,6 +160,30 @@ func _run() -> void:
 		if gun != null and not cb.alive().is_empty():
 			CardResolver.resolve(gun, cb, false)
 			_ok("the next attack spends it all (lock-on %d after %s)" % [cb.lock_on, gun.name], cb.lock_on == 0)
+	# 5. VENT'S TRUE TOTAL (Jon, Nov 16, 2A): the face, the heat corner and the keyword say
+	# the card's vent plus the ship's dissipation, what CardResolver sheds; no ship, its own.
+	var vc := _card_where(func(c: CardData) -> bool: return c.vent > 0 and not c.vent_all)
+	if _ok("a vent card exists (%s)" % (vc.name if vc else "none"), vc != null):
+		var want := vc.vent + Run.dissipation()
+		var cv := CardView.new()
+		cv.setup(vc, true)
+		var corner := cv._heat_text()
+		cv.free()
+		var net := vc.heat - want
+		var corner_want := str(net) if net >= 0 else "-%d" % -net
+		var def := ""
+		for kw: Array in vc.keywords():
+			if String(kw[0]) == "Vent":
+				def = String(kw[1])
+		_ok("%s: face \"%s\", corner %s and keyword \"%s\" all say %d (vent %d + dissipation %d)"
+			% [vc.name, vc.describe(), corner, def, want, vc.vent, Run.dissipation()],
+			Run.dissipation() > 0 and vc.describe().contains("Vent %d" % want)
+			and corner == corner_want and def.contains("%d heat" % want))
+		var ship := Run.hull
+		Run.hull = null
+		_ok("with no ship it is the card's own %d (%s)" % [vc.vent, vc.describe()],
+			vc.vent_total() == vc.vent and vc.describe().contains("Vent %d" % vc.vent))
+		Run.hull = ship
 	Run.hp = Run.max_hp()
 	_end()
 

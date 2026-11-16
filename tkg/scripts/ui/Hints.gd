@@ -1722,7 +1722,7 @@ func _fight_probe(sc: SectorScreen, id: StringName, hud: Rect2) -> Dictionary:
 			# A CARD THAT ADDS HEAT in the hand: its top right corner
 			for v in sc._hand._views:
 				if v != null and is_instance_valid(v) and v.is_visible_in_tree() and not v.card.unplayable \
-						and v.card.net_heat() > 0:
+						and v.card.shown_heat() > 0:
 					return {subject = v.get_global_transform() * v._z(CardView.Z_HEAT), avoid = av}
 			return {}
 		&"keywords":

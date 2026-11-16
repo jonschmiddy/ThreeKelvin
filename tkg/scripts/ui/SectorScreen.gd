@@ -110,7 +110,7 @@ var _stun_note: Label
 const STUN_NOTE := "Stunned. You act after the enemy's turn."
 ## END TURN's tooltip while stunned, the stun's one full explanation.
 const STUN_TIP := "STUNNED\n\nYou act after the enemy's turn, and it can still shoot you."
-const END_TIP := "END TURN\n\nStop, and let them act."
+const END_TIP := "END TURN\n\nEnd your turn. The enemy acts, then you draw a new hand."
 var _hail_button: Button
 var _flee_button: Button
 var _log: LogPanel
@@ -1274,7 +1274,7 @@ func _build_hand() -> Control:
 	turn_box.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 0, 4))
 	turn_box.custom_minimum_size = Vector2(PileView.W, 13)
-	turn_box.tooltip_text = Widgets.tip("TURN\n\nHow long this fight has been going on.")
+	turn_box.tooltip_text = Widgets.tip("TURN\n\nWhich turn of this fight it is.")
 	turn_box.mouse_filter = Control.MOUSE_FILTER_STOP
 	turn_box.add_child(_deck_label)
 	left.add_child(turn_box)
@@ -1670,7 +1670,7 @@ func _show_self_brace(b: int) -> void:
 	_self_brace.visible = b > 0
 	_self_brace.text = "+%d" % b
 	_self_brace.tooltip_text = Widgets.tip(
-		"BRACE\n\nStops %d damage before your hull, and costs 1 heat a turn to hold." % b) \
+		"BRACE\n\nSoaks the next %d damage before your hull. Generates 1 heat each turn while it lasts." % b) \
 		if b > 0 else ""
 
 
@@ -1706,39 +1706,40 @@ func _refresh_player() -> void:
 	_show_self_brace(combat.brace)
 	Widgets.clear(_player_chips)
 	if combat.block > 0:
-		_player_chips.add_child(StatusChip.make(&"block", str(combat.block),
-			Color("#3a4a6e"), "BLOCK\n\nStops %d damage this turn." % combat.block))
+		_player_chips.add_child(StatusChip.make(&"block", str(combat.block), Color("#3a4a6e"),
+			"BLOCK\n\nStops the next %d damage until the end of the enemy's turn." % combat.block))
 	if combat.lock_on > 0:
 		_player_chips.add_child(StatusChip.make(&"lock", "+%d" % combat.lock_on,
-			Color("#6e5a3a"), "LOCK ON\n\nYour next attack deals %d more per hit."
+			Color("#6e5a3a"), "LOCK ON\n\nYour next attack this turn does +%d per hit."
 				% combat.lock_on))
 	# Named by the card keywords `KW_NEGATE` and `KW_GROWS` (tutorial audit, Oct 22).
 	if combat.negate_next:
 		_player_chips.add_child(StatusChip.make(&"slip", "", UITheme.GOOD,
-			"%s\n\nThe next attack on you misses." % CardData.KW_NEGATE.to_upper()))
+			"%s\n\nThe next attack on you does nothing." % CardData.KW_NEGATE.to_upper()))
 	# No salvo chip: it was not a status, and the live number now prints on the card.
 	# Why: docs/why/SectorScreen.md#status-chips
 	if combat.feedback > 0:
 		_player_chips.add_child(StatusChip.make(&"feedback", str(combat.feedback),
-			Color("#6e3a4a"), "FEEDBACK\n\nAttackers take %d back." % combat.feedback))
+			Color("#6e3a4a"), "FEEDBACK\n\nWhen an enemy attacks you, it takes %d damage." % combat.feedback))
 	if combat.adapt_bonus > 0:
 		_player_chips.add_child(StatusChip.make(&"adapt", "+%d" % combat.adapt_bonus,
-			Color("#4a6e3a"), "%s\n\nCards that grow deal %d more."
+			Color("#4a6e3a"), "%s\n\nYour Grows cards do +%d damage per hit this fight."
 				% [CardData.KW_GROWS.to_upper(), combat.adapt_bonus]))
 	for d2 in combat.drones:
 		_player_chips.add_child(StatusChip.make(&"drone", str(d2.damage),
-			Color("#5a7a94"), "DRONE\n\nAttacks for %d at the start of your turn."
+			Color("#5a7a94"), "DRONE\n\nHits for %d at the start of each of your turns."
 				% d2.damage))
 	if combat.drone_brace > 0:
-		_player_chips.add_child(StatusChip.make(&"wasp", str(combat.drone_brace),
-			Color("#5a7a94"), "WASP\n\nYour drones add %d brace." % combat.drone_brace))
+		_player_chips.add_child(StatusChip.make(&"wasp", str(combat.drone_brace), Color("#5a7a94"),
+			"WASP\n\nGives you %d brace at the start of each of your turns." % combat.drone_brace))
 	for c2 in combat.charging:
 		_player_chips.add_child(StatusChip.make(&"charging", str(c2.turns_left),
-			UITheme.EMBER, "%s\n\nFires in %d." % [c2.card.name, c2.turns_left]))
-	if combat.enemy.template.fauna and combat.peaceful_turns > 0:
-		_player_chips.add_child(StatusChip.make(&"peaceful",
-			"%d/2" % combat.peaceful_turns, Color("#4a6e5a"),
-			"PEACEFUL\n\nIt has not been provoked for %d turns."
+			UITheme.EMBER, "%s\n\n%s" % [c2.card.name, "Goes off at the start of your next turn."
+				if c2.turns_left <= 1 else "Goes off at the start of your turn in %d turns." % c2.turns_left]))
+	# Solo only, as pacifying is (`Combat.end_turn`): in a party the count led nowhere.
+	if combat.enemy.template.fauna and combat.peaceful_turns > 0 and not combat.is_shared():
+		_player_chips.add_child(StatusChip.make(&"peaceful", "%d/2" % combat.peaceful_turns, Color("#4a6e5a"),
+			"PEACEFUL\n\nYou have not attacked for %d of 2 turns. At 2 it leaves, and you get 1 exotic material."
 				% combat.peaceful_turns))
 
 ## RULING 8: a disabled button states what it wants; label has the reason, tooltip the cause.
@@ -1770,10 +1771,10 @@ func _refresh_flee() -> void:
 		return
 	_refresh_gate(_flee_button, "FLEE", combat.flee_reason(),
 		combat.flee_cause(), {
-			&"failed": "You tried. They are still here.",
-			&"boss": "You cannot flee this fight.",
+			&"failed": "You already tried.",
+			&"boss": "Not this fight.",
 			&"stunned": "You are stunned.",
-			&"": "Get away on a Maneuver check.",
+			&"": "Escape on a Maneuver check.",
 		}, UITheme.LEAVE)
 
 
@@ -1784,10 +1785,10 @@ func _refresh_hail() -> void:
 	_refresh_gate(_hail_button, "HAIL", combat.hail_reason(),
 		combat.hail_cause(), {
 			&"stunned": "You are stunned.",
-			&"failed": "You already tried. They heard you.",
-			&"struck": "Too late. You shot first.",
-			&"fauna": "It does not have a radio.",
-			&"boss": "This one is not here to deal.",
+			&"failed": "You already tried.",
+			&"struck": "Not after you hit them.",
+			&"fauna": "Creatures can't talk.",
+			&"boss": "They won't answer.",
 			&"": "Talk them down on a Stealth check.",
 		}, UITheme.CHILL)
 
@@ -1826,8 +1827,8 @@ func _refresh_enemy() -> void:
 		# The enemy uses the same icon chip; no brace chip, as the hull bar pips already show it.
 		# Why: docs/why/SectorScreen.md#status-chips
 		if e.block > 0:
-			row.add_child(StatusChip.make(&"block", str(e.block),
-				Color("#3a4a6e"), "BLOCK\n\nStops %d damage this turn." % e.block))
+			row.add_child(StatusChip.make(&"block", str(e.block), Color("#3a4a6e"),
+				"BLOCK\n\nStops the next %d damage you deal it. Wears off when it acts again." % e.block))
 
 	_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered)
 	# Each ship's wreck cut ahead of its death, at the size its pack draws it
@@ -3442,9 +3443,7 @@ func _on_flee() -> void:
 		return
 	# The exact cost, from the same constant the code charges.
 	_ask_exit("BREAK CONTACT?", UITheme.LEAVE, Color("#8f4034"),
-		"%s. You lose the salvage and burn %d fuel, %d if it goes badly. Fail and there is no second try."
-			% [SkillCheck.badge(combat.flee_check()), Combat.FLEE_FUEL,
-				Combat.FLEE_FUEL + Combat.FLEE_FUEL_PARTIAL],
+		SkillCheck.exit_line(combat.flee_check()),
 		"BREAK CONTACT", "STILL ON YOU", func() -> void: combat.flee())
 
 
@@ -3454,8 +3453,7 @@ func _on_hail() -> void:
 	if not fighting() or _exit_ask != null or _opening or not combat.can_hail():
 		return
 	_ask_exit("OPEN A CHANNEL?", UITheme.HOT, Color("#8a6420"),
-		"%s. They break off and there is no salvage. Fail and you give away your position: %d heat, and they take the turn."
-			% [SkillCheck.badge(combat.hail_check()), Combat.HAIL_HEAT_BOTCHED],
+		SkillCheck.exit_line(combat.hail_check()),
 		"HAIL THEM", "NO ANSWER", func() -> void:
 			combat.hail())
 

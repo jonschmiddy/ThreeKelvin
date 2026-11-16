@@ -160,7 +160,7 @@ const MINIBOSS_BREAKS_AT := 0.35
 static func escape_intent() -> IntentData:
 	var i := IntentData.new()
 	i.name = "ESCAPE BURN"
-	i.text = "Spooling a blind jump: finish it now or lose it"
+	i.text = "It jumps away when you end your turn. Kill it first or it escapes."
 	i.telegraph = true
 	i.escape = true
 	return i
@@ -716,12 +716,9 @@ static func sunward(c: CardData) -> int:
 		return SUNWARD
 	return 0
 
-## The turns a card waits once played. Korvan 3 (Standard Issue) takes one off its
-## own cards, so a 1-turn charge fires when played (0).
+## The turns a card waits once played; the rule lives on the card (`CardData.charge_turns_now`).
 static func charge_turns_for(c: CardData) -> int:
-	if c.charge_turns > 0 and c.manufacturer == &"korvan" and Run.has_set(&"korvan", 3):
-		return c.charge_turns - 1
-	return c.charge_turns
+	return c.charge_turns_now()
 
 ## Mirrors CardResolver without mutating, per hit; drift would make the on-screen number a
 ## lie. Separate from `preview_damage` since mitigation depends on the target.

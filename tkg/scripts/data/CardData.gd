@@ -124,6 +124,36 @@ func glyph_kind() -> StringName:
 func net_heat() -> int:
 	return heat - vent
 
+## What a vent really sheds: its own number plus the ship's dissipation, as CardResolver
+## takes it. The card's own number when there is no ship. For what the player reads.
+func vent_total() -> int:
+	if vent <= 0:
+		return 0
+	var run := _run()
+	return vent + (int(run.dissipation()) if run != null and run.hull != null else 0)
+
+## The heat corner's number: `net_heat` with the vent at its true size (Jon, Nov 16, 2A).
+func shown_heat() -> int:
+	return heat - vent_total()
+
+## The run, found at call time: naming the `Run` autoload here tied RunState's scripts into a
+## cycle that leaked four of them at exit (parseall). Null outside the game.
+static func _run() -> Node:
+	var tree := Engine.get_main_loop() as SceneTree
+	return tree.root.get_node_or_null(^"Run") if tree != null else null
+
+static func _heat() -> int:
+	var run := _run()
+	return int(run.heat) if run != null else 0
+
+## The turns this card waits once played. Korvan 3 (Standard Issue) takes one off its
+## own cards, so a 1-turn charge fires when played (0). `Combat.charge_turns_for` asks here.
+func charge_turns_now() -> int:
+	var run := _run()
+	if charge_turns > 0 and manufacturer == &"korvan" and run != null and run.has_set(&"korvan", 3):
+		return charge_turns - 1
+	return charge_turns
+
 ## Kept though its hazard is gone: the glyph is decided once, on the base card.
 ## Empty on unresolved cards; `glyph_kind()` then computes the same answer.
 ## Why: docs/why/CardData.md#base-glyph
@@ -179,55 +209,73 @@ const KW_GROWS := "Grows"
 
 func keywords() -> Array:
 	var out: Array = []
+	# Each definition carries this card's real number (Jon, Nov 16: no "this much").
 	if block > 0:
-		out.append(["Block", "Stops damage before your brace does. Gone at the end of the enemy's turn."])
+		out.append(["Block", "Stops the next %d damage until the end of the enemy's turn." % block])
 	if brace > 0 or brace_from_heat:
 		# BRACE, not 'brace': it is the word the card prints, and a glossary must match the card.
-		out.append(["Brace", "Stops damage. Stays up between turns, and costs 1 heat a turn to hold."])
+		out.append(["Brace", "Soaks damage before your hull. Generates 1 heat each turn while it lasts."])
 	if brace_from_heat:
-		out.append(["Brace from heat", "You brace for half the heat you are carrying, plus 2."])
+		out.append(["Brace from heat", "Gives brace equal to half your heat, plus 2. Right now that is %d."
+			% maxi(2, _heat() / 2 + 2)])
 	if feedback > 0:
-		out.append(["Feedback", "Deals this straight back to any enemy that attacks you."])
+		out.append(["Feedback", "When an enemy attacks you, it takes %d damage." % feedback])
 	if negate_next:
-		out.append([KW_NEGATE, "Cancels the next attack against you outright, whatever its size."])
+		out.append([KW_NEGATE, "The next attack on you does nothing."])
 	if salvo > 0:
-		out.append(["Salvo", "Adds this to every hit, but only if you have already attacked this turn."])
+		out.append(["Salvo", "+%d damage per hit if you already attacked this turn." % salvo])
 	if charge_turns > 0:
-		out.append(["Charge", "Fires on its own after this many turns instead of when you play it."])
+		var t := charge_turns_now()
+		out.append(["Charge", "Goes off as soon as you play it." if t <= 0
+			else "Goes off %d turn%s after you play it." % [t, "" if t == 1 else "s"]])
 	if adapt > 0:
-		out.append([KW_GROWS, "Gains this permanently every time you play it, for the rest of the fight."])
+		out.append([KW_GROWS, "Playing any Grows card gives all Grows cards +%d damage per hit this fight."
+			% adapt])
 	if heat_scale > 0:
-		out.append(["Heat scaling", "One more damage for every %d heat you are carrying." % heat_scale])
+		out.append(["Heat scaling", "+1 damage per hit for every %d heat you have." % heat_scale])
 	if heal_scale > 0:
 		out.append(["Emergency repair",
-			"One more hull for every %d you are missing." % heal_scale])
+			"Repairs %d hull, plus 1 for every %d hull you are missing." % [heal, heal_scale]])
 	if flashpoint > 0:
-		out.append(["Flashpoint", "Deals this much more per hit if your heat is over your capacity when it is played."])
+		out.append(["Flashpoint", "+%d damage per hit if your heat is over the cap when you play it." % flashpoint])
 	if damage_equals_heat:
-		out.append(["Damage from heat", "Hits for the heat you are carrying, plus 2."])
+		out.append(["Damage from heat", "Hits once for your heat, plus 2. Right now that is %d."
+			% maxi(1, _heat() + 2)])
 	if lock_on > 0:
-		out.append(["Lock on", "Your next attack this turn deals this much more per hit. Lock on from more cards adds up."])
-	if vent > 0 or vent_all:
-		out.append(["Vent", "Sheds heat. Its heat corner shows a minus number."])
-	if drone_damage > 0 or drone_brace > 0:
-		out.append(["Drone", "Keeps fighting after the card is gone. It stays out until the fight ends."])
+		out.append(["Lock on", "Your next attack this turn does +%d per hit. Lock on cards stack." % lock_on])
+	if vent_all:
+		out.append(["Vent", "Removes all your heat."])
+	elif vent > 0:
+		out.append(["Vent", "Removes up to %d heat." % vent_total()])
+	if drone_damage > 0:
+		out.append(["Drone", "Launches a drone that hits for %d at the start of each of your turns. "
+			% drone_damage + "It stays until the fight ends or an Evoke card uses it up."])
+	elif drone_brace > 0:
+		out.append(["Drone", "Launches a drone that gives you %d brace at the start of each of your turns."
+			% drone_brace])
 	if fused:
-		out.append(["Fused", "It is not discarded at the end of your turn. Discarding it costs you the card that does it."])
+		out.append(["Fused", "Stays in your hand at the end of your turn."])
 	if hand_damage > 0:
-		out.append(["Corrode", "Damage at the end of your turn, for as long as it is still in your hand."])
+		out.append(["Corrode", "If it is in your hand when your turn ends, you lose %d hull." % hand_damage])
 	if hand_heat > 0:
-		out.append(["Smoulder", "Heat at the end of your turn, for as long as it is still in your hand."])
-	if decommission > 0 or self_decommission:
-		out.append(["Decommission", "Removed for the rest of this fight. It does not return when the deck reshuffles."])
-	if discard > 0 or discard_hand:
-		out.append(["Discard", "Goes to the discard pile, and back into the deck when that pile reshuffles."])
+		out.append(["Smoulder", "If it is in your hand when your turn ends, you gain %d heat." % hand_heat])
+	if decommission > 0:
+		out.append(["Decommission", "Pick %d card%s in your hand. %s gone for the rest of this fight."
+			% [decommission, "" if decommission == 1 else "s", "It is" if decommission == 1 else "They are"]])
+	elif self_decommission:
+		out.append(["Decommission", "Once played, this card is gone for the rest of this fight."])
+	if discard_hand:
+		out.append(["Discard", "Your whole hand goes to the discard pile."])
+	elif discard > 0:
+		out.append(["Discard", "Pick %d card%s in your hand to put in the discard pile."
+			% [discard, "" if discard == 1 else "s"]])
 	if evoke > 0:
-		out.append(["Evoke", "Adds this much for each drone you have out."])
+		out.append(["Evoke", "Each of your attack drones hits for %d, then they are gone." % evoke])
 	if credit_cost > 0:
-		out.append(["Credit cost", "Paid from the same balance you repair and refit with."])
+		out.append(["Credit cost", "Costs %d credits to play." % credit_cost])
 	if unplayable:
 		# One word, one entry: Purge does nothing but leave, so 'unplayable' was never true.
-		out.append(["Purge", "Removes this card from combat. It returns next combat."])
+		out.append(["Purge", "Playing it removes it until this fight ends. It comes back next fight."])
 	return out
 
 ## Derived from `describe()`, so two strings that must agree are one string with a transform.
@@ -301,7 +349,7 @@ func describe(live: int = -1) -> String:
 	if negate_next:
 		bits.append("Negate next attack")
 	if vent > 0:
-		bits.append("Vent %d" % vent)
+		bits.append("Vent %d" % vent_total())
 	if vent_all:
 		bits.append("Vent all")
 	if heal > 0 or heal_scale > 0:

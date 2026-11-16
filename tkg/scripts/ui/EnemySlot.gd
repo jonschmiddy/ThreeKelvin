@@ -372,7 +372,7 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	if _dead and opened.is_valid():
 		_hp.add_theme_color_override("font_color", UITheme.TRACTOR)
 		tooltip_text = Widgets.tip(
-			"%s\n\nDisabled, with cargo still aboard; click to open it." % e.template.name.to_upper())
+			"%s\n\nCargo is still aboard. Click to open it." % e.template.name.to_upper())
 	else:
 		# Only here: running always repainted SALVAGE corpse-grey, so the clickable thing read as
 		# disabled.
@@ -397,13 +397,13 @@ func set_salvage(left: int) -> void:
 		_hp.text = "SALVAGE"
 		_hp.add_theme_color_override("font_color", UITheme.TRACTOR)
 		tooltip_text = Widgets.tip(
-			"%s\n\nDisabled, with %d things still aboard; click to open it."
+			"%s\n\n%d things are still aboard. Click to open it."
 			% [_name.text, left])
 	elif opened.is_valid():
 		_hp.text = "STRIPPED"
 		_hp.add_theme_color_override("font_color", Color("#4a5c72"))
 		tooltip_text = Widgets.tip(
-			"%s\n\nPicked clean; the hull stays, its cargo is gone." % _name.text)
+			"%s\n\nNothing is left aboard." % _name.text)
 	queue_redraw()
 
 ## Set by EncounterView from the screen owning Combat: the slot knows only the card and the
