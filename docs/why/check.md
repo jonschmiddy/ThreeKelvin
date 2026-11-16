@@ -37,6 +37,34 @@ files are listed as "run by hand". A row with `~N min` over three minutes runs o
 `--slow`. A run passes as `run_battery.sh` decides: exit 0, no error line, no failing
 verdict line, and a PASS line (a row its cell calls a MEASUREMENT or a Profiler prints none).
 
+## Runs side by side
+
+A change to a core file (`Database`, `Combat`, `CardData`) maps to 40 rows or more, each a
+Godot run of 20 to 60 seconds: one at a time that was 15 to 30 minutes. `--run` now starts
+`--jobs` of them at once (default `TK_TEST_JOBS`, else six or the cores less two, at least
+one), as the gate's pool does, and prints each result whole and in row order, so the output
+reads as it did serially and `check.sh` greps the same lines.
+
+Some rows still run alone, after the pool, one at a time, because a busy CPU fails them for
+reasons that are not the code's:
+
+- a command one of the gate's `SOLO_UNITS` runs, read from `validate.sh` (the unit's
+  `-- sheet=X` and its bare words: `FlightTest clicks` is alone, `FlightTest seeds=2` is
+  not), so the two lists cannot drift; `--selftest` fails if a SOLO unit yields no command;
+- a row `docs/tests.md` marks as timing: "**In the merge gate**, solo", "alone (it times",
+  "SOLO", "times frames" or "times the step";
+- a MEASUREMENT or Profiler that times something (counts are unaffected and stay in the pool);
+- a windowed row (none run today) and the co-op scripts, whose two processes pair over the network.
+
+`--list-all` prints which rows run alone and why. Each run is isolated as before: `godot.sh`
+gives every process its own fresh profile (APPDATA and LOCALAPPDATA on Windows, HOME and XDG
+elsewhere), so user:// and `TestRun.scratch` are never shared; harnesses write nothing under
+res://, and the gate already runs six Godots on one imported `tkg/` at once. Logs are numbered
+per row. On Windows a run is started suspended inside a job object and then resumed, so
+everything it starts (bash, `timeout`, `godot_console.exe`, `godot.exe`) belongs to the job;
+the job is ended after every run, at its time limit and on Ctrl-C, which a plain kill of bash
+did not do (it left `godot.exe` running). Elsewhere a run is its own process group.
+
 ## What `--tests` runs
 
 `check.sh --tests` and `tests_for.py --run` run the checked-out branch's own code: the game, and the four

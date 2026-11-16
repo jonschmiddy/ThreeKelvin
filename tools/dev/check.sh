@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# check.sh [--tests] [--staged] [--base REV] [--static [--quiet]]
+# check.sh [--tests [--jobs N]] [--staged] [--base REV] [--static [--quiet]]
 #
 # The one command to run before saying a change is done. In seconds: the gate's
 # static checks (the ones that start no Godot: tabs, changes/, code_check,
 # code_graph, comment_check, prose, vocab, ...; the same code as
 # `GATE_STATIC=1 .github/scripts/validate.sh`), then `-- parseall` if Godot is found.
-# --tests also runs the headless test rows this change needs (tests_for.py --run).
+# --tests also runs the headless test rows this change needs (tests_for.py --run),
+# --jobs N of them at once (default TK_TEST_JOBS, else min(6, cores - 2)); rows that time
+# something run alone after, as the gate's SOLO_UNITS do.
 # --staged limits the test advice to what is staged. The merge gate is still the gate.
 # --static stops after the static checks (the pre-commit hook's call); --quiet then
 # prints only failures. A full pass also records the state of the tree it passed on
@@ -17,7 +19,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 cd "$ROOT" || exit 2
 
-RUN_TESTS=0; PARSED=0; STAGED=""; BASE="main"; STATIC_ONLY=0; QUIET=0
+RUN_TESTS=0; PARSED=0; STAGED=""; BASE="main"; STATIC_ONLY=0; QUIET=0; JOBS=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--tests) RUN_TESTS=1 ;;
@@ -25,7 +27,8 @@ while [ $# -gt 0 ]; do
 		--static) STATIC_ONLY=1 ;;
 		--quiet) QUIET=1 ;;
 		--base) shift; BASE="${1:-main}" ;;
-		-h|--help) sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+		-j|--jobs) shift; JOBS="${1:-}" ;;
+		-h|--help) sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
 		*) echo "check.sh: unknown option '$1' (try --help)" >&2; exit 2 ;;
 	esac
 	shift
@@ -113,6 +116,7 @@ fi
 # --- 3. the tests this change needs -------------------------------------------
 TF=("$PY" "$HERE/tests_for.py" --base "$BASE")
 [ -n "$STAGED" ] && TF+=("$STAGED")
+[ -n "$JOBS" ] && TF+=(--jobs "$JOBS")
 if [ "$RUN_TESTS" -eq 1 ]; then
 	T2=$SECONDS
 	"${TF[@]}" --run >"$OUT/tests.txt" 2>&1

@@ -15,7 +15,9 @@ Do these in order. Each step says why, so you can tell when it does not apply.
 1. **Run `bash tools/dev/check.sh --tests`.** One command: the static checks, `-- parseall`, and
    the headless test rows `docs/tests.md` lists for what you touched. A change you did not run
    is a guess. (`bash tools/dev/check.sh` without `--tests` is the quick version; the Stop hook
-   still asks for `--tests` after a change under `tkg/`.) Why: `docs/why/check.md`.
+   still asks for `--tests` after a change under `tkg/`.) The rows run up to six at once by default
+   (`--jobs N` or `TK_TEST_JOBS`; `--jobs 1` is the old serial run), the timing ones alone after;
+   do not run it beside a gate. Why: `docs/why/check.md`.
 2. **Read what `tests_for.py` printed under "run by hand"** (windowed rows, art, audio, anything it
    will not start). You did not run those. Name each in your report as not run.
 3. **A new `class_name` or a new script needs an import:**

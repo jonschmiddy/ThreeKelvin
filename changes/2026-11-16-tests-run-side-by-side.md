@@ -1,0 +1,1 @@
+- **Changed** — `tools/dev/check.sh --tests` runs a change's test rows up to six at once (`--jobs N`, `TK_TEST_JOBS`), the ones that time something alone after, and stops every Godot it started on Ctrl-C or a time limit.
