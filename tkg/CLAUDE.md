@@ -128,7 +128,7 @@ GATE_JOBS=1 .github/scripts/validate.sh        # the same gate one step at a tim
 ```
 
 **The gate runs its steps side by side.** Each step is a `unit_<name>()` function in
-`validate.sh`; `import` runs first and alone, then a pool of `GATE_JOBS` (default 6)
+`validate.sh`; `import` runs first and alone, then a pool of `GATE_JOBS` (default 12)
 longest first, then the `SOLO_UNITS` one at a time: the steps that time something
 against the wall clock, measure motion frame to frame without `--fixed-fps`, or race
 threads (`maplagtest`, `gameclocktest`, `playerdeathtest`, `faunatest`,

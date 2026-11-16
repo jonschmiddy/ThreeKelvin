@@ -5,6 +5,7 @@
     python3 tools/dev/tests_for.py --base <commit>  # changed since that commit
     python3 tools/dev/tests_for.py --staged         # only what is staged for the next commit
     python3 tools/dev/tests_for.py --run            # also run the headless ones (tools/dev/godot.sh)
+    python3 tools/dev/tests_for.py --run --jobs 1   # one at a time (default TK_TEST_JOBS, or the gate's 12)
     python3 tools/dev/tests_for.py --list-all       # every row of docs/tests.md, as this tool reads it
 
 It does by machine what tkg/CLAUDE.md asks a session to do by hand: for each changed
@@ -19,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -37,6 +39,17 @@ ERR_RE = re.compile(r"SCRIPT ERROR|Parse Error|Compile Error|^ERROR:")
 # A row that says it measures (a study or a profiler) prints numbers and no verdict:
 # running it clean is a pass, since there is nothing for it to fail.
 MEASURES_RE = re.compile(r"\bMEASUREMENT\b|\bProfiler\b")
+
+# A row docs/tests.md marks as timing something: the gate runs it alone ("**In the merge gate**,
+# solo" or "alone (it times frames)"), or it times the frame or the step. Such a row runs after
+# the pool, one at a time, like the gate's SOLO_UNITS (read from validate.sh, below).
+TIMING_RE = re.compile(r"(?i:in the merge gate\*\*,?\s*(?:solo|alone))|\bSOLO\b|\balone \(it times|"
+                       r"\btimes (?:the )?(?:frames?|step)\b")
+# A measurement (MEASURES_RE) that times something, rather than counting: a profiler, a benchmark.
+CLOCKED_RE = re.compile(r"\bProfiler\b|\b(?:times|timings?|benchmark)\b|\bwall[- ]clock\b|[0-9] ?ms\b")
+# Scripts that start two Godots which find each other over the network: two pairs at once
+# could pair across.
+NET_SCRIPTS = ("tools/cofight.sh", "tools/cojoin.sh")
 
 FAIL_RE = re.compile(r"^=== FAIL|^[A-Za-z0-9_]+: [0-9]+ FAILURES|^[A-Za-z0-9_]+: FAIL$|"
                      r"^[A-Za-z0-9_]+: .*\([1-9][0-9]* failed\)")
@@ -150,6 +163,91 @@ def gate_labels():
         for m in re.finditer(r"--path \"\$PROJECT\"[^\n]*?-- (?:sheet=)?([A-Za-z0-9_]+)", text):
             out.add(m.group(1).lower())
     return out
+
+
+def gate_solo():
+    """[(unit, label, bare words)] of each Godot command the merge gate's SOLO_UNITS run: the
+    units that time the wall clock, motion or threads, which the gate runs one at a time after
+    its pool. Read from validate.sh, so the two lists cannot drift."""
+    f = ROOT / ".github" / "scripts" / "validate.sh"
+    if not f.is_file():
+        return []
+    text = f.read_text(encoding="utf-8", errors="replace")
+    m = re.search(r'^SOLO_UNITS="([^"]*)"', text, re.M)
+    out = []
+    for u in (m.group(1).split() if m else []):
+        body = re.search(r"^unit_%s\(\)\s*\{(.*?)^\}" % re.escape(u), text, re.M | re.S)
+        for a in re.finditer(r'--path "\$PROJECT"[^\n]*?-- ([^\n);]*)', body.group(1) if body else ""):
+            args = a.group(1).replace('"', "").split()
+            if not args:
+                continue
+            first = args[0].lower()
+            label = first[len("sheet="):] if first.startswith("sheet=") else first
+            bare = set(x.lower() for x in args[1:] if "=" not in x and not x.startswith("$"))
+            out.append((u, label, bare))
+    return out
+
+
+def gate_weights():
+    """{unit: seconds} from validate.sh's gate_weight: how long each gate unit takes, so the pool
+    starts the long runs first. A unit's name is its command's label for most sheets."""
+    f = ROOT / ".github" / "scripts" / "validate.sh"
+    if not f.is_file():
+        return {}
+    text = f.read_text(encoding="utf-8", errors="replace")
+    m = re.search(r"^gate_weight\(\)\s*\{(.*?)^\}", text, re.M | re.S)
+    return dict((k, int(v)) for k, v in re.findall(r"([a-z0-9_]+)\) echo ([0-9]+)", m.group(1) if m else ""))
+
+
+def solo_reason(row, cmd, solo):
+    """Why this command must run alone (after the pool, one at a time), or ''."""
+    if row.mode == "windowed":
+        return "windowed"
+    if cmd.kind == "script":
+        return "starts two Godots that pair over the network" if cmd.args[0] in NET_SCRIPTS else ""
+    mine = set(a.lower() for a in cmd.args[1:])
+    for unit, label, bare in solo:
+        if cmd.label == label and bare <= mine:
+            return "the gate's SOLO_UNITS: %s" % unit
+    if TIMING_RE.search(row.cell2):
+        return "docs/tests.md: it times something"
+    if MEASURES_RE.search(row.cell2) and CLOCKED_RE.search(row.cell2):
+        return "a timing measurement: its numbers want the machine to itself"
+    return ""
+
+
+def default_jobs():
+    env = os.environ.get("TK_TEST_JOBS", "").strip()
+    if env:
+        try:
+            return max(1, int(env))
+        except ValueError:
+            sys.stderr.write("tests_for: TK_TEST_JOBS must be a whole number (got %r); using the default\n" % env)
+    # validate.sh's own default (docs/why/validate.md#gate_jobs): twelve, one a core, one per 1.2 GB
+    jobs = min(12, os.cpu_count() or 1)
+    mem = total_memory()
+    if mem:
+        jobs = min(jobs, int(mem // (1.2 * 1024 ** 3)))
+    return max(1, jobs)
+
+
+def total_memory():
+    """The machine's memory in bytes, or 0 when it cannot be read."""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class Status(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_uint32), ("dwMemoryLoad", ctypes.c_uint32)] + \
+                           [(n, ctypes.c_uint64) for n in ("total", "avail", "pf", "pfa", "vt", "va", "ve")]
+            st = Status()
+            st.dwLength = ctypes.sizeof(st)
+            return st.total if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st)) else 0
+        if sys.platform == "darwin":
+            return int(subprocess.check_output(["sysctl", "-n", "hw.memsize"]).strip())
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except Exception:
+        return 0
 
 
 def parse_table():
@@ -421,6 +519,24 @@ def selftest():
     ok.commands = [parse_command("--headless --fixed-fps 60 -- sim", "")]
     if not runnable(ok):
         bad.append("a row with allowlisted flags must run")
+    # Runs alone: every unit of the gate's SOLO_UNITS must be read as a command, or a timing test
+    # would join the pool unnoticed when validate.sh changes shape.
+    solo = gate_solo()
+    text = (ROOT / ".github" / "scripts" / "validate.sh").read_text(encoding="utf-8", errors="replace")
+    m = re.search(r'^SOLO_UNITS="([^"]*)"', text, re.M)
+    if not m:
+        bad.append("validate.sh has no SOLO_UNITS line to read")
+    for u in (m.group(1).split() if m else []):
+        if u not in [s[0] for s in solo]:
+            bad.append("SOLO_UNITS names %s, and no Godot command was read from unit_%s" % (u, u))
+    for cell1, cell2, want in (("`-- sheet=FlightTest clicks`", "", True), ("`-- sheet=FlightTest`", "", False),
+                               ("`-- sheet=ThreadStress`", "", True), ("`-- sheet=X`", "**In the merge gate**, solo.", True),
+                               ("`-- sheet=X`", "the solo game", False), ("`-- sheet=X`", "A MEASUREMENT: times each cut", True),
+                               ("`-- sheet=X`", "A MEASUREMENT: unique cards per maker", False)):
+        r = Row(cell1, cell2, 1)
+        r.commands = [parse_command(cell1.strip("`"), "")]
+        if bool(solo_reason(r, r.commands[0], solo)) != want:
+            bad.append("%s / %r: want %s" % (cell1, cell2, "alone" if want else "in the pool"))
     return bad
 
 
@@ -479,7 +595,112 @@ def time_limit(row, cap):
     return min(base, cap) if cap else base
 
 
-def run_one(row, cmd, cap, outdir):
+# ---------------------------------------------------------------- one run's process tree
+
+LIVE = set()                 # every _Tree still running, for Ctrl-C
+LIVE_LOCK = threading.Lock()
+STOPPING = threading.Event()
+
+
+def _win_job():
+    """A Windows job object that kills everything in it when it is closed or terminated."""
+    import ctypes
+    from ctypes import wintypes
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    class Basic(ctypes.Structure):
+        _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                    ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                    ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                    ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD),
+                    ("SchedulingClass", wintypes.DWORD)]
+
+    class Io(ctypes.Structure):
+        _fields_ = [(n, ctypes.c_uint64) for n in ("r", "w", "o", "rb", "wb", "ob")]
+
+    class Extended(ctypes.Structure):
+        _fields_ = [("Basic", Basic), ("Io", Io), ("ProcessMemoryLimit", ctypes.c_size_t),
+                    ("JobMemoryLimit", ctypes.c_size_t), ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                    ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+    k32.CreateJobObjectW.restype = wintypes.HANDLE
+    k32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+    k32.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+    k32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+    k32.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    job = k32.CreateJobObjectW(None, None)
+    if not job:
+        return None, k32
+    info = Extended()
+    info.Basic.LimitFlags = 0x2000          # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    k32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info))   # 9: extended limits
+    return job, k32
+
+
+class _Tree(object):
+    """One run and everything it starts, stopped together. On Windows a killed bash leaves
+    godot_console.exe and godot.exe running, so the run is started suspended, put in a job
+    object (its children join it) and then resumed; ending the job ends them all. Elsewhere it
+    is a process group. close() is called after every run, so an orphan never outlives it."""
+
+    def __init__(self, argv, fh):
+        self.job, self.k32 = None, None
+        kw = dict(cwd=str(ROOT), stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+        if os.name == "nt":
+            import ctypes
+            self.job, self.k32 = _win_job()
+            resume = ctypes.WinDLL("ntdll").NtResumeProcess
+            resume.argtypes = [ctypes.c_void_p]
+            self.p = subprocess.Popen(argv, creationflags=0x4, **kw)    # CREATE_SUSPENDED
+            try:
+                if self.job:
+                    self.k32.AssignProcessToJobObject(self.job, int(self.p._handle))
+                resume(int(self.p._handle))
+            except Exception:
+                self.p.kill()
+                raise
+        else:
+            self.p = subprocess.Popen(argv, start_new_session=True, **kw)
+        with LIVE_LOCK:
+            LIVE.add(self)
+
+    def kill(self):
+        if self.job:
+            self.k32.TerminateJobObject(self.job, 1)
+        elif os.name == "nt":
+            self.p.kill()
+        else:
+            import signal
+            try:
+                os.killpg(self.p.pid, signal.SIGKILL)
+            except OSError:
+                pass
+
+    def close(self):
+        self.kill()
+        try:
+            self.p.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        if self.job:
+            self.k32.CloseHandle(self.job)
+            self.job = None
+        with LIVE_LOCK:
+            LIVE.discard(self)
+
+
+def stop_all():
+    STOPPING.set()
+    with LIVE_LOCK:
+        trees = list(LIVE)
+    for t in trees:
+        t.kill()
+
+
+def run_one(row, cmd, cap, outdir, n=0):
+    """Run one command; returns (ok, the lines to print). Prints nothing itself, so runs side by
+    side can be printed whole and in row order."""
     limit = time_limit(row, cap)
     if cmd.kind == "script":
         script = cmd.args[0]
@@ -489,15 +710,19 @@ def run_one(row, cmd, cap, outdir):
             argv = ["bash"] + cmd.args
     else:
         argv = godot_argv(row, cmd, limit)
-    log = os.path.join(outdir, re.sub(r"[^A-Za-z0-9]+", "_", cmd.text)[:60] + ".log")
+    # numbered: two commands can share their first 60 characters
+    log = os.path.join(outdir, "%02d_%s.log" % (n, re.sub(r"[^A-Za-z0-9]+", "_", cmd.text)[:60]))
     t0 = time.time()
-    try:
-        with open(log, "w") as fh:
-            p = subprocess.run(argv, cwd=str(ROOT), stdout=fh, stderr=subprocess.STDOUT,
-                               timeout=limit + 60)
-        code = p.returncode
-    except subprocess.TimeoutExpired:
-        code = 124
+    if STOPPING.is_set():
+        return False, ["  FAIL %s (0s): not started, the run was stopped" % cmd.text]
+    with open(log, "w") as fh:
+        tree = _Tree(argv, fh)
+        try:
+            code = tree.p.wait(timeout=limit + 60)
+        except subprocess.TimeoutExpired:
+            code = 124
+        finally:
+            tree.close()
     secs = int(time.time() - t0)
     text = open(log, errors="replace").read().splitlines()
     errs = [l for l in text if ERR_RE.search(l) and not LEAK_OK.search(l)]
@@ -524,13 +749,81 @@ def run_one(row, cmd, cap, outdir):
         ok, why = True, "measured, nothing judged"
     else:
         ok, why = False, "no PASS line printed"
+    if STOPPING.is_set() and not ok:
+        why = "stopped (Ctrl-C)"
     shown = "ok  " if ok else "FAIL"
-    print("  %s %s (%ds): %s" % (shown, cmd.text, secs, why))
+    out = ["  %s %s (%ds): %s" % (shown, cmd.text, secs, why)]
     if not ok:
         for l in (errs or fails or text[-8:])[:8]:
-            print("        " + l)
-        print("        log: " + log)
-    return ok
+            out.append("        " + l)
+        out.append("        log: " + log)
+    return ok, out
+
+
+def run_all(picked, jobs, cap, outdir):
+    """Run every picked command, `jobs` at once, and print each result whole in row order.
+    Commands that must run alone (solo_reason) wait for the pool and then go one at a time.
+    Returns the number that failed, or None when stopped by Ctrl-C."""
+    alone = {}
+    if jobs > 1:
+        solo = gate_solo()
+        for i, (r, c) in enumerate(picked):
+            why = solo_reason(r, c, solo)
+            if why:
+                alone[i] = why
+    pool = [i for i in range(len(picked)) if i not in alone]
+    if jobs > 1:
+        # the long ones first (the gate's weights, else the row's ~N min), row order among equals,
+        # so a four-minute sheet does not start last and hold the tail
+        w = gate_weights()
+        pool.sort(key=lambda i: -max(w.get(picked[i][1].label, 15), picked[i][0].minutes * 60))
+    after = [i for i in range(len(picked)) if i in alone]
+    if jobs > 1:
+        print("\nrunning %d at once, then %d alone (logs in %s):" % (jobs, len(after), outdir))
+        for i in after:
+            print("  alone: %s (%s)" % (picked[i][1].text, alone[i]))
+    else:
+        print("\nrunning one at a time (logs in %s):" % outdir)
+    results = {}
+    running = {}
+
+    def work(i):
+        r, c = picked[i]
+        try:
+            results[i] = run_one(r, c, cap, outdir, i + 1)
+        except Exception as e:   # a run that could not start is a failed row, not a dead pool
+            results[i] = (False, ["  FAIL %s (0s): could not run: %s" % (c.text, e)])
+
+    def start(i):
+        t = threading.Thread(target=work, args=(i,))
+        t.daemon = True
+        t.start()
+        running[i] = t
+
+    printed, bad = 0, 0
+    try:
+        while printed < len(picked):
+            for i in [k for k, t in running.items() if not t.is_alive()]:
+                del running[i]
+            while pool and len(running) < jobs:
+                start(pool.pop(0))
+            if not pool and not running and after:
+                start(after.pop(0))
+            while printed in results:
+                ok, lines = results[printed]
+                for l in lines:
+                    print(l)
+                sys.stdout.flush()
+                bad += 0 if ok else 1
+                printed += 1
+            time.sleep(0.2)
+    except KeyboardInterrupt:
+        stop_all()
+        for t in running.values():
+            t.join(15)
+        print("\ntests_for: stopped (Ctrl-C): every run this started is ended")
+        return None
+    return bad
 
 
 # ---------------------------------------------------------------- main
@@ -545,6 +838,9 @@ def main():
     ap.add_argument("--selftest", action="store_true", help="check the engine-flag allowlist")
     ap.add_argument("--slow", action="store_true", help="also run rows that say they take 3 minutes or more")
     ap.add_argument("--max-secs", type=int, default=0, help="cap on one run's time limit (0: the row's own)")
+    ap.add_argument("-j", "--jobs", type=int, default=default_jobs(),
+                    help="runs at once with --run (default TK_TEST_JOBS, else validate.sh's: 12, one a core, one per 1.2 GB); "
+                         "timing rows still run alone after")
     a = ap.parse_args()
 
     if a.selftest:
@@ -556,8 +852,12 @@ def main():
     SLOW[0] = a.slow
     rows = parse_table()
     if a.list_all:
+        solo = gate_solo()
         for r in rows:
             run = "runs" if runnable(r) else "by hand"
+            whys = [solo_reason(r, c, solo) for c in runnable(r)]
+            if any(whys):
+                run += ", alone: " + "; ".join(w for w in whys if w)
             print("line %d  [%s, %s]  %s" % (r.line, tags(r), run, row_commands_text(r)[:150]))
         print("%d rows" % len(rows))
         return 0
@@ -620,11 +920,11 @@ def main():
         print("tests_for: bash not found: cannot run tools/dev/godot.sh")
         return 2
     outdir = tempfile.mkdtemp(prefix="tests_for_")
-    print("\nrunning (logs in %s):" % outdir)
-    bad = 0
-    for r, c in picked:
-        if not run_one(r, c, a.max_secs, outdir):
-            bad += 1
+    t0 = time.time()
+    bad = run_all(picked, max(1, a.jobs), a.max_secs, outdir)
+    if bad is None:
+        return 130
+    print("\n%d runs in %ds" % (len(picked), int(time.time() - t0)))
     print("\ntests_for: %s" % ("PASS" if bad == 0 else "FAIL (%d of %d runs)" % (bad, len(picked))))
     return 1 if bad else 0
 

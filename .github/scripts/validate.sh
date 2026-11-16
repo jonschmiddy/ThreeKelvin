@@ -24,8 +24,9 @@
 # function below, and the scheduler at the bottom runs them:
 #
 #   1. `import` first, alone: nothing compiles without the class cache it writes.
-#   2. the pool, GATE_JOBS at once (default 6, fewer on a machine with fewer
-#      cores), the longest first so the long tail starts early;
+#   2. the pool, GATE_JOBS at once (default 12, fewer on a machine with fewer
+#      cores or under 1.2 GB of memory a Godot), the longest first so the long
+#      tail starts early;
 #   3. the SOLO units, one at a time after the pool: the steps that measure
 #      wall-clock time, frame-to-frame motion or threads, which other processes
 #      competing for the CPU could fail for reasons that are not the code's.
@@ -147,11 +148,30 @@ run_limited() {
 	wait "$pid"
 }
 
+# A Godot that died of a signal rather than failing a check or outrunning its limit:
+# 128 + SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE or SIGSEGV (Git Bash reports a Windows
+# access violation as 139 too). Such a run is retried once; a FAIL line or a timeout never
+# is. Why: docs/why/validate.md#crash-retry
+gate_crashed() { case "$1" in 132|133|134|135|136|139) return 0 ;; esac; return 1; }
+
+# gate_crash_note NAME CODE LOG: say so in the unit's output and keep the crashed run's log.
+gate_crash_note() {
+	cp "$3" "$3.crash" 2>/dev/null
+	printf '  note: %s retried after crash (exit %s); the crashed run is %s.crash\n' "$1" "$2" "$3"
+	if [ -n "${GATE_UNIT_DIR:-}" ]; then printf '%s\n' "$2" >>"$GATE_UNIT_DIR/crashed"; fi
+	return 0
+}
+
 run_godot() {
 	local name="$1"; local limit="$2"; shift 2
 	local log="$LOG_DIR/$name.log"
 	run_limited "$limit" "$GODOT" "$@" >"$log" 2>&1
 	local code=$?
+	if gate_crashed "$code"; then
+		gate_crash_note "$name" "$code" "$log"
+		run_limited "$limit" "$GODOT" "$@" >"$log" 2>&1
+		code=$?
+	fi
 	if [ $code -eq 124 ]; then
 		bad "$name: still running after ${limit}s, killed"
 		tail -n 25 "$log" | sed 's/^/        /'
@@ -1341,6 +1361,8 @@ step "Every jump shader compiles in a real renderer, and every film's stage draw
 # Why: docs/why/validate.md#unit_jumpshadertest
 local log="$LOG_DIR/jumpshadertest.log" limit=400 code=0 bin="${TK_GODOT_BIN:-$GODOT}"
 local args=(--audio-driver Dummy --disable-vsync --fixed-fps 60 --path "$PROJECT" -- sheet=JumpShaderTest)
+local try
+for try in 1 2; do
 case "$(uname -s)" in
 	MINGW*|MSYS*|CYGWIN*)
 		if [ -n "${TK_HIDDESK:-}" ] && [ -x "$TK_HIDDESK" ] && [ "${bin%.sh}" = "$bin" ]; then
@@ -1371,6 +1393,12 @@ case "$(uname -s)" in
 		run_limited "$limit" "$GODOT" "${args[@]}" >"$log" 2>&1
 		code=$? ;;
 esac
+if [ "$try" = 1 ] && gate_crashed "$code"; then
+	gate_crash_note jumpshadertest "$code" "$log"
+	continue
+fi
+break
+done
 # The verdict line is the sheet's answer; a kill after it is a Godot slow to quit under
 # llvmpipe, not a failed check. The sheet prints its own "[t] ... at N s" lines to tell which.
 # Why: docs/why/validate.md#unit_jumpshadertest
@@ -2678,10 +2706,19 @@ fi
 GATE_CORES="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 6)"
 case "$GATE_CORES" in ''|*[!0-9]*|0) GATE_CORES=6 ;; esac
 if [ -z "${GATE_JOBS:-}" ]; then
-	# Six at once, or one a core where there are fewer (a 4-core CI runner):
-	# more Godots than cores only makes each one slower against its limit.
-	GATE_JOBS=6
+	# Twelve at once (Jon, Nov 16: the PC has 16 logical CPUs; six took 26:35), or one a
+	# core where there are fewer (a 4-core CI runner): more Godots than cores only makes
+	# each one slower against its limit. A Godot holds about 600 MB, so at most one per
+	# 1.2 GB of memory. Why: docs/why/validate.md#gate_jobs
+	GATE_JOBS=12
 	[ "$GATE_CORES" -lt "$GATE_JOBS" ] && GATE_JOBS="$GATE_CORES"
+	GATE_MEM_KB="$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null)"
+	[ -z "$GATE_MEM_KB" ] && GATE_MEM_KB="$(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1024 ))"
+	if [ "${GATE_MEM_KB:-0}" -gt 0 ]; then
+		GATE_MEM_JOBS=$((GATE_MEM_KB / 1258291))
+		[ "$GATE_MEM_JOBS" -lt 1 ] && GATE_MEM_JOBS=1
+		[ "$GATE_MEM_JOBS" -lt "$GATE_JOBS" ] && GATE_JOBS="$GATE_MEM_JOBS"
+	fi
 fi
 case "$GATE_JOBS" in
 	''|*[!0-9]*|0) printf 'validate.sh: GATE_JOBS must be a whole number, 1 or more (got %s)\n' "$GATE_JOBS" >&2; exit 2 ;;
@@ -2857,6 +2894,10 @@ for u in "${UNITS[@]}"; do
 	gate_in "$u" "$FIRST_UNITS" && tag="  (first, alone)"
 	gate_in "$u" "$SOLO_UNITS" && tag="  (solo)"
 	gate_in "$u" "$AFTER_UNITS" && tag="  (after the pool)"
+	if [ -s "$d/crashed" ]; then
+		tag="$tag  (retried after crash, exit $(tr '\n' ' ' <"$d/crashed" | sed 's/ $//'))"
+		GATE_RETRIED="${GATE_RETRIED:-}  $u: retried after crash (exit $(tr '\n' ' ' <"$d/crashed" | sed 's/ $//'))"$'\n'
+	fi
 	if [ -f "$d/verdict" ]; then
 		read -r ufail usecs <"$d/verdict"
 		GATE_SUM=$((GATE_SUM + usecs))
@@ -2881,6 +2922,10 @@ GATE_PART_NOTE=""
 [ "$GATE_PART_N" -gt 1 ] && GATE_PART_NOTE=" (part $GATE_PART_K of $GATE_PART_N)"
 printf '  wall %s with %d at once; the units add up to %s%s\n' \
 	"$(gate_mmss "$GATE_WALL")" "$GATE_JOBS" "$(gate_mmss "$GATE_SUM")" "$GATE_PART_NOTE"
+
+if [ -n "${GATE_RETRIED:-}" ]; then
+	printf '\n\033[1m=== Retried after a crash (a flake to look at, not a failure)\033[0m\n%s' "$GATE_RETRIED"
+fi
 
 if [ -n "$GATE_FAILS" ]; then
 	printf '\n\033[1m=== Failed\033[0m\n'
