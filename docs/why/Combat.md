@@ -407,7 +407,16 @@ made it the one you could least afford to spam and the only one you could.
 
 ## Salvo live
 
-Above `func salvo_live(c: CardData) -> bool:`:
+Above `func salvo_live(_c: CardData) -> bool:`:
+
+Nov 16: Full Broadside is gone (Jon picked pairing B, "Load, then fire",
+`tk-scratch/makers/korvan/setbonus.md`), so Salvo pays after your first attack
+this turn and never before, for every card. That brings back the opening puzzle:
+lead with a cheap gun so the big one gets Salvo. A charge that lands at the start
+of the turn is an attack, so on a firing turn every gun already has it. A Feed
+(salvo, no damage) adds to every gun's Salvo until the end of next turn
+(`salvo_bonus`, `feed_salvo`); it is not an attack, so a loading turn stays quiet.
+The note below is the older reason for one definition, and still holds.
 
 ```text
 IS THIS SALVO CARD WORTH MORE RIGHT NOW. One definition, because three

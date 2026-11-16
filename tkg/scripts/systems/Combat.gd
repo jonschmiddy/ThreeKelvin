@@ -141,6 +141,11 @@ var turn: int = 1
 var _opening := true
 var attacks_this_turn: int = 0
 var peaceful_turns: int = 0
+## Salvo a Feed adds to every gun, and the last turn it lasts (`feed_salvo`).
+var salvo_boost: int = 0
+var salvo_boost_until: int = 0
+## Energy Korvan 5 (Fire Mission) pays for each Korvan charge that lands.
+const FIRE_MISSION := 2
 var new_dross: int = 0
 
 ## Kept because what an enemy lodges in you is rolled against danger.
@@ -388,6 +393,10 @@ func begin_turn() -> void:
 	# WARM START (science): one more energy on this ship's first turn only.
 	if opening and Run.has_routine(&"warm_start"):
 		energy += 1
+	# Korvan 3 (Hold Fire): a turn you fired nothing pays 1 energy now. A landed charge is a shot.
+	if not opening and peaceful_turns > 0 and Run.has_set(&"korvan", 3):
+		energy += 1
+		log_line("Hold Fire: +1 energy.", &"good")
 
 	# Charge weapons fire on their own schedule.
 	var fired: Array[CardData] = []
@@ -419,6 +428,10 @@ func begin_turn() -> void:
 	for c in fired:
 		log_line("▸ %s detonates." % c.name, &"big")
 		Sig.charge_fired.emit(c.name)
+		# Korvan 5 (Fire Mission): each Korvan charge that lands pays its energy back.
+		if c.manufacturer == &"korvan" and Run.has_set(&"korvan", 5):
+			energy += FIRE_MISSION
+			log_line("Fire Mission: +%d energy." % FIRE_MISSION, &"good")
 		resolving = c
 		CardResolver.resolve(c, self, true)
 		resolving = null
@@ -694,13 +707,6 @@ func play(index: int, target_index: int = -1) -> void:
 		cc.turns_left = turns
 		charging.append(cc)
 		log_line("%s charging (%d turn)." % [c.name, cc.turns_left], &"you")
-	elif c.charge_turns > 0:
-		# Standard Issue took its one turn off: it fires now, as a charge does.
-		log_line("▸ %s fires at once." % c.name, &"big")
-		Sig.charge_fired.emit(c.name)
-		resolving = c
-		CardResolver.resolve(c, self, true)
-		resolving = null
 	else:
 		resolving = c
 		CardResolver.resolve(c, self, false)
@@ -737,8 +743,7 @@ func card_output(c: CardData) -> int:
 			per += c.flashpoint
 		if c.adapt > 0:
 			per += adapt_bonus
-		if c.salvo > 0 and salvo_live(c):
-			per += c.salvo
+		per += salvo_bonus(c)
 		# LOCK-ON IS INSIDE THE `elif`, deliberately and as it always was: a card
 		# whose damage IS your heat does not also get the sight bonus.
 		per += lock_on
@@ -758,7 +763,7 @@ func card_hot(c: CardData) -> PackedStringArray:
 		out.append("Flashpoint")
 	if c.adapt > 0 and adapt_bonus > 0:
 		out.append("Grows")
-	if c.salvo > 0 and salvo_live(c):
+	if salvo_bonus(c) > 0:
 		out.append("Salvo")
 	return out
 
@@ -878,13 +883,26 @@ func hail_check() -> Dictionary:
 var hail_failed := false
 
 
-## One definition: with five Korvan aboard salvo is unconditional, and the chip said
-## otherwise.
+## One definition of when Salvo pays: after your first attack this turn, nothing else.
 ## Why: docs/why/Combat.md#salvo-live
-func salvo_live(c: CardData) -> bool:
-	if attacks_this_turn > 0:
-		return true
-	return c.manufacturer == &"korvan" and Run.has_set(&"korvan", 5)
+func salvo_live(_c: CardData) -> bool:
+	return attacks_this_turn > 0
+
+
+## What Salvo adds to each hit of `c` now: its own plus a Feed's, while either is live.
+func salvo_bonus(c: CardData) -> int:
+	if not salvo_live(c):
+		return 0
+	return c.salvo + (salvo_boost if turn <= salvo_boost_until else 0)
+
+
+## Feed (F2, Nov 16): every gun gets this much more Salvo until the end of next turn.
+func feed_salvo(amount: int) -> void:
+	if turn > salvo_boost_until:
+		salvo_boost = 0
+	salvo_boost += amount
+	salvo_boost_until = turn + 1
+	log_line("Feed: guns +%d Salvo until the end of next turn." % salvo_boost, &"you")
 
 
 func can_hail() -> bool:

@@ -69,8 +69,8 @@ func _seed_manufacturers() -> void:
 	var raw := [
 		[&"korvan", "Korvan Heavy Works", "It fires. Every time.", "#d97b2e", "#8a4517",
 			"Ex-military surplus parts. Ballistics run cold; ordnance and plate run hot.",
-			"Standard Issue", "Korvan charge cards fire 1 turn sooner. A 1-turn charge fires at once.",
-			"Full Broadside", "Salvo applies to your first attack too."],
+			"Hold Fire", "After a turn where you fire nothing, you start with 1 more energy.",
+			"Fire Mission", "When a charge shot fires, you get 2 more energy that turn."],
 		# Field is a white heat-shield to match the hulls' pale ceramic tile (Jon, Oct 15).
 		[&"solari", "Solari Forge", "The line between reactor and weapon is philosophy.", "#ef9f27", "#f2eee6",
 			"Weapons that hit harder the hotter you run.",
@@ -332,7 +332,8 @@ func _seed_modules() -> void:
 		[{name = "Bore Sight", energy = 1, lock_on = 6, copies = 1}])
 	_module(&"kh88", "KH-88 Jackhammer", &"korvan", W, C2,
 		"Rotary cannon. It fires many small rounds.",
-		[{name = "Full Auto", energy = 2, damage = 2, hits = 5, salvo = 1}, &"feed"])
+		## Ordnance since Hold Fire (Nov 16): it spins up for a turn, so Fire Mission backs three guns.
+		[{name = "Full Auto", energy = 2, heat = 2, damage = 3, hits = 5, charge_turns = 1}, &"feed"])
 	_module(&"widow", "Widowmaker Siege Driver", &"korvan", W, C3,
 		"Charges for two turns, then hits very hard.",
 		## One shot well past Drumfire's best, to pay for the wait and the heat.
@@ -347,7 +348,7 @@ func _seed_modules() -> void:
 	## Why: docs/why/Database.md#korvan-ladder
 
 	# Ballistics, the middle rung. Between the Chatterbox's 6/10 and the
-	# Jackhammer's 10/15, at the Chatterbox's one energy.
+	# Jackhammer's 15 a turn late, at the Chatterbox's one energy.
 	_module(&"kh40", "KH-40 Ripsaw", &"korvan", W, C1,
 		"Three barrels on one trigger.",
 		[{name = "Ripple Fire", energy = 1, damage = 3, hits = 3, salvo = 2}, &"feed"])

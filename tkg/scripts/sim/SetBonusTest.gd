@@ -10,8 +10,8 @@ const SEED := 5151
 ## The text each check below proves. A changed text fails here until its check is
 ## changed to match (or the code is).
 const TEXTS: Array = [
-	[&"korvan", 3, "Korvan charge cards fire 1 turn sooner. A 1-turn charge fires at once."],
-	[&"korvan", 5, "Salvo applies to your first attack too."],
+	[&"korvan", 3, "After a turn where you fire nothing, you start with 1 more energy."],
+	[&"korvan", 5, "When a charge shot fires, you get 2 more energy that turn."],
 	[&"solari", 3, "Solari attacks deal 2 more damage per hit."],
 	[&"solari", 5, "Overheat damage halved."],
 	[&"probate", 3, "+50% credits from wrecks."],
@@ -45,6 +45,7 @@ func _run() -> void:
 	print("-- korvan")
 	_korvan_3()
 	_korvan_5()
+	_feed()
 	_shared_stamp()
 	print("-- solari")
 	_solari_3()
@@ -163,28 +164,51 @@ func _korvan_3() -> void:
 	for on in [false, true]:
 		_used(&"korvan", 3 if on else 2)
 		var cb := _fight()
-		var hit := _play(cb, _card(&"korvan", {damage = 10, charge_turns = 1}))
-		if on:
-			_ok("a 1-turn Korvan charge fires when played (%d, %d charging)" % [hit, cb.charging.size()],
-				hit == 10 and cb.charging.is_empty())
-			_play(cb, _card(&"korvan", {damage = 10, charge_turns = 2}))
-			_ok("a 2-turn Korvan charge waits 1", cb.charging.size() == 1 and cb.charging[0].turns_left == 1)
-			_play(cb, _card(&"solari", {damage = 10, charge_turns = 1}))
-			_ok("another manufacturer's charge still waits its turn", cb.charging.size() == 2)
-		else:
-			_ok("without the set it charges (%d, %d charging)" % [hit, cb.charging.size()],
-				hit == 0 and cb.charging.size() == 1 and cb.charging[0].turns_left == 1)
+		cb.peaceful_turns = 1
+		cb.begin_turn()
+		var quiet := cb.energy
+		cb.peaceful_turns = 0
+		cb.begin_turn()
+		_ok("after a quiet turn %d energy, after a shot %d, %s" % [quiet, cb.energy, "set" if on else "no set"],
+			quiet == Run.reactor() + (1 if on else 0) and cb.energy == Run.reactor())
+		_play(cb, _card(&"korvan", {damage = 10, charge_turns = 1}))
+		_ok("a 1-turn charge still waits its turn", cb.charging.size() == 1 and cb.charging[0].turns_left == 1)
 
 
 func _korvan_5() -> void:
 	for on in [false, true]:
 		_used(&"korvan", 5 if on else 4)
 		var cb := _fight()
+		_play(cb, _card(&"korvan", {damage = 10, charge_turns = 1}))
+		_play(cb, _card(&"solari", {damage = 10, charge_turns = 1}))
+		cb.peaceful_turns = 0
+		cb.begin_turn()
+		_ok("a Korvan and a Solari charge land, %s: %d energy" % ["set" if on else "no set", cb.energy],
+			cb.energy == Run.reactor() + (2 if on else 0))
 		var c := _card(&"korvan", {damage = 2, salvo = 3})
-		var preview := cb.card_output(c)
-		var hit := _play(cb, c)
-		_ok("first attack, salvo 3, %s: %d (shown %d)" % ["set" if on else "no set", hit, preview],
-			hit == (5 if on else 2) and preview == hit)
+		var cb2 := _fight()
+		var hit := _play(cb2, c)
+		_ok("the first attack gets no Salvo, %s: %d" % ["set" if on else "no set", hit], hit == 2)
+
+
+## Feed (salvo, no damage) is not an attack; every gun gets its Salvo until next turn ends.
+func _feed() -> void:
+	_used(&"korvan", 2)
+	var cb := _fight()
+	_play(cb, _card(&"", {salvo = 2}))
+	_ok("Feed is not an attack", cb.attacks_this_turn == 0)
+	cb.turn += 1
+	cb.begin_turn()
+	_play(cb, _card(&"", {damage = 1}))
+	var gun := _card(&"", {damage = 1, hits = 2})
+	var preview := cb.card_output(gun)
+	var hit := _play(cb, gun)
+	_ok("next turn a gun with no Salvo of its own gets 2 a hit: %d (shown %d a hit)" % [hit, preview],
+		hit == 6 and preview == 3)
+	cb.turn += 1
+	cb.begin_turn()
+	_play(cb, _card(&"", {damage = 1}))
+	_ok("and the turn after, it is gone", _play(cb, _card(&"", {damage = 1, hits = 2})) == 2)
 
 
 ## A shared card counts as its part's for the rules but is drawn unbranded (Jon, Oct 18).

@@ -263,15 +263,23 @@ RARITY BUYS A VERB, NOT A NUMBER. A Legendary is not a bigger lump of a
 Common, it is a cleverer one. Where a rung below already says the thing, the
 rung above says a different thing rather than the same thing louder.
 
-The spine of the weapon line is SALVO, and that is not a preference. Korvan's
-five-piece set makes salvo fire on the FIRST attack of the turn
-(CardResolver, `has_set(&"korvan", 5)`), so every point of it is worth double
-to a committed Korvan build and nothing at all to a tourist. It is the one
-number in this catalog that measures how far in you are.
+The spine of the weapon line is SALVO. Salvo pays from your second attack
+in a turn, so a Korvan turn is ordered: cheap gun first, big gun after.
+
+Nov 16, pairing B ("Load, then fire", Jon): the sets reward a two-turn
+rhythm instead of doubling salvo. Hold Fire (3) pays 1 energy after a turn you
+fired nothing; Fire Mission (5) pays 2 for each Korvan charge that lands. A
+charge landing at the start of a turn counts as the first attack, so every gun
+that turn has its Salvo, and Feed loads more Salvo on the quiet turn. Full Auto
+became a charge gun so three weapon parts (KM-4, KH-88, Widowmaker) feed the
+5-set. The old reason, kept for the record: Full Broadside made salvo fire on
+the first attack, so every point of it was worth double to a committed build.
 
 Utility is built on LOCK-ON for the mirror reason: lock-on adds per HIT, so
 it multiplies by the thing Korvan's guns already do. Servo into Jackhammer
 was the manufacturer's best combo and its only one; there are now four rungs of it.
+(Nov 16: the Jackhammer now charges, and a charge never gets Lock on, so the
+mark goes into Walking Fire or Drumfire instead.)
 
 What Korvan does NOT get, however well it would fit: heat_scale and
 damage_equals_heat (Solari IS weaponised heat), credit_gain (Probate),

@@ -170,10 +170,37 @@ func score(c: CardData, cb: Combat) -> float:
 	if c.charge_turns > 0:
 		return 65.0
 	if c.damage > 0:
+		if _hold_fire(c, cb):
+			return -1.0
+		# Salvo pays from the second gun: open with the cheapest, then the big ones get it.
+		if cb.attacks_this_turn == 0 and _salvo_in_hand(cb):
+			return 60.0 - 5.0 * c.energy
 		# Flashpoint pays only over the cap, so the pilot reaches for it there.
 		var per := c.damage + (c.flashpoint if Run.heat > Run.heat_cap() else 0)
 		return 40.0 + float(per * maxi(1, c.hits)) / 4.0
 	return 5.0
+
+
+## Korvan 3 (Hold Fire): with a charge loading or in hand, fire nothing this turn,
+## unless this gun kills.
+func _hold_fire(c: CardData, cb: Combat) -> bool:
+	if not Run.has_set(&"korvan", 3) or cb.attacks_this_turn > 0 or cb.enemy == null:
+		return false
+	if cb.card_output(c) * maxi(1, c.hits) >= cb.enemy.hp:
+		return false
+	if not cb.charging.is_empty():
+		return true
+	for h in cb.hand:
+		if (h as CardData).charge_turns > 0 and cb.can_play(h):
+			return true
+	return false
+
+
+func _salvo_in_hand(cb: Combat) -> bool:
+	for h in cb.hand:
+		if (h as CardData).salvo > 0 and (h as CardData).damage > 0:
+			return true
+	return false
 
 
 ## Carry a few to the next market: always melting meant the sim never used the economy.
