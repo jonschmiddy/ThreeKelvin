@@ -988,6 +988,8 @@ func show_station() -> void:
 	if not docked and current is SystemMapScreen and ZoomLadder.enabled() and ZoomLadder.design_for(3) in ["B", "D"] \
 			and Run.node_at() != null and Run.node_at().type == MapGen.NodeType.STATION:
 		ZoomLadder.chain = &"station"
+		# (docked by the map's DOCK: the bay's hint has nothing to teach, `DockMouth.learned`)
+		DockMouth.learned()
 		# (moored on the station's right: LOCAL with your ship where it is, then the
 		# dock from there, black and the landing)
 		if Moored.here():
