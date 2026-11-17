@@ -459,7 +459,8 @@ func gun_reach(ink: Rect2) -> float:
 	if b.y - a.y < 1.0 or fg.size.y <= 0.0:
 		return 1.0
 	var over := maxf(maxf(a.y - fg.position.y, fg.end.y - b.y), 0.0)
-	return (b.y - a.y + 2.0 * over) / (b.y - a.y)
+	# (and a few px more: the dock leaves two px to each lip)
+	return (b.y - a.y + 2.0 * over + 6.0) / (b.y - a.y)
 
 
 ## As `ship_bottom_y`, but under the guns hung off the belly too (`MountPoints.parts_rect`),

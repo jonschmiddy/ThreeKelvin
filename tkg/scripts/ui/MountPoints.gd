@@ -157,10 +157,10 @@ func strays() -> Array[String]:
 		if not shows(m):
 			continue
 		var r := part_rect(m, s.slot, part_drawn_at(s), k)
-		# (a gun stands on the row next to the outline, and the canvas carries the bob:
-		# within four rows still touches, the radius `-- mounts` allows a mount)
+		# (a gun stands on the row next to the outline, a thin barrel or foot on a sloping
+		# deck, and the canvas carries the bob: within eight rows still touches)
 		if gun_for(m, s.slot) != null:
-			r = r.grow(k * 4.0)
+			r = r.grow(k * 8.0)
 		var cr := Rect2((r.position - c0) / px, r.size / px)
 		var hit := false
 		for y in range(maxi(0, int(floor(cr.position.y))), mini(img.get_height(), int(ceil(cr.end.y)))):

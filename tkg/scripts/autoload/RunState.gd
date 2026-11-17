@@ -1616,10 +1616,10 @@ func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from:
 		var was := module_at(slot, index) if m != null and m.slot == slot else null
 		if was != null and was == m:
 			return Refit.REFUSED
-		if m != null and hull != null and m.slot == slot and not hull.mount_fits(m, index):
-			log_line("%s is too long for that hardpoint." % m.name, &"them")
-		elif m != null and m.slot == slot and not _refit_powered(m, was, lifted_from):
+		if m != null and m.slot == slot and not _refit_powered(m, was, lifted_from):
 			log_line("The reactor cannot carry %s." % m.name, &"them")
+		elif m != null and hull != null and m.slot == slot and not hull.mount_fits(m, index):
+			log_line("%s is too long for that hardpoint." % m.name, &"them")
 		elif was != null:
 			log_line("No room in the hold for %s." % was.name, &"them")
 		return Refit.REFUSED
