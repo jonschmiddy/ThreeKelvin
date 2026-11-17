@@ -42,3 +42,11 @@ BAY TO DOCK" instead of "A STATION HERE". Kept in the hints file
 (`Hints.store_path`, key HINT_KEY) as a hint's seen flag is. HINT false turns
 it off in one line.
 ```
+
+Nov 17 (Jon: "If I click Dock from the sector... the tooltip shows up for the
+CLICK ITS BAY TO DOCK"): the map's DOCK brings LOCAL up on its way into the
+hangar, and the bar offered the bay's click while the dock was already under
+way. The hint now stays off while a dock is under way or done
+(`DockMouth.docking`: docked, the map's DOCK chain or LOCAL with your ship kept
+off, the ladder's move in), and a dock by the map's DOCK marks it seen
+(`DockMouth.learned`): a player who docked knows how to dock.

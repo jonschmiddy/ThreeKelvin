@@ -88,15 +88,32 @@ func _gui_input(e: InputEvent) -> void:
 ## The click, which is what the bar's DOCK did; the hint line has done its job.
 func _dock() -> void:
 	Audio.click()
-	if not docked_once():
-		_docked = 1
-		Hints.mark_seen(StringName(HINT_KEY))
+	learned()
 	Router.show_station()
 
 
-## `line` with the hint on it, until the first dock by the mouth on this profile.
+## The player has docked: the hint is seen. The map's DOCK counts too (Jon, Nov 17): whoever docked
+## knows how to dock.
+static func learned() -> void:
+	if not docked_once():
+		_docked = 1
+		Hints.mark_seen(StringName(HINT_KEY))
+
+
+## `line` with the hint on it, until the first dock on this profile; never while a dock is under way.
 static func hint_line(line: String) -> String:
-	return HINT_LINE if HINT and ZoomLadder.chosen() and not docked_once() else line
+	return HINT_LINE if HINT and ZoomLadder.chosen() and not docked_once() and not docking() else line
+
+
+## A dock under way or done: docked, the map's DOCK going on into the hangar (LOCAL with your ship
+## kept off it, or the chain), or the ladder's move in. The bar never offers the bay's click then.
+static func docking() -> bool:
+	if Router.docked or ZoomLadder.chain == &"station":
+		return true
+	if ZoomLadder.busy() and ZoomLadder.active.r_new == ZoomLadder.STATION:
+		return true
+	var sc := Router.current as SectorScreen
+	return sc != null and is_instance_valid(sc) and sc.ship_kept_off()
 
 
 static func docked_once() -> bool:

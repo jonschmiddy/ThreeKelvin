@@ -39,6 +39,7 @@ func _run() -> void:
 		await _hover(loc)
 		await _docks_from_here(loc)
 		await _yard_card()
+		await _map_dock()
 	h.verdict("dockmouthtest")
 	_tree.quit(h.code())
 
@@ -238,6 +239,48 @@ func _docks_from_here(loc: SectorScreen) -> void:
 		await _tree.process_frame
 	_ok("docked, and the flag let go", Router.current is StationScreen and Router.docked and not ZoomLadder.dock_from_here)
 	_ok("the hint has done its job: the bar's line is plain again", DockMouth.docked_once())
+
+
+## THE MAP'S DOCK (Jon, Nov 17: "If I click Dock from the sector... the tooltip shows up for the
+## CLICK ITS BAY TO DOCK"): LOCAL comes up on the way into the hangar, and on no frame does its bar
+## offer the bay's click; docked that way, the hint has done its job too.
+func _map_dock() -> void:
+	print("
+--- the map's DOCK")
+	Router.show_sector()
+	for i in 900:
+		await _tree.process_frame
+		if Router.current is SectorScreen and not ZoomLadder.busy() and not Router.docked:
+			break
+	DockMouth.forget(true)
+	Router.show_system()
+	for i in 900:
+		await _tree.process_frame
+		if Router.current is SystemMapScreen and not ZoomLadder.busy():
+			break
+	if not _ok("undocked, on the map, the hint fresh", Router.current is SystemMapScreen and not Router.docked and not DockMouth.docked_once()):
+		return
+	Router.show_station()
+	var lines := {}
+	var local_frames := 0
+	for i in 1200:
+		await _tree.process_frame
+		var sc := Router.current as SectorScreen
+		if sc != null and is_instance_valid(sc):
+			local_frames += 1
+			lines[_bar_line(sc)] = true
+			lines[SectorScreen.here_line(Run.node_at())] = true
+			for c in sc.find_children("*", "", true, false):
+				if c is LocalTag:
+					lines[(c as LocalTag).line] = true
+		if Router.current is StationScreen and not ZoomLadder.busy():
+			break
+	var bay := DockMouth.HINT_LINE.trim_prefix("A STATION HERE · ")
+	var hinted := lines.keys().filter(func(l: String) -> bool: return l.contains(bay))
+	_ok("LOCAL on the way in (%d frames), its bar never saying \"%s\" (%s)" % [local_frames, bay, hinted],
+		local_frames > 0 and hinted.is_empty())
+	_ok("docked, and the hint done: the map's DOCK docked (docked once %s)" % DockMouth.docked_once(),
+		Router.current is StationScreen and Router.docked and DockMouth.docked_once())
 
 
 ## THE YARD'S SHIP CARD glitches in as the tooltips do: the tag's scanlines wipe down under it

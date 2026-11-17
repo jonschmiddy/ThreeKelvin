@@ -1,0 +1,1 @@
+- **Fixed** — docking from the map no longer shows "CLICK ITS BAY TO DOCK" on LOCAL while the ship is already going in; a dock from the map also counts as learning to dock, so the hint goes away.
