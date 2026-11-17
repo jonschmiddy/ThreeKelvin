@@ -50,6 +50,10 @@ ALPHA_CUT = 0.45
 COLOURS = 24
 # An edge pixel lighter than this is a gap in the outline (the edge audit's measure).
 EDGE_LUMA = 60
+# A light (a charge slit, a muzzle lamp): this bright and this warm in the drawn gun. The
+# shrink averages a thin one into the dark metal round it, so it is stamped back after.
+LIGHT_LUMA = 200
+LIGHT_WARM = 25
 # Brighter than this inside a stencil box is a letter, not the panel under it.
 INK = 140
 # Flip the spinals (drawn for the belly) onto a top mount too. The relight is not
@@ -105,6 +109,45 @@ def light_edges(im):
     return n
 
 
+def lights(im):
+    """The drawn gun's lights, each a 4-connected run: [(x0, y0, x1, y1, brightest colour)]."""
+    w, h = im.size
+    p = im.load()
+    on = {(x, y) for x in range(w) for y in range(h)
+          if p[x, y][3] and luma(p[x, y]) >= LIGHT_LUMA and p[x, y][0] - p[x, y][2] >= LIGHT_WARM}
+    out = []
+    while on:
+        st = [on.pop()]
+        run = []
+        while st:
+            q = st.pop()
+            run.append(q)
+            for n in ((q[0] + 1, q[1]), (q[0] - 1, q[1]), (q[0], q[1] + 1), (q[0], q[1] - 1)):
+                if n in on:
+                    on.discard(n)
+                    st.append(n)
+        xs = [x for x, _ in run]
+        ys = [y for _, y in run]
+        out.append((min(xs), min(ys), max(xs), max(ys), max((p[q] for q in run), key=luma)))
+    return out
+
+
+def stamp_lights(im, found, s, ink):
+    """Each light back at full brightness on the shrunk cells that cover it, dark above and below."""
+    w, h = im.size
+    p = im.load()
+    for x0, y0, x1, y1, c in found:
+        sx0, sx1 = int(x0 * s), max(int(x0 * s), int(np.ceil((x1 + 1) * s)) - 1)
+        sy0, sy1 = int(y0 * s), max(int(y0 * s), int(np.ceil((y1 + 1) * s)) - 1)
+        for x in range(sx0, min(sx1 + 1, w)):
+            for y in range(sy0, min(sy1 + 1, h)):
+                p[x, y] = c
+            for y in (sy0 - 1, sy1 + 1):
+                if 0 <= y < h and p[x, y][3]:
+                    p[x, y] = ink
+    return len(found)
+
+
 def other(side):
     return "belly" if side == "top" else "top"
 
@@ -149,6 +192,8 @@ def install(src_dir):
         drawn = Image.open(path).convert("RGBA")
         src = shrink(drawn, SCALE)
         fixed = close_outline(src)
+        lit = lights(drawn)
+        stamp_lights(src, lit, SCALE, min((c for c in src.get_flattened_data() if c[3]), key=luma))
         w, h = src.size
         side = g.get("side_drawn", "top")
         dax, day = int(g["anchor"][0]), int(g["anchor"][1])
@@ -165,12 +210,16 @@ def install(src_dir):
             flip = relight(src)
             flip = restamp(src, flip, boxes)
             close_outline(flip)
+            # (the lights, flipped with the gun, at full brightness again after the relight)
+            dh = drawn.height
+            stamp_lights(flip, [(x0, dh - 1 - y1, x1, dh - 1 - y0, c) for x0, y0, x1, y1, c in lit], SCALE,
+                         min((c for c in flip.get_flattened_data() if c[3]), key=luma))
             fname = "%s_%s.png" % (gid, other(side))
             flip.save(os.path.join(OUT, fname))
             entry[other(side)] = {"file": fname, "anchor": [ax, h - ay]}
         table[gid] = entry
-        print("  %-6s %3dx%-3d (drawn %dx%d) %-5s anchor %s  sides %s  outline closed %d px, light edge px left %d"
-              % (gid, w, h, drawn.width, drawn.height, side, (ax, ay), "/".join(sorted(entry)), fixed,
+        print("  %-6s %3dx%-3d (drawn %dx%d) %-5s anchor %s  sides %s  lights %d  outline closed %d px, light edge px left %d"
+              % (gid, w, h, drawn.width, drawn.height, side, (ax, ay), "/".join(sorted(entry)), len(lit), fixed,
                  light_edges(src) + (light_edges(Image.open(os.path.join(OUT, entry[other(side)]["file"])))
                                      if other(side) in entry else 0)))
     # a picture no longer made goes, with its import; the rest keep theirs

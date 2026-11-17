@@ -123,6 +123,11 @@ func _check(what: String, shot: String) -> void:
 		for s: Dictionary in mp.spots():
 			if s.held != null and mp.shows(s.held) and mp.gun_for(s.held, s.slot) != null:
 				guns += 1
+			# (a Korvan gun on a hull with gun mounts is its on-ship picture, never the hold icon)
+			var hh: HullData = mp.ship if mp.ship != null else Run.hull
+			var held: ModuleData = s.held
+			if held != null and mp.shows(held) and int(s.slot) == ModuleData.Slot.WEAPON and hh != null 					and not hh.gun_sides.is_empty() and held.manufacturer == &"korvan" and mp.gun_for(held, s.slot) == null:
+				cut.append("%s drawn as its hold icon" % held.name)
 		cut.append_array(mp.clipped_guns())
 	print("  %-18s %d guns drawn%s" % [what, guns, "" if cut.is_empty() else ", cut: " + "; ".join(cut)])
 	h._ok("%s: guns drawn" % what, guns > 0)
