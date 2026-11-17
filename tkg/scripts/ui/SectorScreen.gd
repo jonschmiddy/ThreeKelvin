@@ -2309,7 +2309,7 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 	if hull_flies and art != null:
 		# Middle without the idle bob, so the path is the same whenever it set off.
 		ship = {"art": art, "pos": art.position, "scale": art.scale, "pivot": art.pivot_offset,
-			"mid": _view.hull_mid()}
+			"mid": art.fitted_mid(_view.hull_mid())}
 		art.pivot_offset = ship.mid
 	_lad = {"fixed": fixed, "to1": to1, "zs1": zs1, "scenes": scenes, "smooth": smooth, "ship": ship,
 		"sky_fixed": _sky_pt(sky, fixed) if sky != null else Vector2.ZERO,

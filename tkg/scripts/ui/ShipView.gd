@@ -459,8 +459,18 @@ func gun_reach(ink: Rect2) -> float:
 	if b.y - a.y < 1.0 or fg.size.y <= 0.0:
 		return 1.0
 	var over := maxf(maxf(a.y - fg.position.y, fg.end.y - b.y), 0.0)
-	# (and a few px more: the dock leaves two px to each lip)
-	return (b.y - a.y + 2.0 * over + 6.0) / (b.y - a.y)
+	# (and more: the dock leaves two px to each lip, and the bob moves the ship 2 rows either way)
+	return (b.y - a.y + 2.0 * over + 16.0) / (b.y - a.y)
+
+
+## A docking ship's middle (`hull_mid`, in this view's px) moved down or up to the middle
+## of the hull AND its guns, so the guns are centred between the lips too.
+func fitted_mid(hull_mid: Vector2) -> Vector2:
+	var fg := fitted_rect_global()
+	if fg.size.y <= 0.0:
+		return hull_mid
+	var c := get_global_transform().affine_inverse() * fg.get_center()
+	return Vector2(hull_mid.x, c.y - float(bob_offset()) * float(_k))
 
 
 ## As `ship_bottom_y`, but under the guns hung off the belly too (`MountPoints.parts_rect`),

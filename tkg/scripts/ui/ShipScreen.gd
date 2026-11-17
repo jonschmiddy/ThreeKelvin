@@ -461,12 +461,35 @@ func _ship_x() -> float:
 	# disagreed.
 	var win := maxf(_clip.size.x, _row_width())
 	var wide := _view.canvas_width()
+	# at 1x the hull AND its guns sit in the window, centred together
+	var span := _ship_box()
+	if not _zoomed and span.size.x > 0.0:
+		return (win - span.size.x) * 0.5 - span.position.x
 	# The plume offset applies only while the ship fits; zoomed, it pushed a heavy 123px off
 	# the window.
 	# Why: docs/why/ShipScreen.md#ship-centring
 	if wide > win:
 		return (win - wide) * 0.5
 	return (win - wide) * 0.5 - _view.ship_offset_x()
+
+## The ship as drawn, hull and full-size guns, in the view's own px.
+func _ship_box() -> Rect2:
+	var ink := Rect2(_view.ink_rect())
+	var r := Rect2(_view.canvas_to_local(ink.position), Vector2.ZERO).expand(_view.canvas_to_local(ink.end))
+	if _mountpts != null and _mountpts.parts_rect().size.x > 0.0:
+		r = r.merge(_mountpts.parts_rect())
+	return r
+
+
+## Too wide at 1x with its guns on (a heavy with a spinal past its nose): drawn from the half
+## sheet, so the whole ship stays in its window. Why: docs/why/Database.md#on-ship-guns
+func _fit_half(win: Vector2) -> void:
+	if _zoomed:
+		_view.use_half(false)
+		return
+	var full := _ship_box().size * (2.0 if _view.is_half() else 1.0)
+	_view.use_half(full.x > win.x or full.y > win.y)
+
 
 ## Rename the ship, in a panel over the screen.
 
@@ -660,9 +683,13 @@ func _sync_clip() -> void:
 	# The box fills the row, so there is nothing left for the pad to do.
 	if _padl != null:
 		_padl.custom_minimum_size = Vector2.ZERO
+	if _mountpts != null:
+		_mountpts.refresh()
+	_fit_half(box)
 	_view.size = Vector2(_view.canvas_width(), _view.canvas_height())
 	_clamp_pan()
-	_view.position = (Vector2(_ship_x(), (box.y - _view.size.y) * 0.5)
+	var fy := _ship_box() if not _zoomed else Rect2(0.0, 0.0, 0.0, _view.size.y)
+	_view.position = (Vector2(_ship_x(), (box.y - fy.size.y) * 0.5 - fy.position.y)
 		+ _pan).floor()
 	# Mounts must be told: they place through `ShipView.canvas_to_local`, which just changed.
 	if _mountpts != null:

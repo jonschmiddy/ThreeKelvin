@@ -73,6 +73,20 @@ func _views(w: HullData.Weight) -> void:
 	Router.show_ship()
 	await Harness.frames(get_tree(), 30)
 	_check("%s refit page" % name, "refit_%s" % name)
+	# and at 1x the whole ship, guns and all, inside its window on the left panel
+	var ss := Router.current as ShipScreen
+	var out: Array[String] = []
+	if ss != null:
+		await Harness.frames(get_tree(), 10)
+		var win := ss._clip.get_global_rect().grow(0.5)
+		var xf := ss._mountpts.get_global_transform()
+		for sp: Dictionary in ss._mountpts.spots():
+			if sp.held != null and ss._mountpts.gun_for(sp.held, sp.slot) != null:
+				var r := ss._mountpts.part_rect(sp.held, sp.slot, sp.at, ss._mountpts.part_mag())
+				var g := Rect2(xf * r.position, Vector2.ZERO).expand(xf * r.end)
+				if not win.encloses(g):
+					out.append("%s %s outside %s" % [(sp.held as ModuleData).name, g, win])
+	h._ok("%s refit page: every gun inside the ship's window (%s)" % [name, "; ".join(out)], ss != null and out.is_empty())
 
 
 ## Korvan's frame at S with the longest gun each mount takes on every mount.
