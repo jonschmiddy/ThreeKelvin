@@ -36,6 +36,16 @@ static func of(id: StringName, side: StringName) -> ShipGun:
 	return g
 
 
+## Every module id with an on-ship picture.
+static func ids() -> Array[StringName]:
+	_load()
+	var out: Array[StringName] = []
+	for k: Variant in _table:
+		if String(k) != "_":
+			out.append(StringName(k))
+	return out
+
+
 ## The size of the picture in its own pixels.
 func size() -> Vector2:
 	return Vector2(tex.get_size()) if tex != null else Vector2.ZERO

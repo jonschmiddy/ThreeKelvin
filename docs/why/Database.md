@@ -1438,11 +1438,15 @@ art/sprites/guns/) at full size, anchor on the point; every other hull, and ever
 module but a weapon, still draws the hold picture. A top gun on a belly point uses
 its flipped and relit copy, made offline by art/tools/ship_guns.py.
 
-Listed in the order the grades open them. The medium's C three keep the rear
-belly point (108, 92), because a spinal (KH-500 reaches 187 px forward of its
-anchor) only fits there; the front belly point is A's. The heavy's spinal point is
-mid-belly (206, 116), tucked two rows into the uneven belly so its mount bar shows no gap, rather than hardpoints.md's H5 (120, 109), under the engine
-block, where a Widowmaker hung off the stern; its C four keep the rear top point
-(120, 40) and leave the crown (326, 39) to A, as a gun on the crown overlaps one
-on (276, 41).
+NO TWO GUNS EVER OVERLAP (Jon, Nov 16, on the first renders). `cells` is the
+longest gun, in cells, each mount takes (`HullData.mount_fits`, enforced by
+`RunState.refit_allowed`, `free_mount`, `install_module` and `mend_loadout`).
+The pads were planned front to back from the real pictures in guns.json: a
+4-cell gun reaches 51 px aft and 187 px forward of its anchor, a 3-cell 38 and
+121, a 2-cell 30 and 92, so two 4-cell belly mounts need 238 px between them,
+more than a light or a medium is long. Each weight therefore has one spinal
+mount (a belly pad at the front, the gun past the nose, which Jon allows), one
+3-cell mount on top at the front, and 2-cell mounts behind them; the heavy's
+fifth mount went on top, not the belly. `-- sheet=GunOverlapTest` tries every
+pair of guns on every pair of mounts. Listed in the order the grades open them.
 ```

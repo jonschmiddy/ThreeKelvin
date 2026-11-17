@@ -157,9 +157,12 @@ func _die(animated: bool) -> Dictionary:
 			var v := sc._view.ship_view()
 			out.hull_hidden = not v.visible
 			# Where the picture's (0,0) lands, against where the hull's canvas is.
-			var pic_w := float(v.canvas().get_width())
+			# (the picture is grown round the canvas for the guns, by `pad` up and left)
+			var pic: Dictionary = b.get_meta(&"pic")
+			var pad: Vector2i = pic.get("pad", Vector2i.ZERO)
+			var pic_w := float((pic.img as Image).get_width() - pad.x)
 			var want := (v.get_parent() as Control).get_global_transform() * ShipLoss.canvas_origin(v)
-			var got := b.get_global_transform() * Vector2(pic_w, 0.0)
+			var got := b.get_global_transform() * Vector2(pic_w, float(pad.y))
 			out.place_err = (want - got).length()
 			out.listened = b.broke.get_connections().size() > 0
 			out.breaks = 0

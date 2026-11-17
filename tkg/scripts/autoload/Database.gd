@@ -1240,8 +1240,10 @@ func apply_hull_lines(h: HullData) -> void:
 		h.system_anchors.assign(m.system)
 		h.utility_anchors.assign(m.utility)
 		h.gun_sides.assign(m.get("guns", []))
+		h.gun_cells.assign(m.get("cells", []))
 	else:
 		h.gun_sides.clear()
+		h.gun_cells.clear()
 
 ## Hand-placed in the rig bench (`art/tools/rig_bench.py korvan`): re-run after replacing a sprite.
 ## A stale point fails silently, so `-- mounts` is what makes it fail loudly.
@@ -1310,20 +1312,23 @@ const HULL_MOUNTS := {
 	# Korvan's Nov 16 set: a weapon point is where its gun's anchor goes, the top outline row or
 	# the row under the belly (`guns` says which). Why: docs/why/Database.md#on-ship-guns
 	"hull_light_zero": {
-		weapon = [Vector2(154, 17), Vector2(147, 77), Vector2(95, 71)],
-		guns = [&"top", &"belly", &"belly"],
+		weapon = [Vector2(228, 22), Vector2(147, 77), Vector2(95, 18)],
+		guns = [&"top", &"belly", &"top"],
+		cells = [3, 4, 2],
 		system = [Vector2(112, 44), Vector2(186, 50), Vector2(140, 60)],
 		utility = [Vector2(206, 46), Vector2(98, 30)],
 	},
 	"hull_medium_zero": {
-		weapon = [Vector2(230, 26), Vector2(108, 27), Vector2(108, 92), Vector2(251, 97)],
+		weapon = [Vector2(258, 24), Vector2(108, 27), Vector2(251, 97), Vector2(104, 92)],
 		guns = [&"top", &"top", &"belly", &"belly"],
+		cells = [3, 2, 4, 2],
 		system = [Vector2(132, 60), Vector2(186, 60), Vector2(252, 68)],
 		utility = [Vector2(162, 40), Vector2(110, 76)],
 	},
 	"hull_heavy_zero": {
-		weapon = [Vector2(276, 41), Vector2(120, 40), Vector2(338, 118), Vector2(206, 116), Vector2(326, 39)],
+		weapon = [Vector2(352, 41), Vector2(220, 41), Vector2(338, 118), Vector2(120, 109), Vector2(95, 46)],
 		guns = [&"top", &"top", &"belly", &"belly", &"top"],
+		cells = [3, 2, 4, 2, 2],
 		system = [Vector2(150, 75), Vector2(244, 75), Vector2(312, 82)],
 		utility = [Vector2(200, 100)],
 	},
@@ -1394,18 +1399,20 @@ const HULL_EXHAUST := {
 	"hull_heavy_s": [
 		{id = 24, at = Vector2i(44, 64), back = false},
 	],
-	# Korvan's Nov 16 set: one plume per bell, the frame's right edge on the bell's mouth.
+	# Korvan's Nov 16 set: one plume per nozzle, centred on it, the frame's right edge on its mouth.
 	"hull_light_zero": [
-		{id = 22, at = Vector2i(12, 27), back = false},
-		{id = 22, at = Vector2i(12, 51), back = false},
+		{id = 2, at = Vector2i(12, 23), back = false},
+		{id = 2, at = Vector2i(12, 47), back = false},
 	],
 	"hull_medium_zero": [
-		{id = 22, at = Vector2i(22, 39), back = false},
-		{id = 22, at = Vector2i(22, 65), back = false},
+		{id = 2, at = Vector2i(22, 35), back = false},
+		{id = 2, at = Vector2i(22, 62), back = false},
 	],
 	"hull_heavy_zero": [
-		{id = 10, at = Vector2i(30, 42), back = false},
-		{id = 10, at = Vector2i(30, 84), back = false},
+		{id = 23, at = Vector2i(48, 44), back = false},
+		{id = 22, at = Vector2i(41, 62), back = false},
+		{id = 22, at = Vector2i(41, 75), back = false},
+		{id = 23, at = Vector2i(48, 87), back = false},
 	],
 	# Solari strips sit behind its bells, so the flame shows where the bell ends.
 	"solari/hull_light_a": [

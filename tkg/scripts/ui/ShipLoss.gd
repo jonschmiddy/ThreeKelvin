@@ -30,9 +30,17 @@ static func picture(v: ShipView) -> Dictionary:
 		img.convert(Image.FORMAT_RGBA8)
 	var k := maxi(1, v.zoom_level())
 	var lo := canvas_origin(v)
+	# grown to hold the guns standing past the canvas: `pad` is how far its (0,0) moved
+	var pad := Vector2i.ZERO
 	for c in v.get_children():
 		if c is MountPoints:
-			_lay_parts(img, c as MountPoints, lo, float(k))
+			var grow := _overhang(img, c as MountPoints, lo, float(k))
+			if grow.size != img.get_size():
+				var big := Image.create(grow.size.x, grow.size.y, false, Image.FORMAT_RGBA8)
+				big.blit_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), -grow.position)
+				img = big
+				pad = -grow.position
+			_lay_parts(img, c as MountPoints, lo - Vector2(pad) * float(k), float(k))
 	# The coded fallback scatters thirty single-pixel stars over its canvas;
 	# a sprite hull has none, and a sprite's ink is never a lone pixel.
 	var h: HullData = v._hull()
@@ -41,7 +49,22 @@ static func picture(v: ShipView) -> Dictionary:
 	var used := img.get_used_rect()
 	if used.size.x <= 0 or used.size.y <= 0:
 		return {}
-	return {img = img, used = used, bob = v.bob_offset(), k = k}
+	return {img = img, used = used, bob = v.bob_offset(), k = k, pad = pad}
+
+
+## The canvas grown to every gun drawn on it, in canvas px (its position is at or above 0,0).
+static func _overhang(img: Image, mp: MountPoints, lo: Vector2, k: float) -> Rect2i:
+	mp.refresh()
+	var out := Rect2i(Vector2i.ZERO, img.get_size())
+	for spot: Dictionary in mp.spots():
+		var m: ModuleData = spot.held
+		if not mp.shows(m) or mp.gun_for(m, spot.slot) == null:
+			continue
+		var r := mp.part_rect(m, spot.slot, spot.at, mp.part_mag())
+		var cr := Rect2((r.position - lo) / k, r.size / k)
+		out = out.merge(Rect2i(Vector2i(floori(cr.position.x), floori(cr.position.y)),
+			Vector2i(ceili(cr.size.x) + 1, ceili(cr.size.y) + 1)))
+	return out
 
 
 ## Fitted parts with a sprite go in where `MountPoints`
@@ -59,7 +82,7 @@ static func _lay_parts(img: Image, mp: MountPoints, lo: Vector2, k: float) -> vo
 			continue
 		var g := mp.gun_for(m, spot.slot)
 		if g != null:
-			_lay_gun(img, g, mp.part_rect(m, spot.slot, spot.at, mag), s, lo, k)
+			_lay_gun(img, g, mp.part_rect(m, spot.slot, spot.at, mag), mag / k, lo, k)
 			continue
 		var src := m.sprite.get_image()
 		if src == null:
@@ -92,14 +115,14 @@ static func _lay_parts(img: Image, mp: MountPoints, lo: Vector2, k: float) -> vo
 
 
 ## A full-size gun where `MountPoints` draws it; what reaches past the canvas is cut.
-static func _lay_gun(img: Image, g: ShipGun, box: Rect2, s: int, lo: Vector2, k: float) -> void:
+static func _lay_gun(img: Image, g: ShipGun, box: Rect2, s: float, lo: Vector2, k: float) -> void:
 	var src := g.tex.get_image().duplicate() as Image
 	if src.is_compressed():
 		src.decompress()
 	if src.get_format() != Image.FORMAT_RGBA8:
 		src.convert(Image.FORMAT_RGBA8)
-	if s > 1:
-		src.resize(src.get_width() * s, src.get_height() * s, Image.INTERPOLATE_NEAREST)
+	if not is_equal_approx(s, 1.0):
+		src.resize(maxi(1, roundi(src.get_width() * s)), maxi(1, roundi(src.get_height() * s)), Image.INTERPOLATE_NEAREST)
 	var p := ((box.position - lo) / k).round()
 	img.blend_rect(src, Rect2i(Vector2i.ZERO, src.get_size()), Vector2i(p))
 
@@ -183,4 +206,6 @@ static func place(b: ShipBreakup, host: Control, v: ShipView, rest: Vector2 = Ve
 	var parent := v.get_parent() as Control
 	var g := (parent.get_global_transform() if parent != null else Transform2D.IDENTITY) * (rest + lo)
 	var p := (host.get_global_transform().affine_inverse() * g).round()
-	b.position = p + Vector2(float((pic.img as Image).get_width()) * k, 0.0)
+	# (the picture's canvas corner is `pad` into it, grown for the guns)
+	var pad: Vector2i = pic.get("pad", Vector2i.ZERO)
+	b.position = p + Vector2(float((pic.img as Image).get_width() - pad.x) * k, -float(pad.y) * k)

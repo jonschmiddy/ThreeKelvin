@@ -118,6 +118,11 @@ so the light spills without a colour the sprite does not have. Which panes
 light is fixed by their order, never rolled.
 ```
 
+Changed Nov 16 (Jon, on the Korvan renders: "The lights going black for C is
+weird"): every grade keeps its window glow and its running lights, C included.
+A C still shows its grade in the wear, the faded band, the trimmed kit and the
+missing beacon and markers; its windows never go dark.
+
 ## Light glow
 
 Above `const GLOW := [0.55, 0.28, 0.12]`:

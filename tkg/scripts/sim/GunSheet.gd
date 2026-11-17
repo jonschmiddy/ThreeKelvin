@@ -8,14 +8,15 @@ extends Node
 ## A typical loadout per weight: [module id, weapon mount index] (`HULL_MOUNTS` order).
 const LOADOUT := {
 	HullData.Weight.LIGHT: [[&"kh20", 0], [&"kh88", 1]],
-	HullData.Weight.MEDIUM: [[&"kh20", 0], [&"km4", 1], [&"kh500", 2]],
-	HullData.Weight.HEAVY: [[&"km4", 0], [&"kh40", 1], [&"widow", 3]],
+	HullData.Weight.MEDIUM: [[&"km4", 0], [&"kh20", 1], [&"kh500", 2]],
+	HullData.Weight.HEAVY: [[&"km4", 0], [&"kh40", 1], [&"widow", 2]],
 }
 const NAMES := ["light", "medium", "heavy"]
 ## Room round a ship for the guns that stand past its canvas, in screen px.
 const MARGIN := Vector2(40, 120)
 
 var h := Harness.new()
+var _vp: SubViewport
 
 
 func _ready() -> void:
@@ -29,13 +30,18 @@ func _run() -> void:
 	var bg := ColorRect.new()
 	bg.color = Color("#10151c")
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var layer := CanvasLayer.new()
-	layer.layer = 50
+	# its own viewport, wider than the game's: a heavy at 2x with a spinal past its nose
+	var layer := SubViewport.new()
+	layer.size = Vector2i(1400, 720)
+	layer.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(layer)
 	layer.add_child(bg)
+	_vp = layer
 	for w: HullData.Weight in LOADOUT:
 		for t in 4:
-			await _still(bg, w, t, out)
+			await _still(bg, w, t, out, _kit(w, t, LOADOUT[w]))
+		# the worst case: on every mount of the top grade, the longest gun it takes
+		await _still(bg, w, 3, out, _worst(w), "worst")
 	if "fight" in OS.get_cmdline_user_args():
 		layer.queue_free()
 		await _fight(out)
@@ -43,14 +49,36 @@ func _run() -> void:
 	get_tree().quit(h.code())
 
 
-## One hull at one grade with its loadout, at 2x, cropped to the ship and its guns.
-func _still(bg: Control, w: HullData.Weight, t: int, out: String) -> void:
-	var hull := DB.at_tier(DB.hull_for(&"korvan", w) as HullData, t)
+func _kit(_w: HullData.Weight, _t: int, rows: Array) -> Array[ModuleData]:
 	var kit: Array[ModuleData] = []
-	for e: Array in LOADOUT[w]:
+	for e: Array in rows:
 		var m := (DB.modules[e[0]] as ModuleData).duplicate(true) as ModuleData
 		m.mount = int(e[1])
 		kit.append(m)
+	return kit
+
+
+## Korvan's longest gun each mount takes, by its picture's width on that side.
+func _worst(w: HullData.Weight) -> Array[ModuleData]:
+	var hull := DB.at_tier(DB.hull_for(&"korvan", w) as HullData, 3)
+	var rows: Array = []
+	for i in hull.slots_for(ModuleData.Slot.WEAPON):
+		var best: StringName = &""
+		var best_w := -1.0
+		for id: StringName in ShipGun.ids():
+			var m := DB.modules.get(id) as ModuleData
+			var g := ShipGun.of(id, hull.gun_sides[i])
+			if m != null and g != null and hull.mount_fits(m, i) and g.size().x > best_w:
+				best = id
+				best_w = g.size().x
+		if best != &"":
+			rows.append([best, i])
+	return _kit(w, 3, rows)
+
+
+## One hull at one grade with its loadout, at 2x, cropped to the ship and its guns.
+func _still(bg: Control, w: HullData.Weight, t: int, out: String, kit: Array[ModuleData], tag: String = "") -> void:
+	var hull := DB.at_tier(DB.hull_for(&"korvan", w) as HullData, t)
 	var v := ShipView.new()
 	v.self_clip = false
 	v.setup_preview(hull, 0, 2)
@@ -64,7 +92,7 @@ func _still(bg: Control, w: HullData.Weight, t: int, out: String) -> void:
 	for s: Dictionary in mp.spots():
 		if s.held != null and mp.gun_for(s.held, s.slot) != null:
 			guns += 1
-	var name := "%s_%s" % [NAMES[w], HullData.TIER_NAMES[t]]
+	var name := "%s_%s" % [NAMES[w], tag if tag != "" else HullData.TIER_NAMES[t]]
 	h._ok("%s: %d guns drawn at full size" % [name, kit.size()], guns == kit.size() and mp.drawn == kit.size())
 	var parts := mp.parts_rect()
 	var ship := Rect2(Vector2.ZERO, Vector2(v.canvas_width(), v.canvas_height()))
@@ -72,10 +100,16 @@ func _still(bg: Control, w: HullData.Weight, t: int, out: String) -> void:
 	print("  %-10s canvas %s  guns %s  over the canvas by top %d, bottom %d, nose %d px (2x)" % [name,
 		ship.size, parts, maxi(0, int(-all.position.y)), maxi(0, int(all.end.y - ship.end.y)),
 		maxi(0, int(all.end.x - ship.end.x))])
-	var img := get_viewport().get_texture().get_image()
+	await RenderingServer.frame_post_draw
+	var img := _vp.get_texture().get_image()
 	var crop := Rect2i(Rect2(v.global_position + all.position - Vector2(16, 16), all.size + Vector2(32, 32)))
 	crop = crop.intersection(Rect2i(Vector2i.ZERO, img.get_size()))
 	img.get_region(crop).save_png("%s/%s.png" % [out, name])
+	# the picture the ship-loss breakup cuts, guns and all
+	if t == 3 and tag == "":
+		var pic := ShipLoss.picture(v)
+		if not pic.is_empty():
+			(pic.img as Image).save_png("%s/%s_loss.png" % [out, NAMES[w]])
 	v.queue_free()
 	await Harness.frames(get_tree(), 1)
 

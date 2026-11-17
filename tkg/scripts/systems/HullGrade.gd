@@ -459,8 +459,8 @@ static func _chevrons(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void
 
 # ------------------------------------------------------------------- E  lights
 
-## Dead at C, a third of panes at B, two thirds at A,
-## every pane at S; which light is fixed, never rolled.
+## Every pane and running light lit at every grade (Jon, Nov 16); the beacon and
+## surface markers still come with the grade.
 ## Why: docs/why/HullGrade.md#running-lights
 static func _lights(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:
 	var glass: Color = r.grey[0]
@@ -487,8 +487,6 @@ static func _lights(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:
 				var edge := dx == 0 or dx == ww - 1
 				var c: Color = amb[amb.size() - 1] if not edge or ww <= 2 else amb[maxi(0, amb.size() - 3)]
 				img.set_pixel(x, y, c)
-	if grade == 0:
-		return
 	for nv in at.get("nav", []):
 		if not _nav_on(String(nv[2]), grade):
 			continue
@@ -503,12 +501,9 @@ static func _lights(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:
 
 
 ## Which panes light at a grade: fixed by their order, never rolled.
-static func _lit(i: int, grade: int) -> bool:
-	match grade:
-		1: return i % 3 == 1
-		2: return i % 3 != 2
-		3: return true
-	return false
+static func _lit(_i: int, _grade: int) -> bool:
+	# every pane at every grade (Jon, Nov 16: "the lights going black for C is weird")
+	return true
 
 
 ## Surface markers, an aircraft's: on the hull at A and S; on a tip the kit
@@ -520,7 +515,8 @@ static func _marker_on(where: String, grade: int) -> bool:
 static func _nav_on(kind: String, grade: int) -> bool:
 	if kind == "beacon":
 		return grade == 3
-	return grade >= 2 or (grade == 1 and kind == "white")
+	# the running lights burn at every grade, C included (Jon, Nov 16)
+	return true
 
 
 ## The glow is a separate additive layer, as a light is brighter than any colour the hull has.
@@ -567,7 +563,7 @@ static func light_layer(size: Vector2i, grade: int, hull: String, t: float = -1.
 static func _spots(grade: int, hull: String, t: float) -> Array:
 	var spots: Array = []
 	var at := places(hull)
-	if grade == 0 or at.is_empty():
+	if at.is_empty():
 		return spots
 	var warm := Color(1.0, 0.72, 0.32)
 	var white := Color(0.95, 0.97, 1.0)
