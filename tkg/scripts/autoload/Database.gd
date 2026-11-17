@@ -1240,10 +1240,8 @@ func apply_hull_lines(h: HullData) -> void:
 		h.system_anchors.assign(m.system)
 		h.utility_anchors.assign(m.utility)
 		h.gun_sides.assign(m.get("guns", []))
-		h.gun_cells.assign(m.get("cells", []))
 	else:
 		h.gun_sides.clear()
-		h.gun_cells.clear()
 
 ## Hand-placed in the rig bench (`art/tools/rig_bench.py korvan`): re-run after replacing a sprite.
 ## A stale point fails silently, so `-- mounts` is what makes it fail loudly.
@@ -1314,21 +1312,18 @@ const HULL_MOUNTS := {
 	"hull_light_zero": {
 		weapon = [Vector2(228, 22), Vector2(147, 77), Vector2(95, 18)],
 		guns = [&"top", &"belly", &"top"],
-		cells = [3, 4, 2],
 		system = [Vector2(112, 44), Vector2(186, 50), Vector2(140, 60)],
 		utility = [Vector2(206, 46), Vector2(98, 30)],
 	},
 	"hull_medium_zero": {
 		weapon = [Vector2(258, 24), Vector2(108, 27), Vector2(251, 97), Vector2(104, 92)],
 		guns = [&"top", &"top", &"belly", &"belly"],
-		cells = [3, 2, 4, 2],
 		system = [Vector2(132, 60), Vector2(186, 60), Vector2(252, 68)],
 		utility = [Vector2(162, 40), Vector2(110, 76)],
 	},
 	"hull_heavy_zero": {
-		weapon = [Vector2(352, 41), Vector2(220, 41), Vector2(338, 118), Vector2(120, 109), Vector2(95, 46)],
+		weapon = [Vector2(326, 39), Vector2(220, 41), Vector2(338, 118), Vector2(120, 109), Vector2(120, 40)],
 		guns = [&"top", &"top", &"belly", &"belly", &"top"],
-		cells = [3, 2, 4, 2, 2],
 		system = [Vector2(150, 75), Vector2(244, 75), Vector2(312, 82)],
 		utility = [Vector2(200, 100)],
 	},

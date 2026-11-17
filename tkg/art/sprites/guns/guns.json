@@ -2,15 +2,15 @@
  "kh20": {
   "belly": {
    "anchor": [
-    26,
+    16,
     0
    ],
    "file": "kh20_belly.png"
   },
   "top": {
    "anchor": [
-    26,
-    38
+    16,
+    23
    ],
    "file": "kh20_top.png"
   }
@@ -18,15 +18,15 @@
  "kh40": {
   "belly": {
    "anchor": [
-    30,
+    18,
     0
    ],
    "file": "kh40_belly.png"
   },
   "top": {
    "anchor": [
-    30,
-    46
+    18,
+    28
    ],
    "file": "kh40_top.png"
   }
@@ -34,7 +34,7 @@
  "kh500": {
   "belly": {
    "anchor": [
-    25,
+    15,
     0
    ],
    "file": "kh500_belly.png"
@@ -43,15 +43,15 @@
  "kh88": {
   "belly": {
    "anchor": [
-    27,
+    16,
     0
    ],
    "file": "kh88_belly.png"
   },
   "top": {
    "anchor": [
-    27,
-    39
+    16,
+    23
    ],
    "file": "kh88_top.png"
   }
@@ -59,15 +59,15 @@
  "km4": {
   "belly": {
    "anchor": [
-    38,
+    23,
     0
    ],
    "file": "km4_belly.png"
   },
   "top": {
    "anchor": [
-    38,
-    32
+    23,
+    19
    ],
    "file": "km4_top.png"
   }
@@ -75,7 +75,7 @@
  "widow": {
   "belly": {
    "anchor": [
-    51,
+    31,
     0
    ],
    "file": "widow_belly.png"

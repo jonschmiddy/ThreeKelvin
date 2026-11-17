@@ -288,7 +288,7 @@ static func load_into_run() -> bool:
 	# Unplaced parts from an old save get the first free hardpoint, not an empty rack.
 	for m in Run.installed:
 		if m.mount < 0:
-			m.mount = Run.free_mount(m.slot, m)
+			m.mount = Run.free_mount(m.slot)
 	var cargo: Array[HoldItem] = []
 	for e in d.get("cargo", []):
 		var m := _item_from(e)

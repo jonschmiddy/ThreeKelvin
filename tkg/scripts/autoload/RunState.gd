@@ -378,13 +378,13 @@ func fit_chassis(manufacturer: StringName = &"",
 	# hand you a ship the refit screen calls illegal.
 	for id in DB.starter_kit(chosen):
 		var m := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
-		if free_mount(m.slot, m) < 0:
+		if slots_used(m.slot) >= slots_for(m.slot):
 			continue
 		# AND THE REACTOR HAS TO CARRY IT. A C-grade frame is issued less of its
 		# own kit than an S-grade one, which is what the letter means.
 		if not can_power(m):
 			continue
-		m.mount = free_mount(m.slot, m)
+		m.mount = free_mount(m.slot)
 		installed.append(m)
 	_top_up_deck()
 	hp = max_hp()
@@ -393,10 +393,9 @@ func fit_chassis(manufacturer: StringName = &"",
 	Sig.resources_changed.emit()
 
 ## The first hardpoint of this type nothing is bolted to, in fill order, or -1 if full.
-## With `m`, only a mount long enough for it (`HullData.mount_fits`).
-func free_mount(s: ModuleData.Slot, m: ModuleData = null) -> int:
+func free_mount(s: ModuleData.Slot) -> int:
 	for i in mount_order(s):
-		if module_at(s, i) == null and (m == null or hull == null or hull.mount_fits(m, i)):
+		if module_at(s, i) == null:
 			return i
 	return -1
 
@@ -888,14 +887,14 @@ func _top_up_deck() -> void:
 			var fitted := false
 			for id in DB.GENERIC_STOCK:
 				var m := DB.modules[id] as ModuleData
-				if free_mount(m.slot, m) < 0:
+				if slots_used(m.slot) >= slots_for(m.slot):
 					continue
 				if not can_power(m):
 					continue
 				if not allow_dupes and _has_module(id):
 					continue
 				var copy := m.duplicate(true) as ModuleData
-				copy.mount = free_mount(copy.slot, copy)
+				copy.mount = free_mount(copy.slot)
 				installed.append(copy)
 				fitted = true
 				break
@@ -1618,8 +1617,6 @@ func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from:
 			return Refit.REFUSED
 		if m != null and m.slot == slot and not _refit_powered(m, was, lifted_from):
 			log_line("The reactor cannot carry %s." % m.name, &"them")
-		elif m != null and hull != null and m.slot == slot and not hull.mount_fits(m, index):
-			log_line("%s is too long for that hardpoint." % m.name, &"them")
 		elif was != null:
 			log_line("No room in the hold for %s." % was.name, &"them")
 		return Refit.REFUSED
@@ -1669,9 +1666,6 @@ func refit_allowed(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from
 	# hull; a crate of ore has no slot to match and no power to draw.
 	if m == null or m.slot != slot:
 		return false
-	# a gun only on a mount long enough for it; a swap sends the resident to `m`'s mount
-	if hull != null and not hull.mount_fits(m, index):
-		return false
 	var resident := module_at(slot, index)
 	if resident != null and resident == m:
 		return false
@@ -1681,7 +1675,7 @@ func refit_allowed(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from
 		return true
 	var lifted := lifted_from >= 0 and not installed.has(m)
 	if installed.has(m) or lifted:
-		return hull == null or hull.mount_fits(resident, lifted_from if lifted else m.mount)
+		return true
 	return has_room_for(resident, m)
 
 
@@ -1726,10 +1720,10 @@ func stow_at(m: HoldItem, at: Vector2i, lifted: bool = false) -> bool:
 ## No mount clears the worst part in that slot; no capacity clears the worst part anywhere.
 ## Why: docs/why/RunState.md#mounts-and-the-reactor
 func install_module(m: ModuleData) -> void:
-	if free_mount(m.slot, m) < 0:
+	if slots_used(m.slot) >= slots_for(m.slot):
 		var worst: ModuleData = null
 		for x in installed:
-			if x.slot == m.slot and hull.mount_fits(m, x.mount) and (worst == null or x.scrap_value < worst.scrap_value):
+			if x.slot == m.slot and (worst == null or x.scrap_value < worst.scrap_value):
 				worst = x
 		if worst != null:
 			installed.erase(worst)
@@ -1755,7 +1749,7 @@ func install_module(m: ModuleData) -> void:
 			log_line("No room for %s. It was left behind." % dim.name, &"them")
 		log_line("Shut down %s. The reactor cannot carry both." % dim.name, &"sys")
 	take_from_hold(m)
-	m.mount = free_mount(m.slot, m)
+	m.mount = free_mount(m.slot)
 	installed.append(m)
 	log_line("Installed %s." % m.name, &"good")
 	Sig.ship_changed.emit()
@@ -1907,7 +1901,7 @@ func pad_to_mount(m: ModuleData, slot: ModuleData.Slot, index: int) -> bool:
 		return false
 	if module_at(slot, index) != null:
 		return false
-	if index < 0 or index >= slots_for(slot) or not hull.mount_fits(m, index):
+	if index < 0 or index >= slots_for(slot):
 		return false
 	pad.erase(m)
 	m.hold_at = -Vector2i.ONE
@@ -1957,14 +1951,14 @@ func mend_loadout() -> int:
 	var astray: Array[ModuleData] = []
 	for m in installed:
 		var key := "%d:%d" % [int(m.slot), m.mount]
-		if m.mount < 0 or m.mount >= slots_for(m.slot) or seen.has(key) or not hull.mount_fits(m, m.mount):
+		if m.mount < 0 or m.mount >= slots_for(m.slot) or seen.has(key):
 			astray.append(m)
 			continue
 		seen[key] = true
 	for m in astray:
 		installed.erase(m)
 		moved += 1
-		var free := free_mount(m.slot, m)
+		var free := free_mount(m.slot)
 		if free >= 0:
 			m.mount = free
 			installed.append(m)

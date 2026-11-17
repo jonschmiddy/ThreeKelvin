@@ -1263,7 +1263,7 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet guncliptest 600 	"every gun on every view s
 
 unit_gunoverlaptest() {
 step "No two guns overlap on any hull, whatever goes on which mount"
-ALLOW_EXTRA="$GATE_LEAKS" gate_sheet gunoverlaptest 300 	"every pair of guns on every pair of mounts stands clear" 	"two guns overlap on a hull: re-space its pads or shorten a mount (HULL_MOUNTS cells)" 	--headless --path "$PROJECT" -- sheet=GunOverlapTest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet gunoverlaptest 300 	"every pair of guns on every pair of mounts stands clear" 	"two guns overlap on a hull: re-space its pads (HULL_MOUNTS weapon)" 	--headless --path "$PROJECT" -- sheet=GunOverlapTest
 }
 
 unit_combatedgetest() {

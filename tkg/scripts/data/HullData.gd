@@ -86,16 +86,6 @@ func has_exhaust() -> bool:
 ## Per weapon anchor, `&"top"` or `&"belly"`: set, the hull draws its guns' on-ship pictures.
 ## Why: docs/why/Database.md#on-ship-guns
 @export var gun_sides: Array[StringName] = []
-## Per weapon anchor, the longest gun (in cells) it takes, so no two guns ever overlap; empty, any.
-## Why: docs/why/Database.md#on-ship-guns
-@export var gun_cells: Array[int] = []
-
-
-## Whether part `m` may sit on mount `index` of its slot: a weapon no longer than the mount takes.
-func mount_fits(m: ModuleData, index: int) -> bool:
-	if m == null or m.slot != ModuleData.Slot.WEAPON or index < 0 or index >= gun_cells.size():
-		return true
-	return maxi(m.size.x, m.size.y) <= gun_cells[index]
 
 func anchors_for(s: ModuleData.Slot) -> Array[Vector2]:
 	match s:

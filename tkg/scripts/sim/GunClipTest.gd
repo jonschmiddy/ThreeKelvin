@@ -100,7 +100,7 @@ func _fit(w: HullData.Weight) -> void:
 		for id: StringName in ShipGun.ids():
 			var m := DB.modules.get(id) as ModuleData
 			var g := ShipGun.of(id, Run.hull.gun_sides[i])
-			if m != null and g != null and Run.hull.mount_fits(m, i) and g.size().x > best_w:
+			if m != null and g != null and g.size().x > best_w:
 				best = m
 				best_w = g.size().x
 		if best != null:

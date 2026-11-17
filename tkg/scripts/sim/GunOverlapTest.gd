@@ -2,7 +2,7 @@ extends Node
 
 ## No two guns on a hull ever overlap: every hull whose mounts say their side (`HullData.gun_sides`),
 ## at the grade with the most weapon mounts, every pair of its weapon mounts, every pair of weapons
-## each mount takes (`HullData.mount_fits`), drawn boxes as `MountPoints.part_rect` gives them at 1x.
+## (any gun goes on any mount, Jon's ruling B), drawn boxes as `MountPoints.part_rect` gives them at 1x.
 ## `-- sheet=GunOverlapTest` (headless). Why: docs/why/Database.md#on-ship-guns
 
 var h := Harness.new()
@@ -36,11 +36,7 @@ func _run() -> void:
 		for i in pts.size():
 			for j in range(i + 1, pts.size()):
 				for a in guns:
-					if not hull.mount_fits(a, i):
-						continue
 					for b in guns:
-						if not hull.mount_fits(b, j):
-							continue
 						pairs += 1
 						var ra := _box(mp, a, i, pts[i])
 						var rb := _box(mp, b, j, pts[j])

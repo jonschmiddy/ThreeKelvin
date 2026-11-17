@@ -68,7 +68,7 @@ func _worst(w: HullData.Weight) -> Array[ModuleData]:
 		for id: StringName in ShipGun.ids():
 			var m := DB.modules.get(id) as ModuleData
 			var g := ShipGun.of(id, hull.gun_sides[i])
-			if m != null and g != null and hull.mount_fits(m, i) and g.size().x > best_w:
+			if m != null and g != null and g.size().x > best_w:
 				best = id
 				best_w = g.size().x
 		if best != &"":

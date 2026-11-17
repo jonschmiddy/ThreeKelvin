@@ -1438,17 +1438,17 @@ art/sprites/guns/) at full size, anchor on the point; every other hull, and ever
 module but a weapon, still draws the hold picture. A top gun on a belly point uses
 its flipped and relit copy, made offline by art/tools/ship_guns.py.
 
-NO TWO GUNS EVER OVERLAP (Jon, Nov 16, on the first renders). `cells` is the
-longest gun, in cells, each mount takes (`HullData.mount_fits`, enforced by
-`RunState.refit_allowed`, `free_mount`, `install_module` and `mend_loadout`).
-The pads were planned front to back from the real pictures in guns.json: a
-4-cell gun reaches 51 px aft and 187 px forward of its anchor, a 3-cell 38 and
-121, a 2-cell 30 and 92, so two 4-cell belly mounts need 238 px between them,
-more than a light or a medium is long. Each weight therefore has one spinal
-mount (a belly pad at the front, the gun past the nose, which Jon allows), one
-3-cell mount on top at the front, and 2-cell mounts behind them; the heavy's
-fifth mount went on top, not the belly. `-- sheet=GunOverlapTest` tries every
-pair of guns on every pair of mounts. Listed in the order the grades open them.
+NO TWO GUNS EVER OVERLAP, AND ANY GUN GOES ON ANY MOUNT (Jon, Nov 17: ruling B,
+and the guns shown at 60% of their drawn size, `art/tools/ship_guns.py` SCALE).
+The pads were planned front to back from the shrunk pictures: on top the longest
+reach is the KM-4 (23 px aft, 73 forward of its anchor; a spinal on top draws its
+80 px hold icon), under the belly the KH-500 (112 forward) and the Widowmaker (31
+aft), so two top pads need 98 px between them and two belly pads 145. Every weight
+clears that by spacing alone (tightest gaps: medium belly 4 px, heavy top 5 px);
+no layout rule moves a gun. The heavy's fifth mount is on top over the engine block
+(120, 40), hardpoints.md's H3, as two belly pads are all its belly has room for.
+`-- sheet=GunOverlapTest` tries every pair of guns on every pair of mounts.
+Listed in the order the grades open them.
 
 NOTHING CLIPS A GUN (Jon, Nov 17, on the fight still: "ship is cut off?"). The
 fight's ship slot clipped to its canvas and cut every barrel past the nose; it
