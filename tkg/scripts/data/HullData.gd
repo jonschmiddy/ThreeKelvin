@@ -83,6 +83,9 @@ func has_exhaust() -> bool:
 @export var weapon_anchors: Array[Vector2] = []
 @export var system_anchors: Array[Vector2] = []
 @export var utility_anchors: Array[Vector2] = []
+## Per weapon anchor, `&"top"` or `&"belly"`: set, the hull draws its guns' on-ship pictures.
+## Why: docs/why/Database.md#on-ship-guns
+@export var gun_sides: Array[StringName] = []
 
 func anchors_for(s: ModuleData.Slot) -> Array[Vector2]:
 	match s:

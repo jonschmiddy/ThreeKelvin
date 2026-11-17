@@ -41,3 +41,9 @@ stern and the nose, the hull is too short for both caps to stand under the
 keel, and on the unclaimed slab the best pair lets it down 6. Still above
 row 7, so the slab's front edge stays in front of the belly.
 ```
+
+Raised to 8 on Nov 16 for Korvan's new light (Jon approved the set): its keel
+under the hold, x 126 to 168, hangs 6 to 8 rows below the rest of the belly, so
+its best pair of stands sinks 8. The front door's centring is not asked of a hull
+with a full-size gun hung under its belly, because `YardStands.hanging` keeps a
+stand from under the gun on purpose; the test prints how far off centre it is.

@@ -1,0 +1,2 @@
+- **Changed** — Korvan's light, medium and heavy hulls are the new Nov 16 pictures, still graded C to S in code, and a Korvan ship's guns now stand on its hull at full size (on top, or under the belly) instead of as small hold icons. Korvan's six guns and nineteen other parts have new hold icons.
+- **Changed** — Only guns are drawn on a ship now, on every manufacturer's hull: system and utility parts no longer show on the hull (they still show in the hold, and lifted off the ship when the cutaway opens). The other manufacturers keep their hull pictures.

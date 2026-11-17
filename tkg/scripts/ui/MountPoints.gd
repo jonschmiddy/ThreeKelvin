@@ -105,9 +105,13 @@ func passive() -> void:
 ## Why: docs/why/MountPoints.md#weapons-only
 var weapons_only: bool = false
 
-## Whether a fitted part is drawn; everything reading parts as drawn asks this.
+## Whether a fitted part is drawn; everything reading parts as drawn asks this. Only guns
+## stand on a hull (Jon, Nov 16: "it gets too cluttered"); a system or utility part shows
+## only lifted off it, in the cutaway. Why: docs/why/MountPoints.md#only-guns-on-the-hull
 func shows(m: ModuleData) -> bool:
-	return m != null and (not weapons_only or m.slot == ModuleData.Slot.WEAPON)
+	if m == null:
+		return false
+	return m.slot == ModuleData.Slot.WEAPON or (not weapons_only and explode > 0.0)
 
 ## Recompute where every mount is. Cheap, and called whenever the ship changes.
 func refresh() -> void:
@@ -153,6 +157,10 @@ func strays() -> Array[String]:
 		if not shows(m):
 			continue
 		var r := part_rect(m, s.slot, part_drawn_at(s), k)
+		# (a gun stands on the row next to the outline, and the canvas carries the bob:
+		# within four rows still touches, the radius `-- mounts` allows a mount)
+		if gun_for(m, s.slot) != null:
+			r = r.grow(k * 4.0)
 		var cr := Rect2((r.position - c0) / px, r.size / px)
 		var hit := false
 		for y in range(maxi(0, int(floor(cr.position.y))), mini(img.get_height(), int(ceil(cr.end.y)))):
@@ -244,7 +252,7 @@ func _draw() -> void:
 	var k := part_mag()
 	# Hover hints only with empty hands: with a part in hand the pings already answer.
 	var over := not _passive and _lit == null and _hover.x < INF
-	for spot in _spots:
+	for spot in _draw_order():
 		var at: Vector2 = part_drawn_at(spot)
 		var m: ModuleData = spot.held
 		# (a part this hull does not show is not drawn, and its mount is not
@@ -315,6 +323,21 @@ func _draw() -> void:
 				Color(c.r, c.g, c.b, (1.0 - t) * 0.8 * pulse))
 		_ring(at, (R + 1.0) * k, Color(c.r, c.g, c.b, 0.95 * pulse))
 
+## The spots in paint order: weapons last, so a full-size gun stands over any icon it
+## reaches, and stern to bow, so a long barrel passes behind the gun ahead of it.
+func _draw_order() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var guns: Array[Dictionary] = []
+	for s in _spots:
+		if int(s.slot) != ModuleData.Slot.WEAPON:
+			out.append(s)
+		else:
+			guns.append(s)
+	guns.sort_custom(func(a: Dictionary, c: Dictionary) -> bool: return (a.at as Vector2).x < (c.at as Vector2).x)
+	out.append_array(guns)
+	return out
+
+
 ## Swap mark: one art pixel thick, one px off the part, filled rects so no edge is half a pixel.
 func _swap_mark(r: Rect2, k: float) -> void:
 	var t := maxf(1.0, roundf(k))
@@ -330,6 +353,9 @@ func _swap_mark(r: Rect2, k: float) -> void:
 ## One function for drawing, hover and pick-up; a gun grabbable only by its dot is hard to aim at.
 func part_rect(m: ModuleData, slot: ModuleData.Slot, at: Vector2,
 		k: float) -> Rect2:
+	var g := gun_for(m, slot)
+	if g != null:
+		return Rect2((Vector2(roundf(at.x), roundf(at.y)) - g.anchor * k).round(), g.size() * k)
 	# Authored size, not packed: turning a part to fit the hold must not stand it on end.
 	var f := Vector2i(maxi(1, m.size.x), maxi(1, m.size.y))
 	# The cells scale with the ship: a fixed 30px box would put a full gun on a half ship.
@@ -349,6 +375,10 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 	var col: Color = manufacturer.colour if manufacturer != null else UITheme.CHILL
 	var f := Vector2i(maxi(1, m.size.x), maxi(1, m.size.y))
 	var r := part_rect(m, slot, at, k)
+	var g := gun_for(m, slot)
+	if g != null:
+		_gun(m, g, r, k, full)
+		return
 
 	# The part alone, no plate (hover aside). Flip goes as arguments: the transform resets.
 	# Why: docs/why/MountPoints.md#fitted-part-drawing
@@ -359,6 +389,27 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 
 	# No rarity bar on the hull: it read as a stripe through the part. Hover shows the plate.
 	# Why: docs/why/MountPoints.md#rarity-bar
+
+## The weapon's on-ship picture for the side of the mount it is on, or null: only a hull
+## whose mounts say their side (`HullData.gun_sides`) has any. Why: docs/why/Database.md#on-ship-guns
+func gun_for(m: ModuleData, slot: ModuleData.Slot) -> ShipGun:
+	if m == null or slot != ModuleData.Slot.WEAPON:
+		return null
+	var h: HullData = ship if ship != null else Run.hull
+	if h == null or m.mount < 0 or m.mount >= h.gun_sides.size():
+		return null
+	return ShipGun.of(m.id, h.gun_sides[m.mount])
+
+
+## A gun at full size; hovered, on its plate's ground and edge as the hold icon would be.
+func _gun(m: ModuleData, g: ShipGun, r: Rect2, k: float, full: bool) -> void:
+	if full:
+		draw_rect(r, ModuleData.rarity_colour(m.rarity).lerp(UITheme.VOID, ModuleIcon.GROUND), true)
+	draw_texture_rect(g.tex, r, false)
+	if full:
+		for q in ModuleIcon.plate_ink(m, r, k):
+			draw_rect(q[0], q[1], true)
+
 
 ## Read-only, for `-- fittest`: tests need where a hardpoint is, not a guess off the sprite.
 func spots() -> Array[Dictionary]:
@@ -629,7 +680,13 @@ func spot_at(p: Vector2) -> int:
 	var k := part_mag()
 	for i in _spots.size():
 		var m: ModuleData = _spots[i].held
-		if m != null and part_rect(m, _spots[i].slot, part_drawn_at(_spots[i]), k).has_point(p):
+		if not shows(m):
+			continue
+		var r := part_rect(m, _spots[i].slot, part_drawn_at(_spots[i]), k)
+		# (a gun stands on the row next to its mount point: the point grabs it too)
+		if gun_for(m, _spots[i].slot) != null:
+			r = r.grow(maxf(1.0, k))
+		if r.has_point(p):
 			return i
 	var best := -1
 	var best_d := (REACH * k) * (REACH * k)

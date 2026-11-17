@@ -449,6 +449,21 @@ func ship_bottom_y() -> float:
 	return (float(r.end.y) - float(bob_offset()) - float(_h) * 0.5) * float(_k)
 
 
+## As `ship_bottom_y`, but under the guns hung off the belly too (`MountPoints.parts_rect`),
+## so a name plate clears a full-size belly gun. Why: docs/why/Database.md#on-ship-guns
+func fitted_bottom_y() -> float:
+	var b := ship_bottom_y()
+	var origin_y := floorf((size.y - canvas_height()) * 0.5)
+	for c in get_children():
+		if c is MountPoints:
+			var pr: Rect2 = (c as MountPoints).parts_rect()
+			if pr.size.y <= 0.0:
+				continue
+			var y := (pr.end.y - origin_y) / float(_k) - float(bob_offset())
+			b = maxf(b, (y - float(_h) * 0.5) * float(_k))
+	return b
+
+
 func ship_offset_x() -> float:
 	if _img == null:
 		return 0.0

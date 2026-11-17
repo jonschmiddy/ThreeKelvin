@@ -131,7 +131,7 @@ def main():
     names = []
     for mf in MANUFACTURERS:
         for weight in ("light", "medium", "heavy"):
-            for cls in ("c", "b", "a", "s"):
+            for cls in ("c", "b", "a", "s", "zero"):
                 stem = "hull_%s_%s" % (weight, cls)
                 if os.path.exists(os.path.join(HULLS, mf, stem + ".png")):
                     names.append((mf, stem))

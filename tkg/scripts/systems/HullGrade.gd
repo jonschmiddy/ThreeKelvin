@@ -306,6 +306,9 @@ static func _band(img: Image, hull: String) -> void:
 	var ramp := band_ramp(hull)
 	if ramp.size() < 3 or hull == "" or BAND_FROM[hull.get_slice("/", 0)].ends_with(hull.get_slice("/", 1) + ".png"):
 		return
+	# a set drawn together carries its own band (`"band": false` in its placements)
+	if not bool(places(hull).get("band", true)):
+		return
 	var own := _Ramps.new(img).accent
 	if own.size() < 2:
 		return

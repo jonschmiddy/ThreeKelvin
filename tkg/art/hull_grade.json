@@ -441,5 +441,197 @@
    ]
   ],
   "markers": []
+ },
+ "korvan/hull_light_zero": {
+  "band": false,
+  "chevrons": [
+   228,
+   44
+  ],
+  "windows": [
+   [
+    204,
+    32,
+    26,
+    2
+   ]
+  ],
+  "nav": [
+   [
+    259,
+    46,
+    "white"
+   ],
+   [
+    84,
+    19,
+    "amber"
+   ],
+   [
+    180,
+    15,
+    "beacon"
+   ]
+  ],
+  "markers": [
+   [
+    110,
+    30,
+    "amber",
+    "hull"
+   ],
+   [
+    150,
+    66,
+    "white",
+    "hull"
+   ],
+   [
+    200,
+    62,
+    "amber",
+    "hull"
+   ],
+   [
+    262,
+    46,
+    "white",
+    "tip"
+   ]
+  ]
+ },
+ "korvan/hull_medium_zero": {
+  "band": false,
+  "chevrons": [
+   306,
+   59
+  ],
+  "windows": [
+   [
+    280,
+    42,
+    10,
+    2
+   ]
+  ],
+  "nav": [
+   [
+    318,
+    59,
+    "white"
+   ],
+   [
+    90,
+    30,
+    "amber"
+   ],
+   [
+    150,
+    3,
+    "beacon"
+   ]
+  ],
+  "markers": [
+   [
+    120,
+    35,
+    "amber",
+    "hull"
+   ],
+   [
+    200,
+    95,
+    "white",
+    "hull"
+   ],
+   [
+    262,
+    80,
+    "amber",
+    "hull"
+   ],
+   [
+    155,
+    16,
+    "white",
+    "tip"
+   ]
+  ]
+ },
+ "korvan/hull_heavy_zero": {
+  "band": false,
+  "chevrons": [
+   365,
+   88
+  ],
+  "windows": [
+   [
+    339,
+    57,
+    35,
+    3
+   ],
+   [
+    348,
+    77,
+    37,
+    3
+   ],
+   [
+    345,
+    98,
+    31,
+    3
+   ],
+   [
+    206,
+    35,
+    8,
+    1
+   ]
+  ],
+  "nav": [
+   [
+    387,
+    74,
+    "white"
+   ],
+   [
+    100,
+    47,
+    "amber"
+   ],
+   [
+    190,
+    15,
+    "beacon"
+   ]
+  ],
+  "markers": [
+   [
+    140,
+    45,
+    "amber",
+    "hull"
+   ],
+   [
+    250,
+    110,
+    "white",
+    "hull"
+   ],
+   [
+    300,
+    100,
+    "amber",
+    "hull"
+   ],
+   [
+    208,
+    21,
+    "white",
+    "tip"
+   ]
+  ]
  }
 }

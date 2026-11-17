@@ -479,3 +479,24 @@ an animation that had nothing to do with them. The transfer screen
 draws two FIXED builds, neither of which bobs, and the hardpoints
 stayed up until something else happened to touch the screen.
 ```
+
+## Only guns on the hull
+
+Above `func shows(m: ModuleData) -> bool:`:
+
+```text
+Jon, Nov 16, with Korvan's full-size guns: only guns are shown on the ship; a
+system or utility part gets no picture on the hull, "it gets too cluttered".
+Every manufacturer's hull, not just Korvan's. The parts keep their mounts, slots,
+stats, cards and hold icons; only the drawing on the hull went.
+
+`shows` is the one answer, so drawing, hover, the tooltip, picking a part up
+(`spot_at`, `part_under`) and the ship-loss picture all agree: a part you cannot
+see is not under the pointer. The exception is the cutaway once it opens
+(`explode` above 0): there every part is lifted off the hull onto its own leader
+with its name, which is that screen's own panel rather than the hull, and it is
+where a player takes a system or utility part off or swaps it. An EMPTY system or
+utility mount still pings while a part that fits it is carried: that ring is the
+drop target, not a picture of a part. A card pointed at in a fight lights its part
+on the hull only when the part is a gun.
+```

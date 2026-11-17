@@ -1076,9 +1076,22 @@ func hull_sprite(w: HullData.Weight, cls: int = 0, half: bool = false,
 
 ## Manufacturers with their own hull art, and each weight's base picture (Jon, Oct 14, 15).
 const HULL_ART := {
-	&"korvan": {"light": "c", "medium": "a", "heavy": "a"},
+	&"korvan": {"light": "zero", "medium": "zero", "heavy": "zero"},
 	&"solari": {"light": "a", "medium": "a", "heavy": "a"},
 }
+
+## What the manufacturers without art (and the unbranded frames) wear: Korvan's old three, kept
+## when Korvan got its new set (Jon, Nov 16), so only Korvan's own hulls changed.
+const BORROWED_ART := {"light": "c", "medium": "a", "heavy": "a"}
+
+
+## The base picture per weight for this manufacturer: its own, or the borrowed three.
+func _art_base(manufacturer: StringName) -> Dictionary[String, String]:
+	var out: Dictionary[String, String] = {}
+	var d: Dictionary = HULL_ART.get(manufacturer, BORROWED_ART)
+	for k: Variant in d:
+		out[String(k)] = String(d[k])
+	return out
 
 ## The folder a manufacturer's hulls are drawn from: its own where it has one,
 ## Korvan's otherwise (the other five, and the unbranded frames).
@@ -1192,7 +1205,7 @@ func hull_art_name(w: HullData.Weight, cls: int = 0, manufacturer: StringName = 
 		HullData.Weight.HEAVY: stem = "heavy"
 		_: return ""
 	# One hull per weight where HULL_ART names it: every grade draws from it, `HullGrade` bakes it.
-	var base: Dictionary = HULL_ART[StringName(hull_art_dir(manufacturer))]
+	var base := _art_base(manufacturer)
 	if base.has(stem):
 		return "hull_%s_%s" % [stem, base[stem]]
 	# TIER_NAMES is an untyped Array, so an element comes back as Variant and
@@ -1204,7 +1217,7 @@ func hull_art_name(w: HullData.Weight, cls: int = 0, manufacturer: StringName = 
 ## Whether this weight's grades are baked from one hull (HullGrade) rather than
 ## drawn as four.
 func graded(w: HullData.Weight, manufacturer: StringName = &"") -> bool:
-	var base: Dictionary = HULL_ART[StringName(hull_art_dir(manufacturer))]
+	var base := _art_base(manufacturer)
 	match w:
 		HullData.Weight.LIGHT: return base.has("light")
 		HullData.Weight.MEDIUM: return base.has("medium")
@@ -1226,6 +1239,9 @@ func apply_hull_lines(h: HullData) -> void:
 		h.weapon_anchors.assign(m.weapon)
 		h.system_anchors.assign(m.system)
 		h.utility_anchors.assign(m.utility)
+		h.gun_sides.assign(m.get("guns", []))
+	else:
+		h.gun_sides.clear()
 
 ## Hand-placed in the rig bench (`art/tools/rig_bench.py korvan`): re-run after replacing a sprite.
 ## A stale point fails silently, so `-- mounts` is what makes it fail loudly.
@@ -1290,6 +1306,26 @@ const HULL_MOUNTS := {
 		weapon = [Vector2(303, 63), Vector2(303, 105), Vector2(205, 42), Vector2(228, 114), Vector2(166, 124)],
 		system = [Vector2(135, 84), Vector2(196, 84), Vector2(262, 84)],
 		utility = [Vector2(176, 50)],
+	},
+	# Korvan's Nov 16 set: a weapon point is where its gun's anchor goes, the top outline row or
+	# the row under the belly (`guns` says which). Why: docs/why/Database.md#on-ship-guns
+	"hull_light_zero": {
+		weapon = [Vector2(154, 17), Vector2(147, 77), Vector2(95, 71)],
+		guns = [&"top", &"belly", &"belly"],
+		system = [Vector2(112, 44), Vector2(186, 50), Vector2(140, 60)],
+		utility = [Vector2(206, 46), Vector2(98, 30)],
+	},
+	"hull_medium_zero": {
+		weapon = [Vector2(230, 26), Vector2(108, 27), Vector2(108, 92), Vector2(251, 97)],
+		guns = [&"top", &"top", &"belly", &"belly"],
+		system = [Vector2(132, 60), Vector2(186, 60), Vector2(252, 68)],
+		utility = [Vector2(162, 40), Vector2(110, 76)],
+	},
+	"hull_heavy_zero": {
+		weapon = [Vector2(276, 41), Vector2(120, 40), Vector2(338, 118), Vector2(206, 116), Vector2(326, 39)],
+		guns = [&"top", &"top", &"belly", &"belly", &"top"],
+		system = [Vector2(150, 75), Vector2(244, 75), Vector2(312, 82)],
+		utility = [Vector2(200, 100)],
 	},
 	# Solari mounts listed in the order grades open them, so a C-grade ship keeps its front pair.
 	# Why: docs/why/Database.md#hull-mounts
@@ -1358,6 +1394,19 @@ const HULL_EXHAUST := {
 	"hull_heavy_s": [
 		{id = 24, at = Vector2i(44, 64), back = false},
 	],
+	# Korvan's Nov 16 set: one plume per bell, the frame's right edge on the bell's mouth.
+	"hull_light_zero": [
+		{id = 22, at = Vector2i(12, 27), back = false},
+		{id = 22, at = Vector2i(12, 51), back = false},
+	],
+	"hull_medium_zero": [
+		{id = 22, at = Vector2i(22, 39), back = false},
+		{id = 22, at = Vector2i(22, 65), back = false},
+	],
+	"hull_heavy_zero": [
+		{id = 10, at = Vector2i(30, 42), back = false},
+		{id = 10, at = Vector2i(30, 84), back = false},
+	],
 	# Solari strips sit behind its bells, so the flame shows where the bell ends.
 	"solari/hull_light_a": [
 		{id = 8, at = Vector2i(39, 32), back = true},
@@ -1395,6 +1444,11 @@ const HULL_LINES := {
 		ventral = [Vector2(100, 108), Vector2(123, 114), Vector2(146, 114), Vector2(169, 114), Vector2(192, 114), Vector2(215, 114), Vector2(238, 113), Vector2(261, 110), Vector2(284, 107)],
 		flank = [Vector2(100, 84), Vector2(123, 79), Vector2(146, 79), Vector2(169, 79), Vector2(192, 79), Vector2(215, 79), Vector2(238, 80), Vector2(261, 83), Vector2(284, 83)],
 	},
+	"hull_heavy_zero": {
+		dorsal = [Vector2(88, 46), Vector2(124, 41), Vector2(160, 41), Vector2(197, 41), Vector2(233, 41), Vector2(269, 41), Vector2(306, 41), Vector2(342, 41), Vector2(378, 53)],
+		ventral = [Vector2(88, 103), Vector2(124, 108), Vector2(160, 110), Vector2(197, 113), Vector2(233, 113), Vector2(269, 113), Vector2(306, 111), Vector2(342, 113), Vector2(378, 104)],
+		flank = [Vector2(88, 74), Vector2(124, 74), Vector2(160, 75), Vector2(197, 77), Vector2(233, 77), Vector2(269, 77), Vector2(306, 76), Vector2(342, 77), Vector2(378, 78)],
+	},
 	"hull_light_a": {
 		dorsal = [Vector2(96, 33), Vector2(113, 33), Vector2(131, 33), Vector2(148, 33), Vector2(166, 33), Vector2(183, 33), Vector2(200, 34), Vector2(218, 33), Vector2(235, 35)],
 		ventral = [Vector2(96, 65), Vector2(113, 73), Vector2(131, 73), Vector2(148, 73), Vector2(166, 73), Vector2(183, 73), Vector2(200, 72), Vector2(218, 73), Vector2(235, 70)],
@@ -1415,6 +1469,11 @@ const HULL_LINES := {
 		ventral = [Vector2(85, 69), Vector2(103, 71), Vector2(120, 75), Vector2(138, 75), Vector2(156, 75), Vector2(174, 75), Vector2(192, 75), Vector2(209, 72), Vector2(227, 70)],
 		flank = [Vector2(85, 53), Vector2(103, 54), Vector2(120, 54), Vector2(138, 54), Vector2(156, 54), Vector2(174, 54), Vector2(192, 54), Vector2(209, 54), Vector2(227, 54)],
 	},
+	"hull_light_zero": {
+		dorsal = [Vector2(64, 27), Vector2(86, 19), Vector2(109, 19), Vector2(131, 19), Vector2(154, 19), Vector2(176, 19), Vector2(198, 19), Vector2(221, 21), Vector2(243, 24)],
+		ventral = [Vector2(64, 62), Vector2(86, 69), Vector2(109, 69), Vector2(131, 69), Vector2(154, 69), Vector2(176, 69), Vector2(198, 64), Vector2(221, 56), Vector2(243, 50)],
+		flank = [Vector2(64, 44), Vector2(86, 44), Vector2(109, 44), Vector2(131, 44), Vector2(154, 44), Vector2(176, 44), Vector2(198, 41), Vector2(221, 38), Vector2(243, 37)],
+	},
 	"hull_medium_a": {
 		dorsal = [Vector2(128, 43), Vector2(144, 40), Vector2(160, 40), Vector2(176, 40), Vector2(192, 40), Vector2(207, 43), Vector2(223, 50), Vector2(239, 50), Vector2(255, 47)],
 		ventral = [Vector2(128, 88), Vector2(144, 89), Vector2(160, 99), Vector2(176, 99), Vector2(192, 99), Vector2(207, 99), Vector2(223, 97), Vector2(239, 88), Vector2(255, 91)],
@@ -1434,6 +1493,11 @@ const HULL_LINES := {
 		dorsal = [Vector2(106, 42), Vector2(119, 41), Vector2(132, 39), Vector2(146, 39), Vector2(159, 39), Vector2(172, 39), Vector2(186, 39), Vector2(199, 41), Vector2(212, 43)],
 		ventral = [Vector2(106, 95), Vector2(119, 96), Vector2(132, 97), Vector2(146, 96), Vector2(159, 98), Vector2(172, 98), Vector2(186, 98), Vector2(199, 98), Vector2(212, 98)],
 		flank = [Vector2(106, 68), Vector2(119, 68), Vector2(132, 68), Vector2(146, 67), Vector2(159, 68), Vector2(172, 68), Vector2(186, 68), Vector2(199, 69), Vector2(212, 70)],
+	},
+	"hull_medium_zero": {
+		dorsal = [Vector2(75, 36), Vector2(105, 27), Vector2(134, 30), Vector2(164, 27), Vector2(194, 27), Vector2(223, 27), Vector2(253, 27), Vector2(282, 29), Vector2(312, 39)],
+		ventral = [Vector2(75, 81), Vector2(105, 91), Vector2(134, 89), Vector2(164, 91), Vector2(194, 91), Vector2(223, 91), Vector2(253, 91), Vector2(282, 90), Vector2(312, 85)],
+		flank = [Vector2(75, 58), Vector2(105, 59), Vector2(134, 59), Vector2(164, 59), Vector2(194, 59), Vector2(223, 59), Vector2(253, 59), Vector2(282, 59), Vector2(312, 62)],
 	},
 	"solari/hull_heavy_a": {
 		dorsal = [Vector2(80, 57), Vector2(115, 52), Vector2(149, 51), Vector2(184, 51), Vector2(218, 51), Vector2(253, 51), Vector2(288, 51), Vector2(322, 56), Vector2(357, 61)],
@@ -1463,7 +1527,8 @@ func widest_hull(half: bool = false) -> int:
 	if not half and _widest > 0:
 		return _widest
 	var found := 0
-	for mf: StringName in HULL_ART:
+	# (&"" is every manufacturer without art, on the borrowed pictures)
+	for mf: StringName in HULL_ART.keys() + [&""]:
 		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
 			for cls in HullData.TIER_NAMES.size():
 				var tex := hull_sprite(w, cls, half, mf)

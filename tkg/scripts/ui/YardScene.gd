@@ -336,7 +336,8 @@ func set_ships(mine: ShipView, mine_name: String, sale: ShipView, sale_name: Str
 
 ## Fitted parts are not in the hull picture, so a copy with mounts is photographed for reflections.
 ## Why: docs/why/YardScene.md#module-reflections
-const FIT_PAD := 24
+## 64, not 24: Korvan's full-size guns stand up to 41 px past the canvas (docs/why/Database.md#on-ship-guns).
+const FIT_PAD := 64
 var _fit_vp: Array = [null, null]
 
 
@@ -968,6 +969,9 @@ func _names(P: YardPaint) -> void:
 			continue
 		var x := floorf(float(S["x0"]) + 3.0 + 0.5)
 		var y := floorf(float(S["top"]) + 0.5)
+		# over the guns standing on the hull, not under them
+		if S.has("fitted_ink"):
+			y = minf(y, float(_fitted_origin(S).y + (S["fitted_ink"] as Rect2i).position.y))
 		var nm := _mine_name if i == 0 else _sale_name
 		var a := mine_a if i == 0 else 1.0
 		if a <= 0.01:

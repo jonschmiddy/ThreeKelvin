@@ -1420,3 +1420,29 @@ relic into DATA, at no credits: a lab takes them, and nothing buys DATA.
 `Fabricator._apply`'s `&"data"` arm pays it, and every station's Lab has both
 (dev 0); a run with science off sees neither (`Fabricator.available`).
 ```
+
+## On-ship guns
+
+Above the `"hull_light_zero"` entries in `HULL_MOUNTS`:
+
+```text
+Korvan's Nov 16 set (Jon approved the art with the grades still baked in code).
+Its weapon points are not points ON the hull like every other entry's: each is
+where a gun's anchor goes (tk-scratch/hulls2/korvan/zero/guns/hardpoints.md).
+A top point sits on the hull's top outline row, the row a top gun's foot stands
+on; a belly point is the first empty row under the belly, the row a belly gun's
+mount bar hangs from. `guns` says which side each point is, in the same order.
+
+A hull with `guns` draws its weapons' on-ship pictures (ShipGun,
+art/sprites/guns/) at full size, anchor on the point; every other hull, and every
+module but a weapon, still draws the hold picture. A top gun on a belly point uses
+its flipped and relit copy, made offline by art/tools/ship_guns.py.
+
+Listed in the order the grades open them. The medium's C three keep the rear
+belly point (108, 92), because a spinal (KH-500 reaches 187 px forward of its
+anchor) only fits there; the front belly point is A's. The heavy's spinal point is
+mid-belly (206, 116), tucked two rows into the uneven belly so its mount bar shows no gap, rather than hardpoints.md's H5 (120, 109), under the engine
+block, where a Widowmaker hung off the stern; its C four keep the rear top point
+(120, 40) and leave the crown (326, 39) to A, as a gun on the crown overlaps one
+on (276, 41).
+```

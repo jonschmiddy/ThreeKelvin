@@ -8,9 +8,9 @@ const LEVELS := {"unclaimed": MapGen.Development.UNCLAIMED, "outpost": MapGen.De
 	"settlement": MapGen.Development.SETTLEMENT, "city": MapGen.Development.CITY,
 	"capital": MapGen.Development.CAPITAL}
 
-## Solari's light keel drops 11 rows, so the best pair sinks 6, still above the slab's row 7.
-## Why: docs/why/YardSeatTest.md#sink-limit
-const SINK_MAX := 6
+## Solari's light keel drops 11 rows, so the best pair sinks 6; Korvan's Nov 16 light keel
+## (x 126-168) sinks its pair 8. Why: docs/why/YardSeatTest.md#sink-limit
+const SINK_MAX := 8
 
 var harness := Harness.new()
 
@@ -87,6 +87,17 @@ func _run() -> void:
 ## measured off the pictures as above: no floor between the belly and either
 ## cradle, the belly on a cradle's seat row, centred, inside the picture; and
 ## each locked set's tarp down over both cradles' tops.
+## Whether a part on this stood hull hangs below its belly.
+func _hangs(s: YardStandSet) -> bool:
+	if s.mounts == null or not is_instance_valid(s.mounts) or s._view == null:
+		return false
+	var bottom := float(s._view.ink_rect().end.y)
+	for r: Rect2 in s.mounts.part_rects_canvas():
+		if r.end.y > bottom:
+			return true
+	return false
+
+
 func _front() -> void:
 	var front := YardFront.new()
 	add_child(front)
@@ -112,7 +123,11 @@ func _front() -> void:
 					int(r["gap"][0]) == 0 and int(r["gap"][1]) == 0)
 				_ok("%s: the belly rests on a cradle's seat row (rows past it %s, sink %d)" % [tag, r["d"], r["sink"]],
 					mini(int(r["d"][0]), int(r["d"][1])) == int(r["sink"]) and int(r["sink"]) <= SINK_MAX)
-				_ok("%s: centred on its stands (%+.2f px)" % [tag, r["off"]], absf(float(r["off"])) <= 1.0)
+				# (a gun hung under the belly keeps a stand from under it, `YardStands.hanging`)
+				if _hangs(s):
+					print("  %s: off centre %+.2f px, kept from under a belly gun" % [tag, r["off"]])
+				else:
+					_ok("%s: centred on its stands (%+.2f px)" % [tag, r["off"]], absf(float(r["off"])) <= 1.0)
 				_ok("%s: the stands' feet on the berth's floor row" % tag,
 					s._stand_top + s._stand_img.get_height() == s.feet)
 				_ok("%s: inside the picture (%s)" % [tag, r["span"]], int(r["span"][0]) >= 0 and int(r["span"][1]) < YardFront.W)

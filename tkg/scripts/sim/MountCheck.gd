@@ -11,9 +11,9 @@ func run() -> void:
 	print("
 %-8s %-8s %-6s %-10s %-14s %s"
 		% ["folder", "hull", "class", "canvas", "mounts w/s/u", "off-hull"])
-	# EVERY MANUFACTURER WITH PICTURES OF ITS OWN (`DB.HULL_ART`). The other five
-	# fly Korvan's pictures on Korvan's mounts, so Korvan's rows cover them.
-	for mf: StringName in DB.HULL_ART:
+	# EVERY MANUFACTURER WITH PICTURES OF ITS OWN (`DB.HULL_ART`), and the borrowed
+	# pictures the other five and the unbranded frames fly (`DB.BORROWED_ART`, as &"").
+	for mf: StringName in DB.HULL_ART.keys() + [&""]:
 		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
 			for t in HullData.TIER_NAMES.size():
 				var h := DB.at_tier(DB.hull_for(mf, w) as HullData, t)

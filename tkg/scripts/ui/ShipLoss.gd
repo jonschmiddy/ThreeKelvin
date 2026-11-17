@@ -57,6 +57,10 @@ static func _lay_parts(img: Image, mp: MountPoints, lo: Vector2, k: float) -> vo
 		# alone, `MountPoints.weapons_only`)
 		if not mp.shows(m) or m.sprite == null:
 			continue
+		var g := mp.gun_for(m, spot.slot)
+		if g != null:
+			_lay_gun(img, g, mp.part_rect(m, spot.slot, spot.at, mag), s, lo, k)
+			continue
 		var src := m.sprite.get_image()
 		if src == null:
 			continue
@@ -85,6 +89,19 @@ static func _lay_parts(img: Image, mp: MountPoints, lo: Vector2, k: float) -> vo
 			at.y = cy * 2.0 - (at.y + dst.y)
 		var p := ((at - lo) / k).round()
 		img.blend_rect(src, Rect2i(Vector2i.ZERO, src.get_size()), Vector2i(p))
+
+
+## A full-size gun where `MountPoints` draws it; what reaches past the canvas is cut.
+static func _lay_gun(img: Image, g: ShipGun, box: Rect2, s: int, lo: Vector2, k: float) -> void:
+	var src := g.tex.get_image().duplicate() as Image
+	if src.is_compressed():
+		src.decompress()
+	if src.get_format() != Image.FORMAT_RGBA8:
+		src.convert(Image.FORMAT_RGBA8)
+	if s > 1:
+		src.resize(src.get_width() * s, src.get_height() * s, Image.INTERPOLATE_NEAREST)
+	var p := ((box.position - lo) / k).round()
+	img.blend_rect(src, Rect2i(Vector2i.ZERO, src.get_size()), Vector2i(p))
 
 
 static func _drop_lone_pixels(img: Image) -> void:
