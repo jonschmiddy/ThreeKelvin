@@ -449,6 +449,19 @@ func ship_bottom_y() -> float:
 	return (float(r.end.y) - float(bob_offset()) - float(_h) * 0.5) * float(_k)
 
 
+## How much taller than its hull the ship docks: full-size guns stand above and below it and
+## it is centred on the hull, so the deeper overhang counts twice. Why: docs/why/Database.md#on-ship-guns
+func gun_reach(ink: Rect2) -> float:
+	var xf := get_global_transform()
+	var a := xf * canvas_to_local(ink.position)
+	var b := xf * canvas_to_local(ink.end)
+	var fg := fitted_rect_global()
+	if b.y - a.y < 1.0 or fg.size.y <= 0.0:
+		return 1.0
+	var over := maxf(maxf(a.y - fg.position.y, fg.end.y - b.y), 0.0)
+	return (b.y - a.y + 2.0 * over) / (b.y - a.y)
+
+
 ## As `ship_bottom_y`, but under the guns hung off the belly too (`MountPoints.parts_rect`),
 ## so a name plate clears a full-size belly gun. Why: docs/why/Database.md#on-ship-guns
 func fitted_bottom_y() -> float:

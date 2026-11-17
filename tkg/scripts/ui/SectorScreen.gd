@@ -1674,19 +1674,6 @@ func _show_self_brace(b: int) -> void:
 		if b > 0 else ""
 
 
-## How much taller than its hull the ship docks: full-size guns stand above and below it and
-## it is centred on the hull, so the deeper overhang counts twice. Why: docs/why/Database.md#on-ship-guns
-static func _gun_reach(v: ShipView, ink: Rect2) -> float:
-	var xf := v.get_global_transform()
-	var a := xf * v.canvas_to_local(ink.position)
-	var b := xf * v.canvas_to_local(ink.end)
-	var fg := v.fitted_rect_global()
-	if b.y - a.y < 1.0 or fg.size.y <= 0.0:
-		return 1.0
-	var over := maxf(maxf(a.y - fg.position.y, fg.end.y - b.y), 0.0)
-	return (b.y - a.y + 2.0 * over) / (b.y - a.y)
-
-
 ## Measured from the sprite, not its box: a fixed `PLATE_X` fraction drifted off the ship.
 ## Why: docs/why/SectorScreen.md#self-plate
 func _place_self_plate() -> void:
@@ -1696,15 +1683,10 @@ func _place_self_plate() -> void:
 	if sv == null:
 		return
 	# Uses its own width, not `PLATE_W`: the box is as wide as its widest child.
-	_self_plate.position = Vector2(
-		sv.position.x + sv.size.x * 0.5 + sv.ship_offset_x()
-			- _self_plate.size.x * 0.5,
-		sv.position.y + sv.size.y * 0.5 + sv.fitted_bottom_y() + PLATE_AIR)
 	# (under a belly gun, but never past the ship's row into the hand's band)
-	if _view._row != null and _self_plate.is_inside_tree():
-		var over := _self_plate.get_global_rect().end.y - _view._row.get_global_rect().end.y
-		if over > 0.0:
-			_self_plate.position.y -= over
+	_self_plate.position = Vector2(sv.position.x + sv.size.x * 0.5 + sv.ship_offset_x() - _self_plate.size.x * 0.5,
+		minf(sv.position.y + sv.size.y * 0.5 + sv.fitted_bottom_y() + PLATE_AIR, _view._row.get_global_rect().end.y
+			- _self_plate.get_global_rect().position.y + _self_plate.position.y - _self_plate.size.y))
 
 
 
@@ -2339,8 +2321,7 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		var len_end := 236.0 * s_end
 		if art2 != null:
 			var ink2 := Rect2(art2.ink_rect())
-			var dim := ink2.size * art2.scale
-			dim.y *= _gun_reach(art2, ink2)
+			var dim := ink2.size * art2.scale * Vector2(1.0, art2.gun_reach(ink2))
 			if dim.x > 1.0 and dim.y > 1.0:
 				s_end = minf(s_end, minf(StationFace.SHIP_END_LEN / dim.x, StationFace.SHIP_END_H / dim.y))
 				len_end = dim.x * s_end

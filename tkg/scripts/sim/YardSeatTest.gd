@@ -82,11 +82,6 @@ func _run() -> void:
 	get_tree().quit(harness.code())
 
 
-## THE FRONT DOOR (Jon, Nov 11: "the ships are floating above their stands"):
-## every manufacturer's three hulls at every grade on the banner yard's stands,
-## measured off the pictures as above: no floor between the belly and either
-## cradle, the belly on a cradle's seat row, centred, inside the picture; and
-## each locked set's tarp down over both cradles' tops.
 ## Whether a part on this stood hull hangs below its belly.
 func _hangs(s: YardStandSet) -> bool:
 	if s.mounts == null or not is_instance_valid(s.mounts) or s._view == null:
@@ -98,6 +93,11 @@ func _hangs(s: YardStandSet) -> bool:
 	return false
 
 
+## THE FRONT DOOR (Jon, Nov 11: "the ships are floating above their stands"):
+## every manufacturer's three hulls at every grade on the banner yard's stands,
+## measured off the pictures as above: no floor between the belly and either
+## cradle, the belly on a cradle's seat row, centred, inside the picture; and
+## each locked set's tarp down over both cradles' tops.
 func _front() -> void:
 	var front := YardFront.new()
 	add_child(front)
