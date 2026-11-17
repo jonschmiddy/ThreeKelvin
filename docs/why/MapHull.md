@@ -71,3 +71,16 @@ no picture to shrink.
   R         the farthest a turned picture's pixel can be from its middle
   gain      how much it was lifted (`LIFT_TO`), 1 for none
 ```
+
+## Body floor
+
+Above `const BODY_FLOOR := 0.09`:
+
+```text
+Every map pixel of the hull is the average of a block of the picture, and the map's key
+(`nav_key.gdshader`) turns anything with an sRGB lightness between its `lo` and `hi`
+(0.046 to 0.085) back into field. A block that lands on a dark patch of the picture (a
+C grade's soot, a torn-off panel, Nov 17) averaged into that band and left a hole in the
+ship. So after the lift, a body pixel under the floor is raised to it, its hue kept; the
+rim is the other side of the same rule (darker than `dark` less `dark_w`).
+```

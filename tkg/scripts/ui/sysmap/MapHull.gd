@@ -20,9 +20,25 @@ const OUTLINE := Color("#000000")
 ## Why: docs/why/MapHull.md#dark-hull-lift
 const LIFT_TO := 0.2
 const LIFT_MAX := 2.0
+## No hull pixel as dark as the field: `nav_key` keys out sRGB lightness under its `hi` (0.085).
+## Why: docs/why/MapHull.md#body-floor
+const BODY_FLOOR := 0.09
 
 static var _pics: Dictionary = {}
 static var _lin: PackedFloat32Array = PackedFloat32Array()
+
+
+## A body pixel (linear) lifted by `gain`, then raised, its hue kept, to BODY_FLOOR's sRGB lightness if under it.
+static func _floored(c0: Color, gain: float) -> Color:
+	var c := Color(minf(1.0, c0.r * gain), minf(1.0, c0.g * gain), minf(1.0, c0.b * gain))
+	var sc := c.linear_to_srgb()
+	var l := sc.r * 0.299 + sc.g * 0.587 + sc.b * 0.114
+	if l >= BODY_FLOOR:
+		return c
+	if l < 0.004:
+		return Color(BODY_FLOOR, BODY_FLOOR, BODY_FLOOR).srgb_to_linear()
+	var k := BODY_FLOOR / l
+	return Color(minf(1.0, sc.r * k), minf(1.0, sc.g * k), minf(1.0, sc.b * k)).srgb_to_linear()
 
 
 static func _lut() -> PackedFloat32Array:
@@ -121,11 +137,9 @@ static func picture(h: HullData, src: Texture2D) -> Dictionary:
 	var gain := 1.0
 	if nh > 0 and lum > 0.0:
 		gain = clampf(LIFT_TO * nh / lum, 1.0, LIFT_MAX)
-	if gain > 1.0:
-		for i in W * H:
-			if kind[i] == 1:
-				var c := col[i]
-				col[i] = Color(minf(1.0, c.r * gain), minf(1.0, c.g * gain), minf(1.0, c.b * gain))
+	for i in W * H:
+		if kind[i] == 1:
+			col[i] = _floored(col[i], gain)
 	var ol := OUTLINE.srgb_to_linear()
 	for y in H:
 		for x in W:

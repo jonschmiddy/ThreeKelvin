@@ -1,0 +1,1 @@
+- **Changed** — a C grade hull now looks cheap and cobbled together: mismatched and missing panels, patch plates, soot and rust, and its windows flicker. B and A carry less of it; S is as before.

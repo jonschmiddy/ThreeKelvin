@@ -12,6 +12,10 @@ const LOOKS := {&"A": Look.WEAR, &"B": Look.PAINT, &"D": Look.MARKS, &"E": Look.
 const SHIPPED := [Look.WEAR, Look.PAINT, Look.MARKS, Look.LIGHTS, Look.KIT]
 ## C, B, A, S: how far from the yard's best each grade is (1 the worst).
 const AGE := [1.0, 0.55, 0.2, 0.0]
+## Which scars a poor grade carries over the looks (Jon, Nov 17: "C is not messed up enough"):
+## a HullScars.Idea; `drama` is the one in use, set apart only by a sheet comparing them.
+const DRAMA := HullScars.Idea.JUNKER
+static var drama: int = DRAMA
 
 
 ## The graded copy. `grade` 0..3 is C..S. The source is never touched.
@@ -29,6 +33,7 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hul
 	_band(img, hull)
 	var r := _Ramps.new(img, hull.get_slice("/", 0) if hull != "" else "korvan")
 	var at := places(hull)
+	var base := img.duplicate() as Image
 	# the silhouette first, then the yard's paint, the age over it, the marks,
 	# then the lights shining through the grime
 	if Look.KIT in looks:
@@ -37,6 +42,7 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hul
 		_paint(img, r, grade, seed_in)
 	if Look.WEAR in looks:
 		_wear(img, r, AGE[grade], seed_in)
+		HullScars.scar(img, base, r, grade, drama, hull, at)
 	# after the age: the S clean-up wipes lone pixels, and a stencil is made of them
 	if Look.MARKS in looks:
 		_marks(img, r, grade, seed_in, at)
@@ -547,6 +553,14 @@ static func level(kind: String, i: int, t: float) -> float:
 			var at := noise(i, k, 5) * 7.5
 			var u2 := fposmod(t + ph, 8.0)
 			return 0.55 if u2 > at and u2 < at + 0.15 else 1.0
+		"flicker":
+			# a bad contact: every few seconds half a second of stutter, never out for long
+			var k2 := floori((t + ph) / 3.0)
+			var u3 := fposmod(t + ph, 3.0)
+			var at2 := noise(i, k2, 9) * 2.3
+			if u3 > at2 and u3 < at2 + 0.5:
+				return 0.12 if fposmod((u3 - at2) * 9.0, 1.0) < 0.45 else 1.0
+			return 1.0
 	return 1.0
 
 
@@ -572,6 +586,8 @@ static func _spots(grade: int, hull: String, t: float) -> Array:
 		if _lit(i, grade):
 			var w: Array = wins[i]
 			var kind := "pulse" if w.size() > 4 and String(w[4]) == "pulse" else "window"
+			if kind == "window" and grade == 0 and drama == HullScars.Idea.JUNKER:
+				kind = "flicker"
 			spots.append([Rect2i(int(w[0]), int(w[1]), int(w[2]), int(w[3])), warm, GLOW.size(), level(kind, i, t)])
 	var navs: Array = at.get("nav", [])
 	for i in navs.size():
