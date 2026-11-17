@@ -487,6 +487,8 @@ func _fit_half(win: Vector2) -> void:
 	if _zoomed:
 		_view.use_half(false)
 		return
+	if _mountpts != null:
+		_mountpts.refresh()
 	var full := _ship_box().size * (2.0 if _view.is_half() else 1.0)
 	_view.use_half(full.x > win.x or full.y > win.y)
 
@@ -683,10 +685,11 @@ func _sync_clip() -> void:
 	# The box fills the row, so there is nothing left for the pad to do.
 	if _padl != null:
 		_padl.custom_minimum_size = Vector2.ZERO
-	if _mountpts != null:
-		_mountpts.refresh()
 	_fit_half(box)
 	_view.size = Vector2(_view.canvas_width(), _view.canvas_height())
+	# (the guns placed against the view's size now, before the ship is centred on them)
+	if _mountpts != null:
+		_mountpts.refresh()
 	_clamp_pan()
 	var fy := _ship_box() if not _zoomed else Rect2(0.0, 0.0, 0.0, _view.size.y)
 	_view.position = (Vector2(_ship_x(), (box.y - fy.size.y) * 0.5 - fy.position.y)
