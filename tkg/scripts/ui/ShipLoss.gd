@@ -62,8 +62,9 @@ static func _overhang(img: Image, mp: MountPoints, lo: Vector2, k: float) -> Rec
 			continue
 		var r := mp.part_rect(m, spot.slot, spot.at, mp.part_mag())
 		var cr := Rect2((r.position - lo) / k, r.size / k)
-		out = out.merge(Rect2i(Vector2i(floori(cr.position.x), floori(cr.position.y)),
-			Vector2i(ceili(cr.size.x) + 1, ceili(cr.size.y) + 1)))
+		# (a clear pixel round each gun, so the picture's edge never runs through one)
+		out = out.merge(Rect2i(Vector2i(floori(cr.position.x) - 1, floori(cr.position.y) - 1),
+			Vector2i(ceili(cr.size.x) + 3, ceili(cr.size.y) + 3)))
 	return out
 
 

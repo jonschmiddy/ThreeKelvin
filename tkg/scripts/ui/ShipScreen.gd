@@ -214,7 +214,7 @@ func _build() -> void:
 	# The clip box is what layout sizes; the view may grow, so `_sync_clip` measurements
 	# hold at any zoom.
 	_clip = Control.new()
-	_clip.clip_contents = true
+	_clip.clip_contents = false  # zoomed only (`_set_zoom`): at 1x a gun stands past the window
 	_clip.mouse_filter = Control.MOUSE_FILTER_STOP
 	_clip.gui_input.connect(_on_clip_input)
 	_clip.add_child(view)
@@ -427,6 +427,7 @@ func _set_zoom(on: bool) -> void:
 	if _view == null or _clip == null:
 		return
 	_zoomed = on
+	_clip.clip_contents = on
 	if not on:
 		_pan = Vector2.ZERO
 	_view.magnify(2 if on else 1, HULL_VIEW_H)

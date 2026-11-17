@@ -1256,6 +1256,11 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet arriveidletest 180 \
 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveIdleTest
 }
 
+unit_guncliptest() {
+step "No view cuts a gun: LOCAL, cutaway, fight, ship-loss, yard, refit page, ship choice"
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet guncliptest 600 	"every gun on every view stands whole inside every clip above it" 	"a view clips a gun: turn off its clip_contents or give the guns room (see the cut list)" 	--headless --path "$PROJECT" -- nolauncher sheet=GunClipTest
+}
+
 unit_gunoverlaptest() {
 step "No two guns overlap on any hull, whatever goes on which mount"
 ALLOW_EXTRA="$GATE_LEAKS" gate_sheet gunoverlaptest 300 	"every pair of guns on every pair of mounts stands clear" 	"two guns overlap on a hull: re-space its pads or shorten a mount (HULL_MOUNTS cells)" 	--headless --path "$PROJECT" -- sheet=GunOverlapTest

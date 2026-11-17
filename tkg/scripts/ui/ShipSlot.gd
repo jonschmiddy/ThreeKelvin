@@ -35,9 +35,10 @@ func _init() -> void:
 	# The idle bob is 2, as on the ship screen; it moves inside the canvas, not the Control.
 	# Why: docs/why/ShipSlot.md#own-ship-slot
 	art.bob(2)
-	# The hull is now bigger than its slot on the deepest frames, and the
-	# enemy panel is immediately to the right of it.
-	art.clip_contents = true
+	# Not clipped: full-size guns stand past the canvas, the nose's past the slot
+	# (Jon, Nov 17: "ship is cut off?"). Why: docs/why/Database.md#on-ship-guns
+	art.self_clip = false
+	art.clip_contents = false
 	add_child(art)
 
 	# Fitted parts show passively here; refit stays the only place to change them.

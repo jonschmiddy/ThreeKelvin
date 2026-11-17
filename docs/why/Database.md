@@ -1449,4 +1449,10 @@ mount (a belly pad at the front, the gun past the nose, which Jon allows), one
 3-cell mount on top at the front, and 2-cell mounts behind them; the heavy's
 fifth mount went on top, not the belly. `-- sheet=GunOverlapTest` tries every
 pair of guns on every pair of mounts. Listed in the order the grades open them.
+
+NOTHING CLIPS A GUN (Jon, Nov 17, on the fight still: "ship is cut off?"). The
+fight's ship slot clipped to its canvas and cut every barrel past the nose; it
+and the refit page's window (at 1x) no longer clip, the yard's photograph pad is
+140 px, and the ship-loss picture grows round the guns. `-- sheet=GunClipTest`
+walks every view and checks each gun against every clipping ancestor.
 ```

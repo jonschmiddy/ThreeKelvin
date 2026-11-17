@@ -411,6 +411,30 @@ func _gun(m: ModuleData, g: ShipGun, r: Rect2, k: float, full: bool) -> void:
 			draw_rect(q[0], q[1], true)
 
 
+## Every gun drawn here that some clip cuts: a clipping ancestor's rect or the viewport's,
+## for `-- sheet=GunClipTest`. Why: docs/why/Database.md#on-ship-guns
+func clipped_guns() -> Array[String]:
+	var out: Array[String] = []
+	if not is_visible_in_tree():
+		return out
+	var area := get_viewport().get_visible_rect()
+	var n := get_parent()
+	while n != null:
+		if n is Control and (n as Control).clip_contents:
+			area = area.intersection((n as Control).get_global_rect())
+		n = n.get_parent()
+	var xf := get_global_transform()
+	for s in _spots:
+		var m: ModuleData = s.held
+		if not shows(m) or gun_for(m, s.slot) == null:
+			continue
+		var r := part_rect(m, s.slot, part_drawn_at(s), part_mag())
+		var g := Rect2(xf * r.position, Vector2.ZERO).expand(xf * r.end)
+		if not area.grow(0.5).encloses(g):
+			out.append("%s %s outside %s" % [m.name, g, area])
+	return out
+
+
 ## Read-only, for `-- fittest`: tests need where a hardpoint is, not a guess off the sprite.
 func spots() -> Array[Dictionary]:
 	return _spots

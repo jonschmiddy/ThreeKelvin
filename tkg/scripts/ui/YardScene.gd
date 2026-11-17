@@ -336,8 +336,8 @@ func set_ships(mine: ShipView, mine_name: String, sale: ShipView, sale_name: Str
 
 ## Fitted parts are not in the hull picture, so a copy with mounts is photographed for reflections.
 ## Why: docs/why/YardScene.md#module-reflections
-## 64, not 24: Korvan's full-size guns stand up to 41 px past the canvas (docs/why/Database.md#on-ship-guns).
-const FIT_PAD := 64
+## 140, not 24: Korvan's full-size guns stand up to 133 px past the canvas (docs/why/Database.md#on-ship-guns).
+const FIT_PAD := 140
 var _fit_vp: Array = [null, null]
 
 
