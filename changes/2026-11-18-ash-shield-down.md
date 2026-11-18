@@ -1,0 +1,1 @@
+- **Changed** — in a fight, A.S.H. may speak from a corner your shield covers while the shield is down; if it comes up under her she stops at once.

@@ -1295,8 +1295,58 @@ func _check_screen(name: String, sc: SectorScreen, table: Dictionary) -> void:
 		"nothing under her" if hits.is_empty() else ", ".join(hits)], hits.is_empty())
 	_ok("%s: under the goal line's band (top %.0f, band ends %.0f)" % [name, r.position.y, Router.hud.get_global_rect().end.y + Ash.GOAL_BAND],
 		r.position.y >= Router.hud.get_global_rect().end.y + Ash.GOAL_BAND)
+	if sc.fighting():
+		await _shield_both_ways(name, sc)
 	Ash.portrait.cut()
 	Ash.poll(0.0)
+
+
+## Your shield's oval, global, measured off the hull's picture, drawn or not.
+func _oval(sc: SectorScreen) -> Rect2:
+	var L: HitLayers = sc._ship_fx
+	if L == null or L.shield == null:
+		return Rect2()
+	var f := ShieldFx.fit(L._img, L._used)
+	var rad := Vector2(float(f.rx), float(f.ry))
+	return L.shield.get_global_transform() * Rect2(L.shield._origin + (f.cc as Vector2) - rad, rad * 2.0)
+
+
+## THE SHIELD BOTH WAYS (Jon, Nov 18): down, she may stand where its oval goes; raised
+## under her, she is gone that frame; up, no spot she picks crosses it.
+func _shield_both_ways(name: String, sc: SectorScreen) -> void:
+	var L: HitLayers = sc._ship_fx
+	if L == null or L.shield == null:
+		return
+	var oval := _oval(sc)
+	var r := Ash.portrait.rect()
+	_ok("%s: the shield is down while she speaks (nothing of it drawn)" % name, not L.shield.shown())
+	var over := r.intersects(oval)
+	if over:
+		print("    (%s: her box %s crosses the down shield's oval %s)" % [name, r, oval])
+	L.shield.gain(5)
+	await _tree.process_frame
+	var gone := not Ash.portrait.speaking()
+	if over:
+		_ok("%s: the shield raised under her, she is gone that frame (%s, held by %s)" % [name,
+			AshPortrait.Phase.keys()[Ash.portrait.phase], Ash.held_by], gone and Ash.held_by == "shield")
+	else:
+		_ok("%s: the shield raised clear of her, she stays" % name, not gone)
+	Ash.portrait.cut()
+	Ash.poll(0.0)
+	# up: every spot she would pick for a line is clear of it
+	var v := Ash.view_rect(sc)
+	var avoid := Ash.avoid_rects(sc)
+	var picked := "none clear"
+	var crossed := false
+	for sp: Dictionary in Ash.spot_boxes(sc):
+		if Ash.clear(sp.rect, avoid, v):
+			picked = String(sp.name)
+			crossed = (sp.rect as Rect2).intersects(oval)
+			break
+	_ok("%s: with the shield up, the spot she would take (%s) is off its oval" % [name, picked], not crossed)
+	L.shield.expire()
+	L.shield.advance(ShieldFx.FIZZLE + 0.5)
+	_ok("%s: and down again, nothing of it drawn" % name, not L.shield.shown())
 
 
 func _hits(r: Rect2, boxes: Array, v: Rect2) -> Array[String]:
@@ -1356,11 +1406,10 @@ func _boxes(sc: SectorScreen) -> Array:
 	var ship := sc._view.ship_view()
 	if ship != null and ship.is_visible_in_tree():
 		out.append(["your hull", ship.get_global_transform() * ship.ship_rect()])
+	# your shield's oval while any of it is drawn (Jon, Nov 18). Why: docs/why/Ash.md#shield-down
 	var L: HitLayers = sc._ship_fx
-	if L != null and L.shield != null:
-		var f := ShieldFx.fit(L._img, L._used)
-		var rad := Vector2(float(f.rx), float(f.ry))
-		out.append(["your shield's oval", L.shield.get_global_transform() * Rect2(L.shield._origin + (f.cc as Vector2) - rad, rad * 2.0)])
+	if L != null and L.shield != null and L.shield.shown():
+		out.append(["your shield's oval", _oval(sc)])
 	# (no numbers on you here: they land only on the enemy's turn and at END
 	# TURN, when she is gone -- the turn checks hold her to that)
 	var i := 0
