@@ -178,7 +178,7 @@ Above the push in `_choose_scale` and `Ash.cutaway_band`:
 THE EXPLODED SHIP IS CENTRED IN ITS ROOM, then moved up, never past the room's
 top, until A.S.H.'s cutaway line has the rows along the cutaway's foot. Her
 line there (`AshTutorLines.CUTAWAY_LINE` and the key line under it) is 74 px tall and
-stands EDGE off the foot; her top corners on a station deck are usually taken
+stands EDGE off the foot (and EDGE off the picture's outline); her top corners on a station deck are usually taken
 by the yard's drones and the ships' names behind the cutaway, so a bottom
 corner is the one she gets.
 
@@ -189,4 +189,9 @@ needs 80, so no corner was clear and the cutaway hint came as a card
 (ashtutortest: "no hint came as a card ([&"cutaway"])"). Moving the picture
 up 11 px keeps it whole inside the room and gives her the bottom corners.
 A picture too tall to leave the band stays as high as the room allows.
+
+Nov 18: the band is her box, an EDGE under it and an EDGE over it. With one
+EDGE only, windowed stills of her line over medium and heavy Korvan on a yard had
+the outline she draws round the picture ending on the very row her box began
+(453 and 453): nothing overlapped, but the two touched. 6 px apart now.
 ```

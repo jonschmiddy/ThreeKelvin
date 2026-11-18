@@ -1116,10 +1116,11 @@ func _lesson_must_go() -> String:
 
 # ------------------------------------------------------------------ where she teaches
 
-## The rows her cutaway line takes along the cutaway's foot, EDGE included: the cutaway keeps
-## its exploded ship above them when its room allows. Why: docs/why/CutawayView.md#ash-band
+## The rows her cutaway line takes along the cutaway's foot, an EDGE under it and one over it
+## (off the outline on the picture): the cutaway keeps its exploded ship above them when its
+## room allows. Why: docs/why/CutawayView.md#ash-band
 static func cutaway_band() -> float:
-	return AshPortrait.size_for(AshTutorLines.fill(&"cutaway", Hints.values(&"cutaway"))).y + EDGE
+	return AshPortrait.size_for(AshTutorLines.fill(&"cutaway", Hints.values(&"cutaway"))).y + EDGE * 2.0
 
 
 ## The first spot clear of everything inside the view; empty if there is none.
