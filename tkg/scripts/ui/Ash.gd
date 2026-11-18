@@ -420,7 +420,7 @@ func poll(delta: float) -> void:
 				var why := _lesson_must_go()
 				if why != "":
 					held_by = why
-					if why == "turn" or why == "shield":
+					if why == "turn":
 						portrait.cut()
 					else:
 						portrait.leave(true)
@@ -432,9 +432,8 @@ func poll(delta: float) -> void:
 		if why != "":
 			held_by = why
 			# END TURN: gone that frame, before the turn's numbers can land where
-			# she was; your shield rising under her: gone that frame too, never a
-			# line over the oval; a hint or a drag: a quick fade; anything else: her fade
-			if why == "turn" or why == "shield":
+			# she was; a hint or a drag: a quick fade; anything else: her fade
+			if why == "turn":
 				portrait.cut()
 			else:
 				portrait.leave(why == "hint" or why == "drag")
@@ -538,9 +537,6 @@ func _must_go(r: Rect2) -> String:
 	if why != "" or force_spot != &"":
 		return why
 	var cur := Router.current
-	var shr := shield_rect(cur)
-	if shr.size != Vector2.ZERO and r.intersects(shr):
-		return "shield"
 	var a := avoid_rects(cur)
 	_opened_rects(cur as SectorScreen, a)
 	for x in a:
@@ -796,20 +792,6 @@ static func clear(r: Rect2, avoid: Array, inside: Rect2) -> bool:
 	return true
 
 
-## Your shield's oval, global, while any of it is drawn (`ShieldFx.shown`); empty while it is down.
-## Why: docs/why/Ash.md#shield-down
-static func shield_rect(cur: Control) -> Rect2:
-	var sc := cur as SectorScreen
-	if sc == null or not is_instance_valid(sc) or sc._view == null:
-		return Rect2()
-	var L: HitLayers = sc._ship_fx
-	if L == null or not is_instance_valid(L) or L.shield == null or not L.shield.is_visible_in_tree() 			or not L.shield.shown():
-		return Rect2()
-	var sh := L.shield
-	var rad := Vector2(sh._rx, sh._ry)
-	return sh.get_global_transform() * Rect2(sh._origin + sh._cc - rad, rad * 2.0)
-
-
 ## EVERYTHING SHE MUST NOT COVER on `cur`, global. Public: `AshTest` measures
 ## against the same list.
 static func avoid_rects(cur: Control) -> Array:
@@ -855,11 +837,8 @@ static func avoid_rects(cur: Control) -> Array:
 		# (not the numbers a hit on you pops: they land on the enemy's turn and
 		# at END TURN, and she is never up then: `_screen_block`)
 		out.append(ship.get_global_transform() * ship.ship_rect())
-		# your shield's oval, only while any of it is drawn (Jon, Nov 18)
-		# Why: docs/why/Ash.md#shield-down
-		var sh_r := shield_rect(sc)
-		if sh_r.size != Vector2.ZERO:
-			out.append(sh_r)
+		# (not your shield's oval: she may stand over it, up or down, drawn on top of it;
+		# Jon, Nov 18. Why: docs/why/Ash.md#over-the-shield)
 	for i in 16:
 		var sl := v.slot(i)
 		if sl == null or not is_instance_valid(sl) or not sl.is_visible_in_tree():
@@ -1100,9 +1079,6 @@ func _lesson_must_go() -> String:
 		if sc.fighting() and (sc._playing or sc._hold or sc.combat.finished):
 			return "turn"
 	var r := portrait.rect()
-	var shr := shield_rect(cur)
-	if shr.size != Vector2.ZERO and r.intersects(shr):
-		return "shield"
 	var a := tut_avoid_rects(cur)
 	if lesson_subject.size != Vector2.ZERO:
 		a.append(lesson_subject)

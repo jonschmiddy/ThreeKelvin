@@ -168,27 +168,27 @@ their names, its drones and its screen. What a click picks in a picture
 (a system, a world, a beacon) is `covers`.
 ```
 
-## Shield down
+## Over the shield
 
-Above `Ash.shield_rect`, its uses in `avoid_rects`, `_must_go` and `_lesson_must_go`, and `ShieldFx.shown`:
+Above the note in `Ash.avoid_rects` where your shield's oval used to be added:
 
 ```text
-YOUR SHIELD'S OVAL IS IN HER WAY ONLY WHILE IT IS DRAWN (Jon's ruling, Nov 18).
-Before, she kept off the oval "up or not". Korvan's new heavy (feat/korvan-zero)
-draws 103 px tall in a fight, where the old one drew 87, and its oval grew
-from 113 to 137 px tall, its top from about y 143 to 122-126 with the bob.
-Her one clear corner in a heavy fight against three, top_left (y 67-131, the
-goal line's band above it), now crossed the oval by 5 to 9 px, so she never
-spoke there (AshTest: 8 x "fight heavy v ...: she speaks (held by room)").
-She could not move up (the band is the goal line's), her box cannot be shorter
-than her 64 px face, and the heavy is drawn 1:1 (whole-number scales only).
+SHE MAY STAND OVER YOUR SHIELD'S OVAL, UP OR DOWN, DRAWN ON TOP OF IT (Jon's
+ruling, Nov 18: "The shield and box can overlap if it isn't too bad. She'd be
+on top."). Before, she kept off the oval "up or not".
 
-So: the oval counts while `ShieldFx.shown()`: up, sweeping in, fizzling
-out, or a break's flash or motes still flying. With the shield at 0 and
-nothing of it drawn she may stand there. If your shield rises while she is
-in that corner she is cut that frame ("shield", as END TURN cuts her), never
-a fade over a drawn oval; a teaching line goes the same way. While it is up
-she waits for room as before. AshTest checks both: she speaks with the shield
-down in the heavy fights, and raising it under her takes her off at once,
-and no spot she picks with it up crosses it.
+Why it came up: Korvan's new heavy (feat/korvan-zero) draws 103 px tall in a
+fight, where the old one drew 87, and its oval grew from 113 to 137 px tall,
+its top from about y 143 to 122-126 with the bob. Her one clear corner in a
+heavy fight against three, top_left (y 67-131, the goal line's band above
+it), crossed the oval by 5 to 9 px, so she never spoke there (AshTest: 8 x
+"fight heavy v ...: she speaks (held by room)"). She cannot move up (the
+band is the goal line's), her box cannot be shorter than her 64 px face, and
+the heavy is drawn 1:1 (whole-number scales only).
+
+A rule tried first the same day (stand there only while the shield is down,
+cut the moment it rises) was dropped for this one. Now the oval is not on
+her list at all, a shield raised under her leaves her speaking, and her
+portrait (top_level, z 50) draws over the shield's layer. AshTest checks
+both in every fight and prints how much of her box the oval takes.
 ```

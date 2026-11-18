@@ -215,12 +215,6 @@ func _process(delta: float) -> void:
 		advance(delta)
 
 
-## Whether any of the bubble is drawn: up (sweeping in too), fizzling, or a flash or mote still out.
-## A.S.H. may stand where the oval goes only while this is false. Why: docs/why/Ash.md#shield-down
-func shown() -> bool:
-	return _up or not _flashes.is_empty() or not _motes.is_empty()
-
-
 func _span() -> float:
 	return maxf(_rx, _ry)
 

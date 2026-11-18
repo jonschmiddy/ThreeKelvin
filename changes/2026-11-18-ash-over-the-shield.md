@@ -1,0 +1,1 @@
+- **Changed** — in a fight, A.S.H. may speak from a corner your shield reaches, drawn on top of it, whether it is up or down.
