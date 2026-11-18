@@ -368,7 +368,9 @@ Jon: "every tier play on reveal with their own sounds specific to that tier.
 Common being very quiet or kinda plain with legendary having fanfare worth
 noticing." The `take_*` files are now his "FTL-style" pick, soft computer
 blips, one a grade, with `take_uncommon` new (uncommon shared common's
-until then) and `take_credits` coins dropped into a palm. They ring as the
+until then), `take_credits` coins dropped into a palm, and `take_artifact`
+reimagined on its own (Jon's pick "H": 2.5 s, levelled to -17.0, the
+loudest 0.3 s RMS). They ring as the
 sweep reveals a container (`TransferView.ring_reveal`, on the loot screen
 and the cutaway's popup), at file level (`REVEAL_DB` 0): they were levelled
 against each other as a ladder, and a take plays `hold_stow` instead. They
