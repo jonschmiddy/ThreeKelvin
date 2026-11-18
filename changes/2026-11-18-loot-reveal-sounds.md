@@ -1,0 +1,1 @@
+- **Changed** — every loot grade now has its own sound, uncommon included, and plays it as a wreck or pile is first revealed, on the loot screen and in the ship cutaway. Taking anything plays the plain stow sound.

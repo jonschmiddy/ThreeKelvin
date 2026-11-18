@@ -170,6 +170,9 @@ func run(tree: SceneTree) -> void:
 	await _settle()
 	_ok("Esc shuts the popup and leaves the cutaway open", not _cut.popup_open() and _cut.is_open())
 
+	# 7c. the popup's sounds: every grade rings as the sweep finds it, a take only stows
+	await _check_loot_sounds()
+
 	# Clicks: an open popup alone shuts; tags and rings do nothing; a dropped drag restores.
 	_cut.open_popup(wreck, BAR_BUTTON)
 	await _settle()
@@ -1540,6 +1543,113 @@ func _material_shaped(want: Vector2i) -> MaterialData:
 		if m != null and m.size == want:
 			return m
 	return null
+
+
+## Jon, Nov 18: every grade rings its own sound on reveal, once; a take is the plain stow.
+## Why: docs/why/CutawayTest.md#loot-sounds
+func _check_loot_sounds() -> void:
+	var wreck := Run.new_wreck(_node, DB.enemies[&"cutter"])
+	wreck.items.clear()
+	var w := ModuleData.Slot.WEAPON
+	var base: ModuleData = null
+	for sl in ModuleData.Slot.values():
+		if base == null:
+			base = _module_of(sl, Vector2i.ONE)
+	if not _ok("a one-cell part to grade", base != null):
+		return
+	# the seven grades of the ladder; CONTRABAND borrows the artifact's sound
+	for r in range(ModuleData.Rarity.COMMON, ModuleData.Rarity.ARTIFACT + 1):
+		var m := base.duplicate(true) as ModuleData
+		DB.regrade(m, int(r))
+		wreck.items.append(m)
+	wreck.items.append(CreditChit.of(25))
+	Audio.taping = true
+	Audio.tape.clear()
+	var order: Array[HoldItem] = []
+	_cut.open_popup(wreck, BAR_BUTTON)
+	_cut._pop_grid.revealed.connect(func(m: HoldItem, _i: int) -> void: order.append(m))
+	var t0 := Time.get_ticks_msec()
+	while _rings().size() < wreck.items.size() and Time.get_ticks_msec() - t0 < 20000:
+		await _tree.process_frame
+	for i in 10:
+		await _tree.process_frame
+	var want: Array[String] = []
+	for m in order:
+		want.append(String(TransferView.tier_sound(m)))
+	var heard := _rings()
+	_ok("an unseen container rings each thing's own grade as the sweep finds it (%s)" % [heard],
+		order.size() == wreck.items.size() and heard == want)
+	var names: Dictionary = {}
+	var missing: Array[String] = []
+	for n in want:
+		names[n] = true
+		if not ResourceLoader.exists(Audio.SFX_PATH % n):
+			missing.append(n)
+	_ok("and every grade and the credits are a different sound, each on disk (%d for %d, missing %s)"
+		% [names.size(), want.size(), missing], names.size() == want.size() and missing.is_empty())
+	Audio.tape.clear()
+	_cut.open_popup(wreck, BAR_BUTTON)
+	for i in 30:
+		await _tree.process_frame
+	_ok("opened again it rings nothing (%s)" % [_rings()], _rings().is_empty())
+	# a take, to the hold and onto a ring: the stow, never the grade
+	Audio.tape.clear()
+	var top: ModuleData = wreck.items[ModuleData.Rarity.ARTIFACT]
+	await _cut._on_hold_drop({module = top, origin = &"bag"}, _free_cell(top))
+	await _settle()
+	var said := _taped()
+	_ok("taking the artifact to the hold plays the stow and no grade (%s)" % [said],
+		Run.cargo.has(top) and said.has("hold_stow") and _rings().is_empty())
+	var gun := _module_of(w)
+	DB.regrade(gun, int(ModuleData.Rarity.LEGENDARY))
+	wreck.items.append(gun)
+	_cut._refresh()
+	Audio.tape.clear()
+	# (taken whether the ring then fits it or not: the claim comes first)
+	await _cut._on_mount_drop({module = gun, origin = &"bag"}, w, 0)
+	await _settle()
+	said = _taped()
+	_ok("taking a legendary straight onto a ring plays the stow and no grade (%s)" % [said],
+		(Run.installed.has(gun) or Run.cargo.has(gun)) and said.has("hold_stow") and _rings().is_empty())
+	# SECTOR LOOT: a fresh thing in the pile rings; the opened wreck's leftovers rang already
+	_cut.close_popup()
+	var pile := Run.sector_jetsam(_node, true)
+	var fresh := base.duplicate(true) as ModuleData
+	DB.regrade(fresh, int(ModuleData.Rarity.EPIC))
+	pile.items.append(fresh)
+	pile.scanned = false
+	Audio.tape.clear()
+	_cut.open_popup(Run.sector_loot(_node), BAR_BUTTON)
+	t0 = Time.get_ticks_msec()
+	while _cut._pop_grid != null and _cut._pop_grid._scan >= 0.0 and Time.get_ticks_msec() - t0 < 20000:
+		await _tree.process_frame
+	for i in 10:
+		await _tree.process_frame
+	_ok("SECTOR LOOT rings the pile's new thing and not the opened wreck's leftovers (%s)" % [_rings()],
+		_rings() == ["take_epic"] and Run.jetsam_left(_node, wreck) > 0)
+	Audio.taping = false
+	Audio.tape.clear()
+	_cut.close_popup()
+	pile.items.erase(fresh)
+	_node.jetsam.erase(wreck)
+	await _settle()
+
+
+## Every sound on the tape since it was cleared, by the name asked for.
+func _taped() -> Array[String]:
+	var out: Array[String] = []
+	for row in Audio.tape:
+		out.append(str((row as Array)[6]))
+	return out
+
+
+## Just the rarity ladder's sounds on the tape.
+func _rings() -> Array[String]:
+	var out: Array[String] = []
+	for n in _taped():
+		if n.begins_with("take_"):
+			out.append(n)
+	return out
 
 
 func _free_cell(m: HoldItem) -> Vector2i:

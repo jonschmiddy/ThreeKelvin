@@ -979,6 +979,8 @@ func open_popup(h: MapGen.Jetsam, beside: Rect2) -> void:
 		var n: MapGen.MapNode = Run.node_at()
 		return n != null and _pop_jetsam != null and Run.put_in(n, _pop_jetsam, m)
 	_pop_grid.picked.connect(func(_m: HoldItem) -> void: _refresh())
+	var g := _pop_grid
+	g.revealed.connect(func(m: HoldItem, _i: int) -> void: TransferView.ring_reveal(g, h, m))
 	_pop_scroll.add_child(_pop_grid)
 	_pop_take = Widgets.button("TAKE ALL", func() -> void: _take_all(_pop_jetsam))
 	_pop_take.custom_minimum_size = Vector2(92, 20)
@@ -989,6 +991,10 @@ func open_popup(h: MapGen.Jetsam, beside: Rect2) -> void:
 	else:
 		Audio.play(&"hold_lift", 0.05)
 	_fill_popup()
+	# The sweep, and the ladder with it, once per container, as on the two-grid screen.
+	# Why: docs/why/CutawayView.md#popup-reveal
+	if TransferView.first_look(h):
+		_pop_grid.scan()
 
 
 func close_popup() -> void:
@@ -1156,7 +1162,7 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 		if not got:
 			_toast("NO ROOM IN THE HOLD FOR %s" % m.name.to_upper(), true)
 			return
-		Audio.play(TransferView.take_sound(m), 0.05)
+		TransferView.take_fx()
 	var r := Run.fit_at_mount(m, slot, index, _lifted_mount if m == _lifted else -1)
 	if r == Run.Refit.REFUSED:
 		return
@@ -1182,7 +1188,7 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 		# where it was dropped, if it fits there (it is in the hold already); money was cashed, not held
 		if not m is CreditChit:
 			Run.stow_at(m, at)
-		Audio.play(TransferView.take_sound(m), 0.05)
+		TransferView.take_fx()
 		_toast("TAKEN %s" % m.name.to_upper())
 		_refresh()
 		return
@@ -1213,7 +1219,7 @@ func _take_all(h: MapGen.Jetsam) -> void:
 			left += 1
 	_busy = false
 	if took > 0:
-		Audio.play(&"hold_stow", 0.05)
+		TransferView.take_fx()
 	if left > 0:
 		_toast("NO ROOM IN THE HOLD FOR %d MORE" % left, true)
 	elif took > 0:

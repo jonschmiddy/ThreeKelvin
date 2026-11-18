@@ -195,34 +195,9 @@ func run(tree: SceneTree) -> void:
 	Audio.taping = false
 	Audio.tape.clear()
 
-	# The top of the rarity ladder rings and the rest does not, read through the real view.
-	var node: MapGen.MapNode = Run.node_at()
-	node.jetsam.clear()
-	node.taken.clear()
-	Run.cargo.clear()
-	var wreck := Run.new_wreck(node, DB.enemies[&"cutter"])
-	for want in [ModuleData.Rarity.COMMON, ModuleData.Rarity.LEGENDARY]:
-		for _i in 400:
-			# Commons drop shallower than tier 3 only (`LootGen.NO_COMMON_TIER`).
-			var m := LootGen.roll_module(1 if want == ModuleData.Rarity.COMMON else 5)
-			if m != null and m.rarity == want:
-				wreck.items.append(m)
-				break
-	var placed_common := wreck.items.any(func(m: ModuleData) -> bool: return m.rarity == ModuleData.Rarity.COMMON)
-	var view := TransferView.new()
-	tree.root.add_child(view)
-	Audio.taping = true
-	Audio.tape.clear()
-	view.setup(wreck, node, func() -> void: pass, true)
-	await _settle(400)
-	var heard: Array = []
-	for row in Audio.tape:
-		heard.append(str((row as Array)[0]))
-	_ok("a wreck opening rings a legendary (%s)" % [heard], heard.has("take_legendary"))
-	_ok("and says nothing for the common beside it", placed_common and not heard.has("take_common"))
-	Audio.taping = false
-	Audio.tape.clear()
-	view.queue_free()
+	# Every grade rings its own sound as the sweep finds it, and a take only stows (Jon, Nov 18).
+	# Why: docs/why/AudioTest.md#loot-ladder
+	await _check_loot_ladder(tree)
 
 	# ---- stopping
 	Audio.stop_music()
@@ -328,6 +303,85 @@ func _cues_on_disk() -> Dictionary:
 
 
 ## Advance until a crossfade ends, bounded: a loop that cannot end is worse than a failed check.
+## The ladder through the real loot screen: every grade, credits and a material in one wreck.
+func _check_loot_ladder(tree: SceneTree) -> void:
+	var names: Dictionary = {}
+	var missing: Array = []
+	var probes: Array[HoldItem] = [CreditChit.of(10)]
+	var base: ModuleData = (DB.modules[&"plating"] as ModuleData)
+	for r in range(ModuleData.Rarity.COMMON, ModuleData.Rarity.ARTIFACT + 1):
+		var m := base.duplicate(true) as ModuleData
+		DB.regrade(m, int(r))
+		probes.append(m)
+	for m in probes:
+		var n := TransferView.tier_sound(m)
+		names[n] = true
+		if not ResourceLoader.exists(Audio.SFX_PATH % n):
+			missing.append(n)
+	_ok("seven grades and the credits are eight sounds (%s)" % [names.keys()], names.size() == 8)
+	_ok("and every one is on disk (missing %s)" % [missing], missing.is_empty())
+
+	var node: MapGen.MapNode = Run.node_at()
+	node.jetsam.clear()
+	node.taken.clear()
+	Run.cargo.clear()
+	var wreck := Run.new_wreck(node, DB.enemies[&"cutter"])
+	wreck.items.assign(probes)
+	wreck.items.append(MaterialData.of(MaterialTable.all()[0]))
+	var view := TransferView.new()
+	tree.root.add_child(view)
+	var order: Array[HoldItem] = []
+	view._loose.revealed.connect(func(m: HoldItem, _i: int) -> void: order.append(m))
+	Audio.taping = true
+	Audio.tape.clear()
+	view.setup(wreck, node, func() -> void: pass, true)
+	var t0 := Time.get_ticks_msec()
+	while _ladder_rows().size() < wreck.items.size() and Time.get_ticks_msec() - t0 < 20000:
+		await tree.process_frame
+	await _settle(30)
+	var want: Array[String] = []
+	for m in order:
+		want.append(String(TransferView.tier_sound(m)))
+	var rows := _ladder_rows()
+	var heard: Array[String] = []
+	for row in rows:
+		heard.append(str(row[6]))
+	_ok("a wreck opening rings every thing it holds, each its own grade (%s)" % [heard],
+		order.size() == wreck.items.size() and heard == want)
+	# The stagger: one after another, never stacked (at least half the gap, as a frame may land late).
+	var tight := 0
+	var gaps: Array[int] = []
+	for i in range(1, rows.size()):
+		gaps.append(int(rows[i][1]) - int(rows[i - 1][1]))
+		if gaps[-1] < int(TransferView.REVEAL_GAP * 500.0):
+			tight += 1
+	_ok("and one at a time, %d ms apart or more (gaps %s ms)" % [int(TransferView.REVEAL_GAP * 500.0), gaps],
+		rows.size() > 1 and tight == 0)
+
+	# Taking is packing: the stow, whatever the grade.
+	var top: HoldItem = probes[probes.size() - 1]
+	Audio.tape.clear()
+	await view._on_hold_drop({module = top, origin = &"bag"}, Vector2i.ZERO)
+	await _settle(10)
+	var took: Array[String] = []
+	for row in Audio.tape:
+		took.append(str((row as Array)[6]))
+	_ok("taking the artifact plays the stow and none of the ladder (%s)" % [took],
+		Run.cargo.has(top) and took.has("hold_stow") and _ladder_rows().is_empty())
+	Audio.taping = false
+	Audio.tape.clear()
+	view.queue_free()
+
+
+## The tape's rows that are the rarity ladder.
+func _ladder_rows() -> Array[Array]:
+	var out: Array[Array] = []
+	for row in Audio.tape:
+		if str((row as Array)[6]).begins_with("take_"):
+			out.append(row)
+	return out
+
+
 func _settle(n: int = 200) -> void:
 	for _i in n:
 		await _tree.process_frame

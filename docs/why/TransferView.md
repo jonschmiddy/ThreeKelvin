@@ -276,60 +276,88 @@ in favour of the one that may not be reached.
 
 ## Take sound
 
-Above `const REVEAL_DB := -4.0`:
+Above `static func take_fx() -> void:` (it was `_take_fx`, and the
+cutaway called the grade's sound itself):
+
+```text
+JON, NOV 18: "Taking an item always plays the plain stow sound." The
+grade's sound is for the moment a thing is FOUND; a take is packing. So a
+take is `hold_stow`, whatever the grade, on this screen and in the cutaway
+alike (its popup to the hold, onto a ring, and TAKE ALL all call this one
+function, which is why it is static and public). The cutaway used to play
+the grade's sound on a take, which this screen had stopped doing on Jon's
+earlier word ("only when it is found the first time, not when you put it in
+your hull"), so the two places disagreed until now.
+
+The resource watcher would answer the same take with the flat loot_drop /
+scrap_gain a frame later; the stow IS that sound, so theirs are held.
+```
+
+History, kept for the reasoning (the take used to be the grade's sound):
 
 ```text
 The whole sound of a take, both drop paths. A DIFFERENT SOUND from the
 reward sting, not the same one turned down: `loot_drop` is a fanfare and its
 problem here is CHARACTER, not level -- taking a crate off the floor happens
 six times a system, and a fanfare each time turns packing into a slot
-machine paying out. The resource watcher would answer the same take with
-the flat loot_drop / scrap_gain a frame later; this sound IS that sound,
-better informed, so theirs are held. Down four and rate-limited, because a
-fast hand emptying a bag fires this several times a second.
-WHAT A WRECK HAD IN IT, HEARD AS IT RESOLVES.
-
-The rarity ladder is the clearest sound design in this game -- 0.12 s for a
-common and 2.20 s for an artifact, eighteen times the length -- and it only
-ever played when you dragged something into the hold. That is the moment you
-DECIDE about a thing, not the moment you find it. Now the sweep tells you
-what is in a pile while it is still opening it, which is what the ladder was
-built to do.
-
-STAGGERED BY ARRIVAL, not played on top of each other. A wreck with eight
-things in it would otherwise fire eight overlapping sounds inside half a
-second; the sweep already reveals them in order, so the sound follows the
-picture and lands one at a time.
-
-QUIETER THAN TAKING, because finding is the smaller event of the two: you
-will hear this on every wreck you open and the take only on what you keep.
-And no `loot_drop` underneath -- the resource watcher is not involved in a
-reveal, nothing has moved yet.
-Four down from the take, which is the level the ladder was judged at.
+machine paying out.
 ```
 
 ## Reveal sound
 
-Above `const REVEAL_FLOOR := ModuleData.Rarity.LEGENDARY`:
+Above `const REVEAL_DB := 0.0` and `static func ring_reveal(...)`:
 
 ```text
-THE TOP OF THE LADDER ONLY. Every rung used to ring as the sweep found it,
-and the low ones did not read as anything -- a common is 0.12 s of dry tick
-and a wreck is mostly commons, so the sound said "something appeared" over
-and over and meant nothing. Jon: "maybe we only do the sound for legendaries
-and artifacts." The sweep is quiet now until it finds something worth
-stopping for, and then it is unmistakable: 1.2 s, 1.6 s, 2.2 s.
+EVERY GRADE RINGS AS THE SWEEP FINDS IT, each with its own sound. Jon, Nov
+18: "Let's every tier play on reveal with their own sounds specific to that
+tier. Common being very quiet or kinda plain with legendary having fanfare
+worth noticing." UNCOMMON has its own file now (`take_uncommon`); it shared
+common's until then. CREDITS ring too (coins dropped into a palm).
+
+WHY THE FLOOR WENT. Until Nov 18 only LEGENDARY and up rang (REVEAL_FLOOR),
+because the old low rungs did not read as anything: a common was 0.12 s of
+dry tick and a wreck is mostly commons, so the sound said "something
+appeared" over and over and meant nothing. The fix then was silence; the fix
+now is better sounds. The Nov 18 set is a ladder Jon picked as one piece,
+"FTL-style" soft computer blips: a common is quiet and plain, so a wreck of
+commons is a few soft blips, and a legendary still stands out above them.
+
+REVEAL_DB IS 0 NOW, NOT -4. The -4 made the reveal quieter than the take
+when both played the grade's sound, as finding was the smaller event. Now
+the reveal is the only place the ladder plays, and the files were levelled
+against each other as a ladder: they play at the level they were made at,
+with no offset that would shift the whole set against the other sounds.
+
+QUEUED REVEAL_GAP (0.055 s) APART, not played on top of each other. Every
+rung rings now, so a full wreck is more sounds than before. The old stagger
+waited REVEAL_GAP times the thing's index from the moment it was found, and
+the sweep finds a row at a time, so a thing found in a later row with a
+small index landed on one found earlier with a big one. Absolute due times
+were not enough either: AudioTest saw a 470 ms frame stall on the first
+open let two due rings fire on one frame, 2 ms apart (Nov 18). So each host
+keeps one queue (`rings`) and one call drains it: play, wait REVEAL_GAP,
+play the next. Each gap is measured from a sound that really played. A
+host that leaves the tree drops what has not rung. `limit_ms` 0, as a rate
+limit would drop the tail.
+
+ONCE PER CONTAINER, with the sweep (`first_look`): the ladder is what
+finding a thing sounds like, and walking back to a half-stripped pile is not
+finding it. The cutaway's popup shares this function, the sweep and the flag,
+so a pile swept on one screen is quiet on the other.
+
+NOT TWICE FOR A WRECK'S LEFTOVERS (`heard_before`). SECTOR LOOT is the
+system's pile plus every opened wreck's leftovers (`MapGen.PileView`), and
+its sweep runs while the PILE is unseen, over all of it. The wrecks' things
+rang when the wreck was opened, so in that view only the pile's own rings;
+the leftovers are swept in silence. The windowed proof (Nov 18) heard a
+wreck's material ring a second time in the cutaway's popup before this.
+
+STATIC, with a host node: this screen and the cutaway's popup both ring
+through it, and a closed host stops what has not rung yet.
 ```
 
-Above `func _take_fx(_m: HoldItem) -> void:`:
-
-```text
-THE RARITY LADDER IS FOR FINDING, NOT FOR PACKING. It played twice -- once
-as the sweep revealed a thing and again when you dragged it into the hold --
-so a legendary announced itself on the way in as well as on the way out of
-the dark. Jon: "only when it is found the first time, not when you put it in
-your hull." Taking now sounds like what it is: a thing stowed.
-```
+History: the floor this replaced said "THE TOP OF THE LADDER ONLY.
+Jon: 'maybe we only do the sound for legendaries and artifacts.'"
 
 ## Rotate key
 

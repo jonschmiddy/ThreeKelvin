@@ -100,3 +100,23 @@ against a table of windows. Jon asked for the order to stop repeating, so
 the lines came out of the mixdown and the bed no longer says anything: the
 game deals them. What has to be true changed with it.
 ```
+
+## Loot ladder
+
+Above `await _check_loot_ladder(tree)`:
+
+```text
+Jon, Nov 18: every grade plays its own sound on reveal ("Common being very
+quiet or kinda plain with legendary having fanfare worth noticing"), and a
+take always plays the plain stow. This replaced the check that the top of
+the ladder rang and the rest did not.
+
+Through the real loot screen (`TransferView`) with real audio: a wreck with
+each of the seven grades, a credit chit and a material. Every one rings, its
+own grade's sound, in the order the sweep found them; the eight sounds are
+different and on disk; the rings land at least half of REVEAL_GAP apart
+(half, because a timer fires on the first frame after it is due, so one late
+frame can shorten a gap); and dragging the artifact into the hold plays
+`hold_stow` and nothing from the ladder. `CutawayTest` checks the same two
+rules in the cutaway's popup, headless, in the gate.
+```

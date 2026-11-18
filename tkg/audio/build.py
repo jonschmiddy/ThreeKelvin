@@ -170,6 +170,7 @@ def build_music(only=()):
 # bought takes that replaced it, and the sounds Jon cut (README, "The sound pass").
 HELD_SFX = {
     'fauna_falls', 'shop_buy', 'take_credits',                          # bought takes
+    'take_common', 'take_rare', 'take_epic', 'take_legendary', 'take_exotic',  # the Nov 18 loot ladder
     'combat_start', 'death_sting', 'svc_coolant', 'jump', 'explosion_boss', 'ui_confirm',  # cut
 }
 

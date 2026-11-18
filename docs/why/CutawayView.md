@@ -195,3 +195,22 @@ EDGE only, windowed stills of her line over medium and heavy Korvan on a yard ha
 the outline she draws round the picture ending on the very row her box began
 (453 and 453): nothing overlapped, but the two touched. 6 px apart now.
 ```
+
+## Popup reveal
+
+Inside `open_popup()`, above `if TransferView.first_look(h):`:
+
+```text
+THE SWEEP AND THE LADDER, ONCE PER CONTAINER, as on the two-grid screen.
+Jon, Nov 18: every grade plays its own sound when the loot is REVEALED, on
+the loot screen and in the cutaway. The popup showed its things at once and
+said nothing until you took one, and then played the grade's sound on the
+take -- the one moment Jon wants the plain stow. So the popup now runs the
+same sweep `TransferView` runs (`SalvageGrid.scan`), and the grid's
+`revealed` signal rings `TransferView.ring_reveal`, staggered the same way.
+
+The same flag (`Jetsam.scanned`, set by `TransferView.first_look`) decides
+both screens: a pile swept on the loot screen is quiet in the popup, and one
+swept in the popup does not sweep again on the loot screen. A popup closed
+mid-sweep stops the rings that have not played (the grid is their host).
+```
