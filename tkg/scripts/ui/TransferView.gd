@@ -102,7 +102,7 @@ func setup(h: MapGen.Jetsam, n: MapGen.MapNode, on_close: Callable,
 	if h != null and h.is_wreck():
 		h.opened = true
 	if animate and first_look(h):
-		_loose.scan()
+		_loose.scan(seen_before(h))
 	else:
 		_loose.skip_scan()
 	_measure.call_deferred()
@@ -427,6 +427,32 @@ static func ring_reveal(host: Node, h: MapGen.Jetsam, m: HoldItem) -> void:
 		queue.pop_front()
 
 
+## A skip reveals the rest at once with one sound: the best grade among them (Jon, Nov 18).
+## Why: docs/why/TransferView.md#reveal-sound
+static func ring_best(host: Node, h: MapGen.Jetsam, rest: Array) -> void:
+	var best: HoldItem = null
+	var best_g := -2
+	for m: HoldItem in rest:
+		if heard_before(h, m):
+			continue
+		var g := -1 if m is CreditChit else int(_rarity_of(m))
+		if g > best_g:
+			best = m
+			best_g = g
+	if best != null:
+		ring_reveal(host, h, best)
+
+
+## What a reveal shows at once: the things `heard_before` (they take no turn and ring nothing).
+static func seen_before(h: MapGen.Jetsam) -> Array[HoldItem]:
+	var out: Array[HoldItem] = []
+	if h != null:
+		for m in h.items:
+			if heard_before(h, m):
+				out.append(m)
+	return out
+
+
 ## SECTOR LOOT sweeps opened wrecks' leftovers with the pile; they rang when the wreck opened.
 ## Why: docs/why/TransferView.md#reveal-sound
 static func heard_before(h: MapGen.Jetsam, m: HoldItem) -> bool:
@@ -633,6 +659,7 @@ func _build_loose() -> Control:
 	# Why: docs/why/TransferView.md#redraw-on-ship-change
 	_loose.picked.connect(func(_m: HoldItem) -> void: refresh())
 	_loose.revealed.connect(_on_revealed)
+	_loose.skipped.connect(func(rest: Array) -> void: ring_best(self, _jetsam, rest))
 	# Into the open container; see `RunState.put_in`, or the screen lies about it.
 	_loose.on_put = func(m: HoldItem) -> bool:
 		return Run.put_in(_node, _jetsam, m)

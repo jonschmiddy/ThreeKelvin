@@ -328,6 +328,11 @@ the reveal is the only place the ladder plays, and the files were levelled
 against each other as a ladder: they play at the level they were made at,
 with no offset that would shift the whole set against the other sounds.
 
+NOV 18, LATER: the reveal itself is now one thing a second in reading order
+(`SalvageGrid`, docs/why/SalvageGrid.md#reveal-order), so the rings arrive a
+second apart and this queue rarely holds more than one. A skip rings once,
+for the best grade left (`ring_best`; Jon: "PERFECT").
+
 QUEUED REVEAL_GAP (0.055 s) APART, not played on top of each other. Every
 rung rings now, so a full wreck is more sounds than before. The old stagger
 waited REVEAL_GAP times the thing's index from the moment it was found, and

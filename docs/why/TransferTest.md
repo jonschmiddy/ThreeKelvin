@@ -73,3 +73,17 @@ instead. So the measurement now happens ONCE, when the container arrives,
 and the two checks below are what actually matters -- they caught this
 exactly when the first version measured on every refresh.
 ```
+
+## Reveal order
+
+Above `wreck.scanned = false` in the reveal block (it replaced the blink count above):
+
+```text
+Jon, Nov 18: the vertical sweep and its glitch are gone; a container is
+revealed one thing at a time, in reading order, each through SpectroReveal,
+a second apart. So the old blink count measured constants that no longer
+draw anything. What is checked now: on opening a fresh container nothing is
+shown; the first thing to land is the top-left one and it is alone when it
+does; the next is still hidden. The timing and the sounds are CutawayTest's
+and AudioTest's to check.
+```

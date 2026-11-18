@@ -981,6 +981,7 @@ func open_popup(h: MapGen.Jetsam, beside: Rect2) -> void:
 	_pop_grid.picked.connect(func(_m: HoldItem) -> void: _refresh())
 	var g := _pop_grid
 	g.revealed.connect(func(m: HoldItem, _i: int) -> void: TransferView.ring_reveal(g, h, m))
+	g.skipped.connect(func(rest: Array) -> void: TransferView.ring_best(g, h, rest))
 	_pop_scroll.add_child(_pop_grid)
 	_pop_take = Widgets.button("TAKE ALL", func() -> void: _take_all(_pop_jetsam))
 	_pop_take.custom_minimum_size = Vector2(92, 20)
@@ -991,10 +992,10 @@ func open_popup(h: MapGen.Jetsam, beside: Rect2) -> void:
 	else:
 		Audio.play(&"hold_lift", 0.05)
 	_fill_popup()
-	# The sweep, and the ladder with it, once per container, as on the two-grid screen.
+	# The reveal, and the ladder with it, once per container, as on the two-grid screen.
 	# Why: docs/why/CutawayView.md#popup-reveal
 	if TransferView.first_look(h):
-		_pop_grid.scan()
+		_pop_grid.scan(TransferView.seen_before(h))
 
 
 func close_popup() -> void:
@@ -1207,6 +1208,9 @@ func _take_all(h: MapGen.Jetsam) -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if h == null or n == null or _busy:
 		return
+	# Nothing is taken before it is revealed: the rest are shown first, with their one sound.
+	if _pop_grid != null and _pop_grid.revealing():
+		_pop_grid.skip_reveal()
 	_busy = true
 	var took := 0
 	var left := 0

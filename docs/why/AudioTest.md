@@ -111,6 +111,14 @@ quiet or kinda plain with legendary having fanfare worth noticing"), and a
 take always plays the plain stow. This replaced the check that the top of
 the ladder rang and the rest did not.
 
+NOV 18, LATER: the reveal is one thing a second in reading order now
+(SpectroReveal). The check reads: every thing rings once, in reading order,
+its own grade; the rings are 1.0 s apart (within 0.15 s, on the game clock
+the reveal runs on); each rings as it appears and is drawn then; reopening is
+silent; a click on the grid shows the rest with exactly one ring, the best
+grade left (and nothing else waiting in the ring queue); taking plays the
+stow. What follows is the earlier version, for the record.
+
 Through the real loot screen (`TransferView`) with real audio: a wreck with
 each of the seven grades, a credit chit and a material. Every one rings, its
 own grade's sound, in the order the sweep found them; the eight sounds are

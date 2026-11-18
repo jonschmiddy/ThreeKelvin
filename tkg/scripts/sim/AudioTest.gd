@@ -330,33 +330,81 @@ func _check_loot_ladder(tree: SceneTree) -> void:
 	wreck.items.append(MaterialData.of(MaterialTable.all()[0]))
 	var view := TransferView.new()
 	tree.root.add_child(view)
-	var order: Array[HoldItem] = []
-	view._loose.revealed.connect(func(m: HoldItem, _i: int) -> void: order.append(m))
+	var landed: Array = []
+	var g: SalvageGrid = view._loose
+	g.revealed.connect(func(m: HoldItem, _i: int) -> void: landed.append([m, GameClock.now(), _drawn(g, m)]))
 	Audio.taping = true
 	Audio.tape.clear()
 	view.setup(wreck, node, func() -> void: pass, true)
+	var reading := _reading(g, wreck.items)
 	var t0 := Time.get_ticks_msec()
-	while _ladder_rows().size() < wreck.items.size() and Time.get_ticks_msec() - t0 < 20000:
+	while _ladder_rows().size() < wreck.items.size() and Time.get_ticks_msec() - t0 < 30000:
 		await tree.process_frame
 	await _settle(30)
 	var want: Array[String] = []
-	for m in order:
+	for m in reading:
 		want.append(String(TransferView.tier_sound(m)))
 	var rows := _ladder_rows()
 	var heard: Array[String] = []
 	for row in rows:
 		heard.append(str(row[6]))
-	_ok("a wreck opening rings every thing it holds, each its own grade (%s)" % [heard],
-		order.size() == wreck.items.size() and heard == want)
-	# The stagger: one after another, never stacked (at least half the gap, as a frame may land late).
-	var tight := 0
-	var gaps: Array[int] = []
+	var got: Array = landed.map(func(x: Array) -> HoldItem: return x[0])
+	_ok("a wreck opening rings every thing it holds once, in reading order, each its own grade (%s)" % [heard],
+		got == reading and heard == want)
+	# One at a time, a second apart start to start, on the game clock the reveal runs on.
+	var gaps: Array[float] = []
 	for i in range(1, rows.size()):
-		gaps.append(int(rows[i][1]) - int(rows[i - 1][1]))
-		if gaps[-1] < int(TransferView.REVEAL_GAP * 500.0):
-			tight += 1
-	_ok("and one at a time, %d ms apart or more (gaps %s ms)" % [int(TransferView.REVEAL_GAP * 500.0), gaps],
-		rows.size() > 1 and tight == 0)
+		gaps.append(snappedf(float(rows[i][4]) - float(rows[i - 1][4]), 0.01))
+	_ok("one at a time, about %.1f s apart (%s)" % [SalvageGrid.REVEAL_STEP, gaps],
+		gaps.size() == wreck.items.size() - 1 and gaps.all(func(x: float) -> bool: return absf(x - SalvageGrid.REVEAL_STEP) <= 0.15))
+	var on_cue := landed.size() == rows.size()
+	for k in mini(landed.size(), rows.size()):
+		on_cue = on_cue and bool(landed[k][2]) and absf(float(landed[k][1]) - float(rows[k][4])) <= 0.08
+	_ok("each sound plays as its thing appears, drawn then", on_cue)
+
+	# Opened again: everything at once, and silent.
+	Audio.tape.clear()
+	var again := TransferView.new()
+	tree.root.add_child(again)
+	again.setup(wreck, node, func() -> void: pass, true)
+	await _settle(60)
+	_ok("opened again it shows everything at once and rings nothing (%s)" % [_ladder_rows().size()],
+		not again._loose.revealing() and _ladder_rows().is_empty())
+	again.queue_free()
+
+	# A skip: a click on the grid shows the rest with one sound, the best grade among them.
+	var wreck2 := Run.new_wreck(node, DB.enemies[&"cutter"])
+	for m in probes:
+		wreck2.items.append(m.duplicate(true))
+	var sk := TransferView.new()
+	tree.root.add_child(sk)
+	Audio.tape.clear()
+	sk.setup(wreck2, node, func() -> void: pass, true)
+	var g2: SalvageGrid = sk._loose
+	var reading2 := _reading(g2, wreck2.items)
+	t0 = Time.get_ticks_msec()
+	while _ladder_rows().is_empty() and Time.get_ticks_msec() - t0 < 10000:
+		await tree.process_frame
+	Audio.tape.clear()
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = (Vector2(g2._at[reading2[reading2.size() - 1]]) + Vector2(0.5, 0.5)) * float(SalvageGrid.CELL)
+	g2._gui_input(click)
+	t0 = Time.get_ticks_msec()
+	while _ladder_rows().is_empty() and Time.get_ticks_msec() - t0 < 3000:
+		await tree.process_frame
+	var best := ""
+	var best_g := -2
+	for m: HoldItem in reading2.slice(1):
+		var gr := -1 if m is CreditChit else int((m as ModuleData).rarity)
+		if gr > best_g:
+			best_g = gr
+			best = String(TransferView.tier_sound(m))
+	var after: Array = _ladder_rows().map(func(r: Array) -> String: return str(r[6]))
+	_ok("a click on the grid shows the rest at once with one sound, the best grade left (%s, want %s)" % [after, best],
+		not g2.revealing() and after == [best] and (g2.get_meta(&"rings", []) as Array).size() <= 1)
+	sk.queue_free()
 
 	# Taking is packing: the stow, whatever the grade.
 	var top: HoldItem = probes[probes.size() - 1]
@@ -371,6 +419,24 @@ func _check_loot_ladder(tree: SceneTree) -> void:
 	Audio.taping = false
 	Audio.tape.clear()
 	view.queue_free()
+
+
+## Things in the order the reveal takes them: the top row left to right, then down.
+func _reading(g: SalvageGrid, items: Array) -> Array:
+	var out := items.duplicate()
+	out.sort_custom(func(a: HoldItem, b: HoldItem) -> bool:
+		var pa: Vector2i = g._at[a]
+		var pb: Vector2i = g._at[b]
+		return pa.y < pb.y or (pa.y == pb.y and pa.x < pb.x))
+	return out
+
+
+## Whether `m`'s own icon is showing in the grid.
+func _drawn(g: SalvageGrid, m: HoldItem) -> bool:
+	for c in g.get_children():
+		if c is ItemIcon and (c as ItemIcon).held_item() == m:
+			return (c as Control).visible
+	return false
 
 
 ## The tape's rows that are the rarity ladder.

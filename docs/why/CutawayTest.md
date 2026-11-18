@@ -154,3 +154,13 @@ hold and one onto a ring: `hold_stow` and no `take_*`. The ring drop is
 checked for the take only; whether the ring then fits it is the refit rule's
 business, tested above.
 ```
+
+Nov 18, later, the reveal is one thing a second in reading order: the popup
+check now opens a wreck of every grade and credits and reads, from the tape
+and the grid's own `revealed`: nothing shown on opening; the first three
+land in reading order, each ringing its grade; a second apart (within 0.1 s
+on the game clock); each drawn as it rings; the fourth still hidden; then a
+click on a hidden cell shows the rest with exactly one ring, the best grade
+left, and nothing else in the ring queue. It waits for three, not nine, so
+the gate pays about three seconds, not ten. The layout checks open a pile
+marked as seen, as they are about the popup's shape, not the reveal.

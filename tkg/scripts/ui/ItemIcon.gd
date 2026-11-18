@@ -84,7 +84,9 @@ func _gui_input(e: InputEvent) -> void:
 		if origin != &"bag":
 			return
 		accept_event()
-		await Run.take_item(m)
+		# a take is the plain stow, whatever the grade (Jon, Nov 18)
+		if await Run.take_item(m):
+			TransferView.take_fx()
 		return
 	# Right-click no longer throws: the only destructive gesture with no confirmation.
 	# Why: docs/why/ItemIcon.md#right-click-removed
