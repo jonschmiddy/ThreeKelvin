@@ -32,3 +32,18 @@ BUILT ONCE. The keys (AUGMENT or STRIP, the rows' STRIP keys, MORE) are
 made with the page and only moved, retitled, shown or hidden on a refresh,
 so a click survives the `resources_changed` its own purchase sends.
 ```
+
+## Centreline
+
+Above the centreline row pick in `_schematic`:
+
+```text
+THE CENTRELINE is the row the part's body is widest on, and the affix lines
+leave the schematic's mount on it. Ties go to the row nearest the middle.
+Before (Nov 17), the first widest row won: the redrawn Korvan sprites fill
+their 40x40 cell almost edge to edge, so Bulkhead Array's widest row became
+row 3, its top edge, and the line up to the first affix ring (y 118) crossed
+the "HAS ..." words under the title (y 145). stationdecktest's AUGMENT box
+test caught it in both capital rows. From the middle the three lines fan out
+evenly, as the mockup drew them.
+```

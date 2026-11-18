@@ -891,7 +891,9 @@ static func _schematic(im: Image, k: int) -> Array:
 				glow.set_pixel(i, j, step_c)
 			else:
 				full.set_pixel(i, j, fills[me])
-	# the row its body is widest on: the centreline's
+	# the row its body is widest on: the centreline's. Of rows tied for widest, the one
+	# nearest the middle: a square part's first full row is its top edge, and the affix
+	# lines leaving from there cut the words above it. Why: docs/why/LabAugment.md#centreline
 	var best := 0
 	var best_n := -1
 	for y2 in h:
@@ -899,7 +901,7 @@ static func _schematic(im: Image, k: int) -> Array:
 		for x2 in w:
 			if band[y2 * w + x2] >= 0:
 				n += 1
-		if n > best_n:
+		if n > best_n or (n == best_n and absi(2 * y2 - h) < absi(2 * best - h)):
 			best_n = n
 			best = y2
 	return [ImageTexture.create_from_image(full), ImageTexture.create_from_image(glow), best]
