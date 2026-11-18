@@ -38,6 +38,13 @@
     0
    ],
    "file": "kh500_belly.png"
+  },
+  "top": {
+   "anchor": [
+    15,
+    34
+   ],
+   "file": "kh500_top.png"
   }
  },
  "kh88": {
@@ -79,6 +86,13 @@
     0
    ],
    "file": "widow_belly.png"
+  },
+  "top": {
+   "anchor": [
+    31,
+    31
+   ],
+   "file": "widow_top.png"
   }
  }
 }

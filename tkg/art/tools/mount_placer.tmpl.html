@@ -1,0 +1,927 @@
+<title>Mount Placer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a sticky toolbar over one big pixel stage, a rail of cards beside it (below it on a phone).
+   One dark look, the game's own: no light theme on purpose. */
+:root{
+  color-scheme:dark;
+  --void:#090c13; --sunk:#0b1018; --panel:#0f141e; --line:#222c3b; --line2:#2e3b4f;
+  --fg:#d9e1ec; --dim:#8e9bb0; --faint:#56637a; --amber:#f0a043; --go:#6fcf8f; --bad:#ff6b5a;
+  --weapon:#f0a043; --system:#5cb8ff; --utility:#c77dff;
+  --display:"Silkscreen",ui-monospace,monospace;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+html,body{background:var(--void);color:var(--fg)}
+body{margin:0;font:14px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--void)}
+*{box-sizing:border-box}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 60px}
+.mast{display:grid;gap:6px;margin-bottom:12px}
+.eyebrow{font:500 11px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:0}
+h1{font:400 26px/1.15 var(--display);margin:0;text-wrap:balance}
+.lede{margin:0;color:var(--dim);max-width:78ch}
+.lede b{color:var(--fg);font-weight:600}
+code{font:12.5px var(--mono);color:var(--amber)}
+kbd{font:11px var(--mono);background:var(--panel);color:var(--fg);border:1px solid var(--line2);border-bottom-width:2px;border-radius:3px;padding:0 5px}
+
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--void);border-block:1px solid var(--line);padding:8px 0;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.grp{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.lbl{font:500 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-right:2px}
+button{font:12px var(--mono);color:var(--dim);background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:4px 9px;cursor:pointer;min-height:28px}
+button:hover{color:var(--fg);border-color:var(--line2)}
+button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+button[aria-pressed="true"]{color:var(--void);background:var(--amber);border-color:var(--amber)}
+button:disabled{opacity:.4;cursor:default}
+button.chip{font:400 12px var(--display)}
+.read{font:11px var(--mono);color:var(--dim);font-variant-numeric:tabular-nums}
+.spacer{flex:1}
+
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;margin-top:12px}
+@media (max-width:1100px){.cols{grid-template-columns:minmax(0,1fr)}}
+.stagewrap{border:1px solid var(--line);background:var(--sunk);overflow:auto;height:min(76vh,760px);resize:vertical;display:flex;min-width:0}
+/* a phone: the bar scrolls away with the page, and the stage is as tall as the ship it holds */
+@media (max-width:700px){.bar{position:static}.stagewrap{height:auto;max-height:62vh;min-height:160px}}
+.stage{position:relative;flex:none;margin:auto;touch-action:none;cursor:grab;
+  background-image:linear-gradient(var(--sunk),var(--sunk))}
+.px{position:absolute;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none;user-select:none}
+.canvasline{position:absolute;outline:1px dashed #1f2c3d;pointer-events:none;z-index:0}
+.hull{z-index:2}
+.plume{position:absolute;image-rendering:pixelated;image-rendering:crisp-edges;background-repeat:no-repeat;pointer-events:none;z-index:3}
+.plume.back{z-index:1}
+.hint{z-index:4;opacity:.55}
+/* a part's box on the hull: its cells as a grid, the outline in the slot's colour */
+.part{position:absolute;pointer-events:none;z-index:4;outline:1px solid var(--pc);outline-offset:-1px;
+  background-image:linear-gradient(to right,var(--gc) 1px,transparent 1px),linear-gradient(to bottom,var(--gc) 1px,transparent 1px)}
+.part.system{--pc:#5cb8ffcc;--gc:#5cb8ff55} .part.utility{--pc:#c77dffcc;--gc:#c77dff55}
+.part.hit{--pc:var(--bad);--gc:#ff6b5a66;outline-width:2px;outline-offset:-2px;background-color:#ff6b5a2e}
+.gun{z-index:5;pointer-events:auto;cursor:grab}
+.gun.holdicon{outline:1px dashed var(--bad);outline-offset:-1px;background:#ff6b5a22}
+.gun.closed{opacity:.18}
+.box{position:absolute;pointer-events:none;z-index:6;outline:1px dashed #8e9bb066;outline-offset:-1px}
+.box.hit{outline:2px solid var(--bad);outline-offset:-2px;background:#ff6b5a33}
+.guide{position:absolute;background:var(--go);pointer-events:none;z-index:7;opacity:.85}
+.mount{position:absolute;z-index:8;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;
+  border:2px solid #05080d;display:flex;align-items:center;justify-content:center;cursor:grab;
+  font:600 9px/1 var(--mono);color:#05080d;touch-action:none}
+@media (pointer:coarse){.mount{width:24px;height:24px;margin:-12px 0 0 -12px;font-size:11px}}
+.mount.weapon{background:var(--weapon)} .mount.system{background:var(--system)} .mount.utility{background:var(--utility)}
+.mount.sel{box-shadow:0 0 0 2px var(--fg),0 0 0 4px #05080d}
+.mount.closed{opacity:.45}
+.mount.spare{background:#3a4352;color:var(--fg)}
+.mount.hit{box-shadow:0 0 0 2px var(--bad)}
+/* a mount GunOverlapTest fails on (some gun pair clashes there), whatever is loaded now */
+.mount.wc{outline:2px dashed var(--bad);outline-offset:3px}
+.mount .g{position:absolute;right:-9px;top:-9px;font:400 8px/1 var(--display);background:#05080d;color:var(--amber);
+  border:1px solid var(--amber);border-radius:2px;padding:2px 2px 1px}
+.mount .g.s{color:#ffd27a;border-color:#ffd27a}
+
+.rail{display:grid;gap:12px;align-content:start;min-width:0}
+.card{border:1px solid var(--line);background:var(--panel);padding:12px;display:grid;gap:9px;min-width:0}
+.card h2{font:400 13px/1.2 var(--display);margin:0;color:var(--fg);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tag{font:500 10.5px var(--mono);letter-spacing:.06em;color:var(--void);background:var(--dim);border-radius:2px;padding:1px 6px}
+.tag.weapon{background:var(--weapon)} .tag.system{background:var(--system)} .tag.utility{background:var(--utility)}
+.tag.warn{background:var(--bad)}
+.muted{color:var(--dim);font-size:12.5px;margin:0}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.row.sp{justify-content:space-between}
+.mono{font:12px var(--mono);font-variant-numeric:tabular-nums}
+.picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.pick{display:grid;gap:4px;justify-items:center;text-align:center;padding:6px;background:var(--sunk);font:11px var(--mono);color:var(--dim);min-height:0}
+.pick img{image-rendering:pixelated;image-rendering:crisp-edges;max-width:100%;height:auto}
+.pick[aria-pressed="true"]{background:#1a1408;color:var(--fg);border-color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber)}
+.pick .no{color:var(--bad)}
+.pick .faint{color:var(--faint)}
+.maker{grid-column:1/-1;font:500 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-top:4px}
+.fprow{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.fprow .lbl{min-width:58px}
+.slotrow{display:grid;grid-template-columns:12px 1fr auto auto;gap:8px;align-items:center}
+.dot{width:11px;height:11px;border-radius:50%;border:1px solid #05080d}
+.dot.weapon{background:var(--weapon)} .dot.system{background:var(--system)} .dot.utility{background:var(--utility)}
+.ladder{font:11px var(--mono);color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ladder b{color:var(--fg);font-weight:500}
+.ladder .short{color:var(--bad)}
+ul.checks{margin:0;padding:0;list-style:none;display:grid;gap:5px;font:12px/1.45 var(--mono)}
+ul.checks li{padding-left:16px;position:relative;color:var(--dim)}
+ul.checks li::before{content:"";position:absolute;left:2px;top:6px;width:7px;height:7px;border-radius:50%;background:var(--go)}
+ul.checks li.bad{color:var(--fg)}
+ul.checks li.bad::before{background:var(--bad)}
+ul.checks li.warn::before{background:var(--amber)}
+.status{font:12px var(--mono);color:var(--dim)}
+.status.ok{color:var(--go)} .status.bad{color:var(--bad)}
+textarea{width:100%;height:150px;background:var(--sunk);color:var(--fg);border:1px solid var(--line);font:11px/1.5 var(--mono);padding:8px;resize:vertical;white-space:pre;overflow-wrap:normal;overflow-x:auto}
+details summary{cursor:pointer;font:400 12px var(--display);color:var(--dim)}
+details p{font:11.5px/1.9 var(--mono);color:var(--dim);margin:8px 0 0}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font:11px var(--mono);color:var(--dim);align-items:center}
+.legend span{display:inline-flex;gap:5px;align-items:center}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<div class="wrap">
+<header class="mast">
+<p class="eyebrow">Three Kelvin &middot; __MANUFACTURER__ &middot; hardpoints</p>
+<h1>Mount Placer</h1>
+<p class="lede">Drag a mount or its gun. <b>Guns are drawn at their in-game size</b>, standing on the mount the way
+the game stands them. <b>System and utility mounts show the box their part fills</b> in the refit, cells drawn in;
+pick which part size under Mounts. Red means two gun boxes, or two part boxes, overlap. Changes save for Claude by themselves.</p>
+</header>
+
+<div class="bar">
+  <div class="grp" id="hullchips"><span class="lbl">Hull</span></div>
+  <div class="grp" id="gradechips"><span class="lbl">Grade</span></div>
+  <div class="grp"><span class="lbl">Zoom</span>
+    <button data-z="0" aria-pressed="true">fit</button><button data-z="1">1&times;</button><button data-z="2">2&times;</button><button data-z="3">3&times;</button><button data-z="4">4&times;</button><button data-z="6">6&times;</button></div>
+  <div class="grp"><span class="lbl">Show</span>
+    <button id="tplumes" aria-pressed="true">plumes</button>
+    <button id="tboxes" aria-pressed="true">boxes</button>
+    <button id="tparts" aria-pressed="true">part boxes</button>
+    <button id="thints" aria-pressed="true">part hints</button>
+    <button id="tnums" aria-pressed="true">numbers</button></div>
+  <div class="grp"><span class="lbl">Edit</span>
+    <button id="tsnap" aria-pressed="true">snap</button>
+    <button id="tstick" aria-pressed="false" title="While dragging a weapon mount, keep it on the hull's top edge (top) or under its belly (belly)">stick to hull</button>
+    <button id="undo" title="Ctrl+Z">undo</button><button id="redo" title="Ctrl+Shift+Z">redo</button></div>
+  <span class="spacer"></span>
+  <span class="read" id="readout"></span>
+</div>
+
+<div class="cols">
+  <div class="stagewrap" id="wrap"><div class="stage" id="stage"></div></div>
+  <div class="rail">
+    <section class="card" id="inspector"></section>
+    <section class="card">
+      <h2>Mounts</h2>
+      <div id="slots" style="display:grid;gap:6px"></div>
+      <div id="fps" style="display:grid;gap:6px"></div>
+      <div class="row">
+        <button id="longest">longest gun on every mount</button>
+        <button id="seatall" title="Every weapon mount onto the hull's edge for its side">seat all weapons</button>
+      </div>
+      <div class="legend">
+        <span><i class="dot weapon"></i>weapon</span><span><i class="dot system"></i>system</span><span><i class="dot utility"></i>utility</span>
+        <span>numbers: the order grades open them</span>
+      </div>
+    </section>
+    <section class="card"><h2>Checks</h2><ul class="checks" id="checks"></ul></section>
+    <section class="card">
+      <h2>Save</h2>
+      <p class="status" id="dbstatus">Connecting to Claude's store&hellip;</p>
+      <div class="row">
+        <button id="savenow">save now</button>
+        <button id="download">download rigging-__MANUFACTURER_LC__.json</button>
+        <button id="copy">copy GDScript</button>
+      </div>
+      <div class="row">
+        <button id="reset">reset hull to branch</button>
+        <button id="resetall">reset all</button>
+      </div>
+      <p class="status" id="saymsg"></p>
+      <textarea id="gd" readonly spellcheck="false" aria-label="HULL_MOUNTS entries"></textarea>
+    </section>
+    <section class="card">
+      <details><summary>Keys</summary><p>
+        drag a mount or a gun &mdash; move it<br>
+        drag empty space &mdash; pan; middle-drag pans anywhere<br>
+        <kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&rarr;</kbd><kbd>&darr;</kbd> nudge 1 px, <kbd>Shift</kbd> 8 px<br>
+        <kbd>T</kbd> top / belly &middot; <kbd>E</kbd> seat on hull<br>
+        <kbd>Del</kbd> remove &middot; <kbd>Esc</kbd> deselect<br>
+        <kbd>[</kbd> <kbd>]</kbd> previous / next hull<br>
+        <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo, +<kbd>Shift</kbd> redo<br>
+        hold <kbd>Alt</kbd> while dragging &mdash; no snapping
+      </p></details>
+    </section>
+  </div>
+</div>
+</div>
+<script>
+(function(){
+"use strict";
+const D = __DATA__;
+const SLOTS = ["weapon","system","utility"];
+const G = D.grades;                     // C B A S
+const PAD = {l:28, r:120, t:40, b:52};  // sprite px round the canvas: guns stand past it
+const SNAP = 3;
+const LS = "tk.placer." + D.manufacturer + ".v1";
+const GUN = {}; D.guns.forEach(g => GUN[g.id] = g);
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const st = {hull:0, grade:3, zoomSet:0, z:3, sel:null, plumes:true, boxes:true, hints:true,
+            parts:true, nums:true, snap:true, stick:false, frame:0,
+            // which part box each non-weapon slot shows: "max" (the biggest) or an index into D.parts
+            fp:{system:"max", utility:"max"}};
+const CELL = 20;                        // one hold cell on the hull at 1x (mount_placer.CELL_1X)
+let edit = {}, hist = [], fut = [];
+const stage = document.getElementById("stage"), wrap = document.getElementById("wrap");
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// ------------------------------------------------------------------ state
+function H(){ return D.hulls[st.hull]; }
+function longestFor(side){
+  let best = null, bw = -1;
+  D.guns.forEach(g => { const s = g.sides[side]; if(s && s.w > bw){ best = g.id; bw = s.w; } });
+  return best || (D.guns[0] && D.guns[0].id);
+}
+function fresh(h){
+  const s = h.seed;
+  return {weapon:s.weapon.map(p => p.slice()), guns:s.guns.slice(),
+          system:s.system.map(p => p.slice()), utility:s.utility.map(p => p.slice()),
+          load:s.guns.map(longestFor),
+          icon:{system:s.system.map((_, i) => hintId("system", i)),
+                utility:s.utility.map((_, i) => hintId("utility", i))}};
+}
+function hintId(S, i){ const l = D.hints[S]; return l.length ? l[i % l.length].id : null; }
+function E(h){ h = h || H(); if(!edit[h.key]) edit[h.key] = fresh(h); return edit[h.key]; }
+// What the game reads: positions and sides. Loadout and hint icons are preview only.
+function rigOf(h){
+  const e = edit[h.key] || h.seed;
+  return {weapon:e.weapon.map(p => [Math.round(p[0]), Math.round(p[1])]), guns:e.guns.slice(),
+          system:e.system.map(p => [Math.round(p[0]), Math.round(p[1])]),
+          utility:e.utility.map(p => [Math.round(p[0]), Math.round(p[1])])};
+}
+function seedRig(h){ return {weapon:h.seed.weapon, guns:h.seed.guns, system:h.seed.system, utility:h.seed.utility}; }
+function edited(h){ return JSON.stringify(rigOf(h)) !== JSON.stringify(seedRig(h)); }
+const SIG = JSON.stringify(D.hulls.map(seedRig));
+
+function persist(){
+  try{ localStorage.setItem(LS, JSON.stringify({sig:SIG, edit:edit, hull:st.hull, fp:st.fp})); }catch(e){}
+}
+function restore(){
+  try{
+    const r = JSON.parse(localStorage.getItem(LS) || "null");
+    if(r && r.fp) ["system","utility"].forEach(S => { const v = r.fp[S]; if(v === "max" || (D.parts[S] && D.parts[S][v])) st.fp[S] = v; });
+    // a record made against other branch mounts is stale: the branch moved under it
+    if(r && r.sig === SIG && r.edit){ edit = r.edit; st.hull = Math.min(r.hull || 0, D.hulls.length - 1); return true; }
+  }catch(e){}
+  return false;
+}
+function snapshot(){ hist.push(JSON.stringify(edit)); if(hist.length > 300) hist.shift(); fut = []; }
+function changed(){ persist(); queueSave(); }
+function undo(){ if(!hist.length) return; fut.push(JSON.stringify(edit)); edit = JSON.parse(hist.pop()); after(); }
+function redo(){ if(!fut.length) return; hist.push(JSON.stringify(edit)); edit = JSON.parse(fut.pop()); after(); }
+function after(){ fixSel(); render(); panel(); changed(); }
+function fixSel(){ if(st.sel && !(E()[st.sel.k] || [])[st.sel.i]) st.sel = null; }
+
+// ------------------------------------------------------------------ grades
+// The index a grade opens: mount i of a slot is there from the first grade whose count passes it.
+function opensAt(h, S, i){ const c = h.counts[S]; for(let g = 0; g < 4; g++) if(c[g] > i) return g; return -1; }
+function isOpen(h, S, i){ return i < h.counts[S][st.grade]; }
+
+// ------------------------------------------------------------------ geometry
+// MountPoints.part_rect: a gun's top-left is the point less its anchor; a gun with no picture
+// for that side stands as its hold box (ModuleIcon.mount_anchor).
+function gunBox(at, gid, side){
+  const g = GUN[gid]; if(!g) return null;
+  const s = g.sides[side], x = Math.round(at[0]), y = Math.round(at[1]);
+  if(s) return {x:x - s.ax, y:y - s.ay, w:s.w, h:s.h, img:s.img, hold:false, g:g};
+  const b = g.hold;
+  return {x:Math.round(x - b.ax), y:Math.round(y - b.ay), w:b.w, h:b.h, img:g.icon, hold:true, g:g};
+}
+function shapeBox(at, sh){
+  const x = Math.round(at[0]), y = Math.round(at[1]);
+  return {x:Math.round(x - sh.ax), y:Math.round(y - sh.ay), w:sh.w, h:sh.h};
+}
+// Rect2.intersects, borders excluded: touching is not overlapping.
+function hits(a, b){ return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h; }
+
+function liveBoxes(h){
+  const e = E(h), out = [];
+  e.weapon.forEach((p, i) => {
+    if(!isOpen(h, "weapon", i)) return;
+    const b = gunBox(p, e.load[i], e.guns[i]);
+    if(b){ b.i = i; out.push(b); }
+  });
+  return out;
+}
+function liveHits(h){
+  const bs = liveBoxes(h), pairs = [];
+  for(let a = 0; a < bs.length; a++) for(let b = a + 1; b < bs.length; b++)
+    if(hits(bs[a], bs[b])) pairs.push([bs[a], bs[b]]);
+  return pairs;
+}
+// A system or utility part on the hull (MountPoints.part_rect, its picture turned by
+// ModuleIcon.part_turn): cells x CELL, centred on the point. Guns paint over parts, so
+// only part against part counts.
+function fpShapes(S){
+  const L = D.parts[S] || [], v = st.fp[S];
+  return (v !== "max" && L[v]) ? [L[v]] : L.filter(f => f.max);
+}
+function fpName(f){ return f.w + "\u00d7" + f.h + " (" + f.cells[0] + "x" + f.cells[1] + (f.turned ? ", stood up" : "") + ")"; }
+function partBoxes(h){
+  const e = E(h), out = [];
+  ["system","utility"].forEach(S => e[S].forEach((q, i) => {
+    if(!isOpen(h, S, i)) return;
+    const x = Math.round(q[0]), y = Math.round(q[1]);
+    fpShapes(S).forEach(f => out.push({S:S, i:i, f:f, x:x - f.w / 2, y:y - f.h / 2, w:f.w, h:f.h}));
+  }));
+  return out;
+}
+// One entry per pair of mounts, however many of their boxes meet.
+function partHits(h){
+  const bs = partBoxes(h), seen = {}, out = [];
+  for(let a = 0; a < bs.length; a++) for(let b = a + 1; b < bs.length; b++){
+    const A = bs[a], B = bs[b];
+    if(A.S === B.S && A.i === B.i) continue;
+    if(!hits(A, B)) continue;
+    const k = A.S + A.i + "|" + B.S + B.i;
+    if(seen[k]) continue;
+    seen[k] = 1; out.push([A, B]);
+  }
+  return out;
+}
+// GunOverlapTest, exactly: at the grade with the most weapon mounts, every pair of weapon
+// mounts on its own side, every weapon in the game on each (the pair a == b too), each as
+// the GAME draws it (part_rect at 1x): its installed picture for that side (g.game), else
+// its hold box. A picture only tried on here (--guns-src, not installed) is a hold box to
+// the test, so it is one here.
+const SHAPES = {};
+function shapesFor(side){
+  if(SHAPES[side]) return SHAPES[side];
+  const out = [];
+  D.guns.forEach(g => {
+    const s = g.game[side];
+    out.push(s ? {w:s.w, h:s.h, ax:s.ax, ay:s.ay, k:1, name:g.name + " " + side}
+               : {w:g.hold.w, h:g.hold.h, ax:g.hold.ax, ay:g.hold.ay, k:1, name:g.name + " (hold icon)"});
+  });
+  // (one hold box stands for every weapon of that size: k counts them, so pairs count weapons)
+  D.others.forEach(o => out.push({w:o.w, h:o.h, ax:o.ax, ay:o.ay, k:o.ids.length,
+    name:o.w / 20 + "x" + o.h / 20 + " hold box (" + o.ids.slice(0, 3).join(", ") + (o.ids.length > 3 ? "…" : "") + ")"}));
+  return SHAPES[side] = out;
+}
+function testGrade(h){ const c = h.counts.weapon; let g = 0; for(let k = 1; k < c.length; k++) if(c[k] >= c[g]) g = k; return g; }  // ties to the top grade, as the test builds at_tier(last)
+// Per clashing mount pair: how many gun pairs clash, and the deepest one. `d` is the
+// overlap's short side: moving either mount that many px apart (that way) clears that pair.
+function worstCase(h){
+  const e = E(h), n = Math.min(h.counts.weapon[testGrade(h)], e.weapon.length), out = [];
+  for(let i = 0; i < n; i++) for(let j = i + 1; j < n; j++){
+    const A = shapesFor(e.guns[i]), B = shapesFor(e.guns[j]);
+    let cnt = 0, w = null;
+    for(const a of A){ const ra = shapeBox(e.weapon[i], a); for(const b of B){
+      const rb = shapeBox(e.weapon[j], b);
+      if(!hits(ra, rb)) continue;
+      cnt += a.k * b.k;
+      const ix = Math.min(ra.x + ra.w, rb.x + rb.w) - Math.max(ra.x, rb.x);
+      const iy = Math.min(ra.y + ra.h, rb.y + rb.h) - Math.max(ra.y, rb.y);
+      const d = Math.min(ix, iy);
+      if(!w || d > w.d) w = {a:a, b:b, ix:ix, iy:iy, d:d};
+    } }
+    if(cnt) out.push({i:i, j:j, n:cnt, of:D.n_weapons * D.n_weapons, a:w.a, b:w.b, ix:w.ix, iy:w.iy, d:w.d});
+  }
+  return out.sort((p, q) => q.d - p.d);
+}
+
+// ------------------------------------------------------------------ drawing
+function zoomFor(h){
+  if(st.zoomSet) return st.zoomSet;
+  const phone = matchMedia("(max-width:700px)").matches;
+  // (on a phone the stage's height follows the ship, so it cannot also set the zoom)
+  const room = wrap.clientWidth - 4, tall = (phone ? innerHeight * 0.6 : wrap.clientHeight) - 4;
+  const z = Math.min(Math.floor(room / (h.w + PAD.l + PAD.r)), Math.floor(tall / (h.h + PAD.t + PAD.b)));
+  return Math.max(1, Math.min(6, z || 1));
+}
+function el(tag, cls, parent){ const e = document.createElement(tag); if(cls) e.className = cls; (parent || stage).appendChild(e); return e; }
+function place(e, x, y, w, hh){
+  const z = st.z;
+  e.style.left = ((PAD.l + x) * z) + "px"; e.style.top = ((PAD.t + y) * z) + "px";
+  if(w !== undefined){ e.style.width = (w * z) + "px"; e.style.height = (hh * z) + "px"; }
+}
+let drag = null, pan = null, timer = null;
+
+function render(){
+  const h = H(), e = E(), z = st.z = zoomFor(h);
+  stage.innerHTML = "";
+  stage.style.width = ((h.w + PAD.l + PAD.r) * z) + "px";
+  stage.style.height = ((h.h + PAD.t + PAD.b) * z) + "px";
+  place(el("div", "canvasline"), 0, 0, h.w, h.h);
+
+  const img = el("img", "px hull");
+  img.src = "data:image/png;base64," + h.img; img.alt = h.key; img.draggable = false;
+  place(img, 0, 0, h.w, h.h);
+
+  if(st.plumes) h.exs.forEach((t, ti) => {
+    const x = D.exhausts[String(t.id)]; if(!x) return;
+    const p = el("div", "plume" + (t.back ? " back" : ""));
+    place(p, t.x, t.y, x.fw, x.h);
+    p.style.backgroundImage = "url(data:image/png;base64," + x.img + ")";
+    p.style.backgroundSize = (x.sw * z) + "px " + (x.h * z) + "px";
+    p.style.backgroundPosition = (-st.frame * x.fw * z) + "px 0";
+    p.dataset.t = t.id;
+  });
+
+  if(st.hints) ["system","utility"].forEach(S => e[S].forEach((q, i) => {
+    const id = e.icon[S][i], m = D.hints[S].find(x => x.id === id);
+    if(!m || !isOpen(h, S, i)) return;
+    // at the size the hull draws it, centred on the point and stood up as part_turn says
+    const w = m.f[0] * CELL, hh = m.f[1] * CELL;
+    const turn = m.f[0] !== m.f[1] && ((m.f[1] > m.f[0]) !== (S === "utility"));
+    const im = el("img", "px hint"); im.src = "data:image/png;base64," + m.img; im.alt = ""; im.draggable = false;
+    place(im, Math.round(q[0]) - w / 2, Math.round(q[1]) - hh / 2, w, hh);
+    if(turn) im.style.transform = "rotate(-90deg)";
+  }));
+
+  const pbad = new Set();
+  partHits(h).forEach(p => { pbad.add(p[0].S + p[0].i); pbad.add(p[1].S + p[1].i); });
+  if(st.parts) partBoxes(h).forEach(b => {
+    const d = el("div", "part " + b.S + (pbad.has(b.S + b.i) ? " hit" : ""));
+    place(d, b.x, b.y, b.w, b.h);
+    d.style.backgroundSize = (CELL * z) + "px " + (CELL * z) + "px";
+  });
+
+  const bad = new Set(), wcm = new Set();
+  liveHits(h).forEach(p => { bad.add(p[0].i); bad.add(p[1].i); });
+  worstCase(h).forEach(w => { wcm.add(w.i); wcm.add(w.j); });
+  e.weapon.forEach((q, i) => {
+    const b = gunBox(q, e.load[i], e.guns[i]); if(!b) return;
+    const open = isOpen(h, "weapon", i);
+    const im = el("img", "px gun" + (b.hold ? " holdicon" : "") + (open ? "" : " closed"));
+    im.src = "data:image/png;base64," + b.img; im.alt = b.g.name; im.draggable = false;
+    im.title = b.g.name + (b.hold ? " has no " + e.guns[i] + " drawing: the game shows its hold icon" : "");
+    if(b.hold) im.style.objectFit = "contain";
+    place(im, b.x, b.y, b.w, b.h);
+    im.addEventListener("pointerdown", ev => { if(ev.button !== 0) return; ev.stopPropagation(); startDrag(ev, {k:"weapon", i:i}); });
+    if(st.boxes && open){ const bx = el("div", "box" + (bad.has(i) ? " hit" : "")); place(bx, b.x, b.y, b.w, b.h); }
+  });
+
+  if(drag && drag.gx != null){ const g = el("div", "guide"); g.style.left = ((PAD.l + drag.gx) * z) + "px"; g.style.top = "0"; g.style.width = "1px"; g.style.height = stage.style.height; }
+  if(drag && drag.gy != null){ const g = el("div", "guide"); g.style.top = ((PAD.t + drag.gy) * z) + "px"; g.style.left = "0"; g.style.height = "1px"; g.style.width = stage.style.width; }
+
+  SLOTS.forEach(S => e[S].forEach((q, i) => {
+    const og = opensAt(h, S, i), open = isOpen(h, S, i);
+    const d = el("div", "mount " + S + (og < 0 ? " spare" : "") + (open ? "" : " closed") +
+      (st.sel && st.sel.k === S && st.sel.i === i ? " sel" : "") + (S === "weapon" ? (bad.has(i) ? " hit" : "") + (wcm.has(i) ? " wc" : "") : (pbad.has(S + i) ? " hit" : "")));
+    d.style.left = ((PAD.l + q[0]) * z) + "px"; d.style.top = ((PAD.t + q[1]) * z) + "px";
+    d.textContent = st.nums ? (og < 0 ? "×" : i + 1) : "";
+    if(st.nums && og >= 2){ const g = el("span", "g" + (og === 3 ? " s" : ""), d); g.textContent = G[og]; }
+    d.title = S + " " + (i + 1) + (og < 0 ? " (spare: no grade opens it)" : ", opens at " + G[og]) +
+      "  (" + Math.round(q[0]) + ", " + Math.round(q[1]) + ")" + (S === "weapon" ? "  " + e.guns[i] : "");
+    d.addEventListener("pointerdown", ev => { if(ev.button !== 0) return; ev.stopPropagation(); startDrag(ev, {k:S, i:i}); });
+  }));
+}
+
+function tick(){
+  if(timer){ clearInterval(timer); timer = null; }
+  if(reduce || !st.plumes) return;
+  timer = setInterval(() => {
+    st.frame = (st.frame + 1) % D.frames;
+    stage.querySelectorAll(".plume").forEach(p => {
+      const x = D.exhausts[p.dataset.t];
+      if(x) p.style.backgroundPosition = (-st.frame * x.fw * st.z) + "px 0";
+    });
+  }, 80);
+}
+
+// ------------------------------------------------------------------ rail
+function makerName(m){ return m ? m.charAt(0).toUpperCase() + m.slice(1) : "No maker (generic)"; }
+function gunPicks(e, i){
+  const side = e.guns[i];
+  let last = null;
+  return '<div class="picks">' + D.guns.map(g => {
+    const s = g.sides[side];
+    const head = g.maker !== last ? '<div class="maker">' + esc(makerName(g.maker)) + '</div>' : '';
+    last = g.maker;
+
+    // twice size where it fits the card: a 1x thumbnail is too small to tell the guns apart
+    const pic = s ? '<img src="data:image/png;base64,' + s.img + '" width="' + s.w * 2 + '" height="' + s.h * 2 + '" alt="">'
+                  : '<img src="data:image/png;base64,' + g.icon + '" width="' + g.hold.w * 2 + '" height="' + g.hold.h * 2 + '" alt="" style="opacity:.6">';
+    return head + '<button class="pick" data-gun="' + g.id + '" aria-pressed="' + (e.load[i] === g.id) + '">' + pic +
+      '<span>' + esc(g.name) + '</span>' + (s ? '<span>' + s.w + '&times;' + s.h + '</span>' : '<span class="no">no ' + side + ' drawing</span>') +
+      (s && !g.game[side] ? '<span class="faint" title="Tried on from --guns-src: not installed, so GunOverlapTest counts its hold box">not installed</span>' : '') + '</button>';
+  }).join("") + '</div>';
+}
+function hintPicks(e, S, i){
+  return '<div class="picks">' + D.hints[S].map(m =>
+    '<button class="pick" data-hint="' + m.id + '" aria-pressed="' + (e.icon[S][i] === m.id) + '">' +
+    '<img src="data:image/png;base64,' + m.img + '" width="' + m.f[0] * 20 + '" height="' + m.f[1] * 20 + '" alt="">' +
+    '<span>' + esc(m.name) + '</span></button>').join("") + '</div>';
+}
+function inspector(){
+  const box = $("inspector"), h = H(), e = E();
+  if(!st.sel){
+    box.innerHTML = '<h2>' + esc(h.title) + ' <span class="tag">' + h.weight + '</span></h2>' +
+      '<p class="muted">Select a mount to pick its gun, flip it top or belly, or change when it opens. ' +
+      'A system or utility mount shows the box its part fills on the hull; pick the part size under Mounts. ' +
+      'The icon in it is only a hint.</p>' +
+      '<p class="mono" id="hsize">' + h.key + ' &middot; ' + h.w + '&times;' + h.h + ' px</p>';
+    return;
+  }
+  const S = st.sel.k, i = st.sel.i, q = e[S][i], og = opensAt(h, S, i);
+  let html = '<h2><span class="tag ' + S + '">' + S + ' ' + (i + 1) + '</span>' +
+    (og < 0 ? '<span class="tag warn">spare: no grade opens it</span>' : '<span class="tag">opens at ' + G[og] + '</span>') + '</h2>' +
+    '<p class="mono" id="selxy">x ' + Math.round(q[0]) + ' &nbsp; y ' + Math.round(q[1]) + '</p>';
+  if(S === "weapon"){
+    const side = e.guns[i], g = GUN[e.load[i]];
+    html += '<div class="row"><span class="lbl">Side</span>' +
+      '<button data-side="top" aria-pressed="' + (side === "top") + '">top</button>' +
+      '<button data-side="belly" aria-pressed="' + (side === "belly") + '">belly</button>' +
+      '<button id="seat" title="E">seat on hull</button></div>';
+    if(g && !g.sides[side]) html += '<p class="muted" style="color:var(--bad)">' + esc(g.name) + ' has no ' + side +
+      ' drawing. The game draws its hold icon here, and GunClipTest fails a Korvan gun drawn that way.</p>';
+    html += '<div class="lbl">Gun on this mount (preview)</div>' + gunPicks(e, i);
+  } else {
+    const mine = partBoxes(h).filter(b => b.S === S && b.i === i);
+    const meets = partHits(h).filter(p => (p[0].S === S && p[0].i === i) || (p[1].S === S && p[1].i === i))
+      .map(p => { const o = p[0].S === S && p[0].i === i ? p[1] : p[0]; return o.S + " " + (o.i + 1); });
+    html += '<p class="mono">part box ' + fpShapes(S).map(fpName).join(" + ") + '</p>';
+    if(mine.length && meets.length) html += '<p class="muted" style="color:var(--bad)">Overlaps ' + esc(meets.join(", ")) + '.</p>';
+    html += '<div class="lbl">Hint icon (preview)</div>' + hintPicks(e, S, i);
+  }
+  html += '<div class="row"><button id="sooner"' + (i === 0 ? " disabled" : "") + '>opens sooner</button>' +
+    '<button id="later"' + (i === e[S].length - 1 ? " disabled" : "") + '>opens later</button>' +
+    '<button id="drop">remove</button></div>';
+  box.innerHTML = html;
+  box.querySelectorAll("[data-side]").forEach(b => b.onclick = () => setSide(b.dataset.side));
+  box.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { snapshot(); E().load[i] = b.dataset.gun; after(); });
+  box.querySelectorAll("[data-hint]").forEach(b => b.onclick = () => { snapshot(); E().icon[S][i] = b.dataset.hint; after(); });
+  const on = (id, f) => { const b = $(id); if(b) b.onclick = f; };
+  on("seat", () => { snapshot(); seat(i); after(); });
+  on("sooner", () => move(-1)); on("later", () => move(1)); on("drop", drop);
+}
+// Swap with the neighbour: the list order is the grade order, so this is "opens at" moving.
+function move(d){
+  const S = st.sel.k, i = st.sel.i, j = i + d, e = E();
+  if(j < 0 || j >= e[S].length) return;
+  snapshot();
+  const sw = a => { const t = a[i]; a[i] = a[j]; a[j] = t; };
+  sw(e[S]);
+  if(S === "weapon"){ sw(e.guns); sw(e.load); } else sw(e.icon[S]);
+  st.sel.i = j; after();
+}
+function drop(){
+  if(!st.sel) return;
+  const S = st.sel.k, i = st.sel.i, e = E();
+  snapshot();
+  e[S].splice(i, 1);
+  if(S === "weapon"){ e.guns.splice(i, 1); e.load.splice(i, 1); } else e.icon[S].splice(i, 1);
+  st.sel = null; after();
+}
+function setSide(side){
+  if(!st.sel || st.sel.k !== "weapon") return;
+  const e = E(), i = st.sel.i;
+  if(e.guns[i] === side) return;
+  snapshot(); e.guns[i] = side;
+  if(st.stick) seat(i);
+  after();
+}
+function seat(i){
+  const h = H(), e = E(), q = e.weapon[i];
+  const x = Math.max(0, Math.min(h.w - 1, Math.round(q[0])));
+  const y = e.guns[i] === "belly" ? h.bot[x] : h.top[x];
+  if(y >= 0) e.weapon[i] = [Math.round(q[0]), y];
+}
+function slots(){
+  const h = H(), e = E();
+  $("slots").innerHTML = SLOTS.map(S => {
+    const c = h.counts[S], have = e[S].length;
+    return '<div class="slotrow"><i class="dot ' + S + '"></i><span class="mono">' + S + ' &middot; ' + have + ' placed</span>' +
+      '<span class="ladder">' + G.map((g, k) => g + '<b' + (have < c[k] ? ' class="short"' : '') + '>' + c[k] + '</b>').join(" ") + '</span>' +
+      '<button data-add="' + S + '" title="Add a ' + S + ' mount">+</button></div>';
+  }).join("");
+  $("fps").innerHTML = ["system","utility"].map(S => {
+    const L = D.parts[S] || [], v = st.fp[S];
+    const btn = (val, label, tip) => '<button data-fp="' + S + '" data-v="' + val + '" aria-pressed="' + (String(v) === String(val)) +
+      '" title="' + esc(tip) + '">' + label + '</button>';
+    return '<div class="fprow"><span class="lbl">' + S + ' box</span>' +
+      btn("max", "biggest", "Every box no other " + S + " box holds: " + L.filter(f => f.max).map(fpName).join(", ")) +
+      L.map((f, k) => btn(k, f.w + "&times;" + f.h, fpName(f) + ": " + f.ids.length + " part" + (f.ids.length > 1 ? "s" : "") + ", e.g. " +
+        f.names.slice(0, 4).join(", "))).join("") + '</div>';
+  }).join("");
+  $("fps").querySelectorAll("[data-fp]").forEach(b => b.onclick = () => {
+    const S = b.dataset.fp, v = b.dataset.v;
+    st.fp[S] = v === "max" ? "max" : +v; persist(); render(); panel();
+  });
+  $("slots").querySelectorAll("[data-add]").forEach(b => b.onclick = () => {
+    const S = b.dataset.add, e = E(), h = H();
+    snapshot();
+    e[S].push([Math.round(h.w / 2), Math.round(h.h / 2)]);
+    if(S === "weapon"){ e.guns.push("top"); e.load.push(longestFor("top")); }
+    else e.icon[S].push(hintId(S, e[S].length - 1));
+    st.sel = {k:S, i:e[S].length - 1}; after();
+  });
+}
+function checks(){
+  const h = H(), e = E(), L = [];
+  const live = liveHits(h);
+  if(live.length) live.forEach(p => L.push(['bad', 'weapon ' + (p[0].i + 1) + ' and ' + (p[1].i + 1) + ' overlap: ' +
+    esc(p[0].g.name) + ' / ' + esc(p[1].g.name)]));
+  else L.push(['', 'no gun boxes overlap at grade ' + G[st.grade]]);
+  const wc = worstCase(h), tg = G[testGrade(h)];
+  if(wc.length){
+    L.push(['bad', 'GunOverlapTest fails here: ' + wc.length + ' pair' + (wc.length > 1 ? 's' : '') +
+      ' of weapon mounts clash (any of ' + D.n_weapons + ' weapons on each, grade ' + tg + ', dashed red rings)']);
+    wc.forEach(w => L.push(['bad', 'weapon ' + (w.i + 1) + ' (' + E(h).guns[w.i] + ') \u00d7 weapon ' + (w.j + 1) + ' (' + E(h).guns[w.j] +
+      '): ' + w.n + ' of ' + w.of + ' gun pairs clash; worst ' + esc(w.a.name) + ' on ' + (w.i + 1) + ' with ' + esc(w.b.name) +
+      ' on ' + (w.j + 1) + ', overlap ' + w.ix + '\u00d7' + w.iy + ' px: ' + w.d + ' px more apart ' +
+      (w.ix <= w.iy ? 'across' : 'up/down') + ' clears it']));
+  }
+  else L.push(['', 'any gun on any mount (GunOverlapTest, all ' + D.n_weapons + ' weapons, grade ' + tg + '): clear']);
+  e.weapon.forEach((q, i) => {
+    const g = GUN[e.load[i]];
+    if(isOpen(h, "weapon", i) && g && !g.sides[e.guns[i]])
+      L.push(['bad', 'weapon ' + (i + 1) + ': ' + esc(g.name) + ' has no ' + e.guns[i] + ' drawing (hold icon)']);
+  });
+  const ph = partHits(h);
+  const fpSay = ["system","utility"].map(S => S + " " + fpShapes(S).map(f => f.w + "\u00d7" + f.h).join("+")).join(", ");
+  if(ph.length) ph.forEach(p => L.push(['bad', p[0].S + ' ' + (p[0].i + 1) + ' and ' + p[1].S + ' ' + (p[1].i + 1) +
+    ' part boxes overlap: ' + p[0].w + '\u00d7' + p[0].h + ' / ' + p[1].w + '\u00d7' + p[1].h]));
+  else L.push(['', 'no part boxes overlap at grade ' + G[st.grade] + ' (' + fpSay + ')']);
+  SLOTS.forEach(S => {
+    const need = h.counts[S][3], have = e[S].length;
+    if(have < need) L.push(['bad', S + ': ' + have + ' placed, grade S needs ' + need + ' (the game spreads the rest along the placed ones)']);
+    if(have > need) L.push(['warn', S + ': ' + (have - need) + ' spare, no grade opens ' + (have - need > 1 ? 'them' : 'it')]);
+  });
+  SLOTS.forEach(S => e[S].forEach((q, i) => {
+    if(q[0] < 0 || q[1] < 0 || q[0] >= h.w || q[1] > h.h) L.push(['bad', S + ' ' + (i + 1) + ' is off the canvas']);
+  }));
+  const n = D.hulls.filter(edited).length;
+  L.push([n ? 'warn' : '', n ? n + ' of ' + D.hulls.length + ' hulls differ from the branch' : 'every hull matches the branch']);
+  $("checks").innerHTML = L.map(l => '<li class="' + l[0] + '">' + l[1] + '</li>').join("");
+}
+function panel(){ inspector(); slots(); checks(); gdText(); chips(); }
+
+// ------------------------------------------------------------------ dragging
+function px(ev){
+  const r = stage.getBoundingClientRect();
+  return [Math.round((ev.clientX - r.left) / st.z - PAD.l), Math.round((ev.clientY - r.top) / st.z - PAD.t)];
+}
+function targets(skip){
+  const e = E(), h = H(), xs = [Math.round(h.w / 2)], ys = [Math.round(h.h / 2)];
+  SLOTS.forEach(S => e[S].forEach((q, i) => {
+    if(skip.k === S && skip.i === i) return;
+    xs.push(Math.round(q[0])); ys.push(Math.round(q[1]));
+  }));
+  return {xs:xs, ys:ys};
+}
+function nearest(v, list){
+  let best = null, bd = SNAP + 1;
+  list.forEach(t => { const d = Math.abs(t - v); if(d <= SNAP && d < bd){ bd = d; best = t; } });
+  return best;
+}
+function startDrag(ev, what){
+  st.sel = what;
+  const p = px(ev), q = E()[what.k][what.i];
+  drag = {what:what, dx:q[0] - p[0], dy:q[1] - p[1], raf:0, moved:false, gx:null, gy:null};
+  try{ stage.setPointerCapture(ev.pointerId); }catch(e){}
+  render(); inspector();
+}
+stage.addEventListener("pointermove", ev => {
+  const p = px(ev);
+  $("readout").textContent = "x " + p[0] + "  y " + p[1];
+  if(!drag) return;
+  const e = E(), h = H(), w = drag.what;
+  let nx = p[0] + drag.dx, ny = p[1] + drag.dy;
+  drag.gx = drag.gy = null;
+  if(st.snap && !ev.altKey){
+    const t = targets(w), sx = nearest(nx, t.xs), sy = nearest(ny, t.ys);
+    if(sx !== null){ nx = sx; drag.gx = sx; }
+    if(sy !== null){ ny = sy; drag.gy = sy; }
+  }
+  if(st.stick && w.k === "weapon"){
+    const x = Math.max(0, Math.min(h.w - 1, nx)), y = e.guns[w.i] === "belly" ? h.bot[x] : h.top[x];
+    if(y >= 0){ ny = y; drag.gy = null; }
+  }
+  const q = e[w.k][w.i];
+  if(q[0] === nx && q[1] === ny) return;
+  if(!drag.moved){ snapshot(); drag.moved = true; }
+  e[w.k][w.i] = [nx, ny];
+  const xy = $("selxy"); if(xy) xy.innerHTML = "x " + nx + " &nbsp; y " + ny;
+  if(!drag.raf) drag.raf = requestAnimationFrame(() => { if(drag) drag.raf = 0; render(); checks(); });
+});
+function endDrag(){
+  if(!drag) return;
+  if(drag.raf) cancelAnimationFrame(drag.raf);
+  const moved = drag.moved; drag = null;
+  render(); panel();
+  if(moved) changed();
+}
+stage.addEventListener("pointerup", endDrag);
+stage.addEventListener("pointercancel", endDrag);
+// Bare stage pans; a press that does not travel deselects.
+stage.addEventListener("pointerdown", ev => startPan(ev));
+wrap.addEventListener("pointerdown", ev => { if(ev.button === 1){ ev.preventDefault(); startPan(ev); } });
+function startPan(ev){
+  if(drag) return;
+  pan = {x:ev.clientX, y:ev.clientY, sl:wrap.scrollLeft, stp:wrap.scrollTop, moved:0};
+  try{ wrap.setPointerCapture(ev.pointerId); }catch(e){}
+}
+wrap.addEventListener("pointermove", ev => {
+  if(!pan) return;
+  const dx = ev.clientX - pan.x, dy = ev.clientY - pan.y;
+  pan.moved = Math.max(pan.moved, Math.abs(dx) + Math.abs(dy));
+  wrap.scrollLeft = pan.sl - dx; wrap.scrollTop = pan.stp - dy;
+});
+function endPan(){
+  if(!pan) return;
+  const m = pan.moved; pan = null;
+  if(m < 4 && st.sel){ st.sel = null; render(); inspector(); }
+}
+wrap.addEventListener("pointerup", endPan);
+wrap.addEventListener("pointercancel", endPan);
+
+document.addEventListener("keydown", ev => {
+  const tg = ev.target.tagName;
+  if(tg === "TEXTAREA" || tg === "INPUT") return;
+  const k = ev.key;
+  if((ev.ctrlKey || ev.metaKey) && (k === "z" || k === "Z")){ ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
+  if((ev.ctrlKey || ev.metaKey) && (k === "y" || k === "Y")){ ev.preventDefault(); redo(); return; }
+  if(ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  if(k === "Escape"){ st.sel = null; render(); inspector(); return; }
+  if(k === "[" || k === "]"){ ev.preventDefault(); pickHull((st.hull + (k === "]" ? 1 : D.hulls.length - 1)) % D.hulls.length); return; }
+  if(!st.sel) return;
+  if(k === "Delete" || k === "Backspace"){ ev.preventDefault(); drop(); return; }
+  if((k === "t" || k === "T") && st.sel.k === "weapon"){ setSide(E().guns[st.sel.i] === "top" ? "belly" : "top"); return; }
+  if((k === "e" || k === "E") && st.sel.k === "weapon"){ snapshot(); seat(st.sel.i); after(); return; }
+  const d = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]}[k];
+  if(!d) return;
+  ev.preventDefault();
+  const m = ev.shiftKey ? 8 : 1, q = E()[st.sel.k][st.sel.i];
+  snapshot();
+  E()[st.sel.k][st.sel.i] = [q[0] + d[0] * m, q[1] + d[1] * m];
+  after();
+});
+
+// ------------------------------------------------------------------ toolbar
+function chips(){
+  const hc = $("hullchips");
+  hc.querySelectorAll("button").forEach(b => b.remove());
+  D.hulls.forEach((h, i) => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.setAttribute("aria-pressed", i === st.hull);
+    b.textContent = (h.title || h.weight) + (edited(h) ? " *" : "");
+    b.title = h.key; b.onclick = () => pickHull(i);
+    hc.appendChild(b);
+  });
+  const gc = $("gradechips");
+  gc.querySelectorAll("button").forEach(b => b.remove());
+  G.forEach((g, i) => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = g; b.setAttribute("aria-pressed", i === st.grade);
+    b.title = "Show the mounts grade " + g + " opens"; b.onclick = () => { st.grade = i; render(); panel(); };
+    gc.appendChild(b);
+  });
+  $("undo").disabled = !hist.length; $("redo").disabled = !fut.length;
+}
+function pickHull(i){ st.hull = i; st.sel = null; persist(); render(); panel(); requestAnimationFrame(recentre); }
+function recentre(){ wrap.scrollLeft = (wrap.scrollWidth - wrap.clientWidth) / 2; wrap.scrollTop = (wrap.scrollHeight - wrap.clientHeight) / 2; }
+document.querySelectorAll("[data-z]").forEach(b => b.onclick = () => {
+  st.zoomSet = +b.dataset.z;
+  document.querySelectorAll("[data-z]").forEach(o => o.setAttribute("aria-pressed", o === b));
+  render(); requestAnimationFrame(recentre);
+});
+function toggle(id, key, then){
+  const b = $(id);
+  b.setAttribute("aria-pressed", st[key]);
+  b.onclick = () => { st[key] = !st[key]; b.setAttribute("aria-pressed", st[key]); if(then) then(); render(); };
+}
+toggle("tplumes", "plumes", tick); toggle("tboxes", "boxes"); toggle("thints", "hints"); toggle("tparts", "parts");
+toggle("tnums", "nums"); toggle("tsnap", "snap"); toggle("tstick", "stick");
+$("undo").onclick = undo; $("redo").onclick = redo;
+$("longest").onclick = () => { snapshot(); const e = E(); e.load = e.guns.map(longestFor); after(); };
+$("seatall").onclick = () => { snapshot(); E().weapon.forEach((_, i) => seat(i)); after(); };
+$("reset").onclick = () => { snapshot(); delete edit[H().key]; st.sel = null; after(); say("reset " + H().title + " to the branch"); };
+$("resetall").onclick = () => { snapshot(); edit = {}; st.sel = null; after(); say("reset every hull to the branch"); };
+let lastW = 0;
+window.addEventListener("resize", () => { if(wrap.clientWidth !== lastW){ lastW = wrap.clientWidth; if(!st.zoomSet && !drag) render(); } });
+
+// ------------------------------------------------------------------ output
+function gdBlock(h){
+  const r = rigOf(h), v = a => "[" + a.map(p => "Vector2(" + p[0] + ", " + p[1] + ")").join(", ") + "]";
+  return '\t"' + h.key + '": {\n' +
+    "\t\tweapon = " + v(r.weapon) + ",\n" +
+    "\t\tguns = [" + r.guns.map(s => '&"' + s + '"').join(", ") + "],\n" +
+    "\t\tsystem = " + v(r.system) + ",\n" +
+    "\t\tutility = " + v(r.utility) + ",\n\t},";
+}
+function gdText(){ $("gd").value = D.hulls.map(gdBlock).join("\n"); }
+function exportState(){
+  const o = {version:4, tool:"mount_placer", manufacturer:D.manufacturer, saved:new Date().toISOString(), hulls:{}};
+  D.hulls.forEach(h => {
+    const r = rigOf(h), e = edit[h.key] || fresh(h);
+    o.hulls[h.key] = {key:h.key, canvas:[h.w, h.h], edited:edited(h), weapon:r.weapon, guns:r.guns,
+      system:r.system, utility:r.utility, loadout:e.load.slice(),
+      thrusters:h.exs.map(t => ({id:t.id, x:t.x, y:t.y, back:!!t.back}))};
+  });
+  return o;
+}
+function say(m){
+  const s = $("saymsg"); s.textContent = m;
+  if(m) setTimeout(() => { if(s.textContent === m) s.textContent = ""; }, 5000);
+}
+$("copy").onclick = function(){
+  const t = $("gd"), b = this;
+  const done = () => { b.textContent = "copied"; setTimeout(() => b.textContent = "copy GDScript", 1400); };
+  const pick = () => { t.focus(); t.select(); try{ document.execCommand("copy"); done(); }catch(e){ say("select the text and copy it"); } };
+  try{ navigator.clipboard.writeText(t.value).then(done, pick); }catch(e){ pick(); }
+};
+
+// ------------------------------------------------------------------ saving
+// Claude reads collection "rigs", one doc per hull. Points are {x, y} objects: a stored
+// array may not hold arrays.
+let db = null, dbOn = null, saving = false, saveT = 0, lastSaved = {};
+const COL = "rigs";
+const docId = key => key.replace(/\//g, "__");
+function dbStatus(m, cls){ const s = $("dbstatus"); s.textContent = m; s.className = "status" + (cls ? " " + cls : ""); }
+function docFor(h){
+  const r = rigOf(h), e = edit[h.key] || fresh(h), pts = a => a.map(p => ({x:p[0], y:p[1]}));
+  return {key:h.key, manufacturer:D.manufacturer, version:4, canvas:{w:h.w, h:h.h},
+    weapon:pts(r.weapon), guns:r.guns, system:pts(r.system), utility:pts(r.utility),
+    loadout:e.load.slice(), edited:edited(h), savedAt:new Date().toISOString(), gd:gdBlock(h)};
+}
+function fromDoc(d){
+  const arr = a => (a || []).map(p => Array.isArray(p) ? [p[0] | 0, p[1] | 0] : [p.x | 0, p.y | 0]);
+  return {weapon:arr(d.weapon), guns:(d.guns || []).slice(), system:arr(d.system), utility:arr(d.utility), load:d.loadout};
+}
+function initDb(){
+  const off = why => { dbOn = false; dbStatus("Saving for Claude isn't available in this view" + (why ? " (" + why + ")" : "") +
+    ". Use download, or copy the GDScript.", "bad"); $("savenow").disabled = true; };
+  if(!window.claude || typeof window.claude.use !== "function"){ off("not opened on claude.ai"); return; }
+  const t = setTimeout(() => { if(dbOn === null) off("no answer"); }, 10000);
+  window.claude.use("db").then(ns => {
+    clearTimeout(t);
+    if(!ns){ off(""); return; }
+    db = ns; dbOn = true; load();
+  }, () => { clearTimeout(t); off(""); });
+}
+function load(){
+  dbStatus("Reading your last save…");
+  const t = setTimeout(() => dbStatus("The store is slow to answer; edits still save when it does."), 10000);
+  Promise.all(D.hulls.map(h => db.collection(COL).doc(docId(h.key)).get().then(s => [h, s]))).then(res => {
+    clearTimeout(t);
+    const took = [];
+    res.forEach(([h, s]) => {
+      if(!s.exists) return;
+      const d = s.data() || {}, r = fromDoc(d);
+      lastSaved[h.key] = JSON.stringify(r.weapon.concat([r.guns], r.system, r.utility));
+      // a hull with no local edits opens on its save, so the next visit starts where the last stopped
+      if(!edit[h.key] && JSON.stringify({weapon:r.weapon, guns:r.guns, system:r.system, utility:r.utility}) !== JSON.stringify(seedRig(h))){
+        const e = fresh(h);
+        e.weapon = r.weapon; e.guns = r.guns; e.system = r.system; e.utility = r.utility;
+        e.load = r.guns.map((s, i) => (r.load && GUN[r.load[i]]) ? r.load[i] : longestFor(s));
+        e.icon = {system:r.system.map((_, i) => hintId("system", i)), utility:r.utility.map((_, i) => hintId("utility", i))};
+        edit[h.key] = e; took.push(h.title || h.key);
+      }
+    });
+    if(took.length){ persist(); render(); panel(); }
+    const n = res.filter(x => x[1].exists).length;
+    dbStatus(n ? "Saved for Claude: " + n + " hull" + (n > 1 ? "s" : "") + " on file" + (took.length ? "; opened your save of " + took.join(", ") : "") + "."
+               : "Nothing saved yet. Changes save for Claude by themselves.", "ok");
+    queueSave();
+  }, err => { clearTimeout(t); dbStatus("Couldn't read the store (" + ((err && err.code) || "error") + "). Edits still try to save.", "bad"); });
+}
+const rigKey = h => { const r = rigOf(h); return JSON.stringify(r.weapon.concat([r.guns], r.system, r.utility)); };
+function queueSave(){
+  if(!dbOn) return;
+  clearTimeout(saveT);
+  saveT = setTimeout(() => saveDb(false), 1500);
+}
+// One write at a time, only for hulls that changed since the last save (or all, when asked).
+function saveDb(all){
+  if(!dbOn || !db) return Promise.resolve();
+  if(saving){ queueSave(); return Promise.resolve(); }
+  const todo = D.hulls.filter(h => all || (lastSaved[h.key] !== undefined ? lastSaved[h.key] !== rigKey(h) : edited(h)));
+  if(!todo.length){ if(all) dbStatus("Saved for Claude, nothing new.", "ok"); return Promise.resolve(); }
+  saving = true; dbStatus("Saving " + todo.length + " hull" + (todo.length > 1 ? "s" : "") + "…");
+  let chain = Promise.resolve();
+  todo.forEach(h => { chain = chain.then(() => { const k = rigKey(h); return db.collection(COL).doc(docId(h.key)).set(docFor(h)).then(() => { lastSaved[h.key] = k; }); }); });
+  return chain.then(() => {
+    saving = false;
+    const t = new Date();
+    dbStatus("Saved for Claude at " + t.toTimeString().slice(0, 5) + " (" + todo.map(h => h.title || h.key).join(", ") + ").", "ok");
+  }, err => {
+    saving = false;
+    const c = (err && err.code) || "error";
+    dbStatus("Couldn't save for Claude (" + c + "). " + (c === "not_granted" ? "You may not have edit rights here; download instead." : "Try save now, or download."), "bad");
+  });
+}
+$("savenow").onclick = () => { clearTimeout(saveT); saveDb(true); };
+
+let dl = null, dlReady = false;
+(function(){
+  const off = () => { dlReady = true; $("download").hidden = true; };
+  if(!window.claude || typeof window.claude.use !== "function"){ off(); return; }
+  window.claude.use("downloads").then(ns => { dlReady = true; if(ns) dl = ns; else off(); }, off);
+})();
+$("download").onclick = () => {
+  if(!dl){ say(dlReady ? "downloads aren't available here" : "still starting up"); return; }
+  const b = $("download"); b.disabled = true; say("waiting for you to accept");
+  dl.save({filename:"rigging-" + D.manufacturer + ".json", data:JSON.stringify(exportState(), null, 1)}).then(() => {
+    b.disabled = false; say("saved; read_rig.py finds it in Downloads");
+  }, err => {
+    b.disabled = false; const c = err && err.code;
+    say(c === "declined" ? "cancelled" : "couldn't save (" + (c || "unknown") + "); copy the GDScript instead");
+  });
+};
+
+// ------------------------------------------------------------------ boot
+restore();
+lastW = wrap.clientWidth;
+render(); panel(); tick();
+requestAnimationFrame(recentre);
+initDb();
+// for the headless check: the boxes as drawn, in sprite px
+window.__placer = {D:D, st:st, E:E, gunBox:gunBox, liveHits:liveHits, worstCase:worstCase, pickHull:pickHull,
+  partBoxes:partBoxes, partHits:partHits, fpShapes:fpShapes, panel:panel, checks:checks,
+  render:render, setZoom:z => { const b = document.querySelector('[data-z="' + z + '"]'); if(b) b.click(); else { st.zoomSet = z; render(); } }, exportState:exportState, gdBlock:gdBlock};
+})();
+</script>

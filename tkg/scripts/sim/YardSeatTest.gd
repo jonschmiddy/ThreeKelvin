@@ -83,12 +83,16 @@ func _run() -> void:
 
 
 ## Whether a part on this stood hull hangs below its belly.
+## A gun hung under the belly: a part that starts below the hull's middle row. The yard
+## measures the hull with its guns drawn (`ShipView.canvas`), so a belly gun under the
+## hull's waist, above its keel, moves the stands as one under its lowest row does
+## (Nov 17: the heavy's belly guns at Jon's mounts sat it 3 px off centre).
 func _hangs(s: YardStandSet) -> bool:
 	if s.mounts == null or not is_instance_valid(s.mounts) or s._view == null:
 		return false
-	var bottom := float(s._view.ink_rect().end.y)
+	var mid := s._view.ink_rect().get_center().y
 	for r: Rect2 in s.mounts.part_rects_canvas():
-		if r.end.y > bottom:
+		if r.position.y > mid:
 			return true
 	return false
 

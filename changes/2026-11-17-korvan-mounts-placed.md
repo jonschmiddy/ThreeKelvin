@@ -1,0 +1,1 @@
+- **Changed** — Korvan ships carry their guns where they were placed by hand, and the two longest guns can now stand on top of the hull as well as under it.

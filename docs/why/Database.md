@@ -1438,16 +1438,17 @@ art/sprites/guns/) at full size, anchor on the point; every other hull, and ever
 module but a weapon, still draws the hold picture. A top gun on a belly point uses
 its flipped and relit copy, made offline by art/tools/ship_guns.py.
 
-NO TWO GUNS EVER OVERLAP, AND ANY GUN GOES ON ANY MOUNT (Jon, Nov 17: ruling B,
-and the guns shown at 60% of their drawn size, `art/tools/ship_guns.py` SCALE).
-The pads were planned front to back from the shrunk pictures: on top the longest
-reach is the KM-4 (23 px aft, 73 forward of its anchor; a spinal on top draws its
-80 px hold icon), under the belly the KH-500 (112 forward) and the Widowmaker (31
-aft), so two top pads need 98 px between them and two belly pads 145. Every weight
-clears that by spacing alone (tightest gaps: medium belly 4 px, heavy top 5 px);
-no layout rule moves a gun. The heavy's fifth mount is on top over the engine block
-(120, 40), hardpoints.md's H3, as two belly pads are all its belly has room for.
-`-- sheet=GunOverlapTest` tries every pair of guns on every pair of mounts.
+ANY GUN GOES ON ANY MOUNT, AND GUNS MAY OVERLAP (Jon, Nov 17: ruling B, the guns
+shown at 60% of their drawn size, `art/tools/ship_guns.py` SCALE; then, placing the
+mounts himself in the mount placer, "Overlap is fine"). Every gun with a picture has
+both sides: the spinals (KH-500, Widowmaker) were drawn for the belly and are flipped
+and relit for a top mount (`ship_guns.FLIP_BELLY_GUNS`), so none stands on a mount as
+its hold icon. At full size a spinal on top reaches 112 px forward, and the mounts Jon
+placed sit closer than that on top (light 1 and 3, heavy 1 and 3), so two long guns
+there overlap: the later one in `MountPoints._draw_order` draws over the earlier.
+No layout rule moves a gun. `-- sheet=GunOverlapTest` still tries every pair of guns
+on every pair of mounts and prints each clashing pair of mounts with its count, as a
+report; it fails only when a gun with a picture lacks one of its sides.
 Listed in the order the grades open them.
 
 NOTHING CLIPS A GUN (Jon, Nov 17, on the fight still: "ship is cut off?"). The

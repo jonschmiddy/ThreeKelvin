@@ -56,9 +56,10 @@ LIGHT_LUMA = 200
 LIGHT_WARM = 25
 # Brighter than this inside a stencil box is a letter, not the panel under it.
 INK = 140
-# Flip the spinals (drawn for the belly) onto a top mount too. The relight is not
-# trusted on them (notes.md), so a top-mounted spinal keeps its hold picture.
-FLIP_BELLY_GUNS = False
+# Flip the spinals (drawn for the belly) onto a top mount too, so every gun with a
+# picture has both sides and none stands on a top mount as its hold icon (Jon, Nov 17:
+# yes, after the placer showed the KH-500 and Widowmaker as hold icons on top).
+FLIP_BELLY_GUNS = True
 
 
 def shrink(im, s):
