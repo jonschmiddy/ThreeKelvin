@@ -1,0 +1,1 @@
+- **Fixed** — on a station, A.S.H. explains the opened-up ship from her corner again instead of a card, and in the Lab's AUGMENT page the lines to the affixes no longer cross the part's words.
