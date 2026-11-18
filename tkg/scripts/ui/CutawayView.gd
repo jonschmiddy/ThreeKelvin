@@ -255,6 +255,11 @@ func _choose_scale() -> void:
 			_mounts.refresh()
 			b = _layout(k, room)
 			_target = (room.get_center() - b.get_center() * float(k)).round()
+			# centred, but up off A.S.H.'s band at the foot while the room has rows to spare
+			# Why: docs/why/CutawayView.md#ash-band
+			var over := _target.y + b.end.y * float(k) - (size.y - Ash.cutaway_band())
+			if over > 0.0:
+				_target.y -= minf(over, maxf(0.0, _target.y + b.position.y * float(k) - room.position.y))
 			# and once more against the room where it really landed, for the
 			# words set away from their rings (the rest comes out the same)
 			_real_room = Rect2((room.position - _target) / float(k), room.size / float(k))

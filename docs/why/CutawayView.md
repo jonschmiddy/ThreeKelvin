@@ -169,3 +169,24 @@ same GPU outline in the game's one highlight colour, 2 px, shared with the
 aim targets and the wrecks. Kept under this name because `SectorScreen`,
 `StationScreen` and six harnesses build it here. The reasoning above still
 holds; the amber is gone.
+
+## Ash band
+
+Above the push in `_choose_scale` and `Ash.cutaway_band`:
+
+```text
+THE EXPLODED SHIP IS CENTRED IN ITS ROOM, then moved up, never past the room's
+top, until A.S.H.'s cutaway line has the rows along the cutaway's foot. Her
+line there (`AshTutorLines.CUTAWAY_LINE` and the key line under it) is 74 px tall and
+stands EDGE off the foot; her top corners on a station deck are usually taken
+by the yard's drones and the ships' names behind the cutaway, so a bottom
+corner is the one she gets.
+
+Nov 17, feat/korvan-zero: Korvan's new light with its full-size guns and the
+yard's stands under it laid out 539x350 at 2x on the station (main's hull:
+635x310). Centred in the 475 px room, that left 62 px above and below; she
+needs 80, so no corner was clear and the cutaway hint came as a card
+(ashtutortest: "no hint came as a card ([&"cutaway"])"). Moving the picture
+up 11 px keeps it whole inside the room and gives her the bottom corners.
+A picture too tall to leave the band stays as high as the room allows.
+```
