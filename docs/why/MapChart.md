@@ -710,6 +710,10 @@ back through -- they are simply not on the dish this minute.
 
 ## Core marker
 
+Since Nov 18 (Jon, "core:A") the glyph on the shadow is the sector's own black hole in
+its ring, `MapGlyphs` &"core" at 11 px, drawn by `ChartGlyphs.draw_node`: one picture
+for the core on both maps. YOU's brackets sit round it as before.
+
 Above `if node2.type == MapGen.NodeType.CORE and not (show_all or node2.index == here.index`:
 
 ```text
@@ -935,7 +939,18 @@ game yet, so this shows everybody. When fog arrives it gates the position
 going ONTO the wire rather than coming off it, and nothing here changes.
 ```
 
-Above `_diamond(c, 6.0, _UNDER)`:
+A PARTNER IS THE OLD DIAMOND DRAWN THICK (Jon, Nov 18, "party:A"): `ChartGlyphs`' 9 px
+diamond in GOOD, outline and fill, its star showing through the middle, on the same
+void rim.
+
+ITS NAME STEPS OFF THE HELLBENDER'S (Nov 18). On the pick page a partner one system
+from the hellbender printed "MERCER" under "THE HELLBENDER" and both read as
+"THE HELLBENDERER". `party_label_at` measures both names (`label_rect`); when they
+meet, the partner's name moves, down when its star is below the hellbender's and up
+otherwise, until a pixel clears them. THE HELLBENDER's name never moves: danger stays
+where it is drawn. ChartDeepTest checks a partner on its system and 4 px either side.
+
+Above `_diamond(c, 6.0, _UNDER)` (as it was; the diamond is ChartGlyphs' now):
 
 ```text
 Backed in ink, and the name shadowed with it.
@@ -962,6 +977,11 @@ elsewhere a diamond is on its system and names stack above it.
 
 ## Hellbender marker
 
+A SKULL WITH BURNING EYES (Jon, Nov 18, "hellbender:B"), 11 px in EMBER on a void rim,
+in place of the 6 px diamond: the hottest thing flying is also the one thing on the
+chart that kills you, and a diamond said neither ("danger must be obvious"). It and a
+partner's diamond are now different shapes as well as different colours.
+
 Above `func _draw_hellbender() -> void:`:
 
 ```text
@@ -975,6 +995,14 @@ around, and routing around it has a price the map charges in salvage.
 ```
 
 ## Quest markers
+
+THE SECTOR'S PIN (Jon, Nov 18, "quest:A"). The square became `MapGlyphs`' own 11 px map
+pin, the one the sector map, its KEY and the quest log draw, so a quest is one
+picture everywhere. It stands on its star, its tip 3 px above the star's middle
+(`ChartGlyphs.PIN_AT`), with the name 4 px higher than the square's was so it clears
+the pin's head. The three markers are still told apart by form: a pin for a quest, a
+skull for the hellbender, corner brackets for YOU. What follows is the record of how
+the square was reached.
 
 Above `func _draw_quests() -> void:`:
 
@@ -1065,6 +1093,15 @@ link did not exist. This says WHICH WAY, and leaves the how to the list.
 Above `func _draw_you(p: Vector2, tiny: bool) -> void:`:
 
 ```text
+THE BRACKETS AND THE LABEL, AT EVERY ZOOM (Jon, Nov 18, "you:A"). The old glyphs and
+their own brackets are gone (docs/why/ChartGlyphs.md), so the one box round your star
+is drawn here: `ChartGlyphs.draw_you`, corner brackets two pixels thick with a hot
+pixel at each corner, 19 px zoomed in and 23 zoomed out (round a 7 px icon and its
+nearest neighbours). Still a box of corners, so YOU stays told apart by form from the
+quest's pin and the hellbender's skull.
+
+What came before, kept as the record:
+
 THE LABEL ONLY. This used to draw corner brackets as well, at 21 pixels
 with 5-pixel arms -- and `Glyph.draw_glyph` has always bracketed the
 current node too, at 16 with 4, in the same FLARE. So the ship sat inside
@@ -1473,4 +1510,5 @@ market line and the heading. StationDeckTest and TagTest read the four.
 Above the hover's `MarkOutline.draw_bracket_mark` in `_draw_tip`. The R1 brackets (Nov 15) settled
 onto a hovered star at 5 px out, inside YOU's own box; Jon, the same day: too tight. They are now
 YOU's size (8 px out zoomed in, where the glyph draws YOU's brackets; 10 zoomed out, `_draw_you`),
-still settling 2 px inward. Your own system draws none on hover: YOU's brackets are already there.
+still settling 2 px inward. Since Nov 18 YOU's brackets are `ChartGlyphs`' (9 px out zoomed in,
+11 zoomed out), and `hover_e` reads those two numbers, so hover stays YOU's size. Your own system draws none on hover: YOU's brackets are already there.

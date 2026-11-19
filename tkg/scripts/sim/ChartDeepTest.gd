@@ -139,6 +139,33 @@ func _galaxy(sd: int) -> void:
 	await Harness.frames(_tree, 2)
 	_ok("a reachable star picked, JUMP does not (\"%s\")" % ch._jump.text,
 		ch._jump.text != "TOO DEEP")
+	if sd == SEEDS[0]:
+		await _labels(mc, reach)
+
+
+## THE HELLBENDER's name and a partner's never print on each other (Nov 18: "MERCER" sat under
+## it): a partner on its system and one just below it, the hellbender's own name never moved.
+func _labels(mc: MapChart, reach: Array[int]) -> void:
+	var ct: GDScript = load("res://scripts/sim/ConvoyTest.gd")
+	ct.fake_party(2)
+	var hb_at: int = reach[0]
+	Run.hellbender_at = hb_at
+	Run.hellbender_hp = 60
+	var hc := mc.screen_pos(Run.map[hb_at])
+	var hb := mc.hellbender_label()
+	_ok("the hellbender's name is where it always was",
+		hb.size.x > 0.0 and absf(hb.end.y - (hc.y - 14.0)) <= 3.0)
+	for dy: float in [0.0, 4.0, -4.0]:
+		var c := hc + Vector2(0, dy)
+		var at := mc.party_label_at(c, 0, "MERCER")
+		var r := mc.label_rect(at, "MERCER", true)
+		_ok("a partner %+d px from the hellbender: its name clear of THE HELLBENDER (%s vs %s)"
+			% [dy, r, hb], not r.intersects(hb) and absf(at.y - c.y) <= 32.0)
+	var far := mc.party_label_at(hc + Vector2(0, 60), 0, "MERCER")
+	_ok("a partner far off keeps its place", far == hc + Vector2(-46, 48))
+	Run.hellbender_hp = 0
+	Run.hellbender_at = -1
+	Net.roster.clear()
 
 
 ## What the chart drew, star by star, against the rule.
@@ -188,11 +215,10 @@ func _dimmed(mc: MapChart, i: int) -> bool:
 	var own := MapGen.star_colour(Run.map[i])
 	if ink.s > 0.15 or ink.v > own.v * 0.5:
 		return false
-	if mc.zoom >= 0.78:
-		var ramp := StarchartScreen.Glyph.ramp_for(own, StarchartScreen.Glyph.BAND, true)
-		for k: String in ramp:
-			# (all but the outline, near black in every glyph alike)
-			if k != "o" and (ramp[k] as Color).s > 0.15:
+	if mc.zoom >= 0.78 and (Run.map[i] as MapGen.MapNode).type != MapGen.NodeType.SYSTEM:
+		# an icon's every ink is drawn flat in it: its lights and glass grey too
+		for code in MapGlyphs.CODES.length():
+			if MapGlyphs.ink(code, ink, true).s > 0.15:
 				return false
 	return true
 

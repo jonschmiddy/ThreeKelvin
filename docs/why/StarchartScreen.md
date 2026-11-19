@@ -260,6 +260,14 @@ colours have been starlight for a while now and every glyph on the map is
 on the thing it is a legend for, which is worse than having no legend.
 ```
 
+THE KEY DRAWS THE CHART'S OWN ICONS (Jon, Nov 18: "start:B station:A pulsar:A core:A").
+`Glyph` is no longer a 13 px picture of its own. It draws what the chart draws zoomed in:
+a 3 px dot for a plain system (with a twin's warm pixel), and `ChartGlyphs`' 9 px icon
+(the core the sector's 11 px black hole) for the rest, in the swatch lifted as on the
+chart. The in-range list's rows use the same Glyph with each star's colour, so a list
+of systems is a column of dots and a station or a pulsar stands out in it. Why the
+icons and their sizes: docs/why/ChartGlyphs.md.
+
 ## First survey card
 
 Inside `_build()`, above `if "primer" in OS.get_cmdline_user_args():`:
@@ -745,7 +753,13 @@ and red" without reading a number at all.
 
 ## Glyph pixel art
 
-Above `var type: MapGen.NodeType = MapGen.NodeType.SYSTEM`:
+RETIRED Nov 18. The 13 px pictures below (the fight dart, the hab ring, the burst a
+system wore, the twin's burst, the derelict, the accretion disc, the pulsar's ring
+with beam ticks, your own hull) and `art_for` / `draw_glyph` are gone. The chart's
+icons are `ChartGlyphs` in the sector beacons' style, and plain systems are dots at
+every zoom (Jon's Nov 18 picks; docs/why/ChartGlyphs.md). Kept as the record.
+
+Above `var type: MapGen.NodeType = MapGen.NodeType.SYSTEM` (as it was):
 
 ```text
 A system, drawn as an object rather than a letter in a box.
@@ -905,8 +919,8 @@ Above `const DIM := Color("#303236")`:
 
 ```text
 A STAR IN REACH THAT A JUMP REFUSES AS TOO DEEP (`MapChart.too_deep_set`),
-in one grey whatever its star: the dot zoomed out, the glyph's body
-zoomed in (`ramp_for` with `dim`). Darker than any star you can go to and
+in one grey whatever its star: the dot, and since Nov 18 a station's,
+pulsar's or start's icon drawn flat in it, its lights grey too. Darker than any star you can go to and
 than the far ones, and no colour in it, so it reads as off. Not the dead
 blue grey of a cleared system (#37424f), which says "spent". Jon picked
 this darkest of three on the Too-Deep Gray page (Oct 30, "Gray: B2");
@@ -926,7 +940,10 @@ go until JUMP said TOO DEEP. Its hover readout ends TOO DEEP.
 
 ## Glyph ramp
 
-Above `if dim:`:
+RETIRED Nov 18 with the old glyphs. What survives of it is the lift:
+`ChartGlyphs.LIFT` (0.34, the ramp's '#') on every node icon's ink.
+
+Above `if dim:` (as it was):
 
 ```text
 Region colours sit quietly behind sprites; as a glyph on a dark chart
@@ -943,7 +960,11 @@ which is what the four-colour version was.
 
 ## Glyph halo
 
-Above `static var _halo_cache: Dictionary = {}`:
+RETIRED Nov 18 with the old glyphs. The rule lives on in `ChartGlyphs`: every icon
+and marker keeps a rim on its four sides in `MapChart._UNDER`, worked out once per
+grid.
+
+Above `static var _halo_cache: Dictionary = {}` (as it was):
 
 ```text
 A dark rim one pixel round a glyph, so it stands off the sky behind it.

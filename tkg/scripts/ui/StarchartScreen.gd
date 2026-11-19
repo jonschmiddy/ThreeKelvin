@@ -1280,13 +1280,13 @@ class MicroGauge extends Control:
 
 
 class Glyph extends Control:
-	## Free-standing pixel-map silhouettes with eleven inks, no tile plate under them.
-	## Four inks drew a shape, not an object: the extra stops give the lit face and lip.
-	## Why: docs/why/StarchartScreen.md#glyph-pixel-art
+	## The chart's own mark at its zoomed-in size, for the KEY and the in-range list: a dot for a
+	## plain system, `ChartGlyphs`' icon for the rest (Jon, Nov 18), so the legend draws the chart.
+	## Why: docs/why/StarchartScreen.md#legend-colours
 
 	var type: MapGen.NodeType = MapGen.NodeType.SYSTEM
 	var tint: Color = Color.WHITE
-	## a system of two suns (ruling 20): `_TWIN`, as the chart draws it
+	## a system of two suns (ruling 20): the dot's second, warmer pixel, as the chart draws it
 	var twin := false
 
 	func setup(t: MapGen.NodeType, c: Color, two: bool = false) -> void:
@@ -1297,250 +1297,19 @@ class Glyph extends Control:
 		queue_redraw()
 
 	func _draw() -> void:
-		draw_glyph(self, Vector2.ZERO, type, tint, false, false, BAND, false, twin)
-
-	## Hostile dart nosing left, as enemies face left everywhere else in the game.
-	## Why: docs/why/StarchartScreen.md#glyph-pixel-art
-	const _FIGHT := [
-		".............",
-		".........oooo",
-		"........o%%%o",
-		".....o%%%###o",
-		"...o%%######o",
-		".o%%##==####o",
-		"o%####=~##*@o",
-		".o--++++++::o",
-		"...o--++++++o",
-		".....o---+++o",
-		"........o---o",
-		".........oooo",
-		"............."]
-
-	## Hab ring with its lights on: warm pixels are the tell for the one friendly thing out here.
-	## Why: docs/why/StarchartScreen.md#glyph-pixel-art
-	const _STATION := [
-		".............",
-		"....ooooo....",
-		"..oo%%%%%oo..",
-		".o%%#*#*#%%o.",
-		"o%%#ooooo#%%o",
-		"o%#o..#..o#%o",
-		"o##o.*@*.o##o",
-		"o+#o..#..o#+o",
-		"o++#ooooo#++o",
-		".o++#*#*#++o.",
-		"..oo+++++oo..",
-		"....ooooo....",
-		"............."]
-
-	## Unknown signal as a radiating burst: each ray falls off along its length for depth.
-	## Why: docs/why/StarchartScreen.md#glyph-pixel-art
-	const _EVENT := [
-		"......-......",
-		"......+......",
-		"..+...#...+..",
-		"...#..#..#...",
-		"....#.%.#....",
-		".....%%%.....",
-		"-+#%%*@*%%#+-",
-		".....%%%.....",
-		"....#.%.#....",
-		"...#..#..#...",
-		"..+...#...+..",
-		"......+......",
-		"......-......"]
-
-	## Two suns (ruling 20, Oct 30): the burst with a small warm second star at lower right.
-	## Same box, so nothing to click moves.
-	## Why: docs/why/StarchartScreen.md#glyph-pixel-art
-	const _TWIN := [
-		"......-......",
-		"......+......",
-		"..+...#...+..",
-		"...#..#..#...",
-		"....#.%.#....",
-		".....%%%.....",
-		"-+#%%*@*%%#+-",
-		".....%%%.....",
-		"....#.%......",
-		"...#..#...:..",
-		"..+...#..:*:.",
-		"......+...:..",
-		"......-......"]
-
-	## Not drawn since the type collapse; kept as authored art for the option detail view.
-	## Delete them if that never happens.
-	## Why: docs/why/StarchartScreen.md#glyph-pixel-art
-	const _DERELICT := [
-		".............",
-		"..ooooo......",
-		".o%%%%%oo....",
-		".o%####%%oo..",
-		"o%#+++##%%%o.",
-		"o#++--++##%o.",
-		"o+--..--++#o.",
-		".o+-...-++#o.",
-		"..o+--++##o.o",
-		"...oo++##o.o.",
-		".....oooo....",
-		".............",
-		"............."]
-
-	## Accretion disc nearly edge-on with lensed arcs; the middle is left empty.
-	## The glyph sits on the galaxy centre, so the transparent shadow frames the sky.
-	## Why: docs/why/StarchartScreen.md#glyph-pixel-art
-	const _GOAL := [
-		".............",
-		".....%%%.....",
-		"...%%###%%...",
-		"..%#.....#%..",
-		".%#.......#%.",
-		"%#.........#%",
-		"*@@.......@@*",
-		":*@@@@@@@@@*:",
-		"+-.........-+",
-		".+-.......-+.",
-		"..+--...--+..",
-		"...++---++...",
-		".....---....."]
-
-	## Open ring with beam ticks; the middle is empty so the pulsar's own flash stays visible.
-	## The ticks are cold light: a neutron star is not a furnace.
-	## Why: docs/why/StarchartScreen.md#glyph-pixel-art
-	const _PULSAR := [
-		".............",
-		".....%%%.....",
-		"...%%...%%...",
-		"..%.......%..",
-		".%.........%.",
-		".#.........#.",
-		"!=~%.....%~=!",
-		".#.........#.",
-		".+.........+.",
-		"..+.......+..",
-		"...++...++...",
-		".....---.....",
-		"............."]
-
-	## Your own hull nosing right: unique by subtraction now the FIGHT dart is not drawn.
-	## Why: docs/why/StarchartScreen.md#glyph-pixel-art
-	const _START := [
-		".............",
-		"oooo.........",
-		"o%%%o........",
-		"o###%%%o.....",
-		"o######%%o...",
-		"o####==##%%o.",
-		"o@*##~=####%o",
-		"o::++++++--o.",
-		"o++++++--o...",
-		"o+++---o.....",
-		"o---o........",
-		"oooo.........",
-		"............."]
-
-	static func art_for(t: MapGen.NodeType, twin: bool = false) -> Array:
-		if twin and t == MapGen.NodeType.SYSTEM:
-			return _TWIN
-		match t:
-			MapGen.NodeType.STATION: return _STATION
-			MapGen.NodeType.CORE: return _GOAL
-			MapGen.NodeType.PULSAR: return _PULSAR
-			MapGen.NodeType.START: return _START
-			# Every system wears one mark: what waits there is `options`, which the chart hides.
-			# Why: docs/why/StarchartScreen.md#glyph-pixel-art
-			_: return _EVENT
-
-	## The emissive band's own colour, where a caller does not give one.
-	const BAND := Color("#fff6e2")
+		if type == MapGen.NodeType.SYSTEM:
+			var dot := tint.lightened(0.15)
+			draw_rect(Rect2(Vector2(5, 5), Vector2(3, 3)), dot, true)
+			if twin:
+				draw_rect(Rect2(Vector2(9, 8), Vector2.ONE), dot.lerp(UITheme.EMBER, 0.55), true)
+			return
+		ChartGlyphs.draw_node(self, type, Vector2(6, 6), ChartGlyphs.BIG,
+			tint.lightened(0.12).lightened(ChartGlyphs.LIFT), Color.TRANSPARENT)
 
 	## One grey for a star in reach that a jump refuses as too deep, so it reads as off.
 	## Jon picked this darkest of three (Oct 30, 'Gray: B2'); it was #4a4e55.
 	## Why: docs/why/StarchartScreen.md#too-deep-grey
 	const DIM := Color("#303236")
-
-	static func draw_glyph(ci: CanvasItem, o: Vector2, t: MapGen.NodeType,
-			tint_in: Color, here: bool, selected: bool, band: Color = BAND,
-			dim: bool = false, twin: bool = false) -> Color:
-		var ramp := ramp_for(tint_in, band, dim)
-		var art := art_for(t, twin)
-		for y in art.size():
-			var row: String = art[y]
-			for x in row.length():
-				var ch := row[x]
-				if ch == ".":
-					continue
-				ci.draw_rect(Rect2(o + Vector2(x, y), Vector2.ONE),
-					ramp.get(ch, ramp["#"]) as Color, true)
-
-		draw_brackets(ci, o, here, selected)
-		# (the body's ink, for `MapChart.drawn_ink`)
-		return ramp["#"]
-
-	## The inks a glyph is drawn in, by its pixel map's letters.
-	static func ramp_for(tint_in: Color, band: Color = BAND, dim: bool = false) -> Dictionary:
-		# Tints are lifted so a glyph is not a smudge; the ramp is built per call.
-		# lightened(0.62) against darkened(0.52) is the break that survives 13 pixels.
-		# Why: docs/why/StarchartScreen.md#glyph-ramp
-		if dim:
-			# Too deep: one grey ramp with no lift, as a lifted grey read as a lit star.
-			var face := DIM.lightened(0.3)
-			var wall := DIM.darkened(0.3)
-			return {
-				"o": Color("#070b11"),
-				"%": face,
-				"#": DIM,
-				"+": wall,
-				"-": DIM.darkened(0.55),
-				"*": DIM,
-				"@": face,
-				":": wall,
-				"=": DIM,
-				"~": wall,
-				"!": face,
-			}
-		return {
-			"o": Color("#070b11"),
-			"%": tint_in.lightened(0.62),
-			"#": tint_in.lightened(0.34),
-			"+": tint_in.darkened(0.22),
-			"-": tint_in.darkened(0.52),
-			"*": UITheme.HOT,
-			"@": band,
-			":": UITheme.EMBER,
-			"=": Color("#8ec8e6"),
-			"~": Color("#3a6b8c"),
-			"!": Color("#dff6ff"),
-		}
-
-
-	## A one pixel dark rim on four sides only: eight sides filled in between a star's spikes.
-	## Worked out once per glyph; its darkness depends on the sky under it.
-	## Why: docs/why/StarchartScreen.md#glyph-halo
-	static var _halo_cache: Dictionary = {}
-
-	static func draw_halo(ci: CanvasItem, o: Vector2, t: MapGen.NodeType, col: Color, twin: bool = false) -> void:
-		var hk: int = int(t) * 2 + (1 if twin else 0)
-		var pts: PackedVector2Array = _halo_cache.get(hk, PackedVector2Array())
-		if pts.is_empty():
-			var art := art_for(t, twin)
-			var on := {}
-			for y in art.size():
-				var row: String = art[y]
-				for x in row.length():
-					if row[x] != ".":
-						on[Vector2i(x, y)] = true
-			var rim := {}
-			for c: Vector2i in on:
-				for dq: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-					var q := c + dq
-					if not on.has(q):
-						rim[q] = true
-			for q: Vector2i in rim:
-				pts.append(Vector2(q))
-			_halo_cache[hk] = pts
-		for q in pts:
-			ci.draw_rect(Rect2(o + q, Vector2.ONE), col, true)
 
 	## Corner brackets, not a box. A box is a tile by another name, and the
 	## tile is what we just removed.

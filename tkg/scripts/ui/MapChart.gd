@@ -1153,42 +1153,9 @@ func _draw_chart() -> void:
 				or node2.index == selected or node2.visited
 				or MapGen.hop_distance(here, node2) <= Run.sense_radius()):
 			continue
-		if node2.type == MapGen.NodeType.CORE:
-			# The middle of the visible black: the near disc covers the shadow's lower part.
-			p = (screen_pos(node2) - Vector2(6, 6 + _hole_px() * 0.38)).round()
-			drawn_ink[node2.index] = StarchartScreen.Glyph.draw_glyph(self, p, node2.type, tint.lightened(0.12),
-				node2.index == here.index, node2.index == selected, UITheme.FLARE)
-		elif tiny:
-			var lit: bool = node2.index == here.index \
-				or node2.index == selected or node2.index == hovered
-			# Systems you can actually go to hold their colour; the rest of
-			# the galaxy sinks back, so the cluster reads without a label.
-			var near: bool = lit or reach.has(node2)
-			# Far systems keep some colour to stay findable; reachable ones get extra weight.
-			var d: float = 3.0 if (lit or near) else 2.0
-			var at := p + Vector2(6, 6) - Vector2(d, d) * 0.5
-			# on a rim of the void a pixel out on its four sides (not its
-			# corners), so it stands off the arms and the bulge
-			draw_rect(Rect2(at - Vector2(1, 0), Vector2(d + 2.0, d)), _UNDER, true)
-			draw_rect(Rect2(at - Vector2(0, 1), Vector2(d, d + 2.0)), _UNDER, true)
-			var dot := tint.lightened(0.15) if near else tint.darkened(0.35)
-			if dim:
-				dot = StarchartScreen.Glyph.DIM
-			draw_rect(Rect2(at, Vector2(d, d)), dot, true)
-			drawn_ink[node2.index] = dot
-			if node2.twin:
-				# TWO SUNS, zoomed out: a pixel of a second, warmer star off the
-				# dot's lower right corner, on its own rim of the void
-				var c2 := at + Vector2(d + 1.0, d)
-				draw_rect(Rect2(c2 - Vector2(1, 1), Vector2(3, 3)), _UNDER, true)
-				draw_rect(Rect2(c2, Vector2.ONE), StarchartScreen.Glyph.DIM if dim else dot.lerp(UITheme.EMBER, 0.55), true)
-		else:
-			var near2: bool = node2.index == here.index or node2.index == selected \
-				or node2.index == hovered or reach.has(node2)
-			StarchartScreen.Glyph.draw_halo(self, p, node2.type, _UNDER, node2.twin)
-			drawn_ink[node2.index] = StarchartScreen.Glyph.draw_glyph(self, p, node2.type,
-				tint.lightened(0.12) if near2 else tint.darkened(0.2),
-				node2.index == here.index, node2.index == selected, StarchartScreen.Glyph.BAND, dim, node2.twin)
+		var lit: bool = node2.index == here.index or node2.index == selected or node2.index == hovered
+		# Systems you can actually go to hold their colour; the rest sink back.
+		p = _draw_node(node2, p, tint, tiny, dim, lit or reach.has(node2))
 		if dim:
 			drawn_dim[node2.index] = true
 		if node2.index == here.index:
@@ -1214,6 +1181,54 @@ func _draw_chart() -> void:
 
 	if show_scale:
 		_draw_scale()
+
+## One system's mark at `p` (the old 13 px glyph's corner): plain systems a dot at every zoom,
+## the rest ChartGlyphs' icon (Jon, Nov 18). Returns where YOU goes (the core's is on its hole).
+## Why: docs/why/ChartGlyphs.md#the-icons
+func _draw_node(node2: MapGen.MapNode, p: Vector2, tint: Color, tiny: bool, dim: bool,
+		near: bool) -> Vector2:
+	if node2.type == MapGen.NodeType.CORE:
+		# The middle of the visible black: the near disc covers the shadow's lower part.
+		p = (screen_pos(node2) - Vector2(6, 6 + _hole_px() * 0.38)).round()
+		var ink := tint.lightened(0.12).lightened(ChartGlyphs.LIFT)
+		ChartGlyphs.draw_node(self, node2.type, p + Vector2(6, 6), MapGlyphs.SIZE, ink, _UNDER)
+		StarchartScreen.Glyph.draw_brackets(self, p, false, node2.index == selected)
+		drawn_ink[node2.index] = ink
+		return p
+	if node2.type != MapGen.NodeType.SYSTEM:
+		# lit as the old glyph's body was, or a far icon is a smudge; too deep is flat grey
+		var ink2 := (tint.lightened(0.15 if tiny else 0.12) if near
+			else tint.darkened(0.35 if tiny else 0.2)).lightened(ChartGlyphs.LIFT)
+		if dim:
+			ink2 = StarchartScreen.Glyph.DIM
+		ChartGlyphs.draw_node(self, node2.type, p + Vector2(6, 6),
+			ChartGlyphs.SMALL if tiny else ChartGlyphs.BIG, ink2, _UNDER, dim)
+		if not tiny:
+			StarchartScreen.Glyph.draw_brackets(self, p, false, node2.index == selected)
+		drawn_ink[node2.index] = ink2
+		return p
+	# Far systems keep some colour to stay findable; reachable ones get extra weight.
+	var d: float = 3.0 if near else 2.0
+	var at := p + Vector2(6, 6) - Vector2(d, d) * 0.5
+	# on a rim of the void a pixel out on its four sides (not its
+	# corners), so it stands off the arms and the bulge
+	draw_rect(Rect2(at - Vector2(1, 0), Vector2(d + 2.0, d)), _UNDER, true)
+	draw_rect(Rect2(at - Vector2(0, 1), Vector2(d, d + 2.0)), _UNDER, true)
+	var dot := tint.lightened(0.15) if near else tint.darkened(0.35)
+	if dim:
+		dot = StarchartScreen.Glyph.DIM
+	draw_rect(Rect2(at, Vector2(d, d)), dot, true)
+	drawn_ink[node2.index] = dot
+	# (picked, zoomed in: the brackets the old glyph drew round a picked star)
+	if not tiny:
+		StarchartScreen.Glyph.draw_brackets(self, p, false, node2.index == selected)
+	if node2.twin:
+		# TWO SUNS: a pixel of a second, warmer star off the
+		# dot's lower right corner, on its own rim of the void
+		var c2 := at + Vector2(d + 1.0, d)
+		draw_rect(Rect2(c2 - Vector2(1, 1), Vector2(3, 3)), _UNDER, true)
+		draw_rect(Rect2(c2, Vector2.ONE), StarchartScreen.Glyph.DIM if dim else dot.lerp(UITheme.EMBER, 0.55), true)
+	return p
 
 ## Bottom right, under MY REGION: the tooltip and party markers move out of its way.
 ## It saves the reader holding a scale in their head across every zoom step.
@@ -1524,10 +1539,9 @@ func tip_lines(n: MapGen.MapNode, here: MapGen.MapNode) -> PackedStringArray:
 	return PackedStringArray([l1, l2, l3, l4])
 
 
-## The hover brackets' half-width: YOU's box (`_draw_you` zoomed out, the glyph's
-## `draw_brackets` zoomed in).
+## The hover brackets' half-width: YOU's box (`ChartGlyphs.YOU_HALF_OUT` / `_IN`).
 static func hover_e(tiny: bool) -> int:
-	return 10 if tiny else 8
+	return ChartGlyphs.YOU_HALF_OUT if tiny else ChartGlyphs.YOU_HALF_IN
 
 
 ## Zoomed out every system is a two-pixel dot, so the tooltip is what makes places readable.
@@ -1569,11 +1583,10 @@ func _draw_party() -> void:
 		var row: int = e[2]
 		# Backed in ink: the deepest ship sits over the bright core and was unseeable.
 		# Why: docs/why/MapChart.md#party-markers
-		_diamond(c, 6.0, _UNDER)
-		_diamond(c, 5.0, UITheme.GOOD)
-		# Stacked when two ships share a system, or one name prints on top of another.
+		ChartGlyphs.draw_mark(self, &"party", ChartGlyphs.centre(c), UITheme.GOOD, _UNDER)
+		# Stacked when two ships share a system, and stepped off THE HELLBENDER's name.
 		var label := String(slot.get("name", "")).to_upper()
-		var at_text := c + Vector2(-46, -12 - row * 10) if row >= 0 else c + Vector2(8, 3)
+		var at_text := party_label_at(c, row, label)
 		var align := HORIZONTAL_ALIGNMENT_CENTER if row >= 0 else HORIZONTAL_ALIGNMENT_LEFT
 		draw_string(UITheme.pixel_font(), at_text + Vector2(1, 1), label,
 			align, 92, 8, Color(0, 0, 0, 0.85))
@@ -1595,7 +1608,7 @@ func party_marks() -> Array:
 			continue
 		var c := screen_pos(Run.map[at])
 		if at == Run.at:
-			# clear of YOU's brackets, whose corner reaches 17 px right
+			# clear of YOU's brackets, whose corner reaches 11 px right
 			out.append([slot, c + Vector2(26, -8 + with_me * 11), -1])
 			with_me += 1
 			continue
@@ -1612,20 +1625,53 @@ func _draw_hellbender() -> void:
 			or Run.hellbender_at >= Run.map.size():
 		return
 	var c := screen_pos(Run.map[Run.hellbender_at])
-	_diamond(c, 7.0, _UNDER)
-	_diamond(c, 6.0, UITheme.EMBER)
+	ChartGlyphs.draw_mark(self, &"hellbender", ChartGlyphs.centre(c), UITheme.EMBER, _UNDER)
 	var at_text := c + Vector2(-46, -14)
-	draw_string(UITheme.pixel_font(), at_text + Vector2(1, 1), "THE HELLBENDER",
+	draw_string(UITheme.pixel_font(), at_text + Vector2(1, 1), HB_NAME,
 		HORIZONTAL_ALIGNMENT_CENTER, 92, 8, Color(0, 0, 0, 0.85))
-	draw_string(UITheme.pixel_font(), at_text, "THE HELLBENDER",
+	draw_string(UITheme.pixel_font(), at_text, HB_NAME,
 		HORIZONTAL_ALIGNMENT_CENTER, 92, 8, UITheme.EMBER)
+
+
+const HB_NAME := "THE HELLBENDER"
+
+
+## Where a label drawn by `draw_string(at, s, align, 92, 8)` sits on the chart.
+func label_rect(at: Vector2, s: String, centred: bool) -> Rect2:
+	var f := UITheme.pixel_font()
+	var sz := f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 8)
+	var x := at.x + (92.0 - sz.x) * 0.5 if centred else at.x
+	return Rect2(x, at.y - f.get_ascent(8), sz.x, sz.y)
+
+
+## THE HELLBENDER's name as drawn, or an empty rect when it is not.
+func hellbender_label() -> Rect2:
+	if not show_icons or not Run.hellbender_alive() or Run.hellbender_at >= Run.map.size():
+		return Rect2()
+	return label_rect(screen_pos(Run.map[Run.hellbender_at]) + Vector2(-46, -14), HB_NAME, true)
+
+
+## A partner's name: its row's place, stepped clear of THE HELLBENDER's, which stays put.
+## Why: docs/why/MapChart.md#party-markers
+func party_label_at(c: Vector2, row: int, label: String) -> Vector2:
+	var at := c + Vector2(-46, -12 - row * 10) if row >= 0 else c + Vector2(8, 3)
+	var hb := hellbender_label()
+	if hb.size == Vector2.ZERO:
+		return at
+	var r := label_rect(at, label, row >= 0).grow(1.0)
+	if not r.intersects(hb):
+		return at
+	# down when the partner's star is below the hellbender's, else up
+	if c.y > screen_pos(Run.map[Run.hellbender_at]).y:
+		return at + Vector2(0, hb.end.y - r.position.y)
+	return at + Vector2(0, hb.position.y - r.end.y)
 
 ## Invalidated by its only two inputs, the ledger and your position, so never stale.
 var _work_key: String = ""
 var _work_berths: Dictionary = {}
 
 ## The chart is where a contract becomes playable, drawn outside the visibility filter.
-## Told apart by form: a square for a quest, a diamond for the hellbender, brackets for YOU.
+## Told apart by form: a pin for a quest, a skull for the hellbender, brackets for YOU.
 ## Why: docs/why/MapChart.md#quest-markers
 func _draw_quests() -> void:
 	if not show_icons or Run.map.is_empty():
@@ -1641,12 +1687,9 @@ func _draw_quests() -> void:
 		var said := OptionTable.quest_name(n)
 		if said == "":
 			continue
-		# Backed in ink first, for the reason the party diamond is: the deep
-		# systems sit over the core, which is the brightest thing here.
-		var box := Rect2(c - Vector2(7, 7), Vector2(14, 14))
-		draw_rect(box.grow(1.0), _UNDER, false, 3.0)
-		draw_rect(box, gold, false, 1.0)
-		draw_string(UITheme.pixel_font(), c + Vector2(-46, -13), said,
+		# The sector's pin, standing on the star; its name above the pin's head.
+		ChartGlyphs.draw_mark(self, &"quest", ChartGlyphs.centre(c), gold, _UNDER)
+		draw_string(UITheme.pixel_font(), c + Vector2(-46, -17), said,
 			HORIZONTAL_ALIGNMENT_CENTER, 92, 8, gold)
 
 
@@ -1794,11 +1837,7 @@ func _nearest_berths(manufacturer: StringName, want: int) -> Array:
 			< b.gal.distance_squared_to(here.gal))
 	return found.slice(0, want) if found.size() > want else found
 
-func _diamond(c: Vector2, d: float, col: Color) -> void:
-	draw_polyline([c + Vector2(0, -d), c + Vector2(d, 0),
-		c + Vector2(0, d), c + Vector2(-d, 0), c + Vector2(0, -d)], col, 1.0)
-
-## Label only: two nested bracket boxes (here and in `Glyph.draw_glyph`) read as a fault.
+## YOU's brackets and label: one box at every zoom (the glyph's own second box read as a fault).
 ## Why: docs/why/MapChart.md#you-marker
 func _draw_you(p: Vector2, tiny: bool) -> void:
 	# (not while the zoom ladder closes on your star: a label grown with the
@@ -1807,24 +1846,10 @@ func _draw_you(p: Vector2, tiny: bool) -> void:
 		return
 	var flare := Color(UITheme.FLARE, UITheme.FLARE.a * ui_a)
 	var under := Color(_UNDER, _UNDER.a * ui_a)
-	# Brackets stay only where the glyph draws none: zoomed out, removing them hid the ship.
-	if tiny:
-		var b := 5.0
-		var o := p - Vector2(4, 4)
-		var w := 21.0
-		for corner in [
-				[Vector2(0, 0), Vector2(1, 1)],
-				[Vector2(w, 0), Vector2(-1, 1)],
-				[Vector2(0, w), Vector2(1, -1)],
-				[Vector2(w, w), Vector2(-1, -1)]]:
-			var k: Vector2 = o + corner[0]
-			var dd: Vector2 = corner[1]
-			var h := Rect2(k + Vector2(0, -1 if dd.y < 0 else 0), Vector2(b * dd.x, 1)).abs()
-			var v := Rect2(k + Vector2(-1 if dd.x < 0 else 0, 0), Vector2(1, b * dd.y)).abs()
-			draw_rect(h.grow(1.0), under, true)
-			draw_rect(v.grow(1.0), under, true)
-			draw_rect(h, flare, true)
-			draw_rect(v, flare, true)
+	# The brackets at every zoom now no glyph draws them (Jon, Nov 18, you:A): thick, a hot corner.
+	# Why: docs/why/MapChart.md#you-marker
+	ChartGlyphs.draw_you(self, p + Vector2(6, 6),
+		ChartGlyphs.YOU_HALF_OUT if tiny else ChartGlyphs.YOU_HALF_IN, flare, under)
 	# the label on a rim of the void, so it reads over the bulge too
 	for off: Vector2 in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]:
 		draw_string(UITheme.pixel_font(), p + Vector2(-14, 30) + off, "YOU",
