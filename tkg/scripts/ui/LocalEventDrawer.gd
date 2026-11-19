@@ -555,7 +555,16 @@ func choose(j: int) -> Dictionary:
 		return {}
 	_busy = true
 	choice = j
-	var r: Dictionary = await OptionResolve.take(node, opt, j)
+	var r: Dictionary
+	if not quiet and DeskScene.wants(choices[j]):
+		r = await _at_desk(o, j)
+		if r.is_empty():
+			# left the desk before the reading: nothing taken, the event still up
+			_busy = false
+			choice = -1
+			return r
+	else:
+		r = await OptionResolve.take(node, opt, j)
 	_busy = false
 	out = r
 	if not r.get("ok", false):
@@ -579,6 +588,18 @@ func choose(j: int) -> Dictionary:
 		return r
 	_show_result()
 	return r
+
+
+## A reading at your science desk (`DeskScene`): it takes choice `j` itself, once, on the tap.
+func _at_desk(o: Dictionary, j: int) -> Dictionary[String, Variant]:
+	var at := Vector2(-1, -1)
+	var hull := _ship.hull_on_screen() if _ship != null and is_instance_valid(_ship) else Rect2()
+	if hull.size.x > 0.0:
+		at = hull.get_center()
+	var n := node
+	var i := opt
+	var take := func() -> Dictionary: return await OptionResolve.take(n, i, j)
+	return await DeskScene.visit(screen if screen != null else self, String(o.get("title", "")).to_upper(), at, take)
 
 
 # --------------------------------------------------------------- on your ship

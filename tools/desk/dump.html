@@ -72,23 +72,18 @@ window.__bake = async function (id) {
   for (const [x, y] of P.SOLDER_LED) role[y * W + x] = 4;
   for (const [x, y] of P.MON_LED) role[y * W + x] = 5;
   for (const [x, y] of P.TIP) role[y * W + x] = 6;
-  // the glass (150 x 140): shade, the time each boot pixel is typed (-1 none), the title's blinking prompt
+  // the glass (150 x 140): shade, the time each boot pixel is typed (-1 none); the title card is the game's (DeskCard)
   const GW = 150, GH = 140, gl = new Float32Array(GW * GH * 4);
   for (let k = 0; k < GW * GH; k++) { gl[k*4] = P.glassShade[k]; gl[k*4+1] = -1; }
   for (const l of P.BOOT) l.px.forEach((pts, c) => { for (const [px, py] of pts) { const k = (l.y + py) * GW + l.x + px; gl[k*4+1] = l.t + c * .05; } });
-  const gb = new Float32Array(GW * GH * 3), gb2 = new Float32Array(GW * GH * 3);
-  DESK.titleCard(gb, 0.1, 0); DESK.titleCard(gb2, 15.2, 0);
-  const title = new Float32Array(GW * GH * 4); let nb = 0;
-  for (let k = 0; k < GW * GH; k++) { title[k*4] = gb[k*3]; title[k*4+1] = gb[k*3+1]; title[k*4+2] = gb[k*3+2];
-    if (gb[k*3] !== gb2[k*3] || gb[k*3+1] !== gb2[k*3+1] || gb[k*3+2] !== gb2[k*3+2]) { gl[k*4+2] = 1; nb++; } }
   const a2c = new Float32Array(N * 4); for (let i = 0; i < N; i++) { a2c[i*4] = P.A2c[i*3]; a2c[i*4+1] = P.A2c[i*3+1]; a2c[i*4+2] = P.A2c[i*3+2]; a2c[i*4+3] = 1; }
   const meta = { id, W, H, tubeScale: window.__tubeScale, TUBE: DESK.TUBE, TITLE: DESK.TITLE, ACT1: DESK.ACT1,
-    smallCount: P.SMALL.length, smallOver: over, blinkPx: nb, T: P.T, TIP: P.TIP, TIPC: P.TIPC, SMOKE: P.SMOKE, MUGS: P.MUGS,
+    smallCount: P.SMALL.length, smallOver: over, T: P.T, TIP: P.TIP, TIPC: P.TIPC, SMOKE: P.SMOKE, MUGS: P.MUGS,
     strings: P.strings.map(st => ({ x: st.x, y: st.y, k: st.k, side: st.side, f1: st.f1, f2: st.f2, p1: st.p1, p2: st.p2,
       dipEvery: st.dipEvery, dipOff: st.dipOff, jit: st.jit, stutter: !!st.stutter, n: st.px.length })),
     boot: P.BOOT.map(l => ({ s: l.s, sc: l.sc, x: l.x, y: l.y, t: l.t })),
     dust: P.DUSTc.motes, sky: { o: { W: P.SKYc.o.W, cx: P.SKYc.o.cx, cy: P.SKYc.o.cy, r: P.SKYc.o.r, idx: P.SKYc.o.idx }, S: P.SKYc.S, stars: P.SKYc.stars } };
-  return { meta, planes: { a2c: f32(a2c), fields: f32(fields), small_i: f32(si), small_v: f32(sv), px: f32(aux), role: f32(role), glass: f32(gl), title: f32(title) } };
+  return { meta, planes: { a2c: f32(a2c), fields: f32(fields), small_i: f32(si), small_v: f32(sv), px: f32(aux), role: f32(role), glass: f32(gl) } };
 };
 
 // The page's frame at scene time ts (real: the free clock, seconds since the start), as the shell draws it.

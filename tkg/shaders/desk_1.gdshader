@@ -9,9 +9,9 @@ render_mode unshaded;
 
 #include "res://shaders/desk_room.gdshaderinc"
 
-// the glass: shade, the boot text's type time (-1 none), the title's blinking prompt (150 x 140)
+// the glass: shade, the boot text's type time (-1 none) (150 x 140)
 uniform sampler2D glass_tex : filter_nearest, repeat_disable;
-// the title card (150 x 140, RGB 0..255)
+// the title card (150 x 140, RGB 0..255; alpha 1 on the prompt, which blinks): DeskCard.title
 uniform sampler2D title_tex : filter_nearest, repeat_disable;
 // the game's picture on the glass (150 x 140)
 uniform sampler2D screen_tex : filter_nearest, repeat_disable;
@@ -139,7 +139,7 @@ vec3 glass_gb(ivec2 q) {
 				float sh = 1.0 + 0.06 * max(0.0, 1.0 - abs(mod(tt * 22.0, float(GS.y + 30)) - 15.0 - fy) / 4.0);
 				c = texelFetch(title_tex, q, 0).rgb * sh;
 				float on = tt < 0.25 ? 1.0 : (int(floor((tt - 0.25) * 1.6)) % 2 == 0 ? 1.0 : 0.18);
-				if (on < 1.0 && gt.b > 0.5 && fy >= wy + 2.0) {
+				if (on < 1.0 && texelFetch(title_tex, q, 0).a > 0.5 && fy >= wy + 2.0) {
 					vec3 base0 = vec3(7.0, 13.0, 11.0);
 					c = base0 + (c - base0) * on;
 				}

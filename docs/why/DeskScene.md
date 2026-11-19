@@ -95,6 +95,41 @@ the four room scripts and `scenes/audio.js`.
 
   Each stage has its own diff against the page.
 
+## The hook
+
+`LocalEventDrawer.choose(j)` sends a reading (a science choice with `reads`) through `DeskScene.visit`
+when the switch is on and there is a screen. The visit calls `OptionResolve.take` itself, once, on
+the tap, and returns its result. `choose` then carries on as if it had called it: the result page
+on LOCAL, a fight, a death. Leaving before the tap takes nothing, and the event stays open.
+
+- **Act 1 is the page's.** LOCAL is held as a still taken at the click, pushed into your ship (it
+  glides to the middle as it grows, so the picture's edge never shows), then faded to black. Leaving
+  runs it back. Reduced motion holds the zoom.
+- **The 749 ms first frame** (the room's shaders compiling) is drawn at the click, behind the still.
+  The desk's clock moves at most 0.1 s a frame, so a long frame never skips the room's beats.
+- **The card waits for the tap.** On the page it held 2.5 s. `DeskOne.roll` is where it wipes into
+  the picture: endless until the tap, when the picture becomes the outcome. The room's own idle clocks
+  keep the page's times.
+- **A tap after the outcome, or Esc any time, leaves.** Before the tap, the card is what squeezes away.
+
+## Window size
+
+The game draws a 960x540 frame and the shell shows it at the biggest whole multiple that fits,
+through its glass (`GameShell._fit`, `screen_filter`). The desk's room is the page's 1920x1080
+canvas (5 px an art pixel), and 960x540 cannot hold it: an art pixel would be 2.5 px. So the shell
+shows the desk's canvas in the game's place, through the same glass at the same size, the filter
+told the canvas's own texels per screen pixel (`GameShell.cover`). The bands, the colour help, the
+gamma and the screen look all apply as they do on every other screen. At each window size:
+
+- **1920x1080 and 2560x1440 (2x):** the page's canvas 1:1, exact (bands round 2560x1440, as for the
+  game).
+- **960x540, 1280x720, 1600x900 (1x):** the canvas halved, each screen pixel the average of four.
+  The art reads as on the page at half size; the CRT's scanlines, one dark row in five, soften to a
+  faint stripe.
+- **2880x1620 (3x):** 1.5 canvas pixels a screen pixel, through the filter's sharp bilinear, as the
+  game takes any finer picture.
+- **3840x2160 (4x):** each canvas pixel 2x2, exact.
+
 ## Sound
 
 The page's mix is kept as it is (`scenes/audio.js`, Jon's picks Nov 17 to 19). The bed, the lamp

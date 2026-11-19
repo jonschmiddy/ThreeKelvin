@@ -38,6 +38,9 @@ var tip: Array = []
 var tipc := Vector2i(327, 171)
 var smoke := {}
 var leaving := false
+## When the title card wipes into the picture (u). The page's ROLL; in the game the card holds
+## until the tap (`hold_title`), and `release` sets it.
+var roll := ROLL
 ## The lamp's level when the leave began (it never jumps up on the way out).
 var _lv_hold := 1.0
 var _lv_k := 1.0
@@ -69,6 +72,16 @@ func _init(m: Dictionary) -> void:
 	sky_img = Image.create(PORT_BOX.size.x, PORT_BOX.size.y, false, Image.FORMAT_RGBA8)
 	dust_img = Image.create(DeskFx.W, DeskFx.H, false, Image.FORMAT_RGF)
 	noise_img = Image.create(GLASS.size.x, GLASS.size.y, false, Image.FORMAT_RF)
+
+
+## The game's card: it waits for a tap instead of the page's 2.5 s.
+func hold_title() -> void:
+	roll = INF
+
+
+## The tap: the card wipes into the picture now (never before it is up).
+func release(u: float) -> void:
+	roll = maxf(u, float(T.title))
 
 
 ## Leaving, the lamp holds its full living light until the clock reaches its click, then goes out
@@ -183,10 +196,10 @@ func _screen_level(u: float) -> float:
 		return lerpf(0.5, 0.2, DeskFx.ease_s((u - T.open) / 0.3))
 	if u < T.title:
 		return 0.2
-	if u < ROLL:
+	if u < roll:
 		return 0.4
-	if u < IDLE:
-		return lerpf(0.35, 0.7, DeskFx.ease_s((u - ROLL) / 0.5))
+	if u < roll + TITLE_WIPE + 0.5:
+		return lerpf(0.35, 0.7, DeskFx.ease_s((u - roll) / 0.5))
 	return 0.62
 
 
@@ -345,7 +358,7 @@ func frame(ts: float, real: float, is_leaving: bool) -> Dictionary[StringName, V
 		n += 1
 	var scr := _screen_level(u)
 	var crt := _crt(u)
-	var boot_tint := not leaving and u >= T.boot and u < ROLL
+	var boot_tint := not leaving and u >= T.boot and u < roll
 	var mc := Vector3(0.45, 1.0, 0.7) if boot_tint else Vector3(0.55, 1.0, 0.89)
 	var st_l := DeskFx.jround(steady_l * fade * 24.0) / 24.0
 	var st_s := DeskFx.jround(scr * 32.0) / 32.0
@@ -400,8 +413,8 @@ func _glass(u: float, crt: Dictionary, o: Dictionary[StringName, Variant]) -> vo
 	var gl: Dictionary = crt[&"gl"]
 	var roll_off := 0
 	var roll_gain := 1.0
-	if not leaving and u >= ROLL and u < IDLE:
-		roll_gain = 1.0 + 0.15 * (1.0 - (u - ROLL) / (IDLE - ROLL))
+	if not leaving and u >= roll and u < roll + TITLE_WIPE + 0.5:
+		roll_gain = 1.0 + 0.15 * (1.0 - (u - roll) / (TITLE_WIPE + 0.5))
 	if not gl.is_empty() and gl[&"kind"] == &"hold":
 		roll_off = 2 if float(gl[&"a"]) < 0.1 else (-1 if float(gl[&"a"]) < 0.15 else 1)
 	var phase := 0
@@ -409,7 +422,7 @@ func _glass(u: float, crt: Dictionary, o: Dictionary[StringName, Variant]) -> vo
 	var p_line := 0.0
 	var p_sq := 0.0
 	if not leaving:
-		phase = 0 if u < T.dot else (1 if u < T.line else (2 if u < T.open else (3 if u < T.boot else (4 if u < T.title else (7 if u < ROLL else 5)))))
+		phase = 0 if u < T.dot else (1 if u < T.line else (2 if u < T.open else (3 if u < T.boot else (4 if u < T.title else (7 if u < roll else 5)))))
 		p_dot = DeskFx.ease_s((u - T.dot) / 0.18)
 		p_line = DeskFx.ease_s((u - T.line) / (T.open - T.line))
 	elif u >= OFF.pic:
@@ -448,6 +461,6 @@ func _glass(u: float, crt: Dictionary, o: Dictionary[StringName, Variant]) -> vo
 	o.g_b = float(crt[&"b"]) if phase >= 1 else 1.0
 	o.g_leaving = leaving
 	o.g_cursor = Vector3(1.0 if cursor else 0.0, int(last.x) + String(last.s).length() * 4 + 1, int(last.y))
-	var title_on := not leaving and u >= T.title and u < ROLL + TITLE_WIPE
-	o.g_title = Vector3(1.0 if title_on else 0.0, u - T.title, 0.0 if u < ROLL else (u - ROLL) / TITLE_WIPE)
+	var title_on := not leaving and u >= T.title and u < roll + TITLE_WIPE
+	o.g_title = Vector3(1.0 if title_on else 0.0, u - T.title, 0.0 if u < roll else (u - roll) / TITLE_WIPE)
 	o.g_scan = u >= (OFF.dot if leaving else T.dot)

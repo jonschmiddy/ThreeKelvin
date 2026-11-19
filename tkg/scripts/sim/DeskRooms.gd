@@ -80,7 +80,8 @@ func _play(secs: float) -> void:
 	var d := DeskScene.new()
 	d.size = get_viewport().get_visible_rect().size
 	layer.add_child(d)
-	if not d.open(DeskScene.room_for(null)):
+	var take := func() -> Dictionary: return {ok = true, text = "A test reading: nothing is taken."}
+	if not d.open(DeskScene.room_for(null), "", Vector2(-1, -1), take):
 		_tree.quit(1)
 		return
 	var ms: Array[float] = []

@@ -32,6 +32,9 @@ var _pointer: Vector2 = Vector2(-1, -1)
 ## this whole mechanism exists to remove. Read by `-- warptest`.
 var _slip: float = 0.0
 var _curve: float = 0.0
+## A picture drawn at a finer size than the game's frame, shown through the same glass in its
+## place (the science desk's 1920x1080 canvas, `cover`), or null for the game.
+var _cover: Texture2D = null
 var _overscan: float = 1.0
 
 func _ready() -> void:
@@ -231,8 +234,30 @@ func _fit() -> void:
 		_glass.position = _home
 		_fit_bands(win, px)
 	if _mat != null:
-		_mat.set_shader_parameter(&"out_scale", float(k))
+		_mat.set_shader_parameter(&"out_scale", _out_scale(k))
 	refresh()
+
+## The filter's texels per screen pixel: the game's k, or the cover's (its texture is finer).
+func _out_scale(k: int) -> float:
+	return float(k) * float(BASE.x) / float(_cover.get_width()) if _cover != null else float(k)
+
+
+## SHOW `tex` IN THE GAME'S PLACE, through the same glass at the same whole-number size, its own
+## texels per pixel (the desk's canvas is 1920 wide: exact at 2x, sharp-bilinear at 3x, and
+## averaged down at 1x as any finer picture is). null gives the game back.
+## Why: docs/why/DeskScene.md#window-size
+static func cover(tex: Texture2D) -> void:
+	if instance == null or instance._glass == null:
+		return
+	instance._cover = tex
+	instance._glass.texture = tex if tex != null else instance.view.get_texture()
+	instance._fit()
+
+
+## Whether the shell is showing a cover now.
+static func covered() -> bool:
+	return instance != null and instance._cover != null
+
 
 ## Black is only where the glass is not; the root clear stays navy, so the bands are drawn.
 ## Why: docs/why/GameShell.md#letterbox-bands
@@ -271,7 +296,7 @@ func _apply() -> void:
 	_mat.set_shader_parameter(&"contrast", 1.22 if d.high_contrast else 1.0)
 	_mat.set_shader_parameter(&"saturation", 1.12 if d.high_contrast else 1.0)
 	_mat.set_shader_parameter(&"gamma", d.gamma_value())
-	_mat.set_shader_parameter(&"tex_size", Vector2(BASE))
+	_mat.set_shader_parameter(&"tex_size", Vector2(_cover.get_size()) if _cover != null else Vector2(BASE))
 	# The tube, in four strengths. The curve is real now: it is computed per
 	# screen pixel, so it bends the picture without softening it.
 	var curve := 0.0

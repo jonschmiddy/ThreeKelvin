@@ -18,6 +18,7 @@ func run(tree: SceneTree) -> void:
 	await _audio_node()
 	_bake()
 	_beats()
+	_cards()
 	verdict("desktest")
 	_tree.quit(1 if _fails > 0 else 0)
 
@@ -202,3 +203,33 @@ func _beats() -> void:
 	_ok("leaving, the lamp burns full down to its click", held)
 	_ok("then goes out within its afterglow (dark at scene %.2f, the click at %.2f)" % [out_at, DeskOne.LAMP_AT],
 		out_at < DeskOne.LAMP_AT and out_at >= DeskOne.LAMP_AT - DeskOne.AFTER - 0.05)
+
+
+## The game's card and outcome, the held card, and which room a hull gets.
+func _cards() -> void:
+	var page := DeskCard.title("")
+	var named := DeskCard.title("THE FIRST LOOK")
+	var blink := 0
+	for y in DeskCard.H:
+		for x in DeskCard.W:
+			blink += 1 if page.get_pixel(x, y).a > 0.5 else 0
+	_ok("the page's card has its blinking prompt (%d px)" % blink, blink > 40)
+	_ok("a site's card names it (the picture differs from the page's)", named.get_pixel(75, 64) != page.get_pixel(75, 64) or named.get_data() != page.get_data())
+	var lines := DeskCard.wrap_words("Your probe sends from the plain an hour before hers lands.", 35)
+	_ok("an outcome wraps to the glass, 35 to a line (%d lines)" % lines.size(), lines.size() == 2 and lines.all(func(l: String) -> bool: return l.length() <= 35))
+	var life := DeskOne.new(DeskRoom.load_meta("desk_1"))
+	life.hold_title()
+	var held: int = life.frame(DeskTimeline.A + 30.0, 40.0, false)[&"g_phase"]
+	_ok("held, the card stays up long past the page's 2.5 s (phase %d)" % held, held == 7)
+	life.release(30.0)
+	var wiping: Vector3 = life.frame(DeskTimeline.A + 30.2, 40.2, false)[&"g_title"]
+	var after: int = life.frame(DeskTimeline.A + 31.0, 41.0, false)[&"g_phase"]
+	_ok("the tap wipes it into the picture (wipe %.2f, then phase %d)" % [wiping.z, after], wiping.x > 0.5 and wiping.z > 0.0 and after == 5)
+	var h := HullData.new()
+	h.manufacturer = &"korvan"
+	h.weight = HullData.Weight.MEDIUM
+	var rooms := [DeskScene.room_for(h)]
+	h.weight = HullData.Weight.LIGHT
+	rooms.append(DeskScene.room_for(h))
+	_ok("a medium hull gets DESK 1; a room not yet built falls back to it (%s)" % str(rooms), rooms == ["desk_1", "desk_1"])
+	_ok("the desk is for readings only", not DeskScene.wants({label = "Sell your place"}))

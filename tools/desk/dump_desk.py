@@ -5,7 +5,7 @@
         384 x 216 unless named): a2c (RGBA, the art with its keyboard and settled dust), fields (RGBA:
         lamp, screen, porthole), small_i / small_v (RGBA: up to four string bulbs a pixel, index + 1 and
         value), px (RGBA: tone gain, occlusion, room vignette, skip; not "aux", a device name on Windows), role (R: DeskRoom.ROLE_*),
-        glass (150 x 140 RGBA: shade, boot type time, title blink), title (150 x 140 RGBA: the card)
+        glass (150 x 140 RGBA: shade, boot type time)
     uv run --with playwright python tools/desk/dump_desk.py frames desk_1 OUTDIR
         writes the page's own 1920 x 1080 frames at FRAMES' times and manifest.json, which
         `-- sheet=DeskRooms frames=OUTDIR/manifest.json` reads to draw the game's frames at the same times
@@ -121,8 +121,8 @@ def bake(room):
         print("%-8s %8d bytes raw, %8d gz" % (name, len(raw), (out / (name + ".bin.gz")).stat().st_size))
     meta = got["meta"]
     (out / "meta.json").write_text(json.dumps(meta, separators=(",", ":")), encoding="utf-8")
-    print("meta: %d small lights (%d pixel overflows past four), %d blink px, tube scale %.6f"
-          % (meta["smallCount"], meta["smallOver"], meta["blinkPx"], meta["tubeScale"]))
+    print("meta: %d small lights (%d pixel overflows past four), tube scale %.6f"
+          % (meta["smallCount"], meta["smallOver"], meta["tubeScale"]))
     if meta["smallOver"]:
         raise SystemExit("more than four string bulbs light one pixel: widen small_i/small_v")
 

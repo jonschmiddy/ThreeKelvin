@@ -66,7 +66,7 @@ func setup(room: String) -> bool:
 		_room_mat.set_shader_parameter(n + "_tex", plane(room, n, ART, f))
 	_room_mat.set_shader_parameter(&"role_tex", plane(room, "role", ART, Image.FORMAT_RF))
 	_room_mat.set_shader_parameter(&"glass_tex", plane(room, "glass", GLASS, f))
-	_room_mat.set_shader_parameter(&"title_tex", plane(room, "title", GLASS, f))
+	set_card("")
 	_room_mat.set_shader_parameter(&"screen_tex", SCREEN)
 	_steam_tex = ImageTexture.create_from_image(life.steam_img)
 	_sky_tex = ImageTexture.create_from_image(life.sky_img)
@@ -107,6 +107,16 @@ func _viewport(size: Vector2i, mat: ShaderMaterial) -> SubViewport:
 	vp.add_child(r)
 	add_child(vp)
 	return vp
+
+
+## The title card naming the site ("": the page's own).
+func set_card(site: String) -> void:
+	_room_mat.set_shader_parameter(&"title_tex", ImageTexture.create_from_image(DeskCard.title(site)))
+
+
+## What the picture phase shows on the glass (150 x 140).
+func set_screen(img: Image) -> void:
+	_room_mat.set_shader_parameter(&"screen_tex", ImageTexture.create_from_image(img))
 
 
 ## Draw the room at scene time `ts` (backwards while leaving) on the free clock `real`.

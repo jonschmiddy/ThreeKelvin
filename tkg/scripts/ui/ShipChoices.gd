@@ -377,6 +377,12 @@ static func covered(d: LocalEventDrawer) -> bool:
 	return cut is CutawayView and is_instance_valid(cut)
 
 
+## Your hull's box in the game frame's pixels (the science desk pushes into it), or empty.
+func hull_on_screen() -> Rect2:
+	var r := _hull_now()
+	return Rect2(get_global_transform() * r.position, r.size) if r.size.x > 0.0 else Rect2()
+
+
 func _hull_now() -> Rect2:
 	var view := _view()
 	var sv := view.ship_view() if view != null else null
