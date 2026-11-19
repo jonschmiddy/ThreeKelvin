@@ -124,3 +124,18 @@ before the ask was read the cutter died and she opened a lancer and a hulk
 here. The answer seats it in the newer fight, `begin` builds that one, and
 that is the one SAVE & EXIT must restart, not the cutter that had ended.
 ```
+
+## Exit frame draw
+
+Inside `_menu()`, above `_redraw_charts(_tree.root)`:
+
+```text
+THE EXIT'S OWN FRAME. SAVE & EXIT and ABANDON drop the run (`Run.hull =
+null`) inside the menu's signal, and the frame's draws come after it. A
+chart drawn then reads a run with no hull: the escape menu's inset chart,
+queued for freeing but still shown, drew once its galaxy had turned half a
+pixel. It turns on the clock, so alone the tick almost never fell in that
+one frame; under the gate's twelve jobs a frame is long enough that it did,
+twice (Nov 19: 685 and 683 errors from MapChart._draw). Every chart is asked
+to redraw here so the case is the same on any machine.
+```

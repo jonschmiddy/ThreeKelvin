@@ -141,21 +141,32 @@ func _hint() -> String:
 ## Drawn to the control's own size, as a 1x3 gun is the same icon at another footprint.
 ## Why: docs/why/ModuleIcon.md#draw-size
 func _draw() -> void:
+	var hi := hold_art(module, plate_scale)
 	if bare and module != null:
 		var mf: ManufacturerData = DB.manufacturers.get(module.manufacturer)
 		draw_body(self, module, Rect2(Vector2.ZERO, size),
 			mf.colour if mf != null else UITheme.COLD, Vector2i.ZERO, false,
-			plate_scale)
+			plate_scale, hi)
 		return
 	draw_plate(self, module, Rect2(Vector2.ZERO, size), Vector2i.ZERO,
-		false, plate_scale)
+		false, plate_scale, hi)
+
+
+## The hold's own picture, only where it lands whole: 40 px a cell at an even scale, drawn at
+## scale / 2. Null elsewhere (shelf, hull), which keeps `sprite`. Why: docs/why/ModuleIcon.md#hold-art
+static func hold_art(m: ModuleData, scale: float) -> Texture2D:
+	if m == null or m.hold_sprite == null:
+		return null
+	if scale < 2.0 or scale != roundf(scale) or int(scale) % 2 != 0:
+		return null
+	return m.hold_sprite
 
 ## Static and rect-taking so the hull draws the identical part at the identical size.
 ## `cells` stops the hull standing a gun on end just because the hold turned it.
 ## Why: docs/why/ModuleIcon.md#drawing-a-part
 static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 		cells := Vector2i.ZERO, mirror: bool = false,
-		scale: float = HOLD_K) -> void:
+		scale: float = HOLD_K, hi: Texture2D = null) -> void:
 	if m == null:
 		return
 	var manufacturer: ManufacturerData = DB.manufacturers.get(m.manufacturer)
@@ -171,7 +182,7 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 	# Why: docs/why/ModuleIcon.md#silhouette-size
 	var f := m.footprint() if cells == Vector2i.ZERO else cells
 	# The art is the rarity, not the manufacturer, which the field already says.
-	draw_body(ci, m, r, mark, f, mirror, scale)
+	draw_body(ci, m, r, mark, f, mirror, scale, hi)
 
 	# What goes OVER the art: the edge, and the AUGMENTED mark, from one list (`plate_ink`).
 	for q in plate_ink(m, r, scale):
@@ -222,10 +233,15 @@ static func augment_mark(r: Rect2, scale: float = HOLD_K) -> Array:
 ## One door for hull and hold to choose sprite or silhouette, so the two cannot drift.
 ## Why: docs/why/ModuleIcon.md#part-drawing
 static func draw_body(ci: CanvasItem, m: ModuleData, box: Rect2, col: Color,
-		cells := Vector2i.ZERO, mirror: bool = false, scale: float = 1.0) -> void:
+		cells := Vector2i.ZERO, mirror: bool = false, scale: float = 1.0,
+		hi: Texture2D = null) -> void:
 	if m == null:
 		return
 	var f := m.footprint() if cells == Vector2i.ZERO else cells
+	# `hi` is the hold's 40 px a cell art (`hold_art`): half the scale, the same size on screen.
+	if hi != null:
+		draw_sprite(ci, hi, box, mirror, scale * 0.5, sprite_turn(hi, f))
+		return
 	if m.sprite != null:
 		draw_sprite(ci, m.sprite, box, mirror, scale, sprite_turn(m.sprite, f))
 		return

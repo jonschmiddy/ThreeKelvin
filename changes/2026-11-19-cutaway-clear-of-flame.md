@@ -1,0 +1,1 @@
+- **Fixed** — in the cutaway, a part on a mount at the back of the ship no longer lifts out over the engine flame; it goes above or below the hull instead.

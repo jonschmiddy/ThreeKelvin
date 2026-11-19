@@ -100,8 +100,11 @@ func run() -> void:
 	print("  enemies  %d drawn, %d still procedural (canvas %dx%d)"
 		% [e["drawn"], e["missing"], ENEMY_CANVAS.x, ENEMY_CANVAS.y])
 	print("  places   %d drawn, %d still procedural" % [p["drawn"], p["missing"]])
+	var hold_bad := _hold_art()
 	var lay := _shop_rooms()
 	_ok("every module sprite that exists sits within a cell of its box", m_wrong == 0)
+	_ok("every hold picture is its cells x %d exactly, names a module, and its ink clears the "
+		% HoldGrid.CELL + "plate's edge", hold_bad == 0)
 	_ok("every card illustration that exists is the size the window wants",
 		c_wrong == 0)
 	_ok("every enemy sprite that exists fits its canvas", int(e["wrong"]) == 0)
@@ -109,6 +112,42 @@ func run() -> void:
 	_ok("every shop and Exchange room is installed whole: its pictures load, its light "
 		+ "reads, every level has one", int(lay["bad"]) == 0)
 	verdict("artcheck")
+
+
+## Whatever is in `hold/` is checked, so a dropped-in file is covered: the hold draws it 1:1.
+## Why: docs/why/ModuleIcon.md#hold-art
+func _hold_art() -> int:
+	var bad := 0
+	var dir := "res://art/sprites/modules/hold"
+	var ids: Array[String] = []
+	for f in DirAccess.get_files_at(dir):
+		var n := (f as String).trim_suffix(".import").trim_suffix(".remap")
+		if n.ends_with(".png") and not ids.has(n.get_basename()):
+			ids.append(n.get_basename())
+	ids.sort()
+	print("
+=== HOLD ART (%d) ===" % ids.size())
+	for id in ids:
+		var m: ModuleData = DB.modules.get(StringName(id))
+		var notes: Array[String] = []
+		if m == null:
+			notes.append("NO SUCH MODULE")
+		elif m.hold_sprite == null:
+			notes.append("NOT LOADED")
+		else:
+			var want := Vector2i(maxi(1, m.size.x), maxi(1, m.size.y)) * HoldGrid.CELL
+			var img := m.hold_sprite.get_image()
+			if img.get_size() != want:
+				notes.append("is %dx%d, wants %dx%d" % [img.get_width(), img.get_height(),
+					want.x, want.y])
+			var used := img.get_used_rect()
+			if used.size == Vector2i.ZERO:
+				notes.append("EMPTY")
+			elif not Rect2i(Vector2i.ONE, img.get_size() - Vector2i(2, 2)).encloses(used):
+				notes.append("ink %s under the edge" % used)
+		bad += 0 if notes.is_empty() else 1
+		print("  %-22s %s" % [id, "ok" if notes.is_empty() else ", ".join(notes)])
+	return bad
 
 
 ## Shop room data fails silently with no designed fallback, so each fault is counted.

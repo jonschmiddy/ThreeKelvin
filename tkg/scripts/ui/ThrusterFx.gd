@@ -78,6 +78,7 @@ const CLUMPS := [
 var particle_us := 0
 var particle_px := 0
 var _tails := {}
+var _reach := {}                  ## thrust -> Array[Rect2], see `reach`
 ## Hull pixels a front strip always covers (cleared from `_solid`), so the half
 ## sheet can clear the same pixels at half size.
 var _unblocked := PackedVector2Array()
@@ -903,6 +904,7 @@ func _halve(small: Image) -> void:
 				_solid[int(c2.y) * _w + int(c2.x)] = 0
 	_cache.clear()
 	_tails.clear()
+	_reach.clear()
 
 
 static func _half_pts(pts: PackedVector2Array) -> PackedVector2Array:
@@ -1016,33 +1018,12 @@ func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 ## Pure, so `build_async` can run it off the main thread. Textures are made on the main thread.
 func _build(n: int, L: int, fr: int) -> Dictionary:
 	var s: Dictionary = SHAPE[look]
-	var nz: Dictionary = nozzles[n]
-	var dir: int = nz.dir
+	var dir: int = (nozzles[n] as Dictionary).dir
 	var expo: float = s.expo
 	var fp := _frame(n, fr)
-	var Lf := maxi(2, L + int(fp.dL))
-	# What lights: streams {pts, L, spk, gain} and fixed cells {x, y, v}.
 	var streams: Array = []
 	var fills: Array = []
-	if nz.has("bell"):
-		_bell_light(nz.bell, L, Lf, float(s.spread), streams, fills, fp)
-	else:
-		streams.append({pts = nz.pts, L = Lf, spk = float(s.spread) * float(nz.get("widen", 1.0)),
-			behind = bool(nz.get("behind", false)), skip = int(nz.get("over_span", 0))})
-	# Embers: one spawned this frame or either of the two before, carried a
-	# further 2 px a frame and dimmer each time.
-	if not streams.is_empty():
-		var st0: Dictionary = streams[-1]
-		var src: PackedVector2Array = st0.pts
-		for j in 3:
-			var ep: Dictionary = _frame(n, posmod(fr - j, loop_n)).ember
-			if ep.is_empty() or src.is_empty():
-				continue
-			var row := clampi(int(float(ep.row) * float(src.size())), 0, src.size() - 1)
-			var e0 := src[row]
-			var reach := int(st0.L) + int(ep.past) + 2 * j
-			var ev: float = [0.6, 0.4, 0.2][j]
-			fills.append({x = int(e0.x) + reach * dir, y = int(e0.y), v = ev, air = true})
+	_lights(n, L, fr, streams, fills)
 	var lo := Vector2i(1 << 20, 1 << 20)
 	var hi := Vector2i(-(1 << 20), -(1 << 20))
 	for st in streams:
@@ -1071,6 +1052,75 @@ func _build(n: int, L: int, fr: int) -> Dictionary:
 		_stream(buf, W, Hh, at, st2.pts, int(st2.L), float(st2.spk), expo, dir,
 			float(st2.get("gain", 1.0)), fp, bool(st2.get("behind", false)), int(st2.get("skip", 0)))
 	return _quantize(buf, W, Hh, at, s)
+
+
+## What lights engine n at length L, frame fr: streams {pts, L, spk, gain} and fixed cells {x, y, v}.
+func _lights(n: int, L: int, fr: int, streams: Array, fills: Array) -> void:
+	var s: Dictionary = SHAPE[look]
+	var nz: Dictionary = nozzles[n]
+	var dir: int = nz.dir
+	var fp := _frame(n, fr)
+	var Lf := maxi(2, L + int(fp.dL))
+	if nz.has("bell"):
+		_bell_light(nz.bell, L, Lf, float(s.spread), streams, fills, fp)
+	else:
+		streams.append({pts = nz.pts, L = Lf, spk = float(s.spread) * float(nz.get("widen", 1.0)),
+			behind = bool(nz.get("behind", false)), skip = int(nz.get("over_span", 0))})
+	# Embers: one spawned this frame or either of the two before, carried a
+	# further 2 px a frame and dimmer each time.
+	if streams.is_empty():
+		return
+	var st0: Dictionary = streams[-1]
+	var src: PackedVector2Array = st0.pts
+	for j in 3:
+		var ep: Dictionary = _frame(n, posmod(fr - j, loop_n)).ember
+		if ep.is_empty() or src.is_empty():
+			continue
+		var row := clampi(int(float(ep.row) * float(src.size())), 0, src.size() - 1)
+		var e0 := src[row]
+		var reach := int(st0.L) + int(ep.past) + 2 * j
+		var ev: float = [0.6, 0.4, 0.2][j]
+		fills.append({x = int(e0.x) + reach * dir, y = int(e0.y), v = ev, air = true})
+
+
+## Every pixel engine n lights at this thrust in any loop frame, sparks too (canvas px), a box per engine.
+## Why: docs/why/ThrusterFx.md#flame-reach
+func reach(thrust: int) -> Array[Rect2]:
+	if _reach.has(thrust):
+		return _reach[thrust]
+	var out: Array[Rect2] = []
+	var s: Dictionary = SHAPE[look]
+	for n in nozzles.size():
+		var box := Rect2()
+		for f in frames():
+			var streams: Array = []
+			var fills: Array = []
+			_lights(n, nozzle_length(n, thrust), f, streams, fills)
+			var fp := _frame(n, f)
+			for st in streams:
+				var r := _stream_reach(st.pts, int(st.L), float(st.spk), float(s.expo), int((nozzles[n] as Dictionary).dir),
+					float(st.get("gain", 1.0)), fp, bool(st.get("behind", false)), int(st.get("skip", 0)))
+				if r.has_area():
+					box = r if not box.has_area() else box.merge(r)
+			for c in fills:
+				if float(c.v) > float(s.thr[3]):
+					var cr := Rect2(float(c.x), float(c.y), 1.0, 1.0)
+					box = cr if not box.has_area() else box.merge(cr)
+		var tail := _tail(n, thrust)
+		var pts: PackedVector2Array = tail.pts
+		if particles and not pts.is_empty():
+			# (a spark flies 1.05 L + 15 px at most, 5 rows off its row: `particles_at`)
+			var tb := Rect2(pts[0], Vector2.ONE)
+			for p in pts:
+				tb = tb.merge(Rect2(p, Vector2.ONE))
+			var run := ceilf(1.05 * float(tail.L)) + 15.0
+			var back := int(tail.dir) < 0
+			tb = tb.grow_individual(run if back else 0.0, 5.0, 0.0 if back else run, 5.0)
+			box = tb if not box.has_area() else box.merge(tb)
+		if box.has_area():
+			out.append(box)
+	_reach[thrust] = out
+	return out
 
 
 ## Stateless particles drawn from a seed, so any t draws alone and a film repeats exactly.
@@ -1199,50 +1249,9 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 	# The taper: off-middle rows run shorter and dimmer so the flame ends in a rounded tip.
 	var mid_y := float(lo_y + hi_y) * 0.5
 	var half := float(hi_y - lo_y) * 0.5 + 0.5
-	# Tongues: each row's own smoothed length, so the edge is ragged and not noise.
 	var cnt := em.size()
-	var tongue := PackedFloat32Array()
-	tongue.resize(cnt)
-	tongue.fill(1.0)
+	var tongue := _tongues(cnt, fp)
 	var shift := int(fp.get("shift", 0))
-	if int(fp.get("rows", 0)) != 0 and rag > 0.0:
-		var rr := RandomNumberGenerator.new()
-		rr.seed = int(fp.rows)
-		var raw := PackedFloat32Array()
-		raw.resize(cnt)
-		for i in cnt:
-			raw[i] = rr.randf_range(-0.24, 0.06) * rag
-		for i2 in cnt:
-			var a := raw[maxi(0, i2 - 1)]
-			var c := raw[mini(cnt - 1, i2 + 1)]
-			tongue[i2] = maxf(0.45, 1.0 + (a + 2.0 * raw[i2] + c) * 0.25)
-		if dynamic:
-			for i3 in cnt:
-				raw[i3] = rr.randf_range(-0.32, 0.1) * rag
-			for i4 in cnt:
-				var a2 := raw[maxi(0, i4 - 1)]
-				var c2 := raw[mini(cnt - 1, i4 + 1)]
-				tongue[i4] = maxf(0.4, 1.0 + (a2 + 2.0 * raw[i4] + c2) * 0.25)
-		var licks := 1 + (1 if rr.randf() < 0.5 * rag else 0)
-		if dynamic:
-			licks = rr.randi_range(2, 4)
-			# A FORKED TIP: two rows licking out with a short one between.
-			if cnt >= 3 and rr.randf() < 0.35:
-				var fk := rr.randi_range(0, cnt - 3)
-				var fx2 := rr.randf_range(0.3, 0.55) * rag
-				tongue[fk] += fx2
-				tongue[fk + 2] += fx2 * 0.9
-				tongue[fk + 1] = maxf(0.4, tongue[fk + 1] - 0.25)
-		for k in licks:
-			var at_row := rr.randi_range(0, cnt - 1)
-			var extra := rr.randf_range(0.18, 0.38) * rag
-			if dynamic:
-				extra = rr.randf_range(0.3, 0.65) * rag
-			tongue[at_row] += extra
-			if at_row > 0:
-				tongue[at_row - 1] += extra * 0.5
-			if at_row < cnt - 1:
-				tongue[at_row + 1] += extra * 0.5
 	var wob_ph := float(fp.get("wob", -1.0))
 	for idx in cnt:
 		var e2 := em[idx]
@@ -1291,6 +1300,99 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 				var yy := cy - at.y
 				if xx >= 0 and yy >= 0 and xx < W and yy < Hh:
 					buf[yy * W + xx] = maxf(buf[yy * W + xx], v)
+
+
+## THE SAME LIGHT AS `_stream`, as a box: per row and step, how far up and down
+## it stays over the faintest band, worked out rather than drawn (canvas px).
+## Why: docs/why/ThrusterFx.md#flame-reach
+func _stream_reach(em: PackedVector2Array, L: int, spk: float, expo: float, dir: int, gain: float,
+		fp: Dictionary, behind: bool, skip: int) -> Rect2:
+	if em.is_empty():
+		return Rect2()
+	var thr: float = float((SHAPE[look] as Dictionary).thr[3])
+	var lo_y := 1 << 20
+	var hi_y := -(1 << 20)
+	for e in em:
+		lo_y = mini(lo_y, int(e.y))
+		hi_y = maxi(hi_y, int(e.y))
+	var mid_y := float(lo_y + hi_y) * 0.5
+	var half := float(hi_y - lo_y) * 0.5 + 0.5
+	var tongue := _tongues(em.size(), fp)
+	var shift := int(fp.get("shift", 0))
+	var wob_ph := float(fp.get("wob", -1.0))
+	var box := Rect2()
+	for idx in em.size():
+		var ex := int(em[idx].x)
+		var ey := int(em[idx].y)
+		var u := 0.0 if skip > 0 else (float(ey) - mid_y) / (half + 0.5)
+		var Lr := maxi(1, int(round(float(L) * (1.0 - 0.5 * u * u) * tongue[idx])))
+		var dim := 1.0 - 0.25 * u * u
+		var seen_air := false
+		for d in Lr + 1:
+			if not (behind and d > 0) and _is_solid(ex + d * dir, ey):
+				if seen_air:
+					break
+			else:
+				seen_air = true
+			var de := clampi(d + shift, 0, Lr) if d > 0 else 0
+			var fall := gain * dim * pow(1.0 - float(de) / float(Lr + 1), expo)
+			if skip > 0 and Lr > skip:
+				fall = gain * dim * pow(1.0 - float(maxi(0, de - skip)) / float(Lr - skip + 1), expo)
+			if fall <= thr:
+				continue
+			var spread := int(float(d) * spk) + (1 if d >= 2 else 0)
+			# (the widest row still over the faintest band, then the wobble's pixel)
+			var k := mini(spread, int(ceil(float(spread + 1) * (1.0 - thr / fall))) - 1)
+			var wy := int(round(sin(float(d) * 0.22 + wob_ph))) if wob_ph >= 0.0 and d > 4 else 0
+			var r := Rect2(float(ex + d * dir), float(ey + wy - k), 1.0, float(2 * k + 1))
+			box = r if not box.has_area() else box.merge(r)
+	return box
+
+
+## Tongues: each row's own smoothed length, so the edge is ragged and not noise.
+func _tongues(cnt: int, fp: Dictionary) -> PackedFloat32Array:
+	var tongue := PackedFloat32Array()
+	tongue.resize(cnt)
+	tongue.fill(1.0)
+	if int(fp.get("rows", 0)) != 0 and rag > 0.0:
+		var rr := RandomNumberGenerator.new()
+		rr.seed = int(fp.rows)
+		var raw := PackedFloat32Array()
+		raw.resize(cnt)
+		for i in cnt:
+			raw[i] = rr.randf_range(-0.24, 0.06) * rag
+		for i2 in cnt:
+			var a := raw[maxi(0, i2 - 1)]
+			var c := raw[mini(cnt - 1, i2 + 1)]
+			tongue[i2] = maxf(0.45, 1.0 + (a + 2.0 * raw[i2] + c) * 0.25)
+		if dynamic:
+			for i3 in cnt:
+				raw[i3] = rr.randf_range(-0.32, 0.1) * rag
+			for i4 in cnt:
+				var a2 := raw[maxi(0, i4 - 1)]
+				var c2 := raw[mini(cnt - 1, i4 + 1)]
+				tongue[i4] = maxf(0.4, 1.0 + (a2 + 2.0 * raw[i4] + c2) * 0.25)
+		var licks := 1 + (1 if rr.randf() < 0.5 * rag else 0)
+		if dynamic:
+			licks = rr.randi_range(2, 4)
+			# A FORKED TIP: two rows licking out with a short one between.
+			if cnt >= 3 and rr.randf() < 0.35:
+				var fk := rr.randi_range(0, cnt - 3)
+				var fx2 := rr.randf_range(0.3, 0.55) * rag
+				tongue[fk] += fx2
+				tongue[fk + 2] += fx2 * 0.9
+				tongue[fk + 1] = maxf(0.4, tongue[fk + 1] - 0.25)
+		for k in licks:
+			var at_row := rr.randi_range(0, cnt - 1)
+			var extra := rr.randf_range(0.18, 0.38) * rag
+			if dynamic:
+				extra = rr.randf_range(0.3, 0.65) * rag
+			tongue[at_row] += extra
+			if at_row > 0:
+				tongue[at_row - 1] += extra * 0.5
+			if at_row < cnt - 1:
+				tongue[at_row + 1] += extra * 0.5
+	return tongue
 
 
 ## Light into the look's four held bands, the outer ones Bayer-thinned in

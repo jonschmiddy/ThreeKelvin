@@ -460,3 +460,37 @@ nothing that bobs can be clicked. The holder is freed with the readout,
 which stops the bob. The same readout shows no flavour line (Widgets.md,
 Card readout).
 ```
+
+## Hold art
+
+Above `static func hold_art(m: ModuleData, scale: float) -> Texture2D:`, and pointed to from
+`ModuleData.hold_sprite`, `Database.module_hold_sprite`, `ArtCheck._hold_art` and
+`HoldTest._hold_art`.
+
+```text
+THE HOLD HAS ITS OWN PICTURE (Jon, Nov 18: saw the before and after and loved it).
+
+A part's `sprite` is drawn for the hull, 20 px a cell, and the hold doubles it to 40, so
+every art pixel in the hold was a 2x2 block. `art/sprites/modules/hold/<id>.png` is the
+same part at 40 px a cell (cells x 40 exactly, ink clear of the plate's 1 px edge),
+shrunk from the large source art with the approved iconlib.shrink, and drawn at half the
+plate's scale: one art pixel to one game pixel at the hold's 2x.
+
+ONLY WHERE IT LANDS WHOLE. `hold_art` gives it at an even whole scale (2x, 4x) and nothing
+else; at 1x (the shelf), 3x or a fraction it would be resampled, which the art direction
+refuses, so those keep `sprite`. The hull (MountPoints, the cutaway), ShipLoss and the
+Lab's augment never pass it: on the ship a part is 20 px a cell beside a hull drawn at
+that scale.
+
+NOTHING IS LISTED. Whatever `hold/<id>.png` exists is loaded at seed time (guarded on
+`ResourceLoader.exists`, like `module_sprite`), so adding the next manufacturer's set is a copy
+and an import. `-- artcheck` checks every file in the folder, `-- holdtest` the choice.
+
+The sets (Nov 18-19): the 25 Korvan parts, 24 Solari (the Heliostat keeps its sprite) and
+the 18 unbranded. The unbranded set's first shrink was rejected ("these look bad"); the
+kept one is 14 from a second round and 5 redrawn (lattice, bracing, oracle, board,
+coolline). Board's card was lengthened in its large drawing, never stretched, so it fills
+its 2x1 like the sprite did. Coolline was redrawn as a dark coiled hose (Nov 19): the
+second round had made it a grey ring, and Jon said of it beside the sprite, "These don't
+match".
+```

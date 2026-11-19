@@ -164,3 +164,19 @@ click on a hidden cell shows the rest with exactly one ring, the best grade
 left, and nothing else in the ring queue. It waits for three, not nine, so
 the gate pays about three seconds, not ten. The layout checks open a pile
 marked as seen, as they are about the popup's shape, not the reveal.
+
+## Flames kept clear
+
+Above `func _check_plumes() -> void:`:
+
+```text
+Jon, Nov 19: on Korvan's medium at S the cutaway lifted HULL PLATING back off the
+stern onto the exhaust, its last letter in the flame. The layout checks above read
+the hull's pixels, which do not include the flame (it is its own layer), so they
+passed with a part sitting in the plume. This reads the flame's reach the way the
+cutaway does (`ShipView.flame_reach`, every loop frame and the sparks) and fails on
+any drawn part or tag that touches it, on every startable manufacturer's three hulls at
+grade S with a part on every mount -- the case with the most parts to place and the
+stern mounts all full. It also fails when a hull reports no flame box at all, so a
+broken `flame_reach` cannot pass by having nothing to check against.
+```
