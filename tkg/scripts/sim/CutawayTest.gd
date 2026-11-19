@@ -28,6 +28,10 @@ func run(tree: SceneTree) -> void:
 		await _check_routines()
 		_check_game_over()
 		return _finish()
+	# `-- cutawaytest plumes`: the flames kept clear alone (10b2)
+	if "plumes" in OS.get_cmdline_user_args():
+		await _check_plumes()
+		return _finish()
 	# `-- cutawaytest local`: the real LOCAL and its fight alone (11)
 	if "local" in OS.get_cmdline_user_args():
 		await _check_local()
@@ -299,6 +303,8 @@ func run(tree: SceneTree) -> void:
 	_check_game_over()
 	# 10b. every empty mount's words, on every startable hull
 	await _check_empty_words()
+	# 10b2. no lifted part or its words on an engine's flame, every hull at S, every mount full
+	await _check_plumes()
 	# 10c. what a carried part can go on: every mount marked is a drop that lands
 	await _check_swap_marks()
 	# 11. the real LOCAL: a wreck in the sky behind is not opened from in here,
@@ -901,6 +907,83 @@ func _empty_words_on(cut: CutawayView, wname: String) -> void:
 		mp._unlight()
 	mp.queue_redraw()
 	await _tree.process_frame
+
+
+## Every startable manufacturer's three hulls at S with a part on every mount: no lifted part or tag on a flame.
+## Why: docs/why/CutawayTest.md#flames-kept-clear
+func _check_plumes() -> void:
+	for mk: StringName in DB.STARTABLE:
+		for pair in [["light", HullData.Weight.LIGHT], ["medium", HullData.Weight.MEDIUM], ["heavy", HullData.Weight.HEAVY]]:
+			var wname := "%s %s S" % [mk, pair[0]]
+			seed_run(4242)
+			Run.start_new_run(mk, int(pair[1]))
+			Run.fit_chassis(mk, pair[1] as HullData.Weight, 3)
+			Run.cargo.clear()
+			_fill_every_mount(mk)
+			Sig.ship_changed.emit()
+			var host := Control.new()
+			host.size = Vector2(960, 459)
+			_tree.root.add_child(host)
+			var cut := CutawayView.open_over(host, null)
+			for i in 4:
+				await _tree.process_frame
+			var mp := cut._mounts
+			var sc := cut._ship.art_scale()
+			var flames: Array[Rect2] = []
+			for b: Rect2 in cut._ship.flame_reach():
+				flames.append(Rect2(cut._ship.canvas_to_local(b.position), b.size * sc))
+			var rects := mp.drawn_rects()
+			var parts := 0
+			var on: Array[String] = []
+			var clash: Array[String] = []
+			for i in rects.size():
+				var r: Rect2 = rects[i].rect
+				if rects[i].kind == "part":
+					parts += 1
+				for fl in flames:
+					if r.intersects(fl):
+						on.append("%s %s" % [rects[i].kind, rects[i].text])
+						break
+				for j in range(i + 1, rects.size()):
+					if r.intersects(rects[j].rect):
+						clash.append("%s %s / %s %s" % [rects[i].kind, rects[i].text, rects[j].kind, rects[j].text])
+			print("  ..   %s: %dx, %d parts, %d flame boxes; %s" % [wname, cut.k, parts, flames.size(), cut.fit_note])
+			_ok("%s: every mount full (%d parts) and the flame's reach is known (%d engines)" % [wname, parts, flames.size()],
+				parts == Run.installed.size() and parts > 0 and not flames.is_empty())
+			_ok("%s: no lifted part or its words on an engine's flame (%s)" % [wname,
+				", ".join(on) if not on.is_empty() else "clear"], on.is_empty())
+			_ok("%s: and none on another (%s)" % [wname, ", ".join(clash) if not clash.is_empty() else "clear"], clash.is_empty())
+			cut.queue_free()
+			host.queue_free()
+			await _tree.process_frame
+
+
+## A part on every mount: first as `CutawayShot fit=full` fits it (the picture Jon saw), then any gap filled.
+func _fill_every_mount(mk: StringName) -> void:
+	var kit: Array[ModuleData] = []
+	for id in DB.modules:
+		if (DB.modules[id] as ModuleData).manufacturer == mk:
+			kit.append(DB.modules[id])
+	kit.sort_custom(func(x: ModuleData, y: ModuleData) -> bool:
+		return x.reactor > y.reactor if x.reactor != y.reactor else x.cells() < y.cells())
+	for p in 2:
+		for m: ModuleData in kit:
+			if p == 0 and Run.installed.any(func(on: ModuleData) -> bool: return on.id == m.id):
+				continue
+			if Run.slots_used(m.slot) < Run.slots_for(m.slot) and Run.can_power(m):
+				Run.install_module(m.duplicate(true) as ModuleData)
+	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+		var own: Array[ModuleData] = []
+		for id in DB.modules:
+			var d: ModuleData = DB.modules[id]
+			if d.slot == slot and d.manufacturer == mk and not d.starter_only:
+				own.append(d)
+		for i in Run.slots_for(slot):
+			if Run.module_at(slot, i) != null:
+				continue
+			var m := (own[i % own.size()].duplicate(true) as ModuleData) if not own.is_empty() else _module_of(slot)
+			m.mount = i
+			Run.installed.append(m)
 
 
 ## Marked mounts must be exactly the mounts a drop lands on, found by dropping on every mount.

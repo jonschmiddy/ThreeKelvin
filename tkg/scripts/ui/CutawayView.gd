@@ -314,7 +314,7 @@ func _layout(kk: int, room: Rect2) -> Rect2:
 	var rs := Rect2(ink.get_center() - room.size / (2.0 * kk), room.size / float(kk))
 	var bounds := ink
 	var f := UITheme.pixel_font()
-	var placed: Array[Rect2] = []
+	var placed: Array[Rect2] = _exhaust_lanes(ink, rs)  # (nothing over a flame or in its path)
 	var free := func(r: Rect2, pad: float) -> bool:
 		if not rs.encloses(r) or on_hull.call(r.grow(pad)):
 			return false
@@ -508,6 +508,18 @@ func _layout_key(kk: int, room: Rect2) -> String:
 	for m in Run.installed:
 		key.append_array([m.get_instance_id(), m.slot, m.mount, m.name, m.size])
 	return str(key)
+
+
+## Each engine's flame box run out sternward to the room's edge (sprite px): no part, tag or word goes in one.
+## Why: docs/why/CutawayView.md#exhaust-lanes
+func _exhaust_lanes(ink: Rect2, rs: Rect2) -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for b: Rect2 in _ship.flame_reach():
+		if b.get_center().x < ink.get_center().x:
+			out.append(Rect2(minf(rs.position.x, b.position.x), b.position.y, b.end.x - minf(rs.position.x, b.position.x), b.size.y))
+		else:
+			out.append(Rect2(b.position.x, b.position.y, maxf(rs.end.x, b.end.x) - b.position.x, b.size.y))
+	return out
 
 
 ## Offsets sorted nearest first, sideways at 1.3x, and kept since layout runs on every change.
