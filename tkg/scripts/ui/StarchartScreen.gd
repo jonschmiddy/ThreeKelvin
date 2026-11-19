@@ -474,6 +474,7 @@ func _legend_items() -> Array[Control]:
 		var item := HBoxContainer.new()
 		item.add_theme_constant_override("separation", 3)
 		var g := Glyph.new()
+		g.lift = MapGlyphs.KEY_LIFT
 		g.setup(pair[0] as MapGen.NodeType,
 			MapGen.swatch(pair[0] as MapGen.NodeType))
 		item.add_child(g)
@@ -1288,6 +1289,8 @@ class Glyph extends Control:
 	var tint: Color = Color.WHITE
 	## a system of two suns (ruling 20): the dot's second, warmer pixel, as the chart draws it
 	var twin := false
+	## the boost's lift: the KEY sits low, where the tube's vignette takes most (`MapGlyphs.KEY_LIFT`)
+	var lift := ChartGlyphs.NODE_LIFT
 
 	func setup(t: MapGen.NodeType, c: Color, two: bool = false) -> void:
 		type = t
@@ -1304,7 +1307,7 @@ class Glyph extends Control:
 				draw_rect(Rect2(Vector2(9, 8), Vector2.ONE), dot.lerp(UITheme.EMBER, 0.55), true)
 			return
 		ChartGlyphs.draw_node(self, type, Vector2(6, 6), ChartGlyphs.BIG,
-			tint.lightened(0.12).lightened(ChartGlyphs.LIFT), Color.TRANSPARENT)
+			MapGlyphs.boost(tint.lightened(ChartGlyphs.NEAR_LIFT), lift), Color.TRANSPARENT)
 
 	## One grey for a star in reach that a jump refuses as too deep, so it reads as off.
 	## Jon picked this darkest of three (Oct 30, 'Gray: B2'); it was #4a4e55.

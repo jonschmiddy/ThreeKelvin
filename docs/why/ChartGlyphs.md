@@ -63,3 +63,47 @@ the hellbender are 11 (the old marks were 13 to 14), and a partner is 9.
 YOU's brackets are 19 px zoomed in and 23 zoomed out. That is the old marks' size
 plus the thicker stroke, round a 9 or 7 px icon and its nearest neighbours.
 ```
+
+## Ink
+
+Above `const NEAR_LIFT := 0.12`:
+
+```text
+Jon, Nov 18, in play: "The star chart icons in game are kinda... dull? Is it the same
+CRT issue?" Mostly it was not the tube. Measured as MapGlyphs' "Ink for the tube"
+measures: stroke contrast is the brightest quarter of a mark's box minus the median of a
+ring 3 to 6 px outside it. Flat frames came from the game, and the default CRT look was
+applied by crtfix's numpy copy of screen_filter at 2x. Seed 777, mid-run on layer 7,
+LOCAL REGION (zoom 1.31) and the opening view (0.42). Values are flat / CRT, medians.
+
+  what it cost a station you can no longer see (most of a mid-run chart's stations)
+    the unseen darken (x0.45 before the icon's own)   region +42/+43, opening +14/+14
+    the far darken (0.2 zoomed in, 0.35 out)          region +20/+22, opening +21/+19
+    a red star's tint (ink #846a67 against #87898c)   -26 on the ink, the brown ones
+    ChartGlyphs.LIFT 0.34 (it was helping)            without it -37/-41, the core -34/-26
+    the _UNDER rim (sky-conditional)                  0 to 7 either way: not a cause
+    the tube, mid-chart                               none: the look's gain lifts strokes
+    the tube, on the KEY strip                        -25 to -30%: START 210 -> 144
+
+So the floor moved, not the meaning. Near: the star's colour lightened by NEAR_LIFT.
+Far: darkened by FAR_DIM (0.12), and out of sight a further UNSEEN_DIM (0.25), so quieter
+still reads quieter. No ink goes below FLOOR_V (HSV value 0.7), which keeps the hue: a
+red star's station stays red, not brown. Then the ink is boosted as the sector's beacons
+are (`MapGlyphs.boost`), with NODE_LIFT 0.3, close to the old glyph body's 0.34; the
+sector's 0.15 alone left a red core dimmer than before. Markers (pin, skull, diamond,
+YOU) take the sector's own boost. The KEY takes KEY_LIFT for the vignette, as the
+sector's KEY does. A spent place is SPENT, a flat grey and never boosted, as the
+sector's spent beacon is. The plain-system dot is unchanged.
+
+                        mock      before    after (flat / CRT, medians)
+  station, unseen       116/129   116/129   181/186   (region)
+                        123/143   123/143   152/184   (opening; worst one 67 -> 101)
+  station, near         170/196   170/196   184/199
+  pulsar, near          209/221   209/223   225/228
+  core (opening)         54/80     54/81     64/87
+  quest pin             139/157   139/160   171/177
+  hellbender            128/133   127/135   154/162
+  partner               122/148   123/150   163/176
+  KEY start / core      210/143   210/144   225/154 / 165/131
+Every mark measures at or above the mockup Jon picked from.
+```

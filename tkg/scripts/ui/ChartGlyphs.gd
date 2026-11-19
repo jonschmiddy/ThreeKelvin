@@ -5,8 +5,20 @@ extends RefCounted
 ## chart, its KEY and the in-range list. Plain systems are dots and have none.
 ## Why: docs/why/ChartGlyphs.md#the-icons
 
-## How far a node icon's ink is lifted toward white, as the old glyph's body was: a far icon is a smudge without it.
-const LIFT := 0.34
+## THE INK FOR THE TUBE (Jon, Nov 18: "kinda... dull?"): the chart's dimming, softened to a floor, then
+## `MapGlyphs.boost` as the sector's beacons. Far and unseen still read quieter, never brown or grey.
+## Why: docs/why/ChartGlyphs.md#ink
+const NEAR_LIFT := 0.12
+const FAR_DIM := 0.12
+const UNSEEN_DIM := 0.25
+## No icon's ink goes below this value (HSV) before the boost: a red star's station stays red, not brown.
+const FLOOR_V := 0.7
+## The boost's lift for a node icon: the old glyph body's lift (0.34) kept a red core bright, which the
+## sector's 0.15 alone does not.
+const NODE_LIFT := 0.3
+## A spent (cleared) place's icon: the chart's CLEARED grey lifted as the old glyph body was, drawn flat
+## and never boosted, as the sector's spent beacon, so it reads as done rather than as a lit place.
+const SPENT := Color("#7b848d")
 ## Node icons: 9 zoomed in, 7 at the opening zoom (where neighbours sit 6 px apart).
 ## Why: docs/why/ChartGlyphs.md#sizes
 const BIG := 9
@@ -129,6 +141,16 @@ static var _px: Dictionary[String, Array] = {}
 static var _rim: Dictionary[String, Array] = {}
 
 
+## A node icon's ink from its star's colour: near you lifted, far and unseen dimmed to the floor, then boosted.
+static func node_ink(tint: Color, near: bool, seen: bool) -> Color:
+	var c := tint.lightened(NEAR_LIFT) if near else tint.darkened(FAR_DIM)
+	if not seen:
+		c = c.darkened(UNSEEN_DIM)
+	if c.v < FLOOR_V:
+		c = Color.from_hsv(c.h, c.s, FLOOR_V, c.a)
+	return MapGlyphs.boost(c, NODE_LIFT)
+
+
 ## Which icon a node type wears; &"" for a plain system, which is a dot.
 static func kind_of(t: MapGen.NodeType) -> StringName:
 	match t:
@@ -213,18 +235,20 @@ static func draw_node(ci: CanvasItem, t: MapGen.NodeType, cp: Vector2, size: int
 
 
 ## A marker on the star at `cp`: &"quest" (the sector's pin, standing on it), &"hellbender", &"party".
+## Its colour boosted as the sector's beacons are.
 static func draw_mark(ci: CanvasItem, name: StringName, cp: Vector2, main: Color, under: Color) -> void:
+	var ink := MapGlyphs.boost(main)
 	if name == &"quest":
-		_draw(ci, "quest", cp, PIN_AT, main, under, false)
+		_draw(ci, "quest", cp, PIN_AT, ink, under, false)
 		return
 	var rows: Array = MARK[name]
 	var half: int = rows.size() / 2
-	_draw(ci, String(name), cp, Vector2i(half, half), main, under, false)
+	_draw(ci, String(name), cp, Vector2i(half, half), ink, under, false)
 
 
 ## YOU's brackets round the star at `cp`.
 static func draw_you(ci: CanvasItem, cp: Vector2, half: int, main: Color, under: Color) -> void:
-	_draw(ci, "you%d" % half, cp, Vector2i(half, half), main, under, false)
+	_draw(ci, "you%d" % half, cp, Vector2i(half, half), MapGlyphs.boost(main), under, false)
 
 
 ## The centre pixel the chart draws a mark on, for a star at `at`: the old 13 px glyph's middle.

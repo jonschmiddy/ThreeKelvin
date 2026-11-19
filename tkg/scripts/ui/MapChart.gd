@@ -1137,11 +1137,8 @@ func _draw_chart() -> void:
 		var tint := MapGen.star_colour(node2)
 		if node2.cleared and node2.type != MapGen.NodeType.CORE:
 			tint = CLEARED_TINT
-		# Visited systems stay, dimmed, so lit ones are the dish's sight and the ring its edge.
-		# Not `cleared`'s dead grey: these are real places you might route back through.
-		# Why: docs/why/MapChart.md#remembered-systems
-		if not node2.sensed and node2.index != here.index:
-			tint = tint.darkened(0.45)
+		# in sight now, or only remembered (each kind of mark dims that its own way)
+		var seen: bool = node2.sensed or node2.index == here.index
 		# In the ring and refused (ruling 13 A, Jon, Oct 27): one dim grey, even on hover.
 		# Drawn like the rest, it read as reachable until JUMP said TOO DEEP.
 		# Why: docs/why/StarchartScreen.md#too-deep-grey
@@ -1155,7 +1152,7 @@ func _draw_chart() -> void:
 			continue
 		var lit: bool = node2.index == here.index or node2.index == selected or node2.index == hovered
 		# Systems you can actually go to hold their colour; the rest sink back.
-		p = _draw_node(node2, p, tint, tiny, dim, lit or reach.has(node2))
+		p = _draw_node(node2, p, tint, tiny, dim, lit or reach.has(node2), seen)
 		if dim:
 			drawn_dim[node2.index] = true
 		if node2.index == here.index:
@@ -1186,27 +1183,34 @@ func _draw_chart() -> void:
 ## the rest ChartGlyphs' icon (Jon, Nov 18). Returns where YOU goes (the core's is on its hole).
 ## Why: docs/why/ChartGlyphs.md#the-icons
 func _draw_node(node2: MapGen.MapNode, p: Vector2, tint: Color, tiny: bool, dim: bool,
-		near: bool) -> Vector2:
+		near: bool, seen: bool) -> Vector2:
 	if node2.type == MapGen.NodeType.CORE:
 		# The middle of the visible black: the near disc covers the shadow's lower part.
 		p = (screen_pos(node2) - Vector2(6, 6 + _hole_px() * 0.38)).round()
-		var ink := tint.lightened(0.12).lightened(ChartGlyphs.LIFT)
+		var ink := ChartGlyphs.node_ink(tint, true, true)
 		ChartGlyphs.draw_node(self, node2.type, p + Vector2(6, 6), MapGlyphs.SIZE, ink, _UNDER)
 		StarchartScreen.Glyph.draw_brackets(self, p, false, node2.index == selected)
 		drawn_ink[node2.index] = ink
 		return p
 	if node2.type != MapGen.NodeType.SYSTEM:
-		# lit as the old glyph's body was, or a far icon is a smudge; too deep is flat grey
-		var ink2 := (tint.lightened(0.15 if tiny else 0.12) if near
-			else tint.darkened(0.35 if tiny else 0.2)).lightened(ChartGlyphs.LIFT)
+		# quieter far and unseen but never a smudge (`ChartGlyphs.node_ink`); too deep is flat grey
+		var ink2 := ChartGlyphs.node_ink(tint, near, seen)
+		var spent := node2.cleared
+		if spent:
+			ink2 = ChartGlyphs.SPENT
 		if dim:
 			ink2 = StarchartScreen.Glyph.DIM
 		ChartGlyphs.draw_node(self, node2.type, p + Vector2(6, 6),
-			ChartGlyphs.SMALL if tiny else ChartGlyphs.BIG, ink2, _UNDER, dim)
+			ChartGlyphs.SMALL if tiny else ChartGlyphs.BIG, ink2, _UNDER, dim or spent)
 		if not tiny:
 			StarchartScreen.Glyph.draw_brackets(self, p, false, node2.index == selected)
 		drawn_ink[node2.index] = ink2
 		return p
+	# Visited systems stay, dimmed, so lit ones are the dish's sight and the ring its edge.
+	# Not `cleared`'s dead grey: these are real places you might route back through.
+	# Why: docs/why/MapChart.md#remembered-systems
+	if not seen:
+		tint = tint.darkened(0.45)
 	# Far systems keep some colour to stay findable; reachable ones get extra weight.
 	var d: float = 3.0 if near else 2.0
 	var at := p + Vector2(6, 6) - Vector2(d, d) * 0.5
