@@ -2,8 +2,7 @@ The reasoning behind the science desk (`tkg/scripts/ui/DeskScene.gd`, not yet wr
 
 ## The plan
 
-Status, Nov 19: plan only. Nothing below is built. The port is larger than one builder pass, and three
-things in it are Jon's to decide (the last section).
+Status, Nov 19: stage 1 (the shared parts and DESK 1) is being built; the hook onto LOCAL waits.
 
 **What is being ported.** Jon's approved science desk rooms page (the deskpower prototype, Nov 17 to 19):
 picking science on LOCAL zooms into your ship, fades to one of four rooms (DESK 1, DESK 2, BUNK, NOOK),
@@ -96,17 +95,31 @@ the four room scripts and `scenes/audio.js`.
 
   Each stage has its own diff against the page.
 
-**For Jon.**
-1. Which room you get. Recommendation: one room per hull class, fixed, so a ship is a home:
-   - light hulls get the BUNK;
-   - medium hulls DESK 1;
-   - heavy hulls DESK 2;
-   - salvage frames the NOOK.
+## Sound
 
-   The fallback is a pick from the run seed (`Rng.derive(&"desk", 0)`), which is cosmetic and the same
-   all run.
-2. What the glass shows before the mini games exist. The page's title card is CULTURE DISH's ("TAP TO
-   BEGIN"). Recommendation: the card names the reading (its title from the event), the tap takes the
-   reading through `OptionResolve` and shows its outcome on the glass, and LEAVE runs back.
-3. Whether the desk plays for every science reading, or only once mini games exist. Recommendation:
-   build it now behind a switch, on for readings.
+The page's mix is kept as it is (`scenes/audio.js`, Jon's picks Nov 17 to 19). The bed, the lamp
+click (`desk_lamp`, lamp A) and the power-on (`desk_poweron`, `poweron_K`, his "G alone") play at
+their files' own level. The bed goes on Ambient and the clicks on SFX, so the volume settings scale
+them. The files measure:
+- the bed: -37 dB RMS;
+- the hum: -44 dB RMS, played +14 dB (Jon, Nov 19: "The hum is too quiet."), so a little over the
+  bed;
+- the lamp and G: -39 and -40 dB RMS.
+
+The hum has its own bus, `DeskHum`, which sends to Ambient and carries the low-pass for its warm-up.
+
+Leaving reuses the game's own quit sound (`power_off`, GameShell's), not a copy. It plays 22 dB under
+its file. The file is mastered hot (-11 dB RMS, a -6 dB whine), and the quit plays it alone at 0 dB.
+Among the desk's sounds, -22 dB puts its whine near G's loudest moment, which is the level the page
+chose by ear. Its click, 1.47 s into the file, lands where the leaving timeline crosses the CRT time.
+With less time left than that, it starts part way in. The hum coasts down into the click as
+`Audio.power_down` coasts the music (pitch to 0.3, quad ease-in) and is cut 60 ms before it with a
+40 ms fade. The lamp clicks again as leaving crosses the lamp's time.
+
+## Jon's rulings, Nov 19
+
+1. **Which room: by hull class (his A).** Light hulls get the BUNK, medium hulls DESK 1, heavy hulls
+   DESK 2, salvage frames the NOOK. A ship is a home: the same room every visit.
+2. **What the glass shows (his A).** A title card naming the science site; a tap takes the reading
+   (`OptionResolve`, the one rule) and shows its outcome on the glass; LEAVE runs back to LOCAL.
+3. **When it plays.** Behind a switch, on for every science reading.

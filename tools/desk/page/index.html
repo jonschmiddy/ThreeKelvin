@@ -1,0 +1,345 @@
+<title>Science Desk Power-On</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{--bg:#0a0e15;--panel:#111823;--line:#22303f;--fg:#c3d2e2;--mut:#8fa3ba;--acc:#d97b29;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 "IBM Plex Mono",ui-monospace,Consolas,monospace;margin:0;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 40px}
+.wrap{max-width:1500px;margin:0 auto}
+h1,h2,button{font-family:"Silkscreen","IBM Plex Mono",monospace;font-weight:400}
+h1{font-size:22px;letter-spacing:.08em;margin:0 0 4px}
+p{color:var(--mut);margin:0 0 12px;max-width:80ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,560px),1fr));gap:14px}
+.tile{border:1px solid var(--line);background:var(--panel);min-width:0}
+.tile.big{grid-column:1/-1}
+.tile.on{border-color:var(--acc)}
+.state{font-family:"Silkscreen",monospace;font-size:11px;letter-spacing:.08em;color:var(--mut)}
+.tile.on .state{color:var(--acc)}
+canvas{display:block;width:100%;height:auto;aspect-ratio:16/9;image-rendering:pixelated;background:#000;cursor:zoom-in}
+.tile.big canvas{cursor:zoom-out}
+.cap{display:flex;gap:10px;align-items:center;padding:8px 10px;flex-wrap:wrap}
+.cap h2{font-size:15px;letter-spacing:.06em;margin:0}
+.cap span{color:var(--mut);font-size:13px;flex:1;min-width:0}
+button{font-size:12px;letter-spacing:.08em;color:var(--fg);background:#0d131c;border:2px solid;border-color:#3d4d61 #080b11 #080b11 #3d4d61;padding:5px 10px;cursor:pointer}
+button:active{border-color:#080b11 #3d4d61 #3d4d61 #080b11}
+.err{color:#c8503c;padding:8px 10px;font-size:13px}
+section{margin:0 0 30px}
+h2.sec{font-size:16px;letter-spacing:.08em;margin:0 0 4px;color:var(--acc)}
+.art{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:14px}
+.art figure{margin:0;border:1px solid var(--line);background:var(--panel)}
+.art img{display:block;width:100%;height:auto;image-rendering:pixelated}
+.kb{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.kb figure{margin:0;border:1px solid var(--line);background:var(--panel);overflow-x:auto}
+.kb img{display:block;max-width:none;image-rendering:pixelated}
+.kb figcaption{font-family:"Silkscreen",monospace;font-size:12px;letter-spacing:.08em;color:var(--mut);padding:6px 10px}
+@media (max-width:700px){.kb{grid-template-columns:1fr}}
+.art figcaption{font-family:"Silkscreen",monospace;font-size:12px;letter-spacing:.08em;color:var(--mut);padding:6px 10px}
+</style>
+<div class="wrap">
+<h1>SCIENCE DESK · POWER-ON</h1>
+<p>Picking science on LOCAL zooms into the ship and fades to the desk, and the desk powers on.</p>
+<section>
+  <h2 class="sec">1 · THE FOUR ROOMS, UNLIT</h2>
+  <p>The finished art with no lighting, the game screen composited into the glass.</p>
+  <div class="art">
+    <figure><img src="img/unlit_desk_1.png" alt="Desk 1, unlit"><figcaption>DESK 1</figcaption></figure>
+    <figure><img src="img/unlit_desk_2.png" alt="Desk 2, unlit"><figcaption>DESK 2</figcaption></figure>
+    <figure><img src="img/unlit_bunk_1.png" alt="Bunk, unlit"><figcaption>BUNK</figcaption></figure>
+    <figure><img src="img/unlit_nook_1.png" alt="Nook, unlit"><figcaption>NOOK</figcaption></figure>
+  </div>
+</section>
+<section>
+  <h2 class="sec">2 · C LIGHTING, ALL FOUR ROOMS</h2>
+  <p>Jon's pick C in every room: hand-shaded ramps, cool and violet in shadow, warm where lit. Each light falls off by distance and angle from its own source, with stepped, dithered bands; the lamps and string lights flicker a little; dust in the air; living portholes. The keyboards are drawn in code. Move onto a room to play it, click it to see it big.</p>
+  <div class="grid" id="grid-lit"></div>
+</section>
+<section>
+  <h2 class="sec">3 · KEYBOARDS AND THE SQUARE LIGHT, BEFORE / AFTER</h2>
+  <p>Each keyboard is now drawn in code: keycaps with a lit top and a darker front lip, a case with a front face and a shadow on the desk. The square light edges were box and row cuts in the lighting code; they are gone, and every light now falls off by distance and angle. 2x crops.</p>
+  <div class="kb">
+    <figure><img src="img/kb/kb_before_desk_1.png" alt=""><figcaption>DESK 1 · BEFORE</figcaption></figure>
+    <figure><img src="img/kb/kb_after_desk_1.png" alt=""><figcaption>DESK 1 · AFTER</figcaption></figure>
+    <figure><img src="img/kb/kb_before_desk_2.png" alt=""><figcaption>DESK 2 · BEFORE</figcaption></figure>
+    <figure><img src="img/kb/kb_after_desk_2.png" alt=""><figcaption>DESK 2 · AFTER</figcaption></figure>
+    <figure><img src="img/kb/kb_before_bunk_1.png" alt=""><figcaption>BUNK · BEFORE</figcaption></figure>
+    <figure><img src="img/kb/kb_after_bunk_1.png" alt=""><figcaption>BUNK · AFTER (the weakest: three rows of tiny keys)</figcaption></figure>
+    <figure><img src="img/kb/kb_before_nook_1.png" alt=""><figcaption>NOOK · BEFORE</figcaption></figure>
+    <figure><img src="img/kb/kb_after_nook_1.png" alt=""><figcaption>NOOK · AFTER</figcaption></figure>
+    <figure><img src="img/kb/spot_before_desk_1_0.png" alt=""><figcaption>LAMP ON THE BOOKS · BEFORE (the straight cut)</figcaption></figure>
+    <figure><img src="img/kb/spot_after_desk_1_0.png" alt=""><figcaption>LAMP ON THE BOOKS · AFTER</figcaption></figure>
+    <figure><img src="img/kb/nook_rack_before_4x.png" alt=""><figcaption>NOOK SHELF LAMP · BEFORE (4x: hard band, blocky shadow)</figcaption></figure>
+    <figure><img src="img/kb/nook_rack_after_4x.png" alt=""><figcaption>NOOK SHELF LAMP · AFTER (the plank's own shadow, soft ends)</figcaption></figure>
+  </div>
+</section>
+<section>
+  <h2 class="sec">4 · NORMAL MAPS</h2>
+  <p>PixelLab normal maps, 1:1 with the art (red is right, green is up, blue faces you).</p>
+  <div class="art">
+    <figure><img src="assets/desk_1_normal.png" alt="Desk 1 normal map"><figcaption>DESK 1</figcaption></figure>
+    <figure><img src="assets/desk_2_normal.png" alt="Desk 2 normal map"><figcaption>DESK 2</figcaption></figure>
+    <figure><img src="assets/bunk_1_normal.png" alt="Bunk normal map"><figcaption>BUNK</figcaption></figure>
+    <figure><img src="assets/nook_1_normal.png" alt="Nook normal map"><figcaption>NOOK</figcaption></figure>
+  </div>
+</section>
+</div>
+<script>
+// ---- Shared shell. Scenes live in scenes/<id>.js and call DESK.register({...}). ----
+// Canvas is 1920x1080: LOCAL (960x540) drawn at 2x, desk art (384x216) drawn at 5x.
+window.DESK = (function(){
+  const scenes = [];
+  const imgCache = {};
+  function img(src){
+    if(!imgCache[src]) imgCache[src] = new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('missing '+src));i.src=src+(src.indexOf('?')<0?'?v=r4g':'');});
+    return imgCache[src];
+  }
+  async function json(src){ const r = await fetch(src); return r.json(); }
+  const ease = t => t<0?0:t>1?1:(t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2);
+  // Act 1, the same for every desk: LOCAL, zoom into the ship, fade to black.
+  // Returns true while act 1 owns the frame (t < ACT1_END).
+  const SHIP = {x:198, y:276};           // ship centre in the 960x540 LOCAL shot
+  const ACT1 = {hold:0.5, zoom:2.1, fadeIn:1.7, black:2.5};
+  function act1(g, t, local){
+    if(t >= ACT1.black) return false;
+    g.fillStyle='#000'; g.fillRect(0,0,1920,1080);
+    const z = 1 + 7*ease((t-ACT1.hold)/(ACT1.zoom-ACT1.hold));      // 1x -> 8x
+    // Zoom INTO the ship (Jon, Nov 17: the clamped centre zoomed at the ship's back, then panned
+    // right). The ship's place on screen glides from where it sits in LOCAL to the centre in step
+    // with the zoom, so it grows in place with no pan; the shot's edges never show, since the
+    // ship's screen point stays inside the scaled shot for every z >= 1.
+    const s = 2*z, w = 960*s, h = 540*s, u = (z-1)/7;
+    const px = SHIP.x*2 + (960 - SHIP.x*2)*u, py = SHIP.y*2 + (540 - SHIP.y*2)*u;
+    g.imageSmoothingEnabled=false;
+    g.drawImage(local, px - SHIP.x*s, py - SHIP.y*s, w, h);
+    const f = Math.min(1, Math.max(0,(t-ACT1.fadeIn)/(ACT1.black-ACT1.fadeIn-0.15)));
+    if(f>0){ g.fillStyle='rgba(0,0,0,'+f+')'; g.fillRect(0,0,1920,1080); }
+    return true;
+  }
+  // ---- The tube (Jon's pick D, "slightly less curve"): run after a scene draws its frame.
+  // The glass is barrel-curved with dark rounded tube corners and a fixed sheen, and the
+  // screen's own light falls on the bezel around it in stepped rings.
+  const TUBE = { k:0.028, rim:0.985, glowPx:22, glowAmt:0.16, sheen:0, vig:0.12 };   // Jon, Nov 17: the curve was too much; the sheen went
+  const GX=117*5, GY=22*5, GW=150*5, GH=140*5, P=TUBE.glowPx;
+  const RX=GX-P, RY=GY-P, RW=GW+2*P, RH=GH+2*P;          // region we read and write
+  let map=null;
+  function buildMap(){
+    const n=RW*RH, src=new Int32Array(n).fill(-2), mul=new Float32Array(n), sh=new Float32Array(n), glow=new Float32Array(n);
+    const k=TUBE.k;
+    // fit: the widest reach of any visible glass pixel maps exactly to the glass edge, so nothing on
+    // the game screen is clipped by the curve (the rounded corners still take their corner)
+    let scale=1;
+    for(let gy=0;gy<GH;gy+=2) for(let gx=0;gx<GW;gx+=2){
+      const u=(gx-(GW-1)/2)/((GW-1)/2), v=(gy-(GH-1)/2)/((GH-1)/2);
+      if(Math.pow(Math.pow(Math.abs(u),12)+Math.pow(Math.abs(v),12),1/12)>=TUBE.rim) continue;
+      scale=Math.max(scale, Math.max(Math.abs(u),Math.abs(v))*(1+k*(u*u+v*v)));
+    }
+    // and the rounded corners must not eat corner text ("TRY 1/3"): a point 3 px in from the
+    // source's corner lands just inside the rim (costs at most a pixel of dark border mid-edge)
+    { const dc=TUBE.rim/Math.pow(2,1/12)-0.012, sc=1-3/((GW/5-1)/2); scale=Math.min(scale, dc*(1+2*k*dc*dc)/sc); }
+    for(let y=0;y<RH;y++) for(let x=0;x<RW;x++){
+      const i=y*RW+x, gx=x-P, gy=y-P;
+      if(gx>=0&&gx<GW&&gy>=0&&gy<GH){
+        const u=(gx-(GW-1)/2)/((GW-1)/2), v=(gy-(GH-1)/2)/((GH-1)/2), r2=u*u+v*v;
+        const se=Math.pow(Math.pow(Math.abs(u),12)+Math.pow(Math.abs(v),12),1/12);
+        if(se>=TUBE.rim){ src[i]=-1; continue; }                       // tube rim
+        const f=(1+k*r2)/scale;
+        const sx=Math.round(u*f*(GW-1)/2+(GW-1)/2), sy=Math.round(v*f*(GH-1)/2+(GH-1)/2);
+        if(sx<0||sx>=GW||sy<0||sy>=GH){ src[i]=-1; continue; }
+        src[i]=(sy+P)*RW+(sx+P);
+        let edge=Math.min(1,Math.max(0,(TUBE.rim-se)/0.06)); edge=Math.floor(edge*4)/4;
+        const vig=1-TUBE.vig*Math.min(1,Math.max(0,r2-0.6));
+        mul[i]=(0.55+0.45*edge)*vig;
+        const d=Math.abs(Math.sqrt((u+0.15)*(u+0.15)+(v+0.25)*(v+0.25)*1.3)-0.95);
+        sh[i]=(d<0.035&&u<-0.1&&v<-0.2)?1:0;
+      } else {
+        // ring outside the glass: distance to the glass rect, in canvas px
+        const dx=gx<0?-gx:gx>=GW?gx-GW+1:0, dy=gy<0?-gy:gy>=GH?gy-GH+1:0, dd=Math.max(dx,dy);
+        if(dd<=P){ let a=TUBE.glowAmt*(1-(dd-1)/P); a=Math.floor(Math.max(0,a)*6)/6; glow[i]=a; }
+      }
+    }
+    // split into flat lists by kind, so each frame only touches the pixels that change, 32 bits at a time
+    const L={cpD:[],cpS:[],mlD:[],mlS:[],mlM:[],shD:[],shS:[],shM:[],rim:[],glD:[],glA:[]};
+    for(let i=0;i<n;i++){
+      const si=src[i];
+      if(si===-2){ if(glow[i]>0){ L.glD.push(i); L.glA.push(Math.round(glow[i]*256)); } }
+      else if(si===-1) L.rim.push(i);
+      else if(sh[i]){ L.shD.push(i); L.shS.push(si); L.shM.push(Math.round(mul[i]*256)); }
+      else if(mul[i]>=0.999){ L.cpD.push(i); L.cpS.push(si); }
+      else { L.mlD.push(i); L.mlS.push(si); L.mlM.push(Math.round(mul[i]*256)); }
+    }
+    map={cpD:Int32Array.from(L.cpD),cpS:Int32Array.from(L.cpS),mlD:Int32Array.from(L.mlD),mlS:Int32Array.from(L.mlS),mlM:Uint16Array.from(L.mlM),
+         shD:Int32Array.from(L.shD),shS:Int32Array.from(L.shS),shM:Uint16Array.from(L.shM),rim:Int32Array.from(L.rim),
+         glD:Int32Array.from(L.glD),glA:Uint16Array.from(L.glA),buf:new Uint32Array(n)};
+  }
+  const RIM=(255<<24)|(9<<16)|(6<<8)|4;
+  function tube(g, t){
+    if(t < ACT1.black) return;                       // act 1 draws LOCAL, not the desk
+    if(!map) buildMap();
+    const im=g.getImageData(RX,RY,RW,RH), d=new Uint32Array(im.data.buffer), s=map.buf;
+    s.set(d);
+    // the picture's mean colour, for the light it throws on the bezel
+    let mr=0,mg=0,mb=0,c=0;
+    for(let y=P;y<P+GH;y+=9) for(let x=P;x<P+GW;x+=9){ const v=s[y*RW+x]; mr+=v&255; mg+=(v>>>8)&255; mb+=(v>>>16)&255; c++; }
+    mr/=c; mg/=c; mb/=c;
+    const room=Math.min(1,Math.max(0,(t-ACT1.black)/2)), shA=TUBE.sheen*room;
+    const m=map;
+    { const D=m.cpD,S=m.cpS; for(let k=0,n=D.length;k<n;k++) d[D[k]]=s[S[k]]; }
+    { const D=m.mlD,S=m.mlS,M=m.mlM; for(let k=0,n=D.length;k<n;k++){ const v=s[S[k]], q=M[k];
+        d[D[k]]=0xff000000|((((v>>>16)&255)*q>>8)<<16)|((((v>>>8)&255)*q>>8)<<8)|((v&255)*q>>8); } }
+    { const D=m.rim; for(let k=0,n=D.length;k<n;k++) d[D[k]]=RIM; }
+    { const D=m.shD,S=m.shS,M=m.shM, a=shA, b=1-shA; for(let k=0,n=D.length;k<n;k++){ const v=s[S[k]], q=M[k]/256;
+        const r=(v&255)*q*b+190*a, gg=((v>>>8)&255)*q*b+210*a, bb=((v>>>16)&255)*q*b+225*a;
+        d[D[k]]=0xff000000|((bb|0)<<16)|((gg|0)<<8)|(r|0); } }
+    { const D=m.glD,A=m.glA; for(let k=0,n=D.length;k<n;k++){ const i=D[k], v=s[i], a=A[k]/256, f=1+a, w=a*0.6;
+        const r=Math.min(255,(v&255)*f+mr*w), gg=Math.min(255,((v>>>8)&255)*f+mg*w), bb=Math.min(255,((v>>>16)&255)*f+mb*w);
+        d[i]=0xff000000|((bb|0)<<16)|((gg|0)<<8)|(r|0); } }
+    g.putImageData(im,RX,RY);
+  }
+  // ---- The title card (Jon, Nov 17: "maybe with a title screen for the game?"). Shown on the glass after
+  // the CRT warms, before the game. Drawn at the glass's art resolution (150x140) into a scene's float RGB
+  // glass buffer, so the tube's curve, flicker, phosphor glow and the room's screen light all apply to it.
+  // In the game it waits for a tap; here it holds TITLE.hold scene-seconds, then wipes into the game.
+  const TITLE = { hold:2.5, wipe:0.4, game:{ name:['CULTURE','DISH'], blurb:['DROP SEEDS SO THE GROWING CULTURE','REACHES EVERY FOOD SPECK','AND NO STAIN.'] } };   // tk-scratch culture2.js: name and blurb
+  const F35 = {
+    A:'010101111101101',B:'110101110101110',C:'011100100100011',D:'110101101101110',E:'111100110100111',F:'111100110100100',
+    G:'011100101101011',H:'101101111101101',I:'111010010010111',J:'001001001101010',K:'101101110101101',L:'100100100100111',
+    M:'101111111101101',N:'110101101101101',O:'010101101101010',P:'110101110100100',Q:'010101101110011',R:'110101110101101',
+    S:'011100010001110',T:'111010010010010',U:'101101101101111',V:'101101101101010',W:'101101111111101',X:'101101010101101',
+    Y:'101101010010010',Z:'111001010100111','0':'010101101101010','1':'010110010010111','2':'110001010100111','3':'110001010001110',
+    '4':'101101111001001','5':'111100110001110','6':'011100110101010','7':'111001010010010','8':'010101010101010','9':'010101011001110',
+    '-':'000000111000000','>':'100010001010100','.':'000000000000010',',':'000000000010100','/':'001001010100100',' ':'000000000000000','!':'010010010000010'
+  };
+  let titleImg = null;
+  function buildTitle(){
+    const W = 150, H = 140, img = new Float32Array(W*H*3), blink = [];
+    const put = (x, y, c, list) => { if(x<0||y<0||x>=W||y>=H) return; const k=(y*W+x)*3; img[k]=c[0]; img[k+1]=c[1]; img[k+2]=c[2]; if(list) list.push(y*W+x); };
+    const text = (str, x0, y0, sc, c, list) => { for(let n=0;n<str.length;n++){ const g=F35[str[n]]||F35[' '];
+      for(let gy=0;gy<5;gy++) for(let gx=0;gx<3;gx++) if(g[gy*3+gx]==='1') for(let sy=0;sy<sc;sy++) for(let sx=0;sx<sc;sx++) put(x0+n*4*sc+gx*sc+sx, y0+gy*sc+sy, c, list); } };
+    const wide = (str, sc) => str.length*4*sc - sc;
+    const ctr = (str, y, sc, c, list) => text(str, Math.round((W - wide(str, sc))/2), y, sc, c, list);
+    for(let i=0;i<W*H;i++){ img[i*3]=7; img[i*3+1]=13; img[i*3+2]=11; }       // the dark phosphor field
+    const G = [140,236,172], Gd = [70,130,96], Gb = [190,255,214];
+    text('SCI-TERM 03', 5, 5, 1, Gd);
+    for(let x=5;x<145;x+=2) put(x, 12, Gd);
+    // the emblem: a petri dish seen from above, a glass rim, agar, a culture spreading
+    const cx = 75, cy = 36;
+    for(let y=cy-17;y<=cy+17;y++) for(let x=cx-17;x<=cx+17;x++){
+      const d = Math.hypot(x-cx, y-cy);
+      if(d <= 16.5 && d > 14.6) put(x, y, Gb);
+      else if(d <= 14.6 && d > 13.6) put(x, y, Gd);
+      else if(d <= 13.6){
+        const cl = Math.hypot(x-cx+3, y-cy+2) < 6.5 || Math.hypot(x-cx-4, y-cy-3) < 4.2 || Math.hypot(x-cx+1, y-cy-5) < 3.2;
+        put(x, y, cl ? G : [34,70,52]);
+      }
+    }
+    ctr(TITLE.game.name[0], 58, 3, Gb);
+    ctr(TITLE.game.name[1], 77, 3, Gb);
+    TITLE.game.blurb.forEach((l, n) => ctr(l, 98 + n * 7, 1, Gd));
+    ctr('> TAP TO BEGIN', 127, 1, G, blink);
+    titleImg = { img, blink: Int32Array.from(blink) };
+  }
+  // Draw the card into gb (float RGB, 150x140). tt: seconds since the card appeared. wipe 0..1: rows above
+  // the wipe line already show what the scene drew into gb (the game); a bright line rides the edge.
+  // Call it after the scene has drawn the game frame into gb (for the wipe) or anything at all (before it).
+  function titleCard(gb, tt, wipe){
+    if(!titleImg) buildTitle();
+    const W = 150, H = 140, src = titleImg.img;
+    const wy = wipe > 0 ? Math.round(wipe * (H + 4)) - 2 : -99;
+    const on = tt < 0.25 ? 1 : (Math.floor((tt - 0.25) * 1.6) % 2 === 0) ? 1 : 0.18;   // the prompt blinks slowly
+    const bl = titleImg.blink;
+    for(let y=0;y<H;y++){
+      if(y < wy) continue;
+      // a gentle shimmer: a faint brighter row drifts down the card
+      const sh = 1 + 0.06 * Math.max(0, 1 - Math.abs(((tt * 22) % (H + 30)) - 15 - y) / 4);
+      for(let x=0;x<W;x++){ const k=(y*W+x)*3;
+        if(y === wy || y === wy + 1){ gb[k]=200; gb[k+1]=245; gb[k+2]=225; continue; }
+        gb[k]=src[k]*sh; gb[k+1]=src[k+1]*sh; gb[k+2]=src[k+2]*sh; }
+    }
+    if(on < 1) for(let n=0;n<bl.length;n++){ const i=bl[n], y=(i/W)|0; if(y < wy+2) continue; const k=i*3; gb[k]=7+(gb[k]-7)*on; gb[k+1]=13+(gb[k+1]-13)*on; gb[k+2]=11+(gb[k+2]-11)*on; }
+  }
+  return { register:s=>scenes.push(s), scenes, img, json, ease, act1, ACT1, SHIP, tube, TUBE, TITLE, titleCard };
+})();
+</script>
+<script src="scenes/roomfx.js?v=k6"></script>
+<script src="scenes/desk_1.js?v=k3"></script>
+<script src="scenes/desk_2.js?v=k3"></script>
+<script src="scenes/bunk_1.js?v=k4"></script>
+<script src="scenes/nook_1.js?v=k5"></script>
+<script src="scenes/audio.js?v=a9"></script>
+<script>
+(async function(){
+  const grids = { opts: document.getElementById('grid-opts'), lit: document.getElementById('grid-lit'), normals: document.getElementById('grid-normals'), simple: document.getElementById('grid-simple') };
+  const tiles = [];
+  // Only one desk plays at a time (four 1080p desks at once ran the page at ~20 fps).
+  // The others hold their frame, with their clocks paused, until the pointer moves onto them.
+  let active = null;
+  function activate(T){
+    if(active === T) return;
+    const now = performance.now();
+    if(active){ active.pauseAt = now; active.tile.classList.remove('on'); active.st.textContent = 'PAUSED'; }
+    if(T.pauseAt){ const dt = now - T.pauseAt; T.t0 += dt; if(T.leave) T.leave.r0 += dt; T.pauseAt = 0; }
+    active = T; T.tile.classList.add('on'); T.st.textContent = 'PLAYING';
+  }
+  const order =['desk_1a','desk_1b','desk_1c','desk_1','desk_2','bunk_1','nook_1','desk_1n'];
+  const scenes = order.map(id=>DESK.scenes.find(s=>s.id===id)).filter(Boolean);
+  for(const s of scenes){
+    const tile = document.createElement('div'); tile.className='tile';
+    const cv = document.createElement('canvas'); cv.width=1920; cv.height=1080;
+    const cap = document.createElement('div'); cap.className='cap';
+    const h = document.createElement('h2'); h.textContent = s.name;
+    const sp = document.createElement('span'); sp.textContent = s.line||'';
+    const lb = document.createElement('button'); lb.textContent='LEAVE';
+    const rb = document.createElement('button'); rb.textContent='REPLAY';
+    const st = document.createElement('span'); st.className='state';
+    cap.append(h,sp,st,lb,rb); tile.append(cv,cap); (grids[s.section] || grids.lit).append(tile);
+    const T = {s, cv, st, tile, g:cv.getContext('2d',{willReadFrequently:true}), t0:performance.now(), ok:false, vis:true, leave:null, ts:0, pauseAt:0, drawn:false};
+    rb.onclick = ()=>{ activate(T); T.t0 = performance.now(); T.leave = null; lb.disabled = false; };
+    lb.onclick = ()=>{ activate(T); if(T.leave) return; T.leave = {r0: performance.now(), from: Math.min(T.ts, s.doneAt || 9)}; lb.disabled = true; };
+    cv.onclick = ()=>{ activate(T); tile.classList.toggle('big'); tile.scrollIntoView({block:'nearest'}); };
+    tile.addEventListener('pointerenter', ()=>activate(T));
+    tiles.push(T);
+    try{ await s.init(); T.ok=true; }catch(e){ const d=document.createElement('div'); d.className='err'; d.textContent='Failed to load: '+e.message; tile.append(d); console.error(e); }
+    T.t0 = performance.now();
+    T.pauseAt = performance.now(); T.st.textContent = 'PAUSED';
+  }
+  if(tiles[0]) activate(tiles[0]);
+  const io = new IntersectionObserver(es=>es.forEach(e=>{const T=tiles.find(x=>x.cv===e.target); if(T) T.vis=e.isIntersecting;}));
+  tiles.forEach(T=>io.observe(T.cv));
+  const ZOOM_S = 2.9, SPEED = 1.25, KNEE = 10;
+  window.DESK_SCENE_SPEED = SPEED;   // audio.js: the power-on plays SPEED x fast, so real seconds after G are SPEED x scene seconds
+  // leaving plays the same timeline backwards: the desk powers off OFF_SPEED x fast,
+  // then the fade and zoom run in reverse over ZOOM_OUT_S real seconds, back to LOCAL
+  const OFF_SPEED = 2.2, ZOOM_OUT_S = 2.4;
+  window.DESK_OFF_SPEED = OFF_SPEED;  // audio.js: the power-off sound's cut lands when the screen goes dark
+  function loop(now){
+    for(const T of tiles){
+      if(!T.ok || !T.vis) continue;
+      if(T !== active && T.drawn) continue;          // paused desks keep their last frame
+      if(T !== active){                               // never played yet: show the lit desk, not the LOCAL shot
+        try{ T.g.imageSmoothingEnabled=false; T.s.frame(T.g, KNEE+2, {leaving:false, real:KNEE+2}); DESK.tube(T.g, KNEE+2); }catch(e){ console.error(e); T.ok=false; }
+        T.drawn = true; continue;
+      }
+      T.drawn = true;
+      const clock = T === active ? now : (T.pauseAt || now);
+      const real = (clock-T.t0)/1000, A = DESK.ACT1.black;
+      let ts;
+      if(T.leave){
+        const e = (clock-T.leave.r0)/1000, from = T.leave.from;
+        const d1 = Math.max(0, (from-A)/OFF_SPEED);
+        if(e < d1) ts = from - e*OFF_SPEED;
+        else { const a0 = Math.min(from, A); ts = Math.max(0, a0 - (e-d1)*A/ZOOM_OUT_S); }
+      } else {
+        // act 1 (the zoom) is stretched to ZOOM_S real seconds; the power-on plays SPEED x fast;
+        // from scene time KNEE on (idle) time runs at normal speed
+        const pk = ZOOM_S + (KNEE-A)/SPEED;
+        ts = real < ZOOM_S ? real*A/ZOOM_S : real < pk ? A + (real-ZOOM_S)*SPEED : KNEE + (real-pk);
+        T.ts = ts;
+      }
+      if(window.DESK_AUDIO) DESK_AUDIO.tick(T, ts);   // sound: the playing desk's bed, lamp click, monitor power-on
+      // frame(g, t, info): t is the timeline (runs backwards while leaving);
+      // info.real only ever moves forward, for idle clocks (steam, twinkle, glitches)
+      try{ T.g.imageSmoothingEnabled=false; T.s.frame(T.g, ts, {leaving: !!T.leave, real}); DESK.tube(T.g, ts); }catch(e){ console.error(e); T.ok=false; }
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>

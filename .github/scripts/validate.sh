@@ -774,6 +774,16 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet maplagtest 180 \
 	--headless --path "$PROJECT" -- maplagtest
 }
 
+unit_desktest() {
+step "The science desk's timeline and sounds"
+# The approved page's clock both ways, each sound once at its moment and none on a jump,
+# the quit sound's click where the screen goes dark, the bake, DESK 1's beats in order.
+gate_sheet desktest 120 \
+	"the desk keeps the page's time" \
+	"the desk's timeline or sounds broke" \
+	--headless --path "$PROJECT" -- desktest
+}
+
 unit_twinsitetest() {
 step "Star B is a place, as the one star is"
 # Star B is a place wherever the one star is (rulings 20 and 23). Long: 289 s on the CI runner.

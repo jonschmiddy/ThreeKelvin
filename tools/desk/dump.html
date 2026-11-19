@@ -1,0 +1,103 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Desk dump</title>
+<!-- The approved science desk page (page/, Jon Nov 17-19), run by its own code for dump_desk.py:
+     each room's bake (the art with its keyboard and settled dust, every light's field, the masks)
+     and the page's own frames at chosen times, which the game's port is held to.
+     The page's sources are loaded verbatim; one probe line is added inside each scene's closure so its
+     private tables can be read, and one in the shell for the tube's fit scale. The art is in page/assets. -->
+<body>
+<script>
+"use strict";
+const ART = "page/assets/";
+async function src(u) { const r = await fetch(u, { cache: "no-store" }); if (!r.ok) throw new Error(u + " " + r.status); return r.text(); }
+function run(code) { (0, eval)(code); }
+async function boot() {
+  const html = await src("page/index.html");
+  let shell = html.match(/<script>\s*(\/\/ ---- Shared shell[\s\S]*?)<\/script>/)[1];
+  const at = "    for(let y=0;y<RH;y++) for(let x=0;x<RW;x++){";
+  if (shell.indexOf(at) < 0) throw new Error("tube probe: anchor not found");
+  shell = shell.replace(at, "    window.__tubeScale=scale;\n" + at);
+  run(shell);
+  const img0 = DESK.img;
+  const blank = document.createElement("canvas"); blank.width = 960; blank.height = 540;   // act 1's LOCAL shot is the game's own
+  DESK.img = s => s === "assets/local.png" ? Promise.resolve(blank) : img0(s.replace(/^assets\//, ART));
+  DESK.json = async s => JSON.parse(await src(s.replace(/^assets\//, ART)));
+  run(await src("page/scenes/roomfx.js"));
+  const PROBE = { desk_1: "A, glass, bulbPx, filPx, strings, portGlass, pipeLed, glassShade, TIP, TIPC, SMOKE, BOOT, T, LIT, FLD, SMALL, FAc, A2c, DUSTc, SKYc, KBd, SOLDER_LED, MON_LED, MUGS" };
+  for (const id of Object.keys(PROBE)) {
+    let s = await src("page/scenes/" + id + ".js");
+    const anchor = "  let built = null;";
+    if (s.indexOf(anchor) < 0) throw new Error(id + ": probe anchor not found");
+    s = s.replace(anchor, "  window.__probe_" + id + " = () => ({" + PROBE[id] + "});\n" + anchor);
+    run(s);
+  }
+  document.body.dataset.ready = "1";
+}
+boot().catch(e => { document.body.dataset.error = String(e && e.stack || e); console.error(e); });
+
+function b64(u8) { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+const f32 = a => b64(new Uint8Array(new Float32Array(a).buffer));
+const scene = id => DESK.scenes.find(s => s.id === id);
+
+// The bake: per art pixel, float32. Returns base64 of each plane plus a JSON-able table.
+window.__bake = async function (id) {
+  const s = scene(id); await s.init();
+  // one frame so lazily built things exist
+  const c = document.createElement("canvas"); c.width = 1920; c.height = 1080;
+  const g = c.getContext("2d", { willReadFrequently: true }); g.imageSmoothingEnabled = false;
+  s.frame(g, 12, { leaving: false, real: 12 }); DESK.tube(g, 12);
+  const P = window["__probe_" + id]();
+  const W = 384, H = 216, N = W * H, LIT = P.LIT;
+  // fields: lamp, screen, porthole (RGBA planes)
+  const fields = new Float32Array(N * 4);
+  for (let i = 0; i < N; i++) { fields[i*4] = P.FLD.lamp[i]; fields[i*4+1] = P.FLD.scr[i]; fields[i*4+2] = P.FLD.port[i]; }
+  // small lights: up to four (index + 1, value) a pixel
+  const si = new Float32Array(N * 4), sv = new Float32Array(N * 4), cnt = new Uint8Array(N); let over = 0;
+  P.SMALL.forEach((b, n) => { const [bx, by, bw, bh] = b.box;
+    for (let yy = 0; yy < bh; yy++) for (let xx = 0; xx < bw; xx++) { const v = b.f[yy * bw + xx]; if (!v) continue;
+      const i = (by + yy) * W + bx + xx; if (cnt[i] >= 4) { over++; continue; } si[i*4 + cnt[i]] = n + 1; sv[i*4 + cnt[i]] = v; cnt[i]++; } });
+  // per pixel: tone gain, occlusion, room vignette, skip
+  const aux = new Float32Array(N * 4);
+  const skip = new Uint8Array(N); for (let i = 0; i < N; i++) if (P.glass[i]) skip[i] = 1; for (const i of P.portGlass) skip[i] = 1;
+  for (let i = 0; i < N; i++) { aux[i*4] = LIT.TG[i]; aux[i*4+1] = LIT.AO[i]; aux[i*4+2] = P.FAc[i]; aux[i*4+3] = skip[i]; }
+  // roles: what each emitter pixel is (DeskRoom.ROLE_*)
+  const role = new Float32Array(N);
+  for (let i = 0; i < N; i++) if (P.glass[i]) role[i] = 8;
+  for (const i of P.portGlass) role[i] = 7;
+  for (const i of P.bulbPx) role[i] = 1;
+  for (const i of P.filPx) role[i] = 2;
+  P.strings.forEach((st, n) => { for (const i of st.px) role[i] = 16 + n; });
+  for (const i of P.pipeLed) role[i] = 3;
+  for (const [x, y] of P.SOLDER_LED) role[y * W + x] = 4;
+  for (const [x, y] of P.MON_LED) role[y * W + x] = 5;
+  for (const [x, y] of P.TIP) role[y * W + x] = 6;
+  // the glass (150 x 140): shade, the time each boot pixel is typed (-1 none), the title's blinking prompt
+  const GW = 150, GH = 140, gl = new Float32Array(GW * GH * 4);
+  for (let k = 0; k < GW * GH; k++) { gl[k*4] = P.glassShade[k]; gl[k*4+1] = -1; }
+  for (const l of P.BOOT) l.px.forEach((pts, c) => { for (const [px, py] of pts) { const k = (l.y + py) * GW + l.x + px; gl[k*4+1] = l.t + c * .05; } });
+  const gb = new Float32Array(GW * GH * 3), gb2 = new Float32Array(GW * GH * 3);
+  DESK.titleCard(gb, 0.1, 0); DESK.titleCard(gb2, 15.2, 0);
+  const title = new Float32Array(GW * GH * 4); let nb = 0;
+  for (let k = 0; k < GW * GH; k++) { title[k*4] = gb[k*3]; title[k*4+1] = gb[k*3+1]; title[k*4+2] = gb[k*3+2];
+    if (gb[k*3] !== gb2[k*3] || gb[k*3+1] !== gb2[k*3+1] || gb[k*3+2] !== gb2[k*3+2]) { gl[k*4+2] = 1; nb++; } }
+  const a2c = new Float32Array(N * 4); for (let i = 0; i < N; i++) { a2c[i*4] = P.A2c[i*3]; a2c[i*4+1] = P.A2c[i*3+1]; a2c[i*4+2] = P.A2c[i*3+2]; a2c[i*4+3] = 1; }
+  const meta = { id, W, H, tubeScale: window.__tubeScale, TUBE: DESK.TUBE, TITLE: DESK.TITLE, ACT1: DESK.ACT1,
+    smallCount: P.SMALL.length, smallOver: over, blinkPx: nb, T: P.T, TIP: P.TIP, TIPC: P.TIPC, SMOKE: P.SMOKE, MUGS: P.MUGS,
+    strings: P.strings.map(st => ({ x: st.x, y: st.y, k: st.k, side: st.side, f1: st.f1, f2: st.f2, p1: st.p1, p2: st.p2,
+      dipEvery: st.dipEvery, dipOff: st.dipOff, jit: st.jit, stutter: !!st.stutter, n: st.px.length })),
+    boot: P.BOOT.map(l => ({ s: l.s, sc: l.sc, x: l.x, y: l.y, t: l.t })),
+    dust: P.DUSTc.motes, sky: { o: { W: P.SKYc.o.W, cx: P.SKYc.o.cx, cy: P.SKYc.o.cy, r: P.SKYc.o.r, idx: P.SKYc.o.idx }, S: P.SKYc.S, stars: P.SKYc.stars } };
+  return { meta, planes: { a2c: f32(a2c), fields: f32(fields), small_i: f32(si), small_v: f32(sv), px: f32(aux), role: f32(role), glass: f32(gl), title: f32(title) } };
+};
+
+// The page's frame at scene time ts (real: the free clock, seconds since the start), as the shell draws it.
+window.__frame = async function (id, ts, real, leaving) {
+  const s = scene(id); await s.init();
+  const c = document.createElement("canvas"); c.width = 1920; c.height = 1080;
+  const g = c.getContext("2d", { willReadFrequently: true }); g.imageSmoothingEnabled = false;
+  s.frame(g, ts, { leaving: !!leaving, real }); DESK.tube(g, ts);
+  return c.toDataURL("image/png");
+};
+</script>
+</body>
