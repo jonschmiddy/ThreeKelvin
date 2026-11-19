@@ -12,6 +12,24 @@ signal left
 ## Jon's switch (Nov 19): the desk plays for every science reading.
 static var enabled := true
 
+## Jon's ruling (Nov 19, his A): the room goes by the hull. Salvage frames (unbranded) get the nook,
+## light hulls the bunk, medium DESK 1, heavy DESK 2. Rooms not yet ported fall back to DESK 1.
+## Why: docs/why/DeskScene.md#jons-rulings-nov-19
+const BUILT: Array[String] = ["desk_1"]
+
+
+static func room_for(h: HullData) -> String:
+	var r := "desk_1"
+	if h != null:
+		if h.manufacturer == &"":
+			r = "nook_1"
+		elif h.weight == HullData.Weight.LIGHT:
+			r = "bunk_1"
+		elif h.weight == HullData.Weight.HEAVY:
+			r = "desk_2"
+	return r if BUILT.has(r) else "desk_1"
+
+
 var room: DeskRoom
 var audio: DeskAudio
 var _black: ColorRect

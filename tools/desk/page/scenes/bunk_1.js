@@ -453,6 +453,15 @@
   }
 
   // ---- clocks ----
+  // Leaving (Nov 19, Jon: "the lamp turning off sound doesn't match the light"): run backwards, the warm-up ramp faded
+  // the lamp out before the timeline reached the click. Now, leaving, the lamp holds its full living light until the
+  // timeline reaches its lamp time (the click), then goes out like a switched filament: an afterglow over AFTER scene
+  // seconds (0.14 s real at the 2.2x leave), eased out ((1 - x)^2, fast then a short tail), held in eighths so the
+  // C light steps down in a few clean steps, cooling to deep orange as it dies. The power-on is unchanged.
+  const AFTER = .3;
+  // (a leave can start before the lamp is fully warm: it then holds the level it had, never jumping up)
+  let LV_HOLD = 1, LV_K = 1;
+  function afterglow(a){ if(a <= 0) return 1; if(a >= AFTER) return 0; const x = 1 - a/AFTER; return Math.round(x*x*8)/8; }
   function lampLevel(t){
     const a = t - T_LAMP;
     if(a < 0) return 0;
@@ -854,7 +863,11 @@
     const fadeIn = sstep(T_FADE, T_FADE + 0.6, t);
 
     // levels
-    const lamp = lampLevel(t), warm = lampWarmth(t);
+    let lamp = lampLevel(t), warm = lampWarmth(t);
+    // leaving: full and alive until the click, then the filament's afterglow (see afterglow)
+    if(!LEAVING){ const a0 = t - T_LAMP; LV_HOLD = a0 < 0 ? 0 : a0 < .05 ? .55 : a0 < .11 ? .06 : a0 < .2 ? .7 : a0 < .26 ? .22 : lerp(.45, 1, easeOut((a0 - .26)/.75)); LV_K = clamp(warm, 0, 1); }
+    const lvG = LEAVING ? (t >= T_LAMP ? 1 : afterglow(T_LAMP - t)) * LV_HOLD : -1;
+    if(lvG >= 0){ lamp = lvG * (t >= T_LAMP ? lampLevel(Math.max(t, T_LAMP + 2)) : 1); warm = t >= T_LAMP ? Math.min(lampWarmth(Math.max(t, T_LAMP + 2)), LV_K) : .35*lvG; }
     const st = crtState(t);
     const bl = bulbs.map(b=>bulbLevel(b,t));
     let strAvg = 0; for(const v of bl) strAvg += v; strAvg /= bl.length;
@@ -888,8 +901,8 @@
     // ---- C lighting (Nov 18): steady weights composed and stepped once (cached), flicker multiplied after ----
     const FX = window.ROOMFX;
     const aL = t - T_LAMP;
-    const lS = aL < 0 ? 0 : aL < .05 ? .55 : aL < .11 ? .06 : aL < .2 ? .7 : aL < .26 ? .22 : lerp(.45, 1, easeOut((aL - .26)/.75));
-    const flL = aL > 1 ? FX.tiredBulb(R, 9, { depth: 1.2 }) * lampBrown(R) : 1;   // a tired bulb, and the rare brown-out
+    const lS = lvG >= 0 ? lvG : aL < 0 ? 0 : aL < .05 ? .55 : aL < .11 ? .06 : aL < .2 ? .7 : aL < .26 ? .22 : lerp(.45, 1, easeOut((aL - .26)/.75));
+    const flL = (lvG >= 0 ? t >= T_LAMP && LV_HOLD >= 1 : aL > 1) ? FX.tiredBulb(R, 9, { depth: 1.2 }) * lampBrown(R) : 1;   // a tired bulb, and the rare brown-out
     const lampQ = Math.round(lS*24)/24, warmQ = Math.round(clamp(warm, 0, 1)*12)/12, fadeQ = Math.round(fadeIn*24)/24;
     const lcS = [1, lerp(0.56, 0.75, warmQ), lerp(0.28, 0.47, warmQ)];
     const ledLv = LEDS.map(L=>{

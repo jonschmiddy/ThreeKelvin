@@ -376,6 +376,15 @@
   }
 
   // ---------- timeline helpers ----------
+  // Leaving (Nov 19, Jon: "the lamp turning off sound doesn't match the light"): run backwards, the warm-up ramp faded
+  // the lamp out before the timeline reached the click. Now, leaving, the lamp holds its full living light until the
+  // timeline reaches its lamp time (the click), then goes out like a switched filament: an afterglow over AFTER scene
+  // seconds (0.14 s real at the 2.2x leave), eased out ((1 - x)^2, fast then a short tail), held in eighths so the
+  // C light steps down in a few clean steps, cooling to deep orange as it dies. The power-on is unchanged.
+  const AFTER = .3;
+  // (a leave can start before the lamp is fully warm: it then holds the level it had, never jumping up)
+  let LV_HOLD = 1, LV_K = 1;
+  function afterglow(a){ if(a <= 0) return 1; if(a >= AFTER) return 0; const x = 1 - a/AFTER; return Math.round(x*x*8)/8; }
   function lampPower(t){
     const s = t - T.lamp; if(s<0) return {p:0, warm:0};
     // the filament catches: two stutters, then it warms from deep orange to amber
@@ -464,9 +473,12 @@
     const r = info && info.real != null ? info.real : t;   // idle clocks: always forward
     const o = out.data;
     const fade = clamp((t-T.room)/T.roomIn, 0, 1);
-    const lp = lampPower(t);
+    let lp = lampPower(t);
     // the lamp's life only once it is fully up (so the strike and the switch-off stay clean)
-    const lf = lampLife(r), full = t >= T.lamp + 1.4;
+    const lf = lampLife(r);
+    let full = t >= T.lamp + 1.4;
+    if(!leaving){ LV_HOLD = lp.p; LV_K = lp.warm; }
+    else if(t >= T.lamp){ lp = {p:LV_HOLD, warm:LV_K}; full = LV_HOLD >= 1; } else { const g = afterglow(T.lamp - t)*LV_HOLD; lp = {p:g, warm:.35*g}; full = false; }
     // lamp colour: deep filament orange warming to amber; drifts warm/cool; a brown-out runs warmer
     const dr = full ? 0.035*lf.drift - 0.25*(1-lf.brown) : 0;
     const lc = [1.0, 0.40 + 0.34*lp.warm + dr, Math.max(0.08, 0.12 + 0.30*lp.warm + 1.2*dr)];

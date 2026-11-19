@@ -188,3 +188,17 @@ func _beats() -> void:
 		if off.is_empty() or off[off.size() - 1] != ph:
 			off.append(ph)
 	_ok("leaving: picture, squeeze, line, dot, dark (%s)" % str(off), off == [5, 6, 2, 1, 0] as Array[int])
+	# leaving, the lamp holds full until its click, then an afterglow of AFTER scene seconds
+	life.frame(DeskOne.DONE_AT, 30.0, false)
+	var held := true
+	var out_at := -1.0
+	for k in 200:
+		var ts := DeskOne.DONE_AT - k * 0.05
+		var w: float = (life.frame(ts, 50.0 + k * 0.02, true)[&"w_big"] as Vector3).x
+		if ts >= DeskOne.LAMP_AT and w < 1.29:
+			held = false
+		if out_at < 0.0 and w <= 0.0:
+			out_at = ts
+	_ok("leaving, the lamp burns full down to its click", held)
+	_ok("then goes out within its afterglow (dark at scene %.2f, the click at %.2f)" % [out_at, DeskOne.LAMP_AT],
+		out_at < DeskOne.LAMP_AT and out_at >= DeskOne.LAMP_AT - DeskOne.AFTER - 0.05)

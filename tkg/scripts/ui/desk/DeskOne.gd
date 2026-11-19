@@ -20,6 +20,8 @@ const CRT_AT := 5.1
 ## When the power-on is done (the shell's `doneAt`): a leave from later starts here.
 const DONE_AT := 11.8
 const GL_SLOT := 5.5
+## The lamp's afterglow when it goes out on leaving, scene seconds (0.14 s real at the 2.2x leave).
+const AFTER := 0.3
 ## The timeline (u = seconds since act 1 went black); roll and idle follow the title card.
 const T := {fade = 0.6, click = 0.95, strings = 1.9, monLed = 2.45, dot = 2.6, line = 2.87, open = 3.17,
 	boot = 3.62, title = 5.82, solder = 2.3}
@@ -36,6 +38,9 @@ var tip: Array = []
 var tipc := Vector2i(327, 171)
 var smoke := {}
 var leaving := false
+## The lamp's level when the leave began (it never jumps up on the way out).
+var _lv_hold := 1.0
+var _lv_k := 1.0
 var c := 0.0
 var steam_img: Image
 var sky_img: Image
@@ -61,7 +66,33 @@ func _init(m: Dictionary) -> void:
 	dust_img = Image.create(DeskFx.W, DeskFx.H, false, Image.FORMAT_RGF)
 
 
+## Leaving, the lamp holds its full living light until the clock reaches its click, then goes out
+## like a switched filament: an afterglow over AFTER scene seconds, (1 - x)^2 held in eighths,
+## cooling to deep orange. A leave before it was warm holds the level it had.
 func _lamp(u: float) -> Dictionary[StringName, Variant]:
+	if not leaving:
+		return _lamp_fwd(u)
+	var r: Dictionary[StringName, Variant] = {}
+	if u >= T.click:
+		var f := _lamp_fwd(maxf(u, 2.6))
+		r.assign({fil = float(f[&"fil"]) * _lv_hold, k = minf(float(f[&"k"]), _lv_k), brown = 0.0, drift = f[&"drift"],
+			w = float(f[&"w"]) * pow(_lv_hold, 1.25)})
+		return r
+	var g := _afterglow(T.click - u) * _lv_hold
+	r.assign({fil = g, k = 0.35 * g, brown = 0.0, drift = 0.0, w = pow(g, 1.25)})
+	return r
+
+
+func _afterglow(a: float) -> float:
+	if a <= 0.0:
+		return 1.0
+	if a >= AFTER:
+		return 0.0
+	var x := 1.0 - a / AFTER
+	return DeskFx.jround(x * x * 8.0) / 8.0
+
+
+func _lamp_fwd(u: float) -> Dictionary[StringName, Variant]:
 	var fil := 0.0
 	if u < T.click:
 		fil = 0.0
@@ -290,6 +321,10 @@ func frame(ts: float, real: float, is_leaving: bool) -> Dictionary[StringName, V
 	leaving = is_leaving
 	c = real - 2.5
 	var fade := DeskFx.ease_s(u / T.fade)
+	if not leaving:
+		var lf := _lamp_fwd(u)
+		_lv_hold = lf[&"fil"]
+		_lv_k = lf[&"k"]
 	var lp := _lamp(u)
 	var steady_l := pow(float(lp[&"fil"]), 1.25)
 	var flick_l := (1.0 - float(lp[&"brown"])) * (DeskFx.tired_bulb(c, 3.0, 1.2) if u > 1.4 else 1.0)

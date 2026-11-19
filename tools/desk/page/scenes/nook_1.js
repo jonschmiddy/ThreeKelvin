@@ -507,6 +507,11 @@ function bulbB(t){
     if(a>0 && a<len) k*=1-(.06+hh(ci*71)*.03)*Math.sin(Math.PI*a/len); }
   return b*k;
 }
+// Leaving (Nov 19, Jon: "the lamp turning off sound doesn't match the light"): the switched-filament afterglow,
+// AFTER scene seconds (0.14 s real at the 2.2x leave), eased out ((1 - x)^2), held in eighths, as in the other rooms
+const AFTER=.3;
+let LV_HOLD=1, LV_K=1;
+function afterglow(a){ if(a<=0) return 1; if(a>=AFTER) return 0; const x=1-a/AFTER; return Math.round(x*x*8)/8; }
 function bulbWarm(t){ return ease(seg(t,T.bulb+0.25,T.bulb+1.4)); }
 // a swell that runs along the string every 7-11 s, one way or the other (about 3 s end to end)
 function swell(k,r){ const P=9, e=Math.floor((r-8)/P); let g=0;
@@ -709,7 +714,14 @@ function frame(g,t,info){
   // light weights: steady shapes, multiplied after stepping
   const sb=strBulbs.map((s,k)=>strB(s,k,t));
   const segA=[0,0,0,0], segN=[0,0,0,0]; strBulbs.forEach((s,k)=>{ segA[s.seg]+=Math.min(1.5,sb[k]); segN[s.seg]++; });
-  const bb=bulbB(t), bw=bulbWarm(t), ca=crtAmp(t), sg=scopeGlow(t);
+  let bb=bulbB(t), bw=bulbWarm(t);
+  const ca=crtAmp(t), sg=scopeGlow(t);
+  // Leaving (Nov 19): the rack bulb holds its full living light until the timeline reaches T.bulb (its click), then
+  // goes out like a switched filament (afterglow below); a leave that starts while it warms holds the level it had
+  const ub0=t-T.bulb, bulbSteady=ub0<0?0 : ub0<0.12?0.22 : ub0<0.18?0.05 : ub0<0.25?0.55 : ub0<0.3?0.18 : 0.32+0.68*ease((ub0-0.3)/0.75);
+  if(!LEAV){ LV_HOLD=bulbSteady; LV_K=bw; }
+  const lvG = LEAV ? (t>=T.bulb ? 1 : afterglow(T.bulb-t))*LV_HOLD : -1;
+  if(lvG>=0){ if(t>=T.bulb){ bb=bulbB(Math.max(t,T.bulb+2))*LV_HOLD; bw=Math.min(bulbWarm(Math.max(t,T.bulb+2)),LV_K); } else { bb=lvG; bw=.35*lvG; } }
   const amp={bulb:bb*1.05, str0:segA[0]/Math.max(1,segN[0]), str1:segA[1]/Math.max(1,segN[1]), str2:segA[2]/Math.max(1,segN[2]), str3:segA[3]/Math.max(1,segN[3]),
     crt:ca, scope:sg*(0.6+0.3*scopePulse(R)), port:1};
   const dr=bulbDrift(R)*bw, br=brown(R);
@@ -723,8 +735,8 @@ function frame(g,t,info){
   const on=(amp.str0+amp.str1+amp.str2+amp.str3)/4;
   window.__nook.strAvg=Math.min(1.3,on);
   const ub=t-T.bulb;
-  const bS= ub<0?0 : ub<0.12?0.22 : ub<0.18?0.05 : ub<0.25?0.55 : ub<0.3?0.18 : 0.32+0.68*ease((ub-0.3)/0.75);
-  const flB= ub>1.2 ? FX.tiredBulb(R, 11, {depth:1.2})*(1-brown(R)) : 1;      // a tired bulb, and the rare brown-out
+  const bS= lvG>=0 ? lvG : bulbSteady;
+  const flB= (lvG>=0 ? t>=T.bulb && LV_HOLD>=1 : ub>1.2) ? FX.tiredBulb(R, 11, {depth:1.2})*(1-brown(R)) : 1;      // a tired bulb, and the rare brown-out
   const bulbQ=Math.round(bS*24)/24, bwQ=Math.round(bw*12)/12;
   const son=sb.map(v=>v>0?1:0), lv=ledList.map(e=>ledB(e,t)), lon=lv.map(v=>v>0?1:0);
   const caOn=ca>0?1:0, scQ=Math.round(sg*12)/12;
@@ -798,5 +810,5 @@ function frame(g,t,info){
   if(scopeGlow(t)>0){ g.fillStyle='rgba(0,0,0,0.22)'; for(let y=SC.y0+1;y<=SC.y1;y++) g.fillRect(SC.x0*S,y*S+S-1,(SC.x1-SC.x0+1)*S,1); }
 }
 
-DESK.register({ id:'nook_1', name:'NOOK', line:'Scope, rack and strings wake up.', doneAt:12.3, init, frame, times:{ lamp:T.main, crt:T.crt } });
+DESK.register({ id:'nook_1', name:'NOOK', line:'Scope, rack and strings wake up.', doneAt:12.3, init, frame, times:{ lamp:T.bulb, crt:T.crt } });   // Nov 19: the lamp click goes with the rack bulb it switches, both ways
 })();

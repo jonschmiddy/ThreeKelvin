@@ -241,7 +241,25 @@
   const T = { fade: .6, click: .95, strings: 1.9, monLed: 2.45, dot: 2.6, line: 2.87, open: 3.17, boot: 3.62, title: 5.82, solder: 2.3 };
   T.roll = T.title + DESK.TITLE.hold; T.idle = T.roll + DESK.TITLE.wipe + .5;
 
+  // Leaving (Nov 19, Jon: "the lamp turning off sound doesn't match the light"): run backwards, the warm-up ramp faded
+  // the lamp out before the timeline reached the click. Now, leaving, the lamp holds its full living light until the
+  // timeline reaches its lamp time (the click), then goes out like a switched filament: an afterglow over AFTER scene
+  // seconds (0.14 s real at the 2.2x leave), eased out ((1 - x)^2, fast then a short tail), held in eighths so the
+  // C light steps down in a few clean steps, cooling to deep orange as it dies. The power-on is unchanged.
+  const AFTER = .3;
+  // (a leave can start before the lamp is fully warm: it then holds the level it had, never jumping up)
+  let LV_HOLD = 1, LV_K = 1;
+  function afterglow(a){ if(a <= 0) return 1; if(a >= AFTER) return 0; const x = 1 - a/AFTER; return Math.round(x*x*8)/8; }
   function lampState(u){
+    if (LEAVING){
+      if (u >= T.click){ const f = lampStateFwd(Math.max(u, 2.6));                // full and alive (breathing, tired bulb)
+        return { fil: f.fil * LV_HOLD, k: Math.min(f.k, LV_K), brown: 0, drift: f.drift, w: f.w * Math.pow(LV_HOLD, 1.25) }; }
+      const g = afterglow(T.click - u) * LV_HOLD;
+      return { fil: g, k: .35 * g, brown: 0, drift: 0, w: Math.pow(g, 1.25) };
+    }
+    return lampStateFwd(u);
+  }
+  function lampStateFwd(u){
     // filament: strike, catch, drop, catch, then warm up
     let fil = 0;
     if (u < T.click) fil = 0;
@@ -808,6 +826,7 @@
     C = info && info.real != null ? info.real - DESK.ACT1.black : u;
     const FX = window.ROOMFX;
     const fade = ease(u / T.fade);
+    if (!LEAVING){ const f = lampStateFwd(u); LV_HOLD = f.fil; LV_K = f.k; }
     const L = lampState(u);
     // the lamp's weight = [steady, flicker]: the strike and warm-up are steady; the tired bulb and the
     // brown-outs are flicker, multiplied in after the light is composed and stepped
