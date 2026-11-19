@@ -209,6 +209,9 @@ func _draw() -> void:
 			z = 1.0 + (ZOOM_MAX - 1.0) * _ease((ts - HOLD) / (ZOOM_END - HOLD))
 		var u := (z - 1.0) / (ZOOM_MAX - 1.0)
 		var at := _ship + (size / 2.0 - _ship) * u
+		# a ship near LOCAL's edge (yours flies in at the left) would bare the still's edge: it
+		# comes as near the middle as the picture allows
+		at = at.clamp(size - (size - _ship) * z, _ship * z)
 		draw_texture_rect(_shot, Rect2(at - _ship * z, size * z), false)
 	var f := clampf((ts - FADE_AT) / (a - FADE_AT - 0.15), 0.0, 1.0)
 	if f > 0.0:

@@ -103,6 +103,7 @@ func _run() -> void:
 		_end()
 		return
 	_h._ok("the room is DESK 1 (a medium Korvan hull, Jon's ruling)", d.room.id == "desk_1")
+	print("deskvisit: pushing into the ship at %s" % str(d._ship))
 	await _until(func() -> bool: return d.ts >= 1.6)
 	await _shot("2_push_in")
 	await _until(func() -> bool: return d.ts >= DeskTimeline.A + 2.0)

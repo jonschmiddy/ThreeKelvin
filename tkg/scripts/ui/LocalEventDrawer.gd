@@ -593,9 +593,11 @@ func choose(j: int) -> Dictionary:
 ## A reading at your science desk (`DeskScene`): it takes choice `j` itself, once, on the tap.
 func _at_desk(o: Dictionary, j: int) -> Dictionary[String, Variant]:
 	var at := Vector2(-1, -1)
-	var hull := _ship.hull_on_screen() if _ship != null and is_instance_valid(_ship) else Rect2()
-	if hull.size.x > 0.0:
-		at = hull.get_center()
+	var view: Variant = screen.get("_view") if screen != null else null
+	var sv: ShipView = (view as EncounterView).ship_view() if view is EncounterView else null
+	if sv != null and sv.is_visible_in_tree():
+		var r := sv.ship_rect()
+		at = sv.get_global_transform() * r.get_center()
 	var n := node
 	var i := opt
 	var take := func() -> Dictionary: return await OptionResolve.take(n, i, j)
