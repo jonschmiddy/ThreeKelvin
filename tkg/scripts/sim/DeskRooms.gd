@@ -26,14 +26,14 @@ func _run() -> void:
 		await _play(float(_arg("play")))
 		return
 	var out := _arg("out")
-	var man := _arg("frames")
-	if out == "" or man == "":
+	var manifest := _arg("frames")
+	if out == "" or manifest == "":
 		print("deskrooms: give frames=<manifest.json> out=<dir>")
 		_tree.quit(2)
 		return
-	var doc: Variant = JSON.parse_string(FileAccess.get_file_as_string(man))
+	var doc: Variant = JSON.parse_string(FileAccess.get_file_as_string(manifest))
 	if not doc is Dictionary:
-		print("deskrooms: cannot read %s" % man)
+		print("deskrooms: cannot read %s" % manifest)
 		_tree.quit(2)
 		return
 	DirAccess.make_dir_recursive_absolute(out)
