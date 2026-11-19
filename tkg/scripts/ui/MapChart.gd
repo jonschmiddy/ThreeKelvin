@@ -1200,9 +1200,7 @@ func _draw_node(node2: MapGen.MapNode, p: Vector2, tint: Color, tiny: bool, dim:
 	if dim:
 		ink2 = StarchartScreen.Glyph.DIM
 	var size := ChartGlyphs.SMALL if tiny else ChartGlyphs.BIG
-	ChartGlyphs.draw_node(self, node2.type, p + Vector2(6, 6), size, ink2, _UNDER, dim or spent)
-	if node2.twin:
-		ChartGlyphs.draw_twin(self, p + Vector2(6, 6), size / 2, ink2, _UNDER)
+	ChartGlyphs.draw_node(self, node2.type, p + Vector2(6, 6), size, ink2, _UNDER, dim or spent, node2.twin)
 	if not tiny:
 		StarchartScreen.Glyph.draw_brackets(self, p, false, node2.index == selected)
 	drawn_ink[node2.index] = ink2

@@ -32,7 +32,7 @@ A SUN FOR A PLAIN SYSTEM (Jon, Nov 18, after seeing the dots in play: "These are
 small. They need to be the size of the other icons"; then "system:A"). The dot became a
 sun disc with short rays, 9 zoomed in and 7 at the opening zoom like the others, tinted
 and dimmed like them. It beat a star in an orbit, a ringed planet and a star with two
-planets. A twin keeps its warm second pixel, in the sun's empty lower right corner.
+planets. A twin system wears its own icon (#twin-icon).
 See #system-icon for what it costs in density.
 
 The style is MapGlyphs': a 1 px outline in the mark's colour, a fill of it at
@@ -136,4 +136,19 @@ rim, and systems in reach 6 to 7 px apart beside YOU. Two ways out were shown. C
 far icons first under a solid dark rim, and FAR SMALLER drew far systems at 5 px, which
 barely helped since the pairs that meet are in reach. Jon chose neither ("as is"): the
 icons are drawn in map order on the chart's soft rim, and where two meet they meet.
+```
+
+## Twin icon
+
+Above `&"twin": {`:
+
+```text
+TWO SUNS, READABLE AS TWO (Jon, Nov 18: "twin:A"). The sun first carried one warm
+pixel in its empty lower right corner for a twin (ruling 20). In play, on seed 777
+beside YOU, that pixel was all but invisible at 2x and in the in-range list, so a twin
+read as a single. Three ideas went to a page: A the 7 px sun with a small warm sun at
+its lower right, B the sun with a small warm disc over its edge, C two small suns on one
+orbit. He picked A. The main sun keeps the star's tint; the second is HOT, so it reads
+warm in any region. Same 9 and 7 px box as every node icon, so the density counts in
+#system-icon stand.
 ```

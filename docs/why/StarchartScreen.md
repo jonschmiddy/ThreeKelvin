@@ -262,7 +262,7 @@ on the thing it is a legend for, which is worse than having no legend.
 
 THE KEY DRAWS THE CHART'S OWN ICONS (Jon, Nov 18: "start:B station:A pulsar:A core:A").
 `Glyph` is no longer a 13 px picture of its own. It draws what the chart draws zoomed in:
-`ChartGlyphs`' 9 px icon, a plain system's sun (with a twin's warm pixel) among them
+`ChartGlyphs`' 9 px icon, a plain system's sun and a twin's two suns among them
 (the core the sector's 11 px black hole), in the swatch lifted as on the
 chart. The in-range list's rows use the same Glyph with each star's colour, so a list
 of systems is a column of suns and a station or a pulsar stands out by its shape. Why the

@@ -94,6 +94,29 @@ const NODE := {
 			"MMMMMMM",
 		],
 	},
+	# TWO SUNS (ruling 20): the sun with a small warm sun at its lower right ("twin:A", Jon, Nov 18)
+	&"twin": {
+		9: [
+			"...M.....",
+			".M...M...",
+			"..MMM....",
+			"M.MHM.M..",
+			"..MMM....",
+			".M...M.H.",
+			"...M..HHH",
+			".......H.",
+			".........",
+		],
+		7: [
+			"..M....",
+			".MMM...",
+			"MMHMM..",
+			".MMM.H.",
+			"..M.HHH",
+			".....H.",
+			".......",
+		],
+	},
 	# a spinning star throwing two beams, its middle open for the sky's own flash
 	&"pulsar": {
 		9: [
@@ -246,10 +269,13 @@ static func _draw(ci: CanvasItem, key: String, cp: Vector2, at: Vector2i, main: 
 		ci.draw_rect(Rect2(o + Vector2(p.x, p.y), Vector2.ONE), MapGlyphs.ink(p.z, main, flat), true)
 
 
-## A node's icon centred on `cp`: `size` 9 or 7 (the core is always the sector's 11).
+## A node's icon centred on `cp`: `size` 9 or 7 (the core is always the sector's 11); a system of two
+## suns (`twin`) wears the twin.
 static func draw_node(ci: CanvasItem, t: MapGen.NodeType, cp: Vector2, size: int, main: Color,
-		under: Color, flat := false) -> void:
+		under: Color, flat := false, twin := false) -> void:
 	var kind := kind_of(t)
+	if twin and kind == &"system":
+		kind = &"twin"
 	var key := "core" if kind == &"core" else "%s%d" % [kind, size]
 	var half := (MapGlyphs.SIZE if kind == &"core" else size) / 2
 	_draw(ci, key, cp, Vector2i(half, half), main, under, flat)
@@ -270,16 +296,6 @@ static func draw_mark(ci: CanvasItem, name: StringName, cp: Vector2, main: Color
 ## YOU's brackets round the star at `cp`.
 static func draw_you(ci: CanvasItem, cp: Vector2, half: int, main: Color, under: Color) -> void:
 	_draw(ci, "you%d" % half, cp, Vector2i(half, half), MapGlyphs.boost(main), under, false)
-
-
-## TWO SUNS (ruling 20): a pixel of a second, warmer star in the sun icon's empty lower right corner,
-## on its own rim; `half` is the icon's half-width (4 or 3).
-static func draw_twin(ci: CanvasItem, cp: Vector2, half: int, main: Color, under: Color) -> void:
-	var c2 := cp + Vector2(half, half)
-	if under.a > 0.0:
-		for d: Vector2 in [Vector2(-1, 0), Vector2(0, -1)]:
-			ci.draw_rect(Rect2(c2 + d, Vector2.ONE), under, true)
-	ci.draw_rect(Rect2(c2, Vector2.ONE), main.lerp(UITheme.EMBER, 0.55), true)
 
 
 ## The centre pixel the chart draws a mark on, for a star at `at`: the old 13 px glyph's middle.

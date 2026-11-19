@@ -1287,7 +1287,7 @@ class Glyph extends Control:
 
 	var type: MapGen.NodeType = MapGen.NodeType.SYSTEM
 	var tint: Color = Color.WHITE
-	## a system of two suns (ruling 20): the dot's second, warmer pixel, as the chart draws it
+	## a system of two suns (ruling 20): it wears the twin icon, as the chart draws it
 	var twin := false
 	## the boost's lift: the KEY sits low, where the tube's vignette takes most (`MapGlyphs.KEY_LIFT`)
 	var lift := ChartGlyphs.NODE_LIFT
@@ -1301,9 +1301,7 @@ class Glyph extends Control:
 
 	func _draw() -> void:
 		var ink := MapGlyphs.boost(tint.lightened(ChartGlyphs.NEAR_LIFT), lift)
-		ChartGlyphs.draw_node(self, type, Vector2(6, 6), ChartGlyphs.BIG, ink, Color.TRANSPARENT)
-		if twin:
-			ChartGlyphs.draw_twin(self, Vector2(6, 6), ChartGlyphs.BIG / 2, ink, Color.TRANSPARENT)
+		ChartGlyphs.draw_node(self, type, Vector2(6, 6), ChartGlyphs.BIG, ink, Color.TRANSPARENT, false, twin)
 
 	## One grey for a star in reach that a jump refuses as too deep, so it reads as off.
 	## Jon picked this darkest of three (Oct 30, 'Gray: B2'); it was #4a4e55.
