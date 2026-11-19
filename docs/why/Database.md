@@ -1458,7 +1458,7 @@ as the hold. Those drawings are smaller than Korvan's (43 px a cell for the two
 three-cell guns, 64 for the torch, against Korvan's 52), so each carries its own
 `scale` (0.6 x 52 / its px a cell) and stands as long as a Korvan gun of its cells:
 93 px for the laser and slug beside the KM-4's 95, 62 for the torch. Sources and
-`prep.py` are in tk-scratch/hold_icons/ship_guns. Every other maker's gun on a
+`prep.py` are in tk-scratch/hold_icons/ship_guns. Every other manufacturer's gun on a
 Korvan hull still draws its old module picture.
 
 NOTHING CLIPS A GUN (Jon, Nov 17, on the fight still: "ship is cut off?"). The

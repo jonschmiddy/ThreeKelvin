@@ -2,9 +2,8 @@ extends Node
 
 ## Korvan's three hulls at grades C to S with their guns on, as the game draws them
 ## (`ShipView` and a passive `MountPoints`), one still each, and a fight with a medium.
-## Windowed, through `tools/dev/render.sh`: `-- nolauncher sheet=GunSheet out=<dir> [fight]`.
-## `ids=beam,slug,torch` instead: the medium at grade S with each of those weapons on a top
-## mount (0) and a belly mount (2), one still each, beside Korvan's KM-4 and KH-20 there.
+## Windowed, through `tools/dev/render.sh`: `-- nolauncher sheet=GunSheet out=<dir> [fight]`;
+## `ids=beam,slug,torch` instead: each on the medium's top and belly mount, and a Korvan still.
 ## Why: docs/why/Database.md#on-ship-guns
 
 ## A typical loadout per weight: [module id, weapon mount index] (`HULL_MOUNTS` order).
