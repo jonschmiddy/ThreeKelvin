@@ -1310,22 +1310,22 @@ const HULL_MOUNTS := {
 	# Korvan's Nov 16 set: a weapon point is where its gun's anchor goes, the top outline row or
 	# the row under the belly (`guns` says which). Why: docs/why/Database.md#on-ship-guns
 	"hull_light_zero": {
-		weapon = [Vector2(184, 24), Vector2(161, 68), Vector2(96, 20)],
+		weapon = [Vector2(196, 18), Vector2(134, 63), Vector2(95, 18)],
 		guns = [&"top", &"belly", &"top"],
-		system = [Vector2(101, 30), Vector2(101, 56), Vector2(141, 46)],
-		utility = [Vector2(199, 30), Vector2(199, 56)],
+		system = [Vector2(95, 35), Vector2(95, 53), Vector2(150, 46)],
+		utility = [Vector2(196, 31), Vector2(196, 53)],
 	},
 	"hull_medium_zero": {
-		weapon = [Vector2(245, 28), Vector2(107, 28), Vector2(250, 88), Vector2(107, 88)],
-		guns = [&"top", &"top", &"belly", &"belly"],
-		system = [Vector2(107, 56), Vector2(205, 60), Vector2(265, 60)],
-		utility = [Vector2(171, 21), Vector2(157, 60)],
+		weapon = [Vector2(251, 26), Vector2(251, 93), Vector2(106, 28), Vector2(108, 88)],
+		guns = [&"top", &"belly", &"top", &"belly"],
+		system = [Vector2(106, 60), Vector2(157, 59), Vector2(205, 59)],
+		utility = [Vector2(272, 46), Vector2(272, 72)],
 	},
 	"hull_heavy_zero": {
-		weapon = [Vector2(331, 43), Vector2(331, 113), Vector2(252, 43), Vector2(171, 109), Vector2(122, 41)],
-		guns = [&"top", &"belly", &"top", &"belly", &"top"],
-		system = [Vector2(122, 74), Vector2(167, 74), Vector2(271, 74)],
-		utility = [Vector2(200, 37)],
+		weapon = [Vector2(326, 39), Vector2(326, 116), Vector2(120, 41), Vector2(120, 108), Vector2(192, 110)],
+		guns = [&"top", &"belly", &"top", &"belly", &"belly"],
+		system = [Vector2(120, 75), Vector2(170, 75), Vector2(272, 75)],
+		utility = [Vector2(192, 35)],
 	},
 	# Solari mounts listed in the order grades open them, so a C-grade ship keeps its front pair.
 	# Why: docs/why/Database.md#hull-mounts
