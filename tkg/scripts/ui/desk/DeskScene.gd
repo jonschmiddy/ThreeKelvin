@@ -13,7 +13,7 @@ static var enabled := true
 ## Jon's ruling (Nov 19, his A): the room goes by the hull. Salvage frames (unbranded) get the nook,
 ## light hulls the bunk, medium DESK 1, heavy DESK 2. Rooms not yet ported fall back to DESK 1.
 ## Why: docs/why/DeskScene.md#jons-rulings-nov-19
-const BUILT: Array[String] = ["desk_1"]
+const BUILT: Array[String] = ["desk_1", "desk_2"]
 ## The page's act 1, in scene seconds: LOCAL held, the push in (1x to 8x), the fade to black.
 const HOLD := 0.5
 const ZOOM_END := 2.1
@@ -107,8 +107,8 @@ func open(room_id: String, title: String, ship_at: Vector2, take: Callable) -> b
 	# drawn once now, while LOCAL still holds: the shaders compile behind the still picture
 	room.show_at(DeskTimeline.A, DeskTimeline.A, false)
 	audio = DeskAudio.new()
-	audio.lamp_at = DeskOne.LAMP_AT
-	audio.crt_at = DeskOne.CRT_AT
+	audio.lamp_at = room.life.lamp_at
+	audio.crt_at = room.life.crt_at
 	add_child(audio)
 	if GameShell.instance == null:
 		_fallback = TextureRect.new()
@@ -129,7 +129,7 @@ func leave() -> void:
 		return
 	leaving = true
 	_leave_t0 = _clock
-	_leave_from = minf(ts, DeskOne.DONE_AT)
+	_leave_from = minf(ts, room.life.done_at)
 
 
 ## The tap: takes the reading once the card is up; once its outcome is up, leaves.
@@ -138,7 +138,7 @@ func tap() -> void:
 		return
 	var u := ts - DeskTimeline.A
 	if not taken:
-		if u < float(DeskOne.T.title):
+		if u < room.life.title_u:
 			return
 		taken = true
 		room.life.release(u)
@@ -147,7 +147,7 @@ func tap() -> void:
 		var said := String((res as Dictionary).get("text", "")) if res is Dictionary else ""
 		room.set_screen(DeskCard.outcome(said if said != "" else String(result.get("text", ""))))
 		_shown_at = ts
-	elif _shown_at >= 0.0 and ts - _shown_at > DeskOne.TITLE_WIPE:
+	elif _shown_at >= 0.0 and ts - _shown_at > room.life.title_wipe:
 		leave()
 
 

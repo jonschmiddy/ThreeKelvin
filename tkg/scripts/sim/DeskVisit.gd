@@ -2,7 +2,8 @@ extends Node
 
 ## The science desk end to end in a real run, windowed (`render.sh`): a reading picked on LOCAL,
 ## the push in, the room, the card, the tap (taken once), the outcome, back to LOCAL; then a visit
-## left with Esc before the tap. `-- sheet=DeskVisit [out=<dir>]` writes a still of each beat.
+## left with Esc before the tap. `-- sheet=DeskVisit [out=<dir>] [weight=light|medium|heavy] [manufacturer=<id>]`
+## writes a still of each beat; the hull picks the room (Jon's ruling: light the bunk, heavy DESK 2).
 ## Why: docs/why/DeskScene.md#the-hook
 
 const SITE := &"the_first_look"
@@ -83,7 +84,10 @@ func _run() -> void:
 		DirAccess.make_dir_recursive_absolute(_out)
 	await Harness.frames(_tree, 2)
 	Rng.forced = 4242
-	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var wt := {"light": HullData.Weight.LIGHT, "heavy": HullData.Weight.HEAVY}.get(_arg("weight"), HullData.Weight.MEDIUM) as int
+	var mf := StringName(_arg("manufacturer")) if _arg("manufacturer") != "" else &"korvan"
+	Run.start_new_run(mf, wt)
+	var want := DeskScene.room_for(Run.hull)
 	var n := _system()
 	if not _h._ok("a system to read in", n != null):
 		_end()
@@ -102,14 +106,14 @@ func _run() -> void:
 	if d == null:
 		_end()
 		return
-	_h._ok("the room is DESK 1 (a medium Korvan hull, Jon's ruling)", d.room.id == "desk_1")
+	_h._ok("the room is the hull's, %s (Jon's ruling)" % want, d.room.id == want)
 	print("deskvisit: pushing into the ship at %s" % str(d._ship))
 	await _until(func() -> bool: return d.ts >= 1.6)
 	await _shot("2_push_in")
 	await _until(func() -> bool: return d.ts >= DeskTimeline.A + 2.0)
 	_h._ok("in the room the shell shows the desk's canvas", GameShell.instance == null or GameShell.covered())
 	await _shot("3_desk_power_on")
-	var title_up := DeskTimeline.A + float(DeskOne.T.title) + 1.0
+	var title_up := DeskTimeline.A + d.room.life.title_u + 1.0
 	await _until(func() -> bool: return d.ts >= title_up)
 	await _shot("4_title_card")
 	_h._ok("nothing is taken before the tap", Run.data == data0 and not d.taken)

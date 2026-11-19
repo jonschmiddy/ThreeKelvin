@@ -4,7 +4,7 @@ extends Control
 ## One science desk room drawn as the approved page draws it: the room lit at art size (384 x 216) in
 ## its own viewport by the room's shader, then scaled to the window through the tube (`desk_tube`),
 ## which reads the canvas the page would have drawn (5x art, the CRT's scanlines). The room's clocks
-## and small layers are its life (`DeskOne`); the bake is `tools/desk/dump_desk.py`'s.
+## and small layers are its life (`DeskLife`: `DeskOne`, `DeskTwo`); the bake is `tools/desk/dump_desk.py`'s.
 ## Why: docs/why/DeskScene.md#the-plan
 
 const BAKE_DIR := "res://art/desk/bake/%s/"
@@ -12,7 +12,7 @@ const ART := Vector2i(384, 216)
 const GLASS := Vector2i(150, 140)
 ## The page's canvas: what the tube's numbers are in.
 const CANVAS := Vector2(1920.0, 1080.0)
-const SHADERS := {"desk_1": preload("res://shaders/desk_1.gdshader")}
+const SHADERS := {"desk_1": preload("res://shaders/desk_1.gdshader"), "desk_2": preload("res://shaders/desk_2.gdshader")}
 const MEAN_SHADER := preload("res://shaders/desk_mean.gdshader")
 const TUBE_SHADER := preload("res://shaders/desk_tube.gdshader")
 const SCREEN := preload("res://art/desk/screen_culture.png")
@@ -24,7 +24,7 @@ const ROLE_STRING0 := 16
 
 var id := ""
 var meta: Dictionary = {}
-var life: DeskOne = null
+var life: DeskLife = null
 var _room_vp: SubViewport
 var _room_mat: ShaderMaterial
 var _mean_vp: SubViewport
@@ -58,16 +58,18 @@ func setup(room: String) -> bool:
 	if meta.is_empty() or not SHADERS.has(room):
 		push_error("DeskRoom: no bake for %s" % room)
 		return false
-	life = DeskOne.new(meta)
+	life = _life(room, meta)
 	_room_mat = ShaderMaterial.new()
 	_room_mat.shader = SHADERS[room]
 	var f := Image.FORMAT_RGBAF
-	for n: String in ["a2c", "fields", "small_i", "small_v", "px"]:
-		_room_mat.set_shader_parameter(n + "_tex", plane(room, n, ART, f))
+	for n: String in ["a2c", "fields", "small_i", "small_v", "px", "small_i2", "small_v2", "art"]:
+		if FileAccess.file_exists((BAKE_DIR % room) + n + ".bin.gz"):
+			_room_mat.set_shader_parameter(n + "_tex", plane(room, n, ART, f))
 	_room_mat.set_shader_parameter(&"role_tex", plane(room, "role", ART, Image.FORMAT_RF))
 	_room_mat.set_shader_parameter(&"glass_tex", plane(room, "glass", GLASS, f))
 	set_card("")
 	_room_mat.set_shader_parameter(&"screen_tex", SCREEN)
+	life.set_screen(SCREEN.get_image())
 	_steam_tex = ImageTexture.create_from_image(life.steam_img)
 	_sky_tex = ImageTexture.create_from_image(life.sky_img)
 	_dust_tex = ImageTexture.create_from_image(life.dust_img)
@@ -87,12 +89,22 @@ func setup(room: String) -> bool:
 	_tube_mat.set_shader_parameter(&"mean_tex", _mean_vp.get_texture())
 	_tube_mat.set_shader_parameter(&"tube_scale", float(meta.tubeScale))
 	_tube_mat.set_shader_parameter(&"canvas", CANVAS)
+	_tube_mat.set_shader_parameter(&"scan_mul", life.scan)
+	mean_mat.set_shader_parameter(&"scan_mul", life.scan)
 	var tube := ColorRect.new()
 	tube.material = _tube_mat
 	tube.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tube.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(tube)
 	return true
+
+
+## The room's scalar half (its page script's port).
+static func _life(room: String, m: Dictionary) -> DeskLife:
+	match room:
+		"desk_2":
+			return DeskTwo.new(m)
+	return DeskOne.new(m)
 
 
 func _viewport(size: Vector2i, mat: ShaderMaterial) -> SubViewport:
@@ -111,12 +123,16 @@ func _viewport(size: Vector2i, mat: ShaderMaterial) -> SubViewport:
 
 ## The title card naming the site ("": the page's own).
 func set_card(site: String) -> void:
-	_room_mat.set_shader_parameter(&"title_tex", ImageTexture.create_from_image(DeskCard.title(site)))
+	var card := DeskCard.title(site)
+	_room_mat.set_shader_parameter(&"title_tex", ImageTexture.create_from_image(card))
+	if life != null:
+		life.set_card(card)
 
 
 ## What the picture phase shows on the glass (150 x 140).
 func set_screen(img: Image) -> void:
 	_room_mat.set_shader_parameter(&"screen_tex", ImageTexture.create_from_image(img))
+	life.set_screen(img)
 
 
 ## Draw the room at scene time `ts` (backwards while leaving) on the free clock `real`.
@@ -140,8 +156,8 @@ func show_at(ts: float, real: float, leaving: bool) -> void:
 			&"wisp":
 				_room_mat.set_shader_parameter(k, _v4(v, 24))
 				_room_mat.set_shader_parameter(&"wisp_n", mini((v as PackedVector3Array).size(), 24))
-			&"w_small", &"fl_small", &"str_v":
-				_room_mat.set_shader_parameter(k, _quads(v))
+			&"w_small", &"fl_small", &"str_v", &"str_cream":
+				_room_mat.set_shader_parameter(k, _quads(v, life.small_q))
 			&"g_scan":
 				_tube_mat.set_shader_parameter(&"scan_on", v)
 				_mean_mat_scan(v)
@@ -175,11 +191,11 @@ static func _v4(a: PackedVector3Array, n: int) -> PackedVector4Array:
 	return b
 
 
-## Sixteen floats as four vec4s.
-static func _quads(a: PackedFloat32Array) -> PackedVector4Array:
+## Floats as q vec4s (four to a vec4, zero past the end).
+static func _quads(a: PackedFloat32Array, q: int = 4) -> PackedVector4Array:
 	var f := a.duplicate()
-	f.resize(16)
+	f.resize(q * 4)
 	var b := PackedVector4Array()
-	for i in 4:
+	for i in q:
 		b.append(Vector4(f[i * 4], f[i * 4 + 1], f[i * 4 + 2], f[i * 4 + 3]))
 	return b

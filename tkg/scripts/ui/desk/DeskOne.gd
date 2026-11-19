@@ -1,5 +1,5 @@
 class_name DeskOne
-extends RefCounted
+extends DeskLife
 
 ## DESK 1, the lived-in bridge desk: its power-on and idle, ported from the approved page's
 ## `scenes/desk_1.js` (tools/desk/page). This is the scalar half: every clock, level and weight
@@ -31,7 +31,6 @@ const TITLE_WIPE := 0.4
 const ROLL := 5.82 + TITLE_HOLD
 const IDLE := ROLL + TITLE_WIPE + 0.5
 
-var meta: Dictionary
 var strings: Array = []
 var sky_k: Dictionary
 var tip: Array = []
@@ -45,13 +44,6 @@ var roll := ROLL
 var _lv_hold := 1.0
 var _lv_k := 1.0
 var c := 0.0
-var steam_img: Image
-var sky_img: Image
-var dust_img: Image
-## The raster's noise while it opens (phase 3), in doubles as the page has it: float32's sin
-## at these arguments is a different noise.
-var noise_img: Image
-var noise_new := false
 
 
 func _init(m: Dictionary) -> void:
@@ -68,10 +60,16 @@ func _init(m: Dictionary) -> void:
 	tip = m.TIP
 	tipc = Vector2i(int(m.TIPC.x), int(m.TIPC.y))
 	smoke = m.SMOKE
-	steam_img = Image.create(SB.size.x, SB.size.y, false, Image.FORMAT_RF)
-	sky_img = Image.create(PORT_BOX.size.x, PORT_BOX.size.y, false, Image.FORMAT_RGBA8)
-	dust_img = Image.create(DeskFx.W, DeskFx.H, false, Image.FORMAT_RGF)
-	noise_img = Image.create(GLASS.size.x, GLASS.size.y, false, Image.FORMAT_RF)
+	lamp_at = LAMP_AT
+	crt_at = CRT_AT
+	done_at = DONE_AT
+	title_u = T.title
+	title_wipe = TITLE_WIPE
+	steam_box = SB
+	port_box = PORT_BOX
+	# noise_img is the raster's noise while it opens (phase 3), in doubles as the page has it:
+	# float32's sin at these arguments is a different noise
+	_make_images(GLASS.size)
 
 
 ## The game's card: it waits for a tap instead of the page's 2.5 s.

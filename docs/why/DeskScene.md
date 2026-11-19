@@ -160,7 +160,20 @@ They do not share their per-frame drawing.
 - **`aux`** is a device name on Windows; it cannot be a file.
 - **Finding a node by class.** `find_children(type)` matches native classes only; test `is DeskScene`.
 
-**DESK 2** (`desk_2.js`, 860 lines) differs from DESK 1:
+Each room's scalar half extends `DeskLife` (its times, its CPU layers, its frame's uniforms);
+`DeskRoom._life` picks it. The dump inits each scene once, as the page's shell does: DESK 2's init
+is not idempotent (its emitter lists grow on every call).
+
+**DESK 2** (`DeskTwo`, `shaders/desk_2.gdshader`, done Nov 19): every frame within 0 to 138 of about
+2 million pixels, at most 28 off by more than 8 (a dust mote or two). It differs from DESK 1:
+- Up to six bulbs light one pixel, so the bake has a second four (`small_i2`, `small_v2`;
+  `SMALL_8`), and each bulb has its own tint (`SMALL_TINTS`).
+- Its scanline is a 0.3 fill Chrome truncates (`floor(v * 179 / 256)`), not rounds (`scan_mul.z`).
+- The lamp's smudge on the glass shows on the dark tube too.
+- The fifth slot in each round of glitches names no kind: it shows nothing but dims the screen's
+  light 5% until the next (`GL_KINDS` has four).
+
+What the page's script says about it:
 - 33 string bulbs, each with its own tint, so the uniform arrays must reach 64.
 - Dust is drawn before the emitters and lit by the stepped light alone.
 - The LED glow is a box shape (`addGlow`).

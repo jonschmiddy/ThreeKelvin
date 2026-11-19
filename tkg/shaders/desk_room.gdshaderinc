@@ -25,7 +25,13 @@ uniform vec3 tint_scr = vec3(1.0);
 uniform vec3 tint_port = vec3(0.8, 0.88, 1.0);
 uniform vec3 tint_small = vec3(1.0, 0.82, 0.62);
 // (float and vec3 arrays are packed as vec4s: the compatibility renderer laid float[] out tight)
-uniform vec4 w_small[4];
+// A room with more than sixteen small lights defines SMALL_Q (vec4s) before the include; one whose
+// bulbs crowd past four a pixel defines SMALL_8 (the bake's small_i2 / small_v2); one whose bulbs
+// each have their own tint defines SMALL_TINTS (tint_small_a, one a light).
+#ifndef SMALL_Q
+#define SMALL_Q 4
+#endif
+uniform vec4 w_small[SMALL_Q];
 uniform vec3 amb = vec3(0.17, 0.18, 0.23);
 uniform float st_fade = 0.0;
 uniform float ov = 0.3;
@@ -33,7 +39,14 @@ uniform float hot = 6.0;
 uniform vec3 hot_col = vec3(1.0, 0.7, 0.4);
 uniform float fl_lamp = 1.0;
 uniform float fl_scr = 1.0;
-uniform vec4 fl_small[4];
+uniform vec4 fl_small[SMALL_Q];
+#ifdef SMALL_8
+uniform sampler2D small_i2_tex : filter_nearest, repeat_disable;
+uniform sampler2D small_v2_tex : filter_nearest, repeat_disable;
+#endif
+#ifdef SMALL_TINTS
+uniform vec4 tint_small_a[SMALL_N];
+#endif
 // LED glows (`addGlow`): (cx, cy, strength, radius) and colour
 uniform vec4 glow_a[8];
 uniform vec4 glow_c[8];
@@ -95,21 +108,35 @@ void room_lit(ivec2 p, out vec3 base, out vec3 lm) {
 	if (w_big.x > 0.0 && fld.r != 0.0) { lI = fld.r * w_big.x * tg; lr = lI * tint_lamp; }
 	if (w_big.y > 0.0 && fld.g != 0.0) { mI = fld.g * w_big.y * tg; mr = mI * tint_scr; }
 	if (w_big.z > 0.0 && fld.b != 0.0) { orr = fld.b * w_big.z * tg * tint_port; }
-	vec4 si = texelFetch(small_i_tex, p, 0);
-	vec4 sv = texelFetch(small_v_tex, p, 0);
 	float sl = 0.0;
 	float best = 0.0;
 	int kk = -1;
-	for (int s = 0; s < 4; s++) {
-		int n = int(si[s] + 0.5) - 1;
-		if (n < 0) continue;
-		float w = w_small[n / 4][n % 4];
-		if (!(w > 0.0)) continue;
-		float e = sv[s] * w * tg;
-		sl += e;
-		if (e > best) { best = e; kk = n; }
+	vec3 sr = vec3(0.0);
+#ifdef SMALL_8
+	for (int h = 0; h < 2; h++) {
+		vec4 si = h == 0 ? texelFetch(small_i_tex, p, 0) : texelFetch(small_i2_tex, p, 0);
+		vec4 sv = h == 0 ? texelFetch(small_v_tex, p, 0) : texelFetch(small_v2_tex, p, 0);
+#else
+	{
+		vec4 si = texelFetch(small_i_tex, p, 0);
+		vec4 sv = texelFetch(small_v_tex, p, 0);
+#endif
+		for (int s = 0; s < 4; s++) {
+			int n = int(si[s] + 0.5) - 1;
+			if (n < 0) continue;
+			float w = w_small[n / 4][n % 4];
+			if (!(w > 0.0)) continue;
+			float e = sv[s] * w * tg;
+			sl += e;
+#ifdef SMALL_TINTS
+			sr += e * tint_small_a[n].rgb;
+#endif
+			if (e > best) { best = e; kk = n; }
+		}
 	}
-	vec3 sr = sl * tint_small;
+#ifndef SMALL_TINTS
+	sr = sl * tint_small;
+#endif
 	float fa = aux.b * st_fade * aux.g;
 	float kl = 1.0;
 	float km = 1.0;

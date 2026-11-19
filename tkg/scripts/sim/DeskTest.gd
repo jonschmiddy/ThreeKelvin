@@ -19,6 +19,7 @@ func run(tree: SceneTree) -> void:
 	_bake()
 	_beats()
 	_cards()
+	_desk_two()
 	verdict("desktest")
 	_tree.quit(1 if _fails > 0 else 0)
 
@@ -229,7 +230,51 @@ func _cards() -> void:
 	h.manufacturer = &"korvan"
 	h.weight = HullData.Weight.MEDIUM
 	var rooms := [DeskScene.room_for(h)]
-	h.weight = HullData.Weight.LIGHT
+	h.weight = HullData.Weight.HEAVY
 	rooms.append(DeskScene.room_for(h))
-	_ok("a medium hull gets DESK 1; a room not yet built falls back to it (%s)" % str(rooms), rooms == ["desk_1", "desk_1"])
+	_ok("a medium hull gets DESK 1, a heavy one DESK 2 (%s)" % str(rooms), rooms == ["desk_1", "desk_2"])
 	_ok("the desk is for readings only", not DeskScene.wants({label = "Sell your place"}))
+
+
+## DESK 2 (`DeskTwo`): its bake, the lamp at its click, the strings all on, the CRT's states in the
+## page's order both ways, the held card, and its times for the sound and the tap.
+func _desk_two() -> void:
+	var m := DeskRoom.load_meta("desk_2")
+	_ok("DESK 2's bake: 33 string bulbs, eight a pixel at most", not m.is_empty() and int(m.smallCount) == 33 and int(m.smallOver) == 0)
+	var life := DeskTwo.new(m)
+	life.set_card(DeskCard.title(""))
+	life.set_screen(DeskRoom.SCREEN.get_image())
+	_ok("its sound and card times are the page's (lamp %.2f, CRT %.2f, card at u %.2f)" % [life.lamp_at, life.crt_at, life.title_u],
+		_near(life.lamp_at, 3.45) and _near(life.crt_at, 5.6) and _near(life.title_u, 6.9) and _near(life.done_at, 12.8))
+	var lit_at := -1.0
+	var phases: Array[int] = []
+	var on := 0
+	for k in int(12.0 * 20.0):
+		var ts := DeskTimeline.A + k / 20.0
+		var u := life.frame(ts, DeskTimeline.forward(0.0) + ts, false)
+		if lit_at < 0.0 and (u[&"w_big"] as Vector3).x > 0.0:
+			lit_at = ts
+		var ph: int = u[&"g_st"]
+		if phases.is_empty() or phases[phases.size() - 1] != ph:
+			phases.append(ph)
+		on = 0
+		for v: float in u[&"str_v"]:
+			on += 1 if v > 0.0 else 0
+	var S := DeskTwo.St
+	_ok("DESK 2's lamp strikes at its click (scene %.2f)" % lit_at, lit_at >= life.lamp_at - 0.05 and lit_at < life.lamp_at + 0.1)
+	_ok("its CRT runs dot, line, raster, boot, card, picture (%s)" % str(phases), phases == ([S.OFF, S.DOT, S.LINE, S.OPEN, S.BOOT, S.TITLE, S.PIC] as Array[int]))
+	_ok("all 33 strings come on (%d)" % on, on == 33)
+	var off: Array[int] = []
+	for k in 60:
+		var ph: int = life.frame(life.done_at - k * 0.15, 40.0 + k * 0.07, true)[&"g_st"]
+		if off.is_empty() or off[off.size() - 1] != ph:
+			off.append(ph)
+	_ok("leaving: picture, squeeze, line, dot, dark (%s)" % str(off), off == ([S.PIC, S.SHRINK, S.LINE, S.DOT, S.OFF] as Array[int]))
+	var held := DeskTwo.new(m)
+	held.set_card(DeskCard.title(""))
+	held.set_screen(DeskRoom.SCREEN.get_image())
+	held.hold_title()
+	var st: int = held.frame(DeskTimeline.A + 30.0, 40.0, false)[&"g_st"]
+	held.release(30.0)
+	var wipe: Vector3 = held.frame(DeskTimeline.A + 30.2, 40.2, false)[&"g_title"]
+	_ok("held, its card waits for the tap, then wipes (state %d, wipe row %.0f)" % [st, wipe.z], st == S.TITLE and wipe.x > 0.5 and wipe.z > -99.0)
