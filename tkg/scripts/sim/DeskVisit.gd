@@ -1,9 +1,9 @@
 extends Node
 
-## The science desk end to end in a real run, windowed (`render.sh`): a reading picked on LOCAL,
-## the push in, the room, the card, the tap (taken once), the outcome, back to LOCAL; then a visit
-## left with Esc before the tap. `-- sheet=DeskVisit [out=<dir>] [weight=light|medium|heavy] [manufacturer=<id>] [salvage=1]`
-## writes a still of each beat; the hull picks the room (Jon's ruling: light the bunk, heavy DESK 2).
+## The science desk end to end, windowed (`render.sh`): a reading on LOCAL, the push in, the room, the
+## card, the tap (the site's mini game, given up: taken once, with its haul), the outcome, back to
+## LOCAL; then a visit left with Esc before the tap. `-- sheet=DeskVisit [out=<dir>] [weight=light|medium|heavy]
+## [manufacturer=<id>] [salvage=1]` writes a still of each beat; the hull picks the room.
 ## Why: docs/why/DeskScene.md#the-hook
 
 const SITE := &"the_first_look"
@@ -122,6 +122,16 @@ func _run() -> void:
 	await _shot("4_title_card")
 	_h._ok("nothing is taken before the tap", Run.data == data0 and not d.taken)
 	d.tap()
+	if d.game != null:
+		# the reading plays as a mini game: nothing taken while it plays, Esc gives up (it still pays)
+		await Harness.frames(_tree, 90)
+		_h._ok("the tap starts the site's game, nothing taken yet", d.game.playing() and Run.data == data0)
+		var esc := InputEventAction.new()
+		esc.action = &"ui_cancel"
+		esc.pressed = true
+		Input.parse_input_event(esc)
+		await Harness.frames(_tree, 3)
+		_h._ok("Esc in the game gives up, the desk stays", not d.game.playing() and not d.leaving)
 	await _until(func() -> bool: return d._shown_at >= 0.0, 600)
 	await _until(func() -> bool: return d.ts >= d._shown_at + 1.5)
 	await _shot("5_outcome")

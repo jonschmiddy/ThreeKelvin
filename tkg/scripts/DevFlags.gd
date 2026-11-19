@@ -124,6 +124,8 @@ const BOOTED: Array[Dictionary] = [
 	{flag = "sectorshot", script = "res://scripts/sim/SectorShot.gd", how = "hold"},
 	{flag = "chartshot", script = "res://scripts/sim/ChartShot.gd", how = "hold"},
 	{starts = "sheet=", script = "res://scripts/sim/%s.gd", how = "add"},
+	# A science mini game on the desk, straight away:  -- minigame coolant depth=3 sensors=1 [auto=1]
+	{flag = "minigame", script = "res://scripts/sim/MiniGamePlay.gd", how = "add"},
 	# Every kind of world, as the GPU paints it, on one sheet:  -- planetsheet=<png>
 	# Needs a window. Same seeds and light as the approved gallery page.
 	{starts = "planetsheet=", script = "res://scripts/sim/PlanetSheet.gd", how = "add"},

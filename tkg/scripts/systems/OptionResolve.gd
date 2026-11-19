@@ -59,7 +59,8 @@ static func fuel_ok(c: Dictionary) -> bool:
 	return Run.fuel - OptionTable.science_fuel() >= Run.fuel_floor()
 
 
-static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
+## `also`: a science mini game's haul, paid inside the books so the result page shows it (`out.haul`).
+static func take(n: MapGen.MapNode, i: int, j: int, also: Callable = Callable()) -> Dictionary:
 	var opt := OptionTable.by_id(n.options[i])
 	var choices: Array = opt.get("choices", [])
 	if j < 0 or j >= choices.size():
@@ -95,6 +96,8 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 	if typeof(res) != TYPE_DICTIONARY:
 		res = {}
 	out.res = res
+	if also.is_valid():
+		out.haul = also.call()
 	# Close the books after `pay`, which can still move the ledger.
 	var paid := OptionTable.pay(res, n, n.options[i])
 	out.bill = EncounterDrawer.bill_rows(was, Run.ledger())

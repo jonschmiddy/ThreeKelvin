@@ -600,8 +600,13 @@ func _at_desk(o: Dictionary, j: int) -> Dictionary[String, Variant]:
 		at = sv.get_global_transform() * r.get_center()
 	var n := node
 	var i := opt
-	var take := func() -> Dictionary: return await OptionResolve.take(n, i, j)
-	return await DeskScene.visit(screen if screen != null else self, String(o.get("title", "")).to_upper(), at, take)
+	var site := StringName(o.get("site", &""))
+	# a mini game's tier pays its haul inside the take; -1, none (Why: docs/why/MiniGame.md#the-haul)
+	var take := func(tier: int) -> Dictionary:
+		var haul := Callable() if tier < 0 else func() -> String: return ScienceHaul.pay(tier, site, n)
+		return await OptionResolve.take(n, i, j, haul)
+	var deal: Dictionary = MiniGames.deal(n) if MiniGames.enabled else {}
+	return await DeskScene.visit(screen if screen != null else self, String(o.get("title", "")).to_upper(), at, take, deal)
 
 
 # --------------------------------------------------------------- on your ship

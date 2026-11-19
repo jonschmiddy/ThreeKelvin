@@ -1,0 +1,123 @@
+The reasoning behind the science mini games in the game (`tkg/scripts/ui/science/`); each heading is referenced from the code by a `Why:` line.
+
+## The contract
+
+The prototypes are the source: `tk-scratch/science/minigames/` (`API.md` is the contract; the phone
+page `phone/src/` holds the final game files with their sound hooks, Nov 18; the review page in the
+session scratchpad loads `coolant2.js` and `centrifuge2.js`, the same rules without the hooks). The
+contract carries over as it is:
+
+- `mount(depth 1-5, sensors 0-5, a seeded stream)`; the game draws only its puzzle.
+- `done(score 0..1, detail)` exactly once (`MiniGame.finished`), a give-up included.
+- The shell turns score and depth into the tier; a game never shows a tier.
+
+`MiniGame` is a RefCounted, not a Node: the desk ticks it on its own clock (`DeskScene`'s, capped
+at 0.1 s a frame and stepped by `--fixed-fps` in films), so a game never reads the wall clock (the
+prototypes' `Date.now()` heat and `setTimeout`s become `t` and `after`). The headless test drives
+the same object with a fixed step.
+
+Which game a site deals, and its puzzle's seed, come from `Rng.derive(&"minigame", index)`
+(`MiniGames.deal`), so a site deals the same puzzle every visit: leaving before the tap and
+coming back cannot reroll it. The ship's SENSORS become the games' 0 to 5 at one step per two
+points (`MiniGames.sensors_of`), a first guess: skill checks ask for 3 to 8 SENSORS, so most ships
+sit at 1 to 4. Depth is the system's `MapGen.tier`.
+
+`MiniGames.enabled` is the switch, as `DeskScene.enabled` is the desk's. `MiniGames.force` is the
+dev flag's pick (`-- minigame coolant depth=3 sensors=1`).
+
+## The canvas
+
+`MiniPix` is the prototypes' `TK.pixel` canvas as an Image: `fillRect` is `Image.fill_rect`
+(clipped), a pixel is `set_pixel`, a static layer drawn once (the centrifuge's housing and rotor)
+is `blend_rect`. The palette is `TK.PAL` (UITheme's colours) plus the exotic and artifact tiers;
+`TK.text`'s 3x5 font, `TK.dither` and `TK.icon` are ported whole, every kind of icon, so the next
+games need nothing new. JS `Math.round` rounds halves up, negatives too, where GDScript's `round`
+goes away from zero, so every port of a `Math.round` is `MiniPix.jr`.
+
+A drawn frame costs about 1.3 ms (Coolant) and 2 ms (Centrifuge) at sector 5 (`MiniGameTest`
+prints it). A game draws when something changed: Coolant at 30 frames a second while its coolant
+flows, Centrifuge on a move, during the spin and for its start frame's icon.
+
+## The shell
+
+`MiniShell` owns the glass, 150 x 140 art pixels, one to an art pixel of the room: the game's
+canvas centred above a strip (rows 131 to 139) that holds GIVE UP while it plays and the haul line
+after. Both games' canvases are 144 wide and at most 126 tall, so they fit at 1:1, as on the
+phone page (one shared scale, Jon: "bigger than the others?").
+
+The tell (the game's one line and its control icons, Jon's Nov 17 rulings) goes on the desk's
+title card under the site's name, in the card's phosphor, so it is read before the tap; the game's
+own start frame repeats it, as the prototype's did. GIVE UP is a real button on the glass (and
+Esc); it scores what the game had, and a failure still pays common.
+
+The glass is set every frame it changes (`DeskRoom.show_screen`, the texture updated in place).
+The rooms whose screen light follows the picture (DESK 2, BUNK, NOOK) read it on the CPU, about
+21,000 pixels in GDScript, so that light follows the game twice a second (`LIGHT_EVERY`), not every
+frame.
+
+## Sounds
+
+Jon's picks, copied from the phone page's `src/sfx/` (`sfx.json`, wired Nov 18) as
+`assets/audio/sfx/mg_*.wav`, played at the file's level on the SFX bus as the page played them:
+
+- Coolant: `turn` on every turn, `flow` when it routes, Four Kelvin's `win` 1.3 s after.
+- Centrifuge: `seat` when a tube lands in a slot, `spin` (60 ms into the file), `win` on a balance.
+- The reward ladder (Jon, Nov 18: the FTL-style blips, round 10; artifact is `art8_H`):
+  `mg_reward_0` to `_6`, common to artifact. It plays a beat after the win, at the win's peak
+  (1.283 s in), or 1.1 s after the end when there was no win, as the page timed it; a failure
+  plays the common one, never a buzzer.
+
+The haul line is swept in over the 0.65 s before the reward sound, the loot reveal's S1 split
+shortened to one line.
+
+## Input on the glass
+
+The desk's picture reaches the screen through the tube (`desk_tube.gdshader`), whose barrel curve
+moves every glass pixel a little outward. A click is mapped back the way the shader samples:
+the screen point, onto the 1920 x 1080 canvas, then through the same curve to the source glass
+pixel (`DeskRoom.glass_at`), so a click lands on the pixel drawn under it, corners included.
+While a game plays, every mouse event on the desk goes to it; Esc gives up instead of leaving, and
+the desk cannot be left between the game's end and its take.
+
+## Coolant
+
+`coolant2.js`, rule for rule: the walk, the second chamber's branch, the decoys, cracks beside the
+route, the valve, sensors bolting route tiles that needed turning (the fix for Jon's "some harder
+ones with high sensors are impossible?"), never dealt solved, the time limit from the pace model,
+the score from heat and turns over par. Drawing order and every colour are the prototype's.
+
+## Centrifuge
+
+`centrifuge2.js`, rule for rule: the balanced load from rotationally symmetric sets, the per-sector
+shape checks, blocked slots, the heaviest tube placed at sensors 3+, the dot's blur by sensors,
+drag and tap both, the 2.2 s spin with the shake, the score from the imbalance and extra moves.
+
+## The haul
+
+`ScienceHaul.tier_of` is the prototype's `tierOf`: sector 1 tops out at RARE, 3 at EPIC, 5 at
+LEGENDARY; only a near-perfect run reaches the top. The prototype's rare roll (EXOTIC at life
+sites, ARTIFACT deep at wrecks) is not ported: today's science sites are worlds, belts and comets,
+rock sites that stop at legendary.
+
+`ScienceHaul.pay` is the one seam for the materials work. On main, materials exist
+(`MaterialTable`, by `drops` table and tier) but not by science source, so it pays one material
+of the tier won: from the site's table (mining for a world, a belt or a comet) when it has one at
+that tier, else from any rolled table at that tier, else the nearest lower tier
+(`row_for`). Into the system as every grant goes (`MaterialTable.grant`). The catalogue has no
+uncommon row today, so an uncommon pays a common, and mining holds two rows, so most hauls come
+from the other tables. The draft's twenty materials per source replace `row_for`.
+
+It is paid inside the reading's take (`OptionResolve.take`'s `also`), so LOCAL's result page lists
+it with the reading's own outcome. The reading's rule is unchanged: its fuel and its DATA are paid
+as before, by the one rule the sim flies. Only the haul is new.
+
+## Tests
+
+`-- sheet=MiniGameTest` (headless, gated): every game, 50 seeds at every depth, sensors 0 to 5 in
+turn; deals, deals the same twice, a scripted solve (`CoolantSolver`, `CentrifugeSolver`: every
+move through the game's own input, no wasted move) scores about 1, a give-up 0 to 0.2; the tier
+ladder; every tier pays; a solve through the shell's glass at sector 5 pays legendary once, the
+win then the reward sound. It counts work done, never time, so it holds on a busy machine.
+
+`-- minigame <id> auto=1` (windowed) plays the same solver through the screen in a real run (the
+clicks found through the tube's curve), and with `--write-movie` it is the film.

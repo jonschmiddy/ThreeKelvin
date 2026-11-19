@@ -12,6 +12,9 @@ const ART := Vector2i(384, 216)
 const GLASS := Vector2i(150, 140)
 ## The page's canvas: what the tube's numbers are in.
 const CANVAS := Vector2(1920.0, 1080.0)
+## The glass on that canvas and the tube's curve (`desk_canvas.gdshaderinc` GLASS_C, `desk_tube` K).
+const GLASS_C := Rect2i(585, 110, 750, 700)
+const TUBE_K := 0.028
 const SHADERS := {"desk_1": preload("res://shaders/desk_1.gdshader"), "desk_2": preload("res://shaders/desk_2.gdshader"),
 	"bunk_1": preload("res://shaders/bunk_1.gdshader"),
 	"nook_1": preload("res://shaders/nook_1.gdshader")}
@@ -35,6 +38,7 @@ var _steam_tex: ImageTexture
 var _sky_tex: ImageTexture
 var _dust_tex: ImageTexture
 var _noise_tex: ImageTexture
+var _live: ImageTexture = null
 
 
 ## The room's bake: meta.json and its planes. Empty when it is missing.
@@ -129,9 +133,9 @@ func _viewport(size: Vector2i, mat: ShaderMaterial) -> SubViewport:
 	return vp
 
 
-## The title card naming the site ("": the page's own).
-func set_card(site: String) -> void:
-	var card := DeskCard.title(site)
+## The title card naming the site ("": the page's own), with a mini game's tell under it.
+func set_card(site: String, tell: Dictionary = {}) -> void:
+	var card := DeskCard.title(site, tell)
 	_room_mat.set_shader_parameter(&"title_tex", ImageTexture.create_from_image(card))
 	if life != null:
 		life.set_card(card)
@@ -139,8 +143,33 @@ func set_card(site: String) -> void:
 
 ## What the picture phase shows on the glass (150 x 140).
 func set_screen(img: Image) -> void:
+	_live = null
 	_room_mat.set_shader_parameter(&"screen_tex", ImageTexture.create_from_image(img))
 	life.set_screen(img)
+
+
+## A live picture on the glass (a mini game, every frame it changes): its texture updated in place.
+## `light`: the room's screen light follows it too (read on the CPU, so not every frame).
+## Why: docs/why/MiniGame.md#the-shell
+func show_screen(img: Image, light: bool) -> void:
+	if _live == null:
+		_live = ImageTexture.create_from_image(img)
+		_room_mat.set_shader_parameter(&"screen_tex", _live)
+	else:
+		_live.update(img)
+	if light:
+		life.set_screen(img)
+
+
+## The glass pixel shown at canvas point `c`, through the tube's curve (as `desk_tube` samples it).
+## Why: docs/why/MiniGame.md#input-on-the-glass
+func glass_at(c: Vector2) -> Vector2i:
+	var hw := (GLASS_C.size.x - 1) / 2.0
+	var hh := (GLASS_C.size.y - 1) / 2.0
+	var u := (floorf(c.x) - GLASS_C.position.x - hw) / hw
+	var v := (floorf(c.y) - GLASS_C.position.y - hh) / hh
+	var f := (1.0 + TUBE_K * (u * u + v * v)) / float(meta.get("tubeScale", 1.0))
+	return Vector2i(floori(floorf(u * f * hw + hw + 0.5) / 5.0), floori(floorf(v * f * hh + hh + 0.5) / 5.0))
 
 
 ## Draw the room at scene time `ts` (backwards while leaving) on the free clock `real`.

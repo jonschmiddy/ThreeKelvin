@@ -784,6 +784,16 @@ gate_sheet desktest 120 \
 	--headless --path "$PROJECT" -- desktest
 }
 
+unit_minigametest() {
+step "The science mini games deal, solve and score as their prototypes"
+# Per game, 50 seeds at every depth: the same puzzle twice, a scripted solve about 1, a give-up
+# 0 to 0.2; a solve through the shell's glass pays its tier with the win then the reward sound.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametest 300 \
+	"the mini games deal, solve and score" \
+	"a mini game dealt no puzzle, an unsolvable one, a different one twice, or scored wrong" \
+	--headless --path "$PROJECT" -- sheet=MiniGameTest
+}
+
 unit_twinsitetest() {
 step "Star B is a place, as the one star is"
 # Star B is a place wherever the one star is (rulings 20 and 23). Long: 289 s on the CI runner.
@@ -2585,6 +2595,7 @@ gate_weight() {
 		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;; arrivesidetest) echo 60 ;;
 		sciencesimtest) echo 51 ;; routinetest) echo 28 ;; jumpshadertest) echo 90 ;;
 		meterfittest) echo 76 ;; convoyslidetest) echo 30 ;; stationaheadtest) echo 40 ;;
+		minigametest) echo 70 ;;
 		*) echo 15 ;;
 	esac
 }
