@@ -2,3 +2,4 @@
 - **Added** — Picking a science reading on LOCAL now goes to your ship's science desk: the camera pushes into your ship, your room powers on, and its monitor names the site. A tap takes the reading and shows the outcome there; a tap or Esc goes back to LOCAL. Leaving before the tap takes nothing.
 - **Added** — Heavy hulls have their own science desk room, DESK 2 (a shaded lamp, 33 string bulbs, the old terminal), ported from Jon's approved page.
 - **Added** — Light hulls have their own science desk room, the BUNK (a fold-out shelf by a bunk, starlight on the blanket, a clip lamp, string lights round the photos), ported from Jon's approved page.
+- **Added** — Salvage frames have their own science desk room, the NOOK (a rack bulb, an oscilloscope, string lights along the wire), ported from Jon's approved page.

@@ -26,7 +26,8 @@ async function boot() {
   run(await src("page/scenes/roomfx.js"));
   const PROBE = { desk_1: "A, glass, bulbPx, filPx, strings, portGlass, pipeLed, glassShade, TIP, TIPC, SMOKE, BOOT, T, LIT, FLD, SMALL, FAc, A2c, DUSTc, SKYc, KBd, SOLDER_LED, MON_LED, MUGS",
     desk_2: "A2, base, glassM, portM, portPts, lampBulb, lampHot, strBulbs, FLD, SMALL, LIT, Fa, DUSTC, SKY, BOOT, FONT, recess, T",
-    bunk_1: "art, A2, isGlass, isPort, portIdx, lampPix, bulbs, BULB_TL, LEDS, JB_SCREEN, PILLOW_BULBS, FLD, SMALL, NB, NL, LIT, FA, DUSTC, SKY, SHADE, FONT" };
+    bunk_1: "art, A2, isGlass, isPort, portIdx, lampPix, bulbs, BULB_TL, LEDS, JB_SCREEN, PILLOW_BULBS, FLD, SMALL, NB, NL, LIT, FA, DUSTC, SKY, SHADE, FONT",
+    nook_1: "art, A2, emitId, em, strBulbs, ledList, FLD, SMALL, NS, LIT, Fa, DUSTC, SKY, gMask, FONT, T" };
   for (const id of Object.keys(PROBE)) {
     let s = await src("page/scenes/" + id + ".js");
     // the probe goes in just before the scene registers, inside its closure
@@ -52,7 +53,10 @@ const scene = id => DESK.scenes.find(s => s.id === id);
 // The shared planes (every room lights through makeLit): a2c (the art the light multiplies), fields,
 // small_i / small_v, px (tone gain, occlusion, room vignette, skip). ROOMS[id] adds the room's own.
 const W = 384, H = 216, N = W * H, GW = 150, GH = 140;
-function common(P, A, fa, skip, big) {
+// smallW (optional): each small light's weight once the room is up. Where two lights tie, the page
+// keeps the second when the double product beats the float32 it stored for the first; pick is that
+// choice (index + 1), which float32 alone cannot make.
+function common(P, A, fa, skip, big, smallW) {
   const LIT = P.LIT;
   const fields = new Float32Array(N * 4);
   for (let i = 0; i < N; i++) { fields[i*4] = big.lamp[i]; fields[i*4+1] = big.scr[i]; fields[i*4+2] = big.port[i]; }
@@ -66,7 +70,15 @@ function common(P, A, fa, skip, big) {
   const aux = new Float32Array(N * 4);
   for (let i = 0; i < N; i++) { aux[i*4] = LIT.TG[i]; aux[i*4+1] = LIT.AO[i]; aux[i*4+2] = fa[i]; aux[i*4+3] = skip[i]; }
   const a2c = new Float32Array(N * 4); for (let i = 0; i < N; i++) { a2c[i*4] = A[i*3]; a2c[i*4+1] = A[i*3+1]; a2c[i*4+2] = A[i*3+2]; a2c[i*4+3] = 1; }
-  return { over, most, planes: { a2c: f32(a2c), fields: f32(fields), small_i: f32(si.subarray(0, N*4)), small_v: f32(sv.subarray(0, N*4)), px: f32(aux),
+  let pick = null;
+  if (smallW) {
+    const best = new Float32Array(N), pk = new Float32Array(N);
+    P.SMALL.forEach((b, n) => { const [bx, by, bw, bh] = b.box;
+      for (let yy = 0; yy < bh; yy++) for (let xx = 0; xx < bw; xx++) { const v = b.f[yy * bw + xx]; if (!v) continue;
+        const i = (by + yy) * W + bx + xx, e = v * smallW[n] * LIT.TG[i]; if (e > best[i]) { best[i] = e; pk[i] = n + 1; } } });
+    pick = f32(pk);
+  }
+  return { over, most, planes: { ...(pick ? { pick } : {}), a2c: f32(a2c), fields: f32(fields), small_i: f32(si.subarray(0, N*4)), small_v: f32(sv.subarray(0, N*4)), px: f32(aux),
     ...(most > 4 ? { small_i2: f32(si.subarray(N*4, N*8)), small_v2: f32(sv.subarray(N*4, N*8)) } : {}),
     ...(most > 8 ? { small_i3: f32(si.subarray(N*8)), small_v3: f32(sv.subarray(N*8)) } : {}) } };
 }
@@ -131,7 +143,7 @@ const ROOMS = {
   },
   bunk_1(P) {
     const skip = new Uint8Array(N); for (let i = 0; i < N; i++) if (P.isGlass[i] || P.isPort[i]) skip[i] = 1;
-    const c = common(P, P.A2, P.FA, skip, P.FLD);
+    const c = common(P, P.A2, P.FA, skip, P.FLD, P.SMALL.map((q, n) => n < P.NB ? 1.3 : n < P.NB + P.NL ? 1.2 : 1));
     // the starlight's patch on the blanket, the pillow's glow, the ring round the porthole, the strings' wash
     const f2 = new Float32Array(N * 4);
     for (let i = 0; i < N; i++) { f2[i*4] = P.FLD.patch[i]; f2[i*4+1] = P.FLD.pillow[i]; f2[i*4+2] = P.FLD.ring[i]; f2[i*4+3] = P.FLD.wash[i]; }
@@ -154,6 +166,35 @@ const ROOMS = {
     c.meta = { tints: P.SMALL.map(q => q.tint), nb: P.NB, nl: P.NL, pillow: P.PILLOW_BULBS,
       bulbs: P.bulbs.map(b => ({ order: b.order, ph: b.ph, ph2: b.ph2, w1: b.w1, w2: b.w2, jit: b.jit })),
       leds: P.LEDS.map(L => ({ x: L.x, y: L.y, col: L.col, kind: L.kind })), jb: { x: P.JB_SCREEN.x, y: P.JB_SCREEN.y },
+      dust: P.DUSTC.motes, sky: sky(P.SKY) };
+    return c;
+  },
+  nook_1(P) {
+    const skip = new Uint8Array(N); for (let i = 0; i < N; i++) if (P.emitId[i]) skip[i] = 1;
+    const c = common(P, P.A2, P.Fa, skip, { lamp: P.FLD.bulb, scr: P.FLD.scr, port: P.FLD.port }, P.SMALL.map((q, n) => n < P.NS ? 1.3 : 1.1));
+    const f2 = new Float32Array(N * 4); for (let i = 0; i < N; i++) f2[i*4] = P.FLD.scope[i];
+    // roles: 1 the rack bulb, 7 the porthole, 8 the CRT, 9 the scope's glass, 16 + k string bulb k,
+    // 100 + e LED e, 120 the rack's readout; 3 any other emitter pixel
+    const role = new Float32Array(N);
+    for (let i = 0; i < N; i++) if (P.emitId[i]) role[i] = 3;
+    for (let y = 22; y < 162; y++) for (let x = 117; x < 267; x++) role[y * W + x] = 8;
+    for (let y = 96; y <= 109; y++) for (let x = 16; x <= 32; x++) role[y * W + x] = 9;
+    for (const i of P.em.port.concat(P.em.portStars)) role[i] = 7;
+    for (const i of P.em.bulb) role[i] = 1;
+    P.strBulbs.forEach((s, k) => { for (const i of s.px) role[i] = 16 + k; });
+    P.ledList.forEach((e, k) => { for (const i of e.px) role[i] = 100 + k; });
+    for (const i of P.em.readout) role[i] = 120;
+    const art = new Float32Array(N * 4); for (let i = 0; i < N; i++) { art[i*4] = P.art[i*3]; art[i*4+1] = P.art[i*3+1]; art[i*4+2] = P.art[i*3+2]; art[i*4+3] = 1; }
+    // the glass: its mask, and each boot glyph pixel's place (line 1: c, READY: 100 + c; -1 none)
+    const gl = new Float32Array(GW * GH * 4);
+    for (let k = 0; k < GW * GH; k++) { gl[k*4] = P.gMask[k]; gl[k*4+1] = -1; }
+    [["SCI-TERM 03", 9, 0], ["READY", 17, 100]].forEach(([str, y0, base]) => {
+      for (let n = 0; n < str.length; n++) { const g = P.FONT[str[n]] || P.FONT[" "];
+        for (let r = 0; r < 5; r++) for (let cc = 0; cc < 3; cc++) if (g[r*3+cc] === "1") gl[((y0 + r) * GW + 9 + n * 4 + cc) * 4 + 1] = base + n; } });
+    c.planes.role = f32(role); c.planes.glass = f32(gl); c.planes.art = f32(art); c.planes.fields2 = f32(f2);
+    c.meta = { T: P.T, tints: P.SMALL.map(q => q.tint), ns: P.NS,
+      strings: P.strBulbs.map(s => ({ on: s.on, flick: s.flick, p: s.p, ph: s.ph, p2: s.p2, seg: s.seg })),
+      leds: P.ledList.map(e => ({ name: e.name, on: e.on, col: e.col, mode: e.mode })),
       dust: P.DUSTC.motes, sky: sky(P.SKY) };
     return c;
   },

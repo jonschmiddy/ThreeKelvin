@@ -12,6 +12,7 @@ render_mode unshaded;
 #define SMALL_SETS 3
 #define SMALL_TINTS
 #define MORE_FIELDS
+#define SMALL_PICK
 #include "res://shaders/desk_room.gdshaderinc"
 
 // the art as the emitters read it (RGB 0..255)

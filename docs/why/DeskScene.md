@@ -2,7 +2,7 @@ The reasoning behind the science desk (`tkg/scripts/ui/DeskScene.gd`, not yet wr
 
 ## The plan
 
-Status, Nov 19: stage 1 (the shared parts and DESK 1) is being built; the hook onto LOCAL waits.
+Status, Nov 19: all four rooms are in, each held to the page's frames; the hook onto LOCAL is in.
 
 **What is being ported.** Jon's approved science desk rooms page (the deskpower prototype, Nov 17 to 19):
 picking science on LOCAL zooms into your ship, fades to one of four rooms (DESK 1, DESK 2, BUNK, NOOK),
@@ -185,11 +185,8 @@ What the page's script says about it:
 - One scanline row of 0.3.
 - Its porthole's own stars and ship are drawn over by `drawSky`.
 
-**BUNK** (`DeskBunk`, `shaders/bunk_1.gdshader`, done Nov 19): every frame within 0 to 254 of about
-2 million pixels. Two known: a column of 7 art pixels between the power strip's two LEDs (x 291) is
-up to 9 darker. The two lights' fields tie there; the page compares a double against the float32 it
-stored, so the second wins, and float32 here keeps the first. And single canvas pixels where the
-tube's curve rounds to a neighbour. What it adds:
+**BUNK** (`DeskBunk`, `shaders/bunk_1.gdshader`, done Nov 19): every frame within 0 to 79 of about
+2 million pixels, at most 3 off by more than 8. What it adds:
 - Four more fields (`MORE_FIELDS`: the starlight's patch, the pillow, the porthole's ring, the
   strings' wash) and up to nine small lights a pixel (`SMALL_SETS 3`).
 - Its own hash, an integer mix whose products JS does in doubles (`DeskBunk.bh`, held to the page by
@@ -198,8 +195,26 @@ tube's curve rounds to a neighbour. What it adds:
   glow also bleeds on the bezel's lip. The screen's light follows the lower half of the filtered
   picture, read on the CPU from the page's own samples.
 - Its scanline is a 0.38 fill that Chrome rounds (158/255), and the room fades in under a black fill
-  over the whole canvas (`canvas_fade`). NOOK (776 lines, the shelf-lamp fix of Nov 19 in) has an oscilloscope panel, the rack bulb
-(its lamp time is `T.bulb`, 4.3) and its own CRT.
+  over the whole canvas (`canvas_fade`).
+
+**Ties between small lights** (BUNK and NOOK, `SMALL_PICK`). Where two lights' fields are equal (a
+pixel midway between two bulbs), the page keeps the second when its double product beats the
+float32 it stored for the first. Float32 alone cannot tell, so the bake records the page's pick with
+the room's lights all on (`pick`), and a tie here goes to it. Without it, columns between bulbs took
+the wrong bulb's flicker.
+
+**NOOK** (`DeskNook`, `shaders/nook_1.gdshader`, done Nov 19): every frame within 0 to 100 of about
+2 million pixels, apart from one leaving frame (523, the picture squeezing, each off by 1). What it
+adds:
+- Every put goes through the page's soft knee past 200 (`DeskNook.soft`; the porthole's too,
+  `DeskFx.sky`'s `soft`), and the room fades in by multiplying its bytes.
+- The scope's glow is a fifth field; the scope draws its own glass and trace (the sweep on the free
+  clock, its columns worked out on the CPU), with its own 0.22 scanline (`scan2_on`).
+- Its hash is murmur's finaliser on 32-bit ints (`DeskNook.hh`, on the GPU as `uint` maths).
+- The bezel is a bevel (the top dark, the bottom catching the strings) and the glass's glow spills on
+  its bottom and left lips. The dark tube's halves after the mask's .95 break down, as on DESK 1.
+- The screen's colour for the steam is sampled off the glass every third frame (`_sample`).
+- Its rack bulb's lamp time is `T.bulb`, 4.3, and the shelf-lamp shadow is in the bake.
 
 ## Sound
 

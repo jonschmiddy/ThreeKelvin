@@ -118,7 +118,8 @@ static func _sky_base(o: Dictionary, i: int) -> Vector3:
 
 ## The living porthole (`drawSky`): parallax stars, twinkle, a moon now and then, rare passers-by.
 ## Writes the window's pixels into `img` (RGBA8) at their place less `org`.
-static func sky(k: Dictionary, img: Image, org: Vector2i, c: float, f: float = 1.0) -> void:
+## `soft` puts each through the NOOK's soft knee (`DeskNook.soft`) before the byte store.
+static func sky(k: Dictionary, img: Image, org: Vector2i, c: float, f: float = 1.0, soft: bool = false) -> void:
 	var o: Dictionary = k.o
 	var idx: Array = o.idx
 	var on: Dictionary = k.set
@@ -180,7 +181,10 @@ static func sky(k: Dictionary, img: Image, org: Vector2i, c: float, f: float = 1
 	_passers(col, on, o, c, not moon.is_empty())
 	for i: int in col:
 		var v3: Vector3 = col[i]
-		img.set_pixel(i % W - org.x, i / W - org.y, Color8(u8(minf(255.0, v3.x) * f), u8(minf(255.0, v3.y) * f), u8(minf(255.0, v3.z) * f)))
+		var q := Vector3(minf(255.0, v3.x) * f, minf(255.0, v3.y) * f, minf(255.0, v3.z) * f)
+		if soft:
+			q = Vector3(DeskNook.soft(q.x), DeskNook.soft(q.y), DeskNook.soft(q.z))
+		img.set_pixel(i % W - org.x, i / W - org.y, Color8(u8(q.x), u8(q.y), u8(q.z)))
 
 
 static func _put_px(col: Dictionary, on: Dictionary, x: int, y: int, c: Vector3) -> void:

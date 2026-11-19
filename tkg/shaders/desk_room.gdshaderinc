@@ -52,6 +52,10 @@ uniform sampler2D small_v2_tex : filter_nearest, repeat_disable;
 uniform sampler2D small_i3_tex : filter_nearest, repeat_disable;
 uniform sampler2D small_v3_tex : filter_nearest, repeat_disable;
 #endif
+#ifdef SMALL_PICK
+// the page's pick where two small lights tie (index + 1; dump.html's common)
+uniform sampler2D pick_tex : filter_nearest, repeat_disable;
+#endif
 #ifdef MORE_FIELDS
 uniform sampler2D fields2_tex : filter_nearest, repeat_disable;
 uniform vec4 w_more = vec4(0.0);
@@ -134,6 +138,11 @@ void room_lit(ivec2 p, out vec3 base, out vec3 lm) {
 	float sl = 0.0;
 	float best = 0.0;
 	int kk = -1;
+#ifdef SMALL_PICK
+	int pick = int(texelFetch(pick_tex, p, 0).r + 0.5) - 1;
+#else
+	int pick = -1;
+#endif
 	vec3 sr = vec3(0.0);
 	for (int h = 0; h < SMALL_SETS; h++) {
 		vec4 si = texelFetch(small_i_tex, p, 0);
@@ -154,7 +163,7 @@ void room_lit(ivec2 p, out vec3 base, out vec3 lm) {
 #ifdef SMALL_TINTS
 			sr += e * tint_small_a[n].rgb;
 #endif
-			if (e > best) { best = e; kk = n; }
+			if (e > best || (e == best && n == pick)) { best = e; kk = n; }
 		}
 	}
 #ifndef SMALL_TINTS

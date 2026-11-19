@@ -2,7 +2,7 @@ extends Node
 
 ## The science desk end to end in a real run, windowed (`render.sh`): a reading picked on LOCAL,
 ## the push in, the room, the card, the tap (taken once), the outcome, back to LOCAL; then a visit
-## left with Esc before the tap. `-- sheet=DeskVisit [out=<dir>] [weight=light|medium|heavy] [manufacturer=<id>]`
+## left with Esc before the tap. `-- sheet=DeskVisit [out=<dir>] [weight=light|medium|heavy] [manufacturer=<id>] [salvage=1]`
 ## writes a still of each beat; the hull picks the room (Jon's ruling: light the bunk, heavy DESK 2).
 ## Why: docs/why/DeskScene.md#the-hook
 
@@ -87,6 +87,10 @@ func _run() -> void:
 	var wt := {"light": HullData.Weight.LIGHT, "heavy": HullData.Weight.HEAVY}.get(_arg("weight"), HullData.Weight.MEDIUM) as int
 	var mf := StringName(_arg("manufacturer")) if _arg("manufacturer") != "" else &"korvan"
 	Run.start_new_run(mf, wt)
+	if _arg("salvage") != "":
+		# a salvage frame is unbranded (Jon's ruling: the NOOK)
+		Run.hull = Run.hull.duplicate() as HullData
+		Run.hull.manufacturer = &""
 	var want := DeskScene.room_for(Run.hull)
 	var n := _system()
 	if not _h._ok("a system to read in", n != null):

@@ -21,6 +21,7 @@ func run(tree: SceneTree) -> void:
 	_cards()
 	_desk_two()
 	_bunk()
+	_nook()
 	verdict("desktest")
 	_tree.quit(1 if _fails > 0 else 0)
 
@@ -235,7 +236,10 @@ func _cards() -> void:
 	rooms.append(DeskScene.room_for(h))
 	h.weight = HullData.Weight.LIGHT
 	rooms.append(DeskScene.room_for(h))
-	_ok("a medium hull gets DESK 1, a heavy one DESK 2, a light one the BUNK (%s)" % str(rooms), rooms == ["desk_1", "desk_2", "bunk_1"])
+	h.manufacturer = &""
+	rooms.append(DeskScene.room_for(h))
+	_ok("a medium hull gets DESK 1, a heavy one DESK 2, a light one the BUNK, a salvage frame the NOOK (%s)" % str(rooms),
+		rooms == ["desk_1", "desk_2", "bunk_1", "nook_1"])
 	_ok("the desk is for readings only", not DeskScene.wants({label = "Sell your place"}))
 
 
@@ -327,3 +331,49 @@ func _bunk() -> void:
 	held.release(30.0)
 	var wipe: Vector3 = held.frame(DeskTimeline.A + 30.2, 40.2, false)[&"g_title"]
 	_ok("held, its card waits for the tap, then wipes (phase %d, wipe row %.0f)" % [ph1, wipe.z], ph1 == P.TITLE and wipe.x > 0.5 and wipe.z > -99.0)
+
+
+## The NOOK (`DeskNook`): its bake, its hash (murmur's finaliser, as the page's `hh`), the rack bulb
+## at its click, the CRT's drawings in the page's order both ways, all 16 strings on, the held card.
+func _nook() -> void:
+	var m := DeskRoom.load_meta("nook_1")
+	_ok("the NOOK's bake: 16 string bulbs and 12 LEDs", not m.is_empty() and int(m.smallCount) == 28 and int(m.smallOver) == 0)
+	var s0: Dictionary = (m.strings as Array)[0]
+	_ok("its hash is the page's (string 0's period %.6f vs %.6f)" % [2.4 + DeskNook.hh(2.0) * 3.6, float(s0.p)], _near(2.4 + DeskNook.hh(2.0) * 3.6, float(s0.p), 1e-9))
+	var life := DeskNook.new(m)
+	life.set_card(DeskCard.title(""))
+	life.set_screen(DeskRoom.SCREEN.get_image())
+	_ok("its sound and card times are the page's (lamp %.2f, CRT %.2f, card at u %.2f)" % [life.lamp_at, life.crt_at, life.title_u],
+		_near(life.lamp_at, 4.3) and _near(life.crt_at, 4.9) and _near(life.title_u, 5.85) and _near(life.done_at, 12.3))
+	var lit_at := -1.0
+	var phases: Array[int] = []
+	var on := 0
+	for k in int(12.0 * 20.0):
+		var ts := DeskTimeline.A + k / 20.0
+		var u := life.frame(ts, DeskTimeline.forward(0.0) + ts, false)
+		if lit_at < 0.0 and (u[&"w_big"] as Vector3).x > 0.0:
+			lit_at = ts
+		var ph: int = u[&"g_ph"]
+		if phases.is_empty() or phases[phases.size() - 1] != ph:
+			phases.append(ph)
+		on = 0
+		for v: float in u[&"str_v"]:
+			on += 1 if v > 0.0 else 0
+	var P := DeskNook.Ph
+	_ok("the NOOK's rack bulb strikes at its click (scene %.2f)" % lit_at, lit_at >= life.lamp_at - 0.05 and lit_at < life.lamp_at + 0.1)
+	_ok("its CRT runs dark, dot, line, raster, boot, card, picture (%s)" % str(phases), phases == ([P.FILL, P.DOT, P.LINE, P.OPEN, P.BOOT, P.TITLE, P.PIC] as Array[int]))
+	_ok("all 16 strings come on (%d)" % on, on == 16)
+	var off: Array[int] = []
+	for k in 60:
+		var ph: int = life.frame(life.done_at - k * 0.15, 40.0 + k * 0.07, true)[&"g_ph"]
+		if off.is_empty() or off[off.size() - 1] != ph:
+			off.append(ph)
+	_ok("leaving: picture (squeezing), line, dot, dark (%s)" % str(off), off == ([P.PIC, P.LINE, P.DOT, P.FILL] as Array[int]))
+	var held := DeskNook.new(m)
+	held.set_card(DeskCard.title(""))
+	held.set_screen(DeskRoom.SCREEN.get_image())
+	held.hold_title()
+	var ph1: int = held.frame(DeskTimeline.A + 30.0, 40.0, false)[&"g_ph"]
+	held.release(30.0)
+	var wipe: Vector3 = held.frame(DeskTimeline.A + 30.2, 40.2, false)[&"g_title"]
+	_ok("held, its card waits for the tap, then wipes (drawing %d, wipe row %.0f)" % [ph1, wipe.z], ph1 == P.TITLE and wipe.x > 0.5 and wipe.z > -99.0)

@@ -13,7 +13,8 @@ const GLASS := Vector2i(150, 140)
 ## The page's canvas: what the tube's numbers are in.
 const CANVAS := Vector2(1920.0, 1080.0)
 const SHADERS := {"desk_1": preload("res://shaders/desk_1.gdshader"), "desk_2": preload("res://shaders/desk_2.gdshader"),
-	"bunk_1": preload("res://shaders/bunk_1.gdshader")}
+	"bunk_1": preload("res://shaders/bunk_1.gdshader"),
+	"nook_1": preload("res://shaders/nook_1.gdshader")}
 const MEAN_SHADER := preload("res://shaders/desk_mean.gdshader")
 const TUBE_SHADER := preload("res://shaders/desk_tube.gdshader")
 const SCREEN := preload("res://art/desk/screen_culture.png")
@@ -67,6 +68,8 @@ func setup(room: String) -> bool:
 		if FileAccess.file_exists((BAKE_DIR % room) + n + ".bin.gz"):
 			_room_mat.set_shader_parameter(n + "_tex", plane(room, n, ART, f))
 	_room_mat.set_shader_parameter(&"role_tex", plane(room, "role", ART, Image.FORMAT_RF))
+	if FileAccess.file_exists((BAKE_DIR % room) + "pick.bin.gz"):
+		_room_mat.set_shader_parameter(&"pick_tex", plane(room, "pick", ART, Image.FORMAT_RF))
 	_room_mat.set_shader_parameter(&"glass_tex", plane(room, "glass", GLASS, f))
 	set_card("")
 	_room_mat.set_shader_parameter(&"screen_tex", SCREEN)
@@ -107,6 +110,8 @@ static func _life(room: String, m: Dictionary) -> DeskLife:
 			return DeskTwo.new(m)
 		"bunk_1":
 			return DeskBunk.new(m)
+		"nook_1":
+			return DeskNook.new(m)
 	return DeskOne.new(m)
 
 
@@ -163,7 +168,16 @@ func show_at(ts: float, real: float, leaving: bool) -> void:
 				_room_mat.set_shader_parameter(k, _quads(v, life.small_q))
 			&"led_v":
 				_room_mat.set_shader_parameter(k, _quads(v, 2))
-			&"canvas_fade":
+			&"led_b":
+				_room_mat.set_shader_parameter(k, _quads(v, 3))
+			&"str_w":
+				_room_mat.set_shader_parameter(k, _quads(v, life.small_q))
+			&"trace":
+				var tr: PackedVector4Array = (v as PackedVector4Array).duplicate()
+				_room_mat.set_shader_parameter(&"trace_n", tr.size())
+				tr.resize(17)
+				_room_mat.set_shader_parameter(k, tr)
+			&"canvas_fade", &"scan2_on":
 				_tube_mat.set_shader_parameter(k, v)
 				(_mean_vp.get_child(0) as ColorRect).material.set_shader_parameter(k, v)
 			&"g_scan":
