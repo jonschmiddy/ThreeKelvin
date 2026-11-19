@@ -903,10 +903,21 @@ func _menu(which: StringName) -> void:
 	if pm == null:
 		_fail("the escape menu did not open")
 		return
+	# Every chart's turn tick lands in the exit's own frame: the draw that came
+	# after `Run.hull = null` only under the gate's load, now every time.
+	# Why: docs/why/MidJoinTest.md#exit-frame-draw
+	_redraw_charts(_tree.root)
 	if which == &"save":
 		pm.save_and_quit_requested.emit()
 	else:
 		pm.quit_requested.emit()
+
+
+func _redraw_charts(n: Node) -> void:
+	if n is MapChart:
+		(n as MapChart).queue_redraw()
+	for c in n.get_children():
+		_redraw_charts(c)
 
 
 ## Whatever the fight's end handed over to, played out.
