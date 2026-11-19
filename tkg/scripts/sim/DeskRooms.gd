@@ -22,6 +22,9 @@ func _arg(k: String) -> String:
 
 func _run() -> void:
 	_tree = get_tree()
+	if _arg("play") != "":
+		await _play(float(_arg("play")))
+		return
 	var out := _arg("out")
 	var man := _arg("frames")
 	if out == "" or man == "":
@@ -45,7 +48,18 @@ func _run() -> void:
 	if not room.setup(String(doc.room)):
 		_tree.quit(1)
 		return
+	var dbg := _arg("dbg")
 	var wrote := 0
+	if dbg != "":
+		var f0: Dictionary = (doc.frames as Array)[(doc.frames as Array).size() - 9]
+		for d in 8:
+			room.show_at(float(f0.ts), float(f0.real), false)
+			room.debug(d)
+			await Harness.frames(_tree, 4)
+			var im := vp.get_texture().get_image()
+			im.save_png(out.path_join("dbg_%d.png" % d))
+		_tree.quit(0)
+		return
 	for f: Dictionary in doc.frames:
 		room.show_at(float(f.ts), float(f.real), bool(f.leaving))
 		await Harness.frames(_tree, 4)
@@ -55,3 +69,37 @@ func _run() -> void:
 			wrote += 1
 	print("deskrooms: wrote %d of %d frames to %s" % [wrote, (doc.frames as Array).size(), out])
 	_tree.quit(0 if wrote == (doc.frames as Array).size() else 1)
+
+
+## `play=S`: a real visit in the window (`DeskScene` on GameClock), S seconds then LEAVE, back to
+## the end; prints the frame times (the room and the tube each frame, plus the CPU layers).
+func _play(secs: float) -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	add_child(layer)
+	var d := DeskScene.new()
+	d.size = get_viewport().get_visible_rect().size
+	layer.add_child(d)
+	if not d.open(DeskScene.room_for(null)):
+		_tree.quit(1)
+		return
+	var ms: Array[float] = []
+	var t0 := Time.get_ticks_usec()
+	var gone := [false]
+	d.left.connect(func() -> void: gone[0] = true)
+	var shot := _arg("shot")
+	while not gone[0]:
+		await _tree.process_frame
+		var t := Time.get_ticks_usec()
+		ms.append((t - t0) / 1000.0)
+		t0 = t
+		if not d.leaving and d.real >= secs:
+			if shot != "":
+				_tree.root.get_texture().get_image().save_png(shot)
+			d.leave()
+		if ms.size() > 60 * 120:
+			break
+	ms.sort()
+	var n := ms.size()
+	print("deskrooms play: %d frames, median %.2f ms, 95th %.2f ms, worst %.2f ms; left: %s" % [n, ms[n / 2], ms[int(n * 0.95)], ms[n - 1], str(gone[0])])
+	_tree.quit(0 if gone[0] else 1)

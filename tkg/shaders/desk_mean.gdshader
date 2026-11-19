@@ -2,7 +2,8 @@ shader_type canvas_item;
 render_mode unshaded;
 
 // The picture's mean colour, as the page's tube samples it (every 9th canvas pixel over the glass),
-// for the light the screen throws on its bezel. One pixel; `desk_tube` reads it.
+// for the light the screen throws on its bezel. Two pixels, the whole part and the fraction
+// (8 bits alone was a step off on the bezel); `desk_tube` reads them.
 // Why: docs/why/DeskScene.md#the-plan
 
 #include "res://shaders/desk_canvas.gdshaderinc"
@@ -16,5 +17,6 @@ void fragment() {
 			n += 1.0;
 		}
 	}
-	COLOR = vec4(s / n / 255.0, 1.0);
+	vec3 m = s / n;
+	COLOR = vec4(FRAGCOORD.x < 1.0 ? floor(m) / 255.0 : m - floor(m), 1.0);
 }

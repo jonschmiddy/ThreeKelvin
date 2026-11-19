@@ -12,10 +12,10 @@ const BAYER: Array[float] = [0.5 / 16, 8.5 / 16, 2.5 / 16, 10.5 / 16, 12.5 / 16,
 	6.5 / 16, 3.5 / 16, 11.5 / 16, 1.5 / 16, 9.5 / 16, 15.5 / 16, 7.5 / 16, 13.5 / 16, 5.5 / 16]
 
 
-## The page's hash: fract(sin(n * 12.9898 + 78.233) * 43758.5453), in doubles as JS has it.
-static func hash(n: float) -> float:
+## The page's hash (not GDScript's own `hash`, which an unqualified call would reach): fract(sin(n * 12.9898 + 78.233) * 43758.5453), in doubles as JS has it.
+static func rnd(n: float) -> float:
 	var s := sin(n * 12.9898 + 78.233) * 43758.5453
-	return s - floor(s)
+	return s - floorf(s)
 
 
 static func sat(v: float) -> float:
@@ -33,15 +33,15 @@ static func bay(x: int, y: int) -> float:
 
 
 static func vnoise(t: float, seed: float) -> float:
-	var i := floor(t)
+	var i := floorf(t)
 	var f := t - i
 	var s := f * f * (3.0 - 2.0 * f)
-	return lerpf(hash(i * 1.91 + seed), hash((i + 1.0) * 1.91 + seed), s) * 2.0 - 1.0
+	return lerpf(rnd(i * 1.91 + seed), rnd((i + 1.0) * 1.91 + seed), s) * 2.0 - 1.0
 
 
 ## JS's Math.round: halves go up.
 static func jround(v: float) -> int:
-	return int(floor(v + 0.5))
+	return int(floorf(v + 0.5))
 
 
 ## A Uint8ClampedArray store: clamped, halves to even.
@@ -50,7 +50,7 @@ static func u8(v: float) -> int:
 		return 0
 	if v >= 255.0:
 		return 255
-	var f := floor(v)
+	var f := floorf(v)
 	var d := v - f
 	if d > 0.5 or (d == 0.5 and int(f) % 2 == 1):
 		return int(f) + 1
@@ -60,19 +60,19 @@ static func u8(v: float) -> int:
 ## A lamp's flicker, a brightness multiplier, mostly 1: a slow waver, an eased dip in each `every`
 ## slot, and in about half the `stutter_every` slots two or three quick drops.
 static func tired_bulb(c: float, seed: float, depth: float = 1.0, every: float = 6.5, stutter_every: float = 19.0) -> float:
-	var cs := c + hash(seed * 1.37) * 97.0
+	var cs := c + rnd(seed * 1.37) * 97.0
 	var m := 1.0 + depth * (0.012 * vnoise(cs * 1.3, seed) + 0.008 * vnoise(cs * 3.7, seed + 5.0))
-	var ci := floor(cs / every)
-	var at := hash(ci * 3.1 + seed) * (every - 1.0)
+	var ci := floorf(cs / every)
+	var at := rnd(ci * 3.1 + seed) * (every - 1.0)
 	var a := cs - ci * every - at
-	var ln := 0.25 + hash(ci * 1.7 + seed) * 0.3
+	var ln := 0.25 + rnd(ci * 1.7 + seed) * 0.3
 	if a > 0.0 and a < ln:
-		m *= 1.0 - depth * (0.05 + hash(ci * 5.3 + seed) * 0.06) * sin(PI * a / ln)
-	var c2 := floor(cs / stutter_every)
-	if hash(c2 * 7.7 + seed * 2.3) < 0.55:
-		var a2 := cs - c2 * stutter_every - (1.0 + hash(c2 * 4.9 + seed) * (stutter_every - 2.0))
+		m *= 1.0 - depth * (0.05 + rnd(ci * 5.3 + seed) * 0.06) * sin(PI * a / ln)
+	var c2 := floorf(cs / stutter_every)
+	if rnd(c2 * 7.7 + seed * 2.3) < 0.55:
+		var a2 := cs - c2 * stutter_every - (1.0 + rnd(c2 * 4.9 + seed) * (stutter_every - 2.0))
 		if a2 > 0.0 and a2 < 0.34:
-			var n3 := hash(c2 * 2.2 + seed) < 0.5
+			var n3 := rnd(c2 * 2.2 + seed) < 0.5
 			if a2 < 0.05:
 				m *= 1.0 - depth * 0.28
 			elif a2 > 0.1 and a2 < 0.14:
@@ -132,12 +132,12 @@ static func sky(k: Dictionary, img: Image, org: Vector2i, c: float, f: float = 1
 	for i: int in idx:
 		col[i] = _sky_base(o, i)
 	var mp := 150.0
-	var mc := floor(c / mp)
+	var mc := floorf(c / mp)
 	var ma := c - mc * mp - 100.0
 	var moon := {}
 	if ma > 0.0 and ma < 50.0:
 		var kk := sin(PI * ma / 50.0)
-		var dir := 1.0 if hash(mc * 3.3 + 1.0) < 0.5 else -1.0
+		var dir := 1.0 if rnd(mc * 3.3 + 1.0) < 0.5 else -1.0
 		var dd := 26.0 + r + 3.0 - kk * 11.0
 		moon = {x = jround(cx + dir * 0.6 * dd), y = jround(cy + 0.8 * dd), R = 26.0, dir = dir}
 	for st: Dictionary in k.stars:
@@ -147,13 +147,13 @@ static func sky(k: Dictionary, img: Image, org: Vector2i, c: float, f: float = 1
 			continue
 		var v: float = st.b
 		if bool(st.tw):
-			var n := floor(c / float(st.per) + float(st.ph))
-			var hh := hash(n * 13.1 + float(st.x) * 3.0 + float(st.y))
+			var n := floorf(c / float(st.per) + float(st.ph))
+			var hh := rnd(n * 13.1 + float(st.x) * 3.0 + float(st.y))
 			v *= 0.45 if hh < 0.18 else (0.85 if hh < 0.7 else 1.12)
 		v = minf(1.1, v)
 		var warm: bool = float(st.tint) < 0.2
 		var blue: bool = float(st.tint) > 0.85
-		_set(col, on, x, y, Vector3(30.0 + 215.0 * v * (1.0 if warm else 0.92), 34.0 + 205.0 * v * (0.86 if warm else 0.95),
+		_put_px(col, on, x, y, Vector3(30.0 + 215.0 * v * (1.0 if warm else 0.92), 34.0 + 205.0 * v * (0.86 if warm else 0.95),
 			46.0 + 200.0 * v * (1.05 if blue else (0.7 if warm else 1.0))))
 	if not moon.is_empty():
 		for i: int in idx:
@@ -183,7 +183,7 @@ static func sky(k: Dictionary, img: Image, org: Vector2i, c: float, f: float = 1
 		img.set_pixel(i % W - org.x, i / W - org.y, Color8(u8(minf(255.0, v3.x) * f), u8(minf(255.0, v3.y) * f), u8(minf(255.0, v3.z) * f)))
 
 
-static func _set(col: Dictionary, on: Dictionary, x: int, y: int, c: Vector3) -> void:
+static func _put_px(col: Dictionary, on: Dictionary, x: int, y: int, c: Vector3) -> void:
 	var i := y * W + x
 	if on.has(i):
 		col[i] = c
@@ -205,38 +205,38 @@ static func _along(o: Dictionary, k: float, y0: float, slope: float, dir: float)
 ## One passer-by per 12 s slot at most: a far ship, tumbling debris, or a slow meteor.
 static func _passers(col: Dictionary, on: Dictionary, o: Dictionary, c: float, moon: bool) -> void:
 	var p := 12.0
-	var sn := floor(c / p)
+	var sn := floorf(c / p)
 	var st := c - sn * p
-	var kh := hash(sn * 5.7 + 2.0)
+	var kh := rnd(sn * 5.7 + 2.0)
 	var cy: float = o.cy
 	var r: float = o.r
 	if not moon and kh < 0.3:
 		var k := st / 9.0
 		if k < 1.0:
-			var dir := 1.0 if hash(sn * 2.9) < 0.5 else -1.0
-			var q := _along(o, k, cy - 6.0 + hash(sn * 4.3) * 10.0, 4.0 - hash(sn) * 8.0, dir)
+			var dir := 1.0 if rnd(sn * 2.9) < 0.5 else -1.0
+			var q := _along(o, k, cy - 6.0 + rnd(sn * 4.3) * 10.0, 4.0 - rnd(sn) * 8.0, dir)
 			var red := fmod(st, 1.3) < 0.22
-			_set(col, on, q.x, q.y, Vector3(255, 84, 70) if red else Vector3(196, 206, 222))
+			_put_px(col, on, q.x, q.y, Vector3(255, 84, 70) if red else Vector3(196, 206, 222))
 			if not red:
 				_add(col, on, o, q.x - int(dir), q.y, Vector3(26, 30, 38))
 	elif kh < 0.55:
 		var k := st / 10.0
 		if k < 1.0:
-			var dir := 1.0 if hash(sn * 3.1) < 0.5 else -1.0
-			var q := _along(o, k, cy - 8.0 + hash(sn * 6.1) * 14.0, 3.0 - hash(sn * 2.0) * 6.0, dir)
+			var dir := 1.0 if rnd(sn * 3.1) < 0.5 else -1.0
+			var q := _along(o, k, cy - 8.0 + rnd(sn * 6.1) * 14.0, 3.0 - rnd(sn * 2.0) * 6.0, dir)
 			var tum := fposmod(st, 1.4)
 			var flash := 1.0 if tum < 0.12 else (0.55 if tum < 0.25 else 0.18)
 			var cv := 60.0 + 190.0 * flash
-			_set(col, on, q.x, q.y, Vector3(cv, cv * 0.97, cv * 0.9))
+			_put_px(col, on, q.x, q.y, Vector3(cv, cv * 0.97, cv * 0.9))
 			if tum > 0.7:
-				_set(col, on, q.x + 1, q.y, Vector3(70, 68, 64))
+				_put_px(col, on, q.x + 1, q.y, Vector3(70, 68, 64))
 			else:
-				_set(col, on, q.x, q.y + 1, Vector3(52, 50, 48))
+				_put_px(col, on, q.x, q.y + 1, Vector3(52, 50, 48))
 	elif kh < 0.66 and not moon:
-		var a := st - 4.0 - hash(sn * 8.1) * 4.0
+		var a := st - 4.0 - rnd(sn * 8.1) * 4.0
 		if a > 0.0 and a < 0.9:
 			var k := a / 0.9
-			var dir := 1.0 if hash(sn * 1.3) < 0.5 else -1.0
+			var dir := 1.0 if rnd(sn * 1.3) < 0.5 else -1.0
 			var hx := float(o.cx) + dir * (-r + 2.0 * r * k)
 			var hy := cy - r * 0.6 + r * 1.1 * k
 			for tl in 4:

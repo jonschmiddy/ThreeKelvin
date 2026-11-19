@@ -173,7 +173,7 @@ func _beats() -> void:
 			n += 1 if v > 0.0 else 0
 		strings_on.append(n)
 	_ok("the lamp strikes at the click (scene %.2f)" % lit_at, lit_at >= DeskOne.LAMP_AT - 0.05 and lit_at < DeskOne.LAMP_AT + 0.1)
-	_ok("the CRT runs dot, line, raster, boot, title, picture (%s)" % str(phases), phases == [0, 1, 2, 3, 4, 7, 5] as Array[int])
+	_ok("the CRT runs dot, line, raster, boot, title, picture (%s)" % str(phases), phases == ([0, 1, 2, 3, 4, 7, 5] as Array[int]))
 	var climbs := true
 	var dips := 0
 	for k in range(1, strings_on.size()):
@@ -187,7 +187,7 @@ func _beats() -> void:
 		var ph: int = life.frame(ts, 40.0 + k * 0.07, true)[&"g_phase"]
 		if off.is_empty() or off[off.size() - 1] != ph:
 			off.append(ph)
-	_ok("leaving: picture, squeeze, line, dot, dark (%s)" % str(off), off == [5, 6, 2, 1, 0] as Array[int])
+	_ok("leaving: picture, squeeze, line, dot, dark (%s)" % str(off), off == ([5, 6, 2, 1, 0] as Array[int]))
 	# leaving, the lamp holds full until its click, then an afterglow of AFTER scene seconds
 	life.frame(DeskOne.DONE_AT, 30.0, false)
 	var held := true

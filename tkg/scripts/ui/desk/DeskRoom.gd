@@ -32,6 +32,7 @@ var _tube_mat: ShaderMaterial
 var _steam_tex: ImageTexture
 var _sky_tex: ImageTexture
 var _dust_tex: ImageTexture
+var _noise_tex: ImageTexture
 
 
 ## The room's bake: meta.json and its planes. Empty when it is missing.
@@ -73,11 +74,13 @@ func setup(room: String) -> bool:
 	_room_mat.set_shader_parameter(&"steam_tex", _steam_tex)
 	_room_mat.set_shader_parameter(&"sky_tex", _sky_tex)
 	_room_mat.set_shader_parameter(&"dust_tex", _dust_tex)
+	_noise_tex = ImageTexture.create_from_image(life.noise_img)
+	_room_mat.set_shader_parameter(&"noise_tex", _noise_tex)
 	_room_vp = _viewport(ART, _room_mat)
 	var mean_mat := ShaderMaterial.new()
 	mean_mat.shader = MEAN_SHADER
 	mean_mat.set_shader_parameter(&"room_tex", _room_vp.get_texture())
-	_mean_vp = _viewport(Vector2i.ONE, mean_mat)
+	_mean_vp = _viewport(Vector2i(2, 1), mean_mat)
 	_tube_mat = ShaderMaterial.new()
 	_tube_mat.shader = TUBE_SHADER
 	_tube_mat.set_shader_parameter(&"room_tex", _room_vp.get_texture())
@@ -114,6 +117,8 @@ func show_at(ts: float, real: float, leaving: bool) -> void:
 	_steam_tex.update(life.steam_img)
 	_sky_tex.update(life.sky_img)
 	_dust_tex.update(life.dust_img)
+	if life.noise_new:
+		_noise_tex.update(life.noise_img)
 	for k: StringName in u:
 		var v: Variant = u[k]
 		match k:
@@ -121,20 +126,23 @@ func show_at(ts: float, real: float, leaving: bool) -> void:
 				_room_mat.set_shader_parameter(k, _pad4(v, 8))
 				_room_mat.set_shader_parameter(&"glow_n", (v as PackedVector4Array).size())
 			&"glow_c":
-				_room_mat.set_shader_parameter(k, _pad3(v, 8))
+				_room_mat.set_shader_parameter(k, _v4(v, 8))
 			&"wisp":
-				_room_mat.set_shader_parameter(k, _pad3(v, 24))
+				_room_mat.set_shader_parameter(k, _v4(v, 24))
 				_room_mat.set_shader_parameter(&"wisp_n", mini((v as PackedVector3Array).size(), 24))
 			&"w_small", &"fl_small", &"str_v":
-				var a := (v as PackedFloat32Array).duplicate()
-				a.resize(16)
-				_room_mat.set_shader_parameter(k, a)
+				_room_mat.set_shader_parameter(k, _quads(v))
 			&"g_scan":
 				_tube_mat.set_shader_parameter(&"scan_on", v)
 				_mean_mat_scan(v)
 			_:
 				_room_mat.set_shader_parameter(k, v)
 	_tube_mat.set_shader_parameter(&"tube_on", ts >= 2.5)
+
+
+## A debug view of the room's planes (`-- sheet=DeskRooms dbg=1`), 0 for the room.
+func debug(mode: int) -> void:
+	_room_mat.set_shader_parameter(&"dbg", mode)
 
 
 func _mean_mat_scan(on: bool) -> void:
@@ -148,7 +156,20 @@ static func _pad4(a: PackedVector4Array, n: int) -> PackedVector4Array:
 	return b
 
 
-static func _pad3(a: PackedVector3Array, n: int) -> PackedVector3Array:
-	var b := a.duplicate()
+## vec3s as vec4s, n of them (the shader's arrays are vec4: see desk_room.gdshaderinc).
+static func _v4(a: PackedVector3Array, n: int) -> PackedVector4Array:
+	var b := PackedVector4Array()
 	b.resize(n)
+	for i in mini(a.size(), n):
+		b[i] = Vector4(a[i].x, a[i].y, a[i].z, 0.0)
+	return b
+
+
+## Sixteen floats as four vec4s.
+static func _quads(a: PackedFloat32Array) -> PackedVector4Array:
+	var f := a.duplicate()
+	f.resize(16)
+	var b := PackedVector4Array()
+	for i in 4:
+		b.append(Vector4(f[i * 4], f[i * 4 + 1], f[i * 4 + 2], f[i * 4 + 3]))
 	return b

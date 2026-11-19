@@ -45,6 +45,10 @@ var c := 0.0
 var steam_img: Image
 var sky_img: Image
 var dust_img: Image
+## The raster's noise while it opens (phase 3), in doubles as the page has it: float32's sin
+## at these arguments is a different noise.
+var noise_img: Image
+var noise_new := false
 
 
 func _init(m: Dictionary) -> void:
@@ -64,6 +68,7 @@ func _init(m: Dictionary) -> void:
 	steam_img = Image.create(SB.size.x, SB.size.y, false, Image.FORMAT_RF)
 	sky_img = Image.create(PORT_BOX.size.x, PORT_BOX.size.y, false, Image.FORMAT_RGBA8)
 	dust_img = Image.create(DeskFx.W, DeskFx.H, false, Image.FORMAT_RGF)
+	noise_img = Image.create(GLASS.size.x, GLASS.size.y, false, Image.FORMAT_RF)
 
 
 ## Leaving, the lamp holds its full living light until the clock reaches its click, then goes out
@@ -114,19 +119,19 @@ func _lamp_fwd(u: float) -> Dictionary[StringName, Variant]:
 		var b := DeskFx.sat((u - 2.2) / 2.0)
 		breathe = 1.0 + b * (0.045 * sin(c * TAU * 0.13) + 0.024 * sin(c * TAU * 0.41 + 1.3) + 0.01 * sin(c * TAU * 1.7 + 0.4))
 		breathe *= 1.0 + b * (0.022 * DeskFx.vnoise(c * 1.7, 61.0) + 0.012 * DeskFx.vnoise(c * 4.3, 67.0))
-		var ci := floor(c / 10.0)
-		var at := 1.5 + DeskFx.hash(ci * 3.9 + 1.0) * 6.0
+		var ci := floorf(c / 10.0)
+		var at := 1.5 + DeskFx.rnd(ci * 3.9 + 1.0) * 6.0
 		var a := c - ci * 10.0 - at
-		var ln := 0.45 + DeskFx.hash(ci * 2.2) * 0.25
+		var ln := 0.45 + DeskFx.rnd(ci * 2.2) * 0.25
 		if a > 0.0 and a < ln:
-			breathe *= 1.0 - b * (0.06 + DeskFx.hash(ci * 7.1) * 0.03) * sin(PI * a / ln)
+			breathe *= 1.0 - b * (0.06 + DeskFx.rnd(ci * 7.1) * 0.03) * sin(PI * a / ln)
 		drift = b * sin(c * TAU / 23.0 + 0.7)
 	if u > IDLE + 2.0 and not leaving:
-		var ci := floor(c / 17.0)
+		var ci := floorf(c / 17.0)
 		var ph := c - ci * 17.0
-		if DeskFx.hash(ci * 7.7 + 3.0) > 0.25:
-			var a := ph - (3.0 + DeskFx.hash(ci * 5.3) * 10.0)
-			var depth := 0.15 + DeskFx.hash(ci * 2.1) * 0.1
+		if DeskFx.rnd(ci * 7.7 + 3.0) > 0.25:
+			var a := ph - (3.0 + DeskFx.rnd(ci * 5.3) * 10.0)
+			var depth := 0.15 + DeskFx.rnd(ci * 2.1) * 0.1
 			if a > 0.0 and a < 0.95:
 				var d := a / 0.08 if a < 0.08 else (1.0 - 0.3 * sin(PI * (a - 0.08) / 0.22) if a < 0.3 else 1.0 - DeskFx.ease_s((a - 0.3) / 0.65))
 				brown = depth * d
@@ -189,18 +194,18 @@ func _screen_level(u: float) -> float:
 func _glitch(u: float) -> Dictionary[StringName, Variant]:
 	if u < IDLE + 1.5 or leaving:
 		return {} as Dictionary[StringName, Variant]
-	var si := floor(c / GL_SLOT)
+	var si := floorf(c / GL_SLOT)
 	var ph := c - si * GL_SLOT
-	var at := 0.3 + DeskFx.hash(si * 4.1 + 2.0) * 4.0
-	var hk := DeskFx.hash(si * 6.7 + 9.0)
+	var at := 0.3 + DeskFx.rnd(si * 4.1 + 2.0) * 4.0
+	var hk := DeskFx.rnd(si * 6.7 + 9.0)
 	var kind := &"jit" if hk < 0.5 else (&"rgb" if hk < 0.88 else &"hold")
 	var dur: float = {&"jit": 0.26, &"rgb": 0.05, &"hold": 0.2}[kind]
 	var a := ph - at
 	if a < 0.0 or a >= dur:
 		return {} as Dictionary[StringName, Variant]
 	var r: Dictionary[StringName, Variant] = {}
-	r.assign({kind = kind, a = a, dur = dur, si = si, y0 = 8 + int(floor(DeskFx.hash(si * 9.1) * 118.0)),
-		h = 3 + int(floor(DeskFx.hash(si * 4.4) * 6.0))})
+	r.assign({kind = kind, a = a, dur = dur, si = si, y0 = 8 + int(floorf(DeskFx.rnd(si * 9.1) * 118.0)),
+		h = 3 + int(floorf(DeskFx.rnd(si * 4.4) * 6.0))})
 	return r
 
 
@@ -241,8 +246,8 @@ func _solder(u: float) -> float:
 	var tt := fposmod(c, 40.0)
 	var n := 0
 	while n <= 200:
-		var on := 0.5 + DeskFx.hash(n * 3.3 + 1.0) * 1.1
-		var offd := 0.35 + DeskFx.hash(n * 5.9 + 2.0) * 0.7
+		var on := 0.5 + DeskFx.rnd(n * 3.3 + 1.0) * 1.1
+		var offd := 0.35 + DeskFx.rnd(n * 5.9 + 2.0) * 0.7
 		if tt < on:
 			return 1.0
 		tt -= on
@@ -262,7 +267,7 @@ func _steam() -> void:
 	for p in np:
 		var age := fposmod(c + p * life / np + MUG_SEED * 0.37, life)
 		var a := age / life
-		var ph := DeskFx.hash(p * 3.1 + MUG_SEED) * 6.28
+		var ph := DeskFx.rnd(p * 3.1 + MUG_SEED) * 6.28
 		var env := pow(sin(PI * minf(1.0, a * 1.25)), 0.7) * (1.0 - a * 0.35)
 		for tr in 5:
 			var ag := age - tr * 0.1
@@ -420,20 +425,26 @@ func _glass(u: float, crt: Dictionary, o: Dictionary[StringName, Variant]) -> vo
 		p_dot = DeskFx.ease_s((u - OFF.dot) / (OFF.line - OFF.dot))
 	var jit_dx := 0
 	if not gl.is_empty() and gl[&"kind"] == &"jit":
-		var q := floor(float(gl[&"a"]) * 16.0)
-		jit_dx = [1, -1, 2, -2, 1][int(floor(DeskFx.hash(q * 3.3 + float(gl[&"si"])) * 5.0))]
+		var q := floorf(float(gl[&"a"]) * 16.0)
+		jit_dx = [1, -1, 2, -2, 1][int(floorf(DeskFx.rnd(q * 3.3 + float(gl[&"si"])) * 5.0))]
 	var last: Dictionary = meta.boot[meta.boot.size() - 1]
-	var cursor := phase == 4 and u > float(last.t) + String(last.s).length() * 0.05 and int(floor(c * 2.2)) % 2 == 0
+	var cursor := phase == 4 and u > float(last.t) + String(last.s).length() * 0.05 and int(floorf(c * 2.2)) % 2 == 0
 	o.g_phase = phase
 	o.g_u = u
 	o.g_p = Vector4(p_dot, p_line, p_sq, DeskFx.ease_s((u - T.open) / (T.boot - T.open)))
 	o.g_off0 = Vector3(2.0 + 2.0 * fd, 3.0 + 3.0 * fd, 5.0 + 5.0 * fd)
 	o.g_refl = float(_lamp(u)[&"w"]) * fd
 	o.g_roll = Vector2(roll_off, roll_gain)
-	o.g_frame = floor(c * 15.0)
-	var jit_on := not gl.is_empty() and gl[&"kind"] == &"jit"
+	o.g_frame = floorf(c * 15.0)
+	noise_new = phase == 3
+	if noise_new:
+		var fr := floorf(c * 15.0)
+		for y in GLASS.size.y:
+			for x in GLASS.size.x:
+				noise_img.set_pixel(x, y, Color(DeskFx.rnd(x * 13.1 + y * 71.7 + fr * 3.3) * 0.12, 0, 0))
+	var jit_on: bool = not gl.is_empty() and gl[&"kind"] == &"jit"
 	o.g_jit = Vector4(1.0 if jit_on else 0.0, float(gl.get(&"y0", 0)), float(gl.get(&"h", 0)), jit_dx)
-	o.g_rgb = not gl.is_empty() and gl[&"kind"] == &"rgb"
+	o.g_rgb = (not gl.is_empty()) and gl[&"kind"] == &"rgb"
 	o.g_b = float(crt[&"b"]) if phase >= 1 else 1.0
 	o.g_leaving = leaving
 	o.g_cursor = Vector3(1.0 if cursor else 0.0, int(last.x) + String(last.s).length() * 4 + 1, int(last.y))

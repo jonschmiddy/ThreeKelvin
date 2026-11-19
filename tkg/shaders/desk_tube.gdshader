@@ -53,7 +53,7 @@ vec3 tube_px(ivec2 c) {
 	a = floor(max(0.0, a) * 6.0) / 6.0;
 	if (dd > P || a <= 0.0) return s;
 	a = floor(a * 256.0 + 0.5) / 256.0;
-	vec3 mn = texelFetch(mean_tex, ivec2(0), 0).rgb * 255.0;
+	vec3 mn = floor(texelFetch(mean_tex, ivec2(0), 0).rgb * 255.0 + 0.5) + texelFetch(mean_tex, ivec2(1, 0), 0).rgb;
 	return floor(min(vec3(255.0), s * (1.0 + a) + mn * a * 0.6));
 }
 

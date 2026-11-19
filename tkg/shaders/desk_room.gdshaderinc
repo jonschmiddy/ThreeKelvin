@@ -24,7 +24,8 @@ uniform vec3 tint_lamp = vec3(1.0);
 uniform vec3 tint_scr = vec3(1.0);
 uniform vec3 tint_port = vec3(0.8, 0.88, 1.0);
 uniform vec3 tint_small = vec3(1.0, 0.82, 0.62);
-uniform float w_small[16];
+// (float and vec3 arrays are packed as vec4s: the compatibility renderer laid float[] out tight)
+uniform vec4 w_small[4];
 uniform vec3 amb = vec3(0.17, 0.18, 0.23);
 uniform float st_fade = 0.0;
 uniform float ov = 0.3;
@@ -32,10 +33,10 @@ uniform float hot = 6.0;
 uniform vec3 hot_col = vec3(1.0, 0.7, 0.4);
 uniform float fl_lamp = 1.0;
 uniform float fl_scr = 1.0;
-uniform float fl_small[16];
+uniform vec4 fl_small[4];
 // LED glows (`addGlow`): (cx, cy, strength, radius) and colour
 uniform vec4 glow_a[8];
-uniform vec3 glow_c[8];
+uniform vec4 glow_c[8];
 uniform int glow_n = 0;
 
 const float C_LV[6] = float[](0.17, 0.3, 0.5, 0.76, 1.08, 1.5);
@@ -56,11 +57,6 @@ vec3 st8(vec3 v) {
 
 float knee(float c) {
 	return c < 205.0 ? c : 205.0 + (c - 205.0) / (1.0 + (c - 205.0) / 50.0);
-}
-
-// The page's hash, in float32 (only the CRT's raster noise reads it here).
-float hash1(float n) {
-	return fract(sin(n * 12.9898 + 78.233) * 43758.5453);
 }
 
 // One two-band step (`bandStep` with two bands): a plateau, a dithered edge E wide.
@@ -107,7 +103,7 @@ void room_lit(ivec2 p, out vec3 base, out vec3 lm) {
 	for (int s = 0; s < 4; s++) {
 		int n = int(si[s] + 0.5) - 1;
 		if (n < 0) continue;
-		float w = w_small[n];
+		float w = w_small[n / 4][n % 4];
 		if (!(w > 0.0)) continue;
 		float e = sv[s] * w * tg;
 		sl += e;
@@ -150,7 +146,7 @@ void room_lit(ivec2 p, out vec3 base, out vec3 lm) {
 	base.r = knee(A.r * L.r * sc * (1.0 - 0.2 * s) * (1.0 + 0.06 * h) + 12.0 * h + ht * hot_col.r);
 	base.g = knee(A.g * L.g * sc * (1.0 - 0.1 * s) + 3.0 * h + ht * hot_col.g);
 	base.b = knee(A.b * L.b * sc * (1.0 + 0.28 * s) * (1.0 - 0.14 * h) + ht * hot_col.b);
-	float m = 1.0 + sL * (fl_lamp - 1.0) + sM * (fl_scr - 1.0) + (kk >= 0 ? sS * (fl_small[kk] - 1.0) : 0.0);
+	float m = 1.0 + sL * (fl_lamp - 1.0) + sM * (fl_scr - 1.0) + (kk >= 0 ? sS * (fl_small[kk / 4][kk % 4] - 1.0) : 0.0);
 	base *= m;
 	lm = L * sc * m;
 }
@@ -168,8 +164,8 @@ void glows_at(ivec2 p, out vec3 gm, out vec3 ga) {
 		float f = band2(d, vec2(a.w * 0.45, 0.5), vec2(a.w, 0.3), 1.5, bay(p.x, p.y));
 		if (f == 0.0) continue;
 		float e = f * a.z;
-		gm += e * 1.3 * glow_c[g];
-		ga += e * 34.0 * glow_c[g];
+		gm += e * 1.3 * glow_c[g].rgb;
+		ga += e * 34.0 * glow_c[g].rgb;
 	}
 }
 

@@ -21,19 +21,21 @@ uniform sampler2D steam_tex : filter_nearest, repeat_disable;
 uniform sampler2D sky_tex : filter_nearest, repeat_disable;
 // dust in the air: R at a mote, G the fleck's second pixel
 uniform sampler2D dust_tex : filter_nearest, repeat_disable;
+// the raster's noise while it opens (150 x 140, from DeskOne in doubles)
+uniform sampler2D noise_tex : filter_nearest, repeat_disable;
 
 uniform float tip_on = 0.0;
 uniform float fade = 0.0;
 // fil, k, brown, drift
 uniform vec4 bulb = vec4(0.0);
 uniform float bulb_w = 0.0;
-uniform float str_v[16];
+uniform vec4 str_v[4];
 uniform float pipe_on = 0.0;
 uniform float solder_on = 0.0;
 uniform float mon_on = 0.0;
 uniform vec3 steam_warm = vec3(0.0);
 uniform vec3 steam_cool = vec3(0.0);
-uniform vec3 wisp[24];
+uniform vec4 wisp[24];
 uniform int wisp_n = 0;
 uniform float lwf = 0.0;
 // the glass
@@ -94,7 +96,7 @@ vec3 glass_gb(ivec2 q) {
 		float dy = abs(float(y) - 70.0 + 0.5);
 		if (dy < hh) {
 			float edge = dy > hh - 1.5 ? 0.5 : 0.0;
-			float nz = hash1(float(x) * 13.1 + float(y) * 71.7 + g_frame * 3.3) * 0.12;
+			float nz = texelFetch(noise_tex, q, 0).r;
 			float lv = 0.55 * (1.0 - p) + 0.1 + nz + edge;
 			c = vec3(10.0 + 170.0 * lv, 14.0 + 195.0 * lv, 16.0 + 205.0 * lv);
 		}
@@ -160,7 +162,16 @@ vec3 glass_px(ivec2 q) {
 		n /= k;
 		c += max(vec3(0.0), n - c) * 0.22 + max(vec3(0.0), n - 120.0) * 0.06;
 	}
-	c *= texelFetch(glass_tex, q, 0).r * g_b;
+	float sh = texelFetch(glass_tex, q, 0).r;
+	c *= sh * g_b;
+	// A dark tube's whole numbers times .95 or .9 land on halves, which the page's doubles break
+	// (.95 is a hair under, .9 a hair over); float32 breaks them the other way.
+	if (g_b == 1.0) {
+		vec3 t = c - floor(c);
+		vec3 tie = vec3(lessThan(abs(t - 0.5), vec3(0.0005)));
+		float dir = abs(sh - 0.95) < 0.001 ? -1.0 : (abs(sh - 0.9) < 0.001 ? 1.0 : 0.0);
+		c = mix(c, floor(c) + 0.5 + dir * 0.25, tie * abs(dir));
+	}
 	if (g_refl > 0.0 && q.x < 24 && q.y > 88 && q.y < 140) {
 		float dd = length(vec2((float(q.x) - 9.0) * 1.9, (float(q.y) - 114.0) * 0.75));
 		float f = band3(dd, vec2(4.0, 0.35), vec2(9.0, 0.35), vec2(15.0, 0.3), 2.5, bay(q.x, q.y)) * g_refl;
@@ -205,7 +216,8 @@ vec3 desk_px(ivec2 p) {
 			o = st8(lerp3(off, on, sat1(gl * mix(0.55, 1.0, k))));
 		}
 	} else if (role >= 16) {
-		float v = str_v[role - 16];
+		int sn = role - 16;
+		float v = str_v[sn / 4][sn % 4];
 		vec3 off = vec3(A.r * 0.16 * fade + 2.0, A.g * 0.15 * fade + 2.0, A.b * 0.17 * fade + 3.0);
 		if (v <= 0.0) {
 			o = st8(off);
@@ -240,7 +252,7 @@ vec3 desk_px(ivec2 p) {
 	// the iron's smoke, its points in drawing order
 	for (int k = 0; k < 24; k++) {
 		if (k >= wisp_n) break;
-		vec3 w = wisp[k];
+		vec4 w = wisp[k];
 		if (int(w.x) == p.x && int(w.y) == p.y) {
 			vec3 s = vec3(190.0, 200.0, 210.0) * min(M * 1.6 + 0.12, vec3(1.2));
 			o = st8(lerp3(o, s, w.z));
@@ -281,7 +293,16 @@ vec3 desk_px(ivec2 p) {
 	return o;
 }
 
+uniform int dbg = 0;
+
 void fragment() {
 	ivec2 p = ivec2(floor(UV * vec2(384.0, 216.0)));
-	COLOR = vec4(desk_px(p) / 255.0, 1.0);
+	if (dbg == 1) { COLOR = vec4(texelFetch(fields_tex, p, 0).rgb * 0.5, 1.0); }
+	else if (dbg == 2) { COLOR = vec4(texelFetch(screen_tex, p % ivec2(150, 140), 0).rgb, 1.0); }
+	else if (dbg == 3) { COLOR = vec4(vec3(texelFetch(role_tex, p, 0).r / 30.0), 1.0); }
+	else if (dbg == 4) { COLOR = vec4(texelFetch(a2c_tex, p, 0).rgb / 255.0, 1.0); }
+	else if (dbg == 5) { vec3 b; vec3 l; room_lit(p, b, l); COLOR = vec4(b / 255.0, 1.0); }
+	else if (dbg == 6) { COLOR = vec4(texelFetch(px_tex, p, 0).rgb / 2.0, 1.0); }
+	else if (dbg == 7) { COLOR = vec4(vec3(w_small[0].w, fl_small[0].w, fl_lamp) / 2.0, 1.0); }
+	else COLOR = vec4(desk_px(p) / 255.0, 1.0);
 }
