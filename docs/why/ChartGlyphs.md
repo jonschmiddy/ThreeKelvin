@@ -29,7 +29,9 @@ MapGlyphs' own 11 px grids. The bay is MapGlyphs &"dock" redrawn at 9 and 7, bec
 the 11 px dock does not fit the chart's spacing.
 
 The style is MapGlyphs': a 1 px outline in the mark's colour, a fill of it at
-FILL_A, ice, hot and chill accents. Node icons are tinted as the old glyphs were
+FILL_A, ice, hot and chill accents. FILL_A is shared, so the chart took the sector's
+heavier fill (0.47 to 0.7, Nov 18, for the CRT look) with it: the chart is seen
+through the same tube, and the pick page Jon chose from had the lighter fill. Node icons are tinted as the old glyphs were
 (`MapGen.star_colour`, lightened near you and darkened far), and the ink is then
 lifted by LIFT, as the old glyph's body ink was (`ramp_for`'s '#'). Unlifted, a far
 station on a red star went a muddy brown. A star in reach that is TOO DEEP is drawn
