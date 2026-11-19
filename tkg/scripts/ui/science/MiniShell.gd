@@ -40,6 +40,8 @@ var tier := -1
 var score := 0.0
 var detail := ""
 var haul := ""
+## The material's own tier (a tier with no material pays the nearest lower one).
+var haul_tier: StringName = &""
 ## The game's canvas on the glass.
 var at := Vector2i.ZERO
 var revealed := false
@@ -92,9 +94,10 @@ func give_up() -> void:
 		game.give_up()
 
 
-## What the haul paid, for its line (the material's name).
-func set_haul(name: String) -> void:
+## What the haul paid, for its line: the material's name and its own tier.
+func set_haul(name: String, of_tier: StringName) -> void:
 	haul = name
+	haul_tier = of_tier
 	_dirty = true
 
 
@@ -182,21 +185,31 @@ func _button(c: MiniPix) -> void:
 
 ## The haul line, swept in left to right up to the reward's sound (the S1 split's sweep).
 func _line(c: MiniPix) -> void:
-	var col: Color = MiniPix.TIERS[clampi(tier, 0, MiniPix.TIERS.size() - 1)]
-	var words := ScienceHaul.TIER_NAMES[clampi(tier, 0, ScienceHaul.TIER_NAMES.size() - 1)]
-	if haul != "":
-		words += "  " + haul
+	var key := haul_tier if haul_tier != &"" else ScienceHaul.TIER_KEYS[clampi(tier, 0, ScienceHaul.TIER_KEYS.size() - 1)]
+	var col := UITheme.tier_colour(key)
 	var tau := t - _reward_at
 	if tau >= 0.0:
-		c.text(words, GW / 2, STRIP_Y, col, "center")
+		_words(c, key, col)
 		return
 	var pp := (tau + REVEAL_PRE) / REVEAL_PRE
 	var lx := MiniPix.jr(-4.0 + (GW + 8) * minf(1.0, pp / 0.55))
 	var line := MiniPix.new(GW, GH)
-	line.text(words, GW / 2, STRIP_Y, col, "center")
+	_words(line, key, col)
 	if lx > 0:
 		c.img.blend_rect(line.img, Rect2i(0, STRIP_Y - 1, mini(lx, GW), 7), Vector2i(0, STRIP_Y - 1))
 	if pp < 0.6:
 		for k in FRINGE.size():
 			var fc := FRINGE[k] if FRINGE[k].a > 0.0 else col
 			c.rect(lx - 3 + k, STRIP_Y - 2, 1, 9, fc)
+
+
+## NAME [TIER], as the game writes an item (Jon, Nov 19): the name in its tier's ink
+## (`UITheme.tier_colour`), the tier quiet in COLD, as the hold's tooltips set it.
+func _words(c: MiniPix, key: StringName, col: Color) -> void:
+	var tag := "[%s]" % String(key).to_upper()
+	var words := tag if haul == "" else "%s %s" % [haul, tag]
+	var x := GW / 2 - int(floorf((words.length() * 4 - 1) / 2.0))
+	if haul != "":
+		c.text(haul, x, STRIP_Y, col)
+		x += (haul.length() + 1) * 4
+	c.text(tag, x, STRIP_Y, MiniPix.COLD if haul != "" else col)

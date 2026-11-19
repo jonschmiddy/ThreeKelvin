@@ -41,9 +41,12 @@ static func row_for(tier: int, source: StringName, r: RandomNumberGenerator) -> 
 
 
 ## Pays the haul at the science site `site` of system `n`: one material, into the system as every
-## grant goes (`MaterialTable.grant`). Returns its name, or "" when nothing was paid.
-static func pay(tier: int, site: StringName, n: MapGen.MapNode) -> String:
+## grant goes (`MaterialTable.grant`). Returns {name, tier} (its own tier), or {} when nothing was paid.
+static func pay(tier: int, site: StringName, n: MapGen.MapNode) -> Dictionary[String, Variant]:
+	var out: Dictionary[String, Variant] = {}
 	if n == null:
-		return ""
+		return out
 	var row := row_for(tier, StringName(SOURCE.get(site, &"mining")), Rng.derive(&"science_haul", n.index))
-	return MaterialTable.grant(row)
+	if not row.is_empty():
+		out.assign({name = MaterialTable.grant(row), tier = StringName(row.tier)})
+	return out

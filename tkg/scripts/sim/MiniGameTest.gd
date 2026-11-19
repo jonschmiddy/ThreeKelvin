@@ -163,7 +163,7 @@ func _shell(id: StringName) -> void:
 	var tiers: Array[int] = []
 	sh.scored.connect(func(tr: int) -> void:
 		tiers.append(tr)
-		sh.set_haul("TEST STOCK"))
+		sh.set_haul("TEST STOCK", &"legendary"))
 	sh.start(MiniGames.make(id), 5, 0, MiniGames.stream(11))
 	var g := sh.game
 	var at := sh.at
@@ -186,3 +186,12 @@ func _shell(id: StringName) -> void:
 	var reward := names.find("mg_reward_4")
 	_h._ok("%s: the win, then the reward a beat later (%s)" % [id, ", ".join(names)], win >= 0 and reward > win)
 	_h._ok("%s: the haul line is revealed" % id, sh.revealed)
+	# NAME [TIER]: the name in its tier's ink, the bracket in COLD, on the strip
+	var ink := false
+	var quiet := false
+	for y in range(MiniShell.STRIP_Y, MiniShell.STRIP_Y + 5):
+		for x in MiniShell.GW:
+			var c := sh.glass.get_pixel(x, y)
+			ink = ink or c.is_equal_approx(UITheme.tier_colour(&"legendary"))
+			quiet = quiet or c.is_equal_approx(MiniPix.COLD)
+	_h._ok("%s: the line is the name in its tier's ink, then [TIER] quiet" % id, ink and quiet)

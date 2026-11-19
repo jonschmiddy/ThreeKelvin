@@ -68,7 +68,11 @@ Jon's picks, copied from the phone page's `src/sfx/` (`sfx.json`, wired Nov 18) 
   plays the common one, never a buzzer.
 
 The haul line is swept in over the 0.65 s before the reward sound, the loot reveal's S1 split
-shortened to one line.
+shortened to one line. It reads `FLARE GLASS [EPIC]` (Jon, Nov 19: "ITEM NAME [RARITY]"): the
+name in its tier's ink (`UITheme.tier_colour`, as the result page and the hold colour an item),
+the bracketed tier in COLD, as the item tooltips set the rarity word quiet under the coloured
+name. The tier is the material's own, which can sit under the tier won when the catalogue has
+nothing at it (no uncommon rows today).
 
 ## Input on the glass
 

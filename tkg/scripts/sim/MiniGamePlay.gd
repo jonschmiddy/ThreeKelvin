@@ -103,11 +103,13 @@ func _play(d: DeskScene, n: MapGen.MapNode, sc: SectorScreen, data0: int, pile0:
 	var fail := Harness.arg("fail") != ""
 	for k in taps.size():
 		if fail and k == taps.size() / 2:
-			var esc := InputEventAction.new()
-			esc.action = &"ui_cancel"
-			esc.pressed = true
-			Input.parse_input_event(esc)
-			await Harness.frames(_tree, 3)
+			# Esc pressed and let go: an action left held reads as held to everything after
+			for down: bool in [true, false]:
+				var esc := InputEventAction.new()
+				esc.action = &"ui_cancel"
+				esc.pressed = down
+				Input.parse_input_event(esc)
+				await Harness.frames(_tree, 2)
 			break
 		_click(d, taps[k] + d.game.at)
 		await _wait(d, 0.45)

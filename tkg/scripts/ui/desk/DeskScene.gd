@@ -183,7 +183,8 @@ func _on_scored(tier: int) -> void:
 	_paying = true
 	result = await _take.call(tier)
 	_paying = false
-	game.set_haul(String(result.get("haul", "")))
+	var h: Dictionary = result.get("haul", {})
+	game.set_haul(String(h.get("name", "")), StringName(h.get("tier", &"")))
 
 
 func _gui_input(e: InputEvent) -> void:
