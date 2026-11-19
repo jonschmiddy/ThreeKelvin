@@ -1,0 +1,1 @@
+- **Changed** — a wreck's or pile's loot is revealed one thing at a time, left to right and row by row, each splitting into red, green and blue light that comes together as it lands. Every grade has its own sound, uncommon included and a new one for artifacts, played as the thing lands. Click the grid to show the rest at once. Taking anything plays the plain stow sound.

@@ -101,11 +101,8 @@ func setup(h: MapGen.Jetsam, n: MapGen.MapNode, on_close: Callable,
 	# Why: docs/why/TransferView.md#reveal-sweep
 	if h != null and h.is_wreck():
 		h.opened = true
-	if animate and h != null and not h.scanned:
-		h.scanned = true
-		if h is MapGen.PileView and (h as MapGen.PileView).pile != null:
-			(h as MapGen.PileView).pile.scanned = true
-		_loose.scan()
+	if animate and first_look(h):
+		_loose.scan(seen_before(h))
 	else:
 		_loose.skip_scan()
 	_measure.call_deferred()
@@ -356,7 +353,7 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 
 
 
-## Packing is not a payout: one dry layer, rarity only adds a small ring.
+## The grade a thing is heard at: a material by its tier, anything else as common.
 static func _rarity_of(m: HoldItem) -> ModuleData.Rarity:
 	if m is ModuleData:
 		return (m as ModuleData).rarity
@@ -364,18 +361,27 @@ static func _rarity_of(m: HoldItem) -> ModuleData.Rarity:
 		return UITheme.tier_rarity((m as MaterialData).tier)
 	return ModuleData.Rarity.COMMON
 
-static func take_sound(m: HoldItem) -> StringName:
+## True the first time a container is looked into, and marks it seen (its pile too).
+## Why: docs/why/TransferView.md#reveal-sweep
+static func first_look(h: MapGen.Jetsam) -> bool:
+	if h == null or h.scanned:
+		return false
+	h.scanned = true
+	if h is MapGen.PileView and (h as MapGen.PileView).pile != null:
+		(h as MapGen.PileView).pile.scanned = true
+	return true
+
+
+## Each rung of the ladder its own sound, uncommon apart from common since Nov 18.
+static func tier_sound(m: HoldItem) -> StringName:
 	if m is CreditChit:
 		return &"take_credits"
 	# One grade ladder for modules and materials, as materials fell through to `take_common`.
-	var r := ModuleData.Rarity.COMMON
-	if m is ModuleData:
-		r = (m as ModuleData).rarity
-	elif m is MaterialData:
-		r = UITheme.tier_rarity((m as MaterialData).tier)
-	match r:
-		ModuleData.Rarity.COMMON, ModuleData.Rarity.UNCOMMON:
+	match _rarity_of(m):
+		ModuleData.Rarity.COMMON:
 			return &"take_common"
+		ModuleData.Rarity.UNCOMMON:
+			return &"take_uncommon"
 		ModuleData.Rarity.RARE:
 			return &"take_rare"
 		ModuleData.Rarity.EPIC:
@@ -385,34 +391,84 @@ static func take_sound(m: HoldItem) -> StringName:
 		ModuleData.Rarity.EXOTIC:
 			return &"take_exotic"
 		_:
+			# ARTIFACT, and CONTRABAND, which has no sound of its own
 			return &"take_artifact"
 
 
-## A take has its own quiet sound, not the reward fanfare; the reveal is staggered and quieter.
-## Why: docs/why/TransferView.md#take-sound
-const REVEAL_DB := -4.0
-
-## Only the top of the ladder rings, as commons said nothing (Jon).
+## Every rung rings as the sweep finds it, at the level the ladder was made at (Jon, Nov 18).
 ## Why: docs/why/TransferView.md#reveal-sound
-const REVEAL_FLOOR := ModuleData.Rarity.LEGENDARY
+const REVEAL_DB := 0.0
 const REVEAL_GAP := 0.055
 
-func _on_revealed(m: HoldItem, index: int) -> void:
-	if m == null or _rarity_of(m) < REVEAL_FLOOR:
-		return
-	var wait := REVEAL_GAP * float(maxi(index - 1, 0))
-	if wait > 0.0:
-		await get_tree().create_timer(wait).timeout
-		if not is_inside_tree():
-			return
-	# `limit_ms` 0: the stagger already spaces these, and a rate limit here
-	# would silently drop the tail of a full wreck.
-	Audio.play(take_sound(m), 0.04, 0, REVEAL_DB)
+func _on_revealed(m: HoldItem, _index: int) -> void:
+	ring_reveal(self, _jetsam, m)
 
 
-## The rarity ladder is for finding, not packing (Jon: only the first time).
+## The ladder as a container is found, here and in the cutaway's popup: one queue
+## a host, each ring REVEAL_GAP after the last one really played.
 ## Why: docs/why/TransferView.md#reveal-sound
-func _take_fx(_m: HoldItem) -> void:
+static func ring_reveal(host: Node, h: MapGen.Jetsam, m: HoldItem) -> void:
+	if m == null or host == null or not host.is_inside_tree() or heard_before(h, m):
+		return
+	var queue: Array = host.get_meta(&"rings", [])
+	queue.append(m)
+	host.set_meta(&"rings", queue)
+	if queue.size() > 1:
+		return
+	# This call drains it; later ones only join. `limit_ms` 0: the queue spaces them.
+	while not queue.is_empty():
+		Audio.play(tier_sound(queue[0]), 0.04, 0, REVEAL_DB)
+		await host.get_tree().create_timer(REVEAL_GAP).timeout
+		if not is_instance_valid(host):
+			return
+		if not host.is_inside_tree():
+			queue.clear()
+			return
+		queue.pop_front()
+
+
+## A skip reveals the rest at once with one sound: the best grade among them (Jon, Nov 18).
+## Why: docs/why/TransferView.md#reveal-sound
+static func ring_best(host: Node, h: MapGen.Jetsam, rest: Array) -> void:
+	var best: HoldItem = null
+	var best_g := -2
+	for m: HoldItem in rest:
+		if heard_before(h, m):
+			continue
+		var g := -1 if m is CreditChit else int(_rarity_of(m))
+		if g > best_g:
+			best = m
+			best_g = g
+	if best != null:
+		ring_reveal(host, h, best)
+
+
+## What a reveal shows at once: the things `heard_before` (they take no turn and ring nothing).
+static func seen_before(h: MapGen.Jetsam) -> Array[HoldItem]:
+	var out: Array[HoldItem] = []
+	if h != null:
+		for m in h.items:
+			if heard_before(h, m):
+				out.append(m)
+	return out
+
+
+## SECTOR LOOT sweeps opened wrecks' leftovers with the pile; they rang when the wreck opened.
+## Why: docs/why/TransferView.md#reveal-sound
+static func heard_before(h: MapGen.Jetsam, m: HoldItem) -> bool:
+	var v := h as MapGen.PileView
+	if v == null:
+		return false
+	var i := v.items.find(m)
+	if i < 0:
+		return false
+	var src := (v.from[i] as Array)[0] as MapGen.Jetsam
+	return src != v.pile and src.scanned
+
+
+## A take is one plain stow whatever the grade: the ladder is for finding (Jon, Nov 18).
+## Why: docs/why/TransferView.md#take-sound
+static func take_fx() -> void:
 	Audio.suppress(&"loot_drop")
 	Audio.suppress(&"scrap_gain")
 	Audio.play(&"hold_stow", 0.06)
@@ -429,7 +485,7 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 			var got: bool = await Run.take_from_jetsam(_node, _jetsam, i)
 			_busy = false
 			if got:
-				_take_fx(m)
+				take_fx()
 	elif where > 0 and Run.put_in(_node, _jetsam, m):
 		pass
 	refresh()
@@ -603,6 +659,7 @@ func _build_loose() -> Control:
 	# Why: docs/why/TransferView.md#redraw-on-ship-change
 	_loose.picked.connect(func(_m: HoldItem) -> void: refresh())
 	_loose.revealed.connect(_on_revealed)
+	_loose.skipped.connect(func(rest: Array) -> void: ring_best(self, _jetsam, rest))
 	# Into the open container; see `RunState.put_in`, or the screen lies about it.
 	_loose.on_put = func(m: HoldItem) -> bool:
 		return Run.put_in(_node, _jetsam, m)
@@ -694,5 +751,5 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 			Run.take_from_hold(m)
 			if not Run.place_in_hold(m, at):
 				Run.place_in_hold(m)
-		_take_fx(m)
+		take_fx()
 	refresh()

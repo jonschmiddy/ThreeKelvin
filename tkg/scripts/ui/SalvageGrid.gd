@@ -9,6 +9,8 @@ signal picked(item: HoldItem)
 ## A signal, not a call into Audio: this grid draws a container and knows no rarity sounds.
 ## Why: docs/why/SalvageGrid.md#reveal-signal
 signal revealed(item: HoldItem, index: int)
+## The rest revealed at once by a skip, so the view can ring one sound for them.
+signal skipped(items: Array)
 
 ## Called with something of yours dropped here; the view, not the grid, knows which container it is.
 var on_put: Callable
@@ -30,134 +32,154 @@ var _high: int = 0
 ## Why: docs/why/SalvageGrid.md#drop-beam
 var _beam: Rect2i = Rect2i()
 
-## Slowed again at Jon's ask: 0.7 cells a second, so each rarity sound is heard on its own.
-## Earlier rates (14 down to 1.6) finished before the sweep cost anything.
-## Why: docs/why/SalvageGrid.md#sweep-speed
-const SCAN_CELLS_PER_SEC := 0.7
-
-## Settle time is in rows of sweep, not seconds, so
-## retuning the scan speed keeps the glitch in step.
-## Why: docs/why/SalvageGrid.md#glitch-timing
-const GLITCH_ROWS := 1.5
-
-## Fourteen cuts over a row and a half is about one a tenth of a second: interference, each seen.
-const GLITCH_STEPS := 14
-
-## Six px reads as the picture failing to hold; twenty would read as the crate misplaced, a bug.
-const GLITCH_TEAR := 6.0
-
-## A repeating pattern that decays reads as a signal locking on; noise reads as a fault.
-const GLITCH_SHAPE: Array[float] = [1.0, -0.8, 0.55, -1.0, 0.3, -0.45]
-
-## Only two of fourteen steps drop out: swinging alpha
-## on every cut was a strobe, so the tear carries it.
-## Why: docs/why/SalvageGrid.md#glitch-dropouts
-const GLITCH_DROPS: Array[int] = [1, 4]
-
-## How far a dropout knocks the brightness down. Not to nothing: a crate at a
-## fifth is still a crate, and a crate at zero is a hole.
-const GLITCH_DROP_TO := 0.22
+## Jon, Nov 18: one item at a time in reading order, a second apart start to start (no overlap),
+## each through `SpectroReveal`; it lands and rings at its peak. Replaced the vertical sweep.
+## Why: docs/why/SalvageGrid.md#reveal-order
+const REVEAL_STEP := SpectroReveal.LEN
+## A beat before the first, so it does not land on the container's own opening sound.
+const REVEAL_LEAD := 0.15
 ## An empty cell's well.
 const CELL_WELL := Color("#0b1017")
-## How far down the sweep has reached, in pixels, or -1 when it is not running.
-var _scan: float = -1.0
-## What the sweep has already found, so a rebuild mid-scan does not make a crate
-## materialise twice.
+## Seconds since the reveal began, or -1 when nothing is being revealed.
+var _reveal_t: float = -1.0
+## The things being revealed, in reading order (top row left to right, then down).
+var _order: Array[HoldItem] = []
+## What has landed already, so a rebuild mid-reveal does not hide it or ring it twice.
 var _lit: Dictionary = {}
+var _fx: SpectroReveal = null
 
 
 ## Called once on open, not each refresh, or every take would feel like a new discovery.
-func scan() -> void:
-	_scan = 0.0
+## `seen`: things found before (an opened wreck's leftovers in SECTOR LOOT), shown at once.
+func scan(seen: Array = []) -> void:
+	_order.clear()
+	for i in _items.size():
+		if not _spent.has(i) and not seen.has(_items[i]):
+			_order.append(_items[i])
+	_order.sort_custom(func(a: HoldItem, b: HoldItem) -> bool:
+		var pa: Vector2i = _at.get(a, Vector2i.ZERO)
+		var pb: Vector2i = _at.get(b, Vector2i.ZERO)
+		return pa.y < pb.y or (pa.y == pb.y and pa.x < pb.x))
 	_lit.clear()
+	_reveal_t = 0.0
 	set_process(true)
-	_apply_scan()
-	queue_redraw()
+	_apply_reveal()
 
 
-## Everything visible, now. For the harness, and for anything that needs the
-## container settled rather than pretty.
+## Everything visible, now, and silent. For a container already seen, the harness, and the end.
 func skip_scan() -> void:
-	_scan = -1.0
+	_reveal_t = -1.0
 	set_process(false)
-	_apply_scan()
-	queue_redraw()
+	_apply_reveal()
+
+
+## True while things are still arriving.
+func revealing() -> bool:
+	return _reveal_t >= 0.0
+
+
+## Whether `m` is out of the dark: a thing not yet revealed cannot be taken.
+func shown(m: HoldItem) -> bool:
+	return _reveal_t < 0.0 or _lit.has(m) or not _order.has(m)
+
+
+## The rest at once (a click on the grid): one sound for all of them, the view picks it.
+## Why: docs/why/SalvageGrid.md#skip
+func skip_reveal() -> void:
+	if not revealing():
+		return
+	var rest: Array[HoldItem] = []
+	for m in _order:
+		if not _lit.has(m) and _items.has(m):
+			rest.append(m)
+			_lit[m] = true
+	skip_scan()
+	if not rest.is_empty():
+		skipped.emit(rest)
+
+
+func _start(k: int) -> float:
+	return REVEAL_LEAD + REVEAL_STEP * float(k)
 
 
 func _process(delta: float) -> void:
-	if _scan < 0.0:
+	if _reveal_t < 0.0:
 		set_process(false)
 		return
-	_scan += SCAN_CELLS_PER_SEC * float(CELL) * delta
-	if _scan >= float(_rows * CELL):
+	_reveal_t += delta
+	_apply_reveal()
+	if _reveal_t >= _start(_order.size() - 1) + SpectroReveal.LEN:
 		skip_scan()
-		return
-	_apply_scan()
-	queue_redraw()
 
 
-## An item is out of the dark once the line has passed the TOP of it, so a tall
-## crate appears as the sweep reaches it rather than after it has cleared it.
-func _apply_scan() -> void:
+## Each icon hidden until its turn, landing at its peak; reduced motion fades it in instead.
+## Why: docs/why/SalvageGrid.md#reveal-order
+func _apply_reveal() -> void:
+	var calm := DisplaySettings.reduced_motion
+	var icons: Dictionary = {}
 	for c in get_children():
 		var ic := c as ItemIcon
 		if ic == null:
 			continue
-		if _scan < 0.0:
-			ic.visible = true
-			ic.modulate = _rest_tint(ic)
-			continue
-		var found := ic.position.y < _scan
-		ic.visible = found
-		if not found:
-			continue
-		var m := ic.held_item()
-		if m == null or _lit.has(m):
-			continue
-		_lit[m] = true
-		revealed.emit(m, _lit.size())
-		# Seeded by how many have arrived: no two resolve
-		# alike and the same pile resolves the same twice.
-		_materialise(ic, _lit.size())
-
-
-## Stepped hard cuts in the sweep's colour, landing on white at the end, so the sweep reveals it.
-## Why: docs/why/SalvageGrid.md#materialise
-func _materialise(ic: ItemIcon, seed_at: int) -> void:
-	var glow := UITheme.TRACTOR
-	var home := ic.position
-	# Each settles at its own pace, within a fifth either side, so they do not arrive in lockstep.
-	var spread := 1.0 + (float(seed_at % 5) - 2.0) * 0.09
-	var hold := (GLITCH_ROWS / SCAN_CELLS_PER_SEC) * spread / float(GLITCH_STEPS)
-	ic.modulate = Color(glow.r, glow.g, glow.b, 0.0)
-	var t := ic.create_tween()
-	for i in GLITCH_STEPS:
-		# `wild` decays 1 to 0, so the first cut is loudest: intensity is a decay, not a constant.
-		var wild := 1.0 - float(i) / float(GLITCH_STEPS)
-		var settled := 1.0 - wild
-		# The pattern is walked from a different place per item, so one crate
-		# tears left first and the next tears right.
-		var swing: float = GLITCH_SHAPE[(i + seed_at) % GLITCH_SHAPE.size()]
-		# Visible from the first cut and rising; only the
-		# two `GLITCH_DROPS` dim it, and not to nothing.
-		var a := 0.6 + settled * 0.4
-		# And it blinks on different cuts. Still twice -- see `GLITCH_DROPS` --
-		# but not the same twice as its neighbour.
-		if GLITCH_DROPS.has((i + seed_at) % GLITCH_STEPS):
-			a *= GLITCH_DROP_TO
-		# And it cools out of the sweep's colour into its own as it settles.
-		var col := Color(glow.r, glow.g, glow.b).lerp(Color.WHITE, settled)
-		col.a = a
-		var dx := swing * wild * GLITCH_TEAR
-		t.tween_callback(func() -> void:
-			ic.modulate = col
-			ic.position = home + Vector2(dx, 0.0))
-		t.tween_interval(hold)
-	# AND THEN IT IS SIMPLY THERE. Snapping home rather than easing to it: the
-	# last thing a glitch should do is look like it was always going to land.
-	t.tween_callback(func() -> void:
+		icons[ic.held_item()] = ic
+		ic.visible = true
 		ic.modulate = _rest_tint(ic)
-		ic.position = home)
+	var active: Array[Dictionary] = []
+	# told after every icon is set, so a listener sees the grid as it will be drawn
+	var landed: Array[HoldItem] = []
+	if _reveal_t >= 0.0:
+		for k in _order.size():
+			var m := _order[k]
+			var ic: ItemIcon = icons.get(m)
+			# gone, or claimed by a partner mid-reveal: shown greyed now, never rung
+			if ic == null or _spent.has(_items.find(m)):
+				continue
+			var tau := _reveal_t - _start(k) - SpectroReveal.PRE
+			if tau >= 0.0 and not _lit.has(m):
+				_lit[m] = true
+				landed.append(m)
+			if _lit.has(m) and tau < 0.0:
+				continue
+			if tau < 0.0:
+				var f := clampf((tau + SpectroReveal.PRE) / SpectroReveal.PRE, 0.0, 1.0)
+				ic.visible = calm and f > 0.0
+				ic.modulate.a = f
+			if not calm and tau >= -SpectroReveal.PRE and tau < SpectroReveal.POST:
+				active.append({m = m, r = Rect2(ic.position, ic.size), tau = tau, col = ink_of(m)})
+	for m in landed:
+		revealed.emit(m, _lit.size() - landed.size() + landed.find(m) + 1)
+	if active.is_empty() and _fx == null:
+		return
+	if _fx == null:
+		_fx = SpectroReveal.new()
+		add_child(_fx)
+	_fx.size = size
+	move_child(_fx, -1)
+	_fx.show_frame(active)
+
+
+## The grade colour a thing is revealed in; money in the sweep's own teal.
+static func ink_of(m: HoldItem) -> Color:
+	if m is ModuleData:
+		return ModuleData.rarity_ink((m as ModuleData).rarity)
+	if m is MaterialData:
+		return ModuleData.rarity_ink(UITheme.tier_rarity((m as MaterialData).tier))
+	return UITheme.TRACTOR
+
+
+## A click on the grid, not on a thing already shown, reveals the rest at once.
+func _gui_input(e: InputEvent) -> void:
+	var mb := e as InputEventMouseButton
+	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT or not revealing():
+		return
+	for c in get_children():
+		var ic := c as ItemIcon
+		if ic != null and ic.visible and Rect2(ic.position, ic.size).has_point(mb.position):
+			return
+	accept_event()
+	skip_reveal()
+
+
 ## A claimed bag row still takes space: a hole is information, a silently reflowed grid is not.
 var _spent: Dictionary = {}
 const SPENT_TINT := Color(0.42, 0.42, 0.48, 0.7)
@@ -252,6 +274,7 @@ func _first_fit(taken: Dictionary, f: Vector2i) -> Vector2i:
 
 func _rebuild() -> void:
 	Widgets.clear(self)
+	_fx = null
 	for i in _items.size():
 		var m: HoldItem = _items[i]
 		var icon := ItemIcon.make(m, &"bag")
@@ -262,17 +285,13 @@ func _rebuild() -> void:
 		var cell: Vector2i = _at.get(m, Vector2i.ZERO)
 		icon.position = Vector2(cell.x * CELL, cell.y * CELL)
 		icon.size = ModuleIcon.footprint_box(m)
-		if _scan >= 0.0:
-			# Mid-sweep, so a rebuild must not hand the dark back its items --
-			# nor replay the arrival of something already found.
-			icon.visible = icon.position.y < _scan
-			if _lit.has(m):
-				icon.modulate = Color.WHITE
 		if _spent.has(i):
 			# Still drawn, still in its cell, plainly not yours. See `_spent`.
 			icon.modulate = SPENT_TINT
 			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			icon.tooltip_text = Widgets.tip("Already taken.")
+	# Mid-reveal, a rebuild must not show what is still to come, nor ring what has landed.
+	_apply_reveal()
 	queue_redraw()
 
 
@@ -293,17 +312,6 @@ func _draw() -> void:
 		draw_line(Vector2(0.0, y * CELL), Vector2(w, y * CELL),
 			UITheme.LINE, 1.0)
 	draw_rect(Rect2(Vector2.ZERO, Vector2(w, h)), UITheme.LINE, false, EDGE)
-	if _scan >= 0.0:
-		# The unswept part is dark and the line is the
-		# brightest thing: two rectangles and a rule, no shader.
-		var dark := Rect2(0.0, _scan, w, h - _scan)
-		if dark.size.y > 0.0:
-			draw_rect(dark, Color(0.04, 0.055, 0.08, 0.92), true)
-		var glow := UITheme.TRACTOR
-		draw_rect(Rect2(0.0, _scan - 6.0, w, 6.0),
-			Color(glow.r, glow.g, glow.b, 0.10), true)
-		draw_rect(Rect2(0.0, _scan - 1.0, w, 2.0),
-			Color(glow.r, glow.g, glow.b, 0.85), true)
 	if _beam.size.x <= 0:
 		return
 	# The hold's own ink for the same question, where

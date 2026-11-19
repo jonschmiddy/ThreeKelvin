@@ -125,6 +125,8 @@ func run(tree: SceneTree) -> void:
 	_cut._refresh()
 	_cut.open_popup(pile, BAR_BUTTON)
 	await _settle()
+	# a pile seen for the first time is revealed one thing at a time (Jon, Nov 18); let it land
+	await _until_revealed(_cut._pop_grid)
 	_ok("this system's pile opens in a popup (%d drawn)" % (_icons(_cut._pop_grid) if _cut._pop_grid != null else -1),
 		_cut.popup_open() and _cut._pop_jetsam == pile and _icons(_cut._pop_grid) == 1)
 	await _cut._on_hold_drop({module = loose, origin = &"bag"}, _free_cell(loose))
@@ -169,6 +171,9 @@ func run(tree: SceneTree) -> void:
 	_cut._input(esc)
 	await _settle()
 	_ok("Esc shuts the popup and leaves the cutaway open", not _cut.popup_open() and _cut.is_open())
+
+	# 7c. the popup's sounds: every grade rings as the sweep finds it, a take only stows
+	await _check_loot_sounds()
 
 	# Clicks: an open popup alone shuts; tags and rings do nothing; a dropped drag restores.
 	_cut.open_popup(wreck, BAR_BUTTON)
@@ -499,6 +504,8 @@ func _check_layouts() -> void:
 
 		# EACH POPUP over this hull, and a module in it pointed at
 		for which in ["loose"]:
+			# (looked into already: this is the popup's layout, the reveal is checked in 7c)
+			Run.sector_jetsam(node, false).scanned = true
 			cut.open_popup(Run.sector_jetsam(node, false), BAR_BUTTON)
 			await _settle()
 			var pop := cut._popup.get_global_rect() if cut._popup != null else Rect2()
@@ -1540,6 +1547,179 @@ func _material_shaped(want: Vector2i) -> MaterialData:
 		if m != null and m.size == want:
 			return m
 	return null
+
+
+## Jon, Nov 18: every grade rings its own sound on reveal, once; a take is the plain stow.
+## Why: docs/why/CutawayTest.md#loot-sounds
+func _check_loot_sounds() -> void:
+	var wreck := Run.new_wreck(_node, DB.enemies[&"cutter"])
+	wreck.items.clear()
+	var w := ModuleData.Slot.WEAPON
+	var base: ModuleData = null
+	for sl in ModuleData.Slot.values():
+		if base == null:
+			base = _module_of(sl, Vector2i.ONE)
+	if not _ok("a one-cell part to grade", base != null):
+		return
+	# the seven grades of the ladder; CONTRABAND borrows the artifact's sound
+	for r in range(ModuleData.Rarity.COMMON, ModuleData.Rarity.ARTIFACT + 1):
+		var m := base.duplicate(true) as ModuleData
+		DB.regrade(m, int(r))
+		wreck.items.append(m)
+	wreck.items.append(CreditChit.of(25))
+	var names: Dictionary = {}
+	var missing: Array[String] = []
+	for m: HoldItem in wreck.items:
+		var n := String(TransferView.tier_sound(m))
+		names[n] = true
+		if not ResourceLoader.exists(Audio.SFX_PATH % n):
+			missing.append(n)
+	_ok("every grade and the credits are a different sound, each on disk (%d for %d, missing %s)"
+		% [names.size(), wreck.items.size(), missing], names.size() == wreck.items.size() and missing.is_empty())
+	Audio.taping = true
+	Audio.tape.clear()
+	# what lands, when (game time, as the tape's), and whether it was drawn as it rang
+	var landed: Array = []
+	_cut.open_popup(wreck, BAR_BUTTON)
+	var g: SalvageGrid = _cut._pop_grid
+	g.revealed.connect(func(m: HoldItem, _i: int) -> void:
+		var shown := false
+		for c in g.get_children():
+			if c is ItemIcon and (c as ItemIcon).held_item() == m:
+				shown = (c as Control).visible
+		landed.append([m, GameClock.now(), shown]))
+	var reading: Array = wreck.items.duplicate()
+	reading.sort_custom(func(a: HoldItem, b: HoldItem) -> bool:
+		var pa: Vector2i = g._at[a]
+		var pb: Vector2i = g._at[b]
+		return pa.y < pb.y or (pa.y == pb.y and pa.x < pb.x))
+	_ok("on opening nothing is shown yet (%d)" % _icons(g), g.revealing() and _icons(g) == 0)
+	var t0 := Time.get_ticks_msec()
+	while _rings().size() < 3 and Time.get_ticks_msec() - t0 < 20000:
+		await _tree.process_frame
+	await _settle()
+	var rows := _ring_rows()
+	var want: Array[String] = []
+	var got: Array = []
+	for k in 3:
+		want.append(String(TransferView.tier_sound(reading[k])))
+	for k in landed.size():
+		got.append(landed[k][0])
+	_ok("the first three land in reading order, each ringing its own grade (%s)" % [_rings()],
+		got.size() == 3 and got == reading.slice(0, 3) and _rings() == want)
+	var gaps: Array[float] = []
+	for k in range(1, rows.size()):
+		gaps.append(snappedf(float(rows[k][4]) - float(rows[k - 1][4]), 0.01))
+	_ok("one at a time, about a second apart (%s s)" % [gaps],
+		gaps.size() == 2 and gaps.all(func(x: float) -> bool: return absf(x - SalvageGrid.REVEAL_STEP) <= 0.1))
+	var on_cue := landed.size() == rows.size()
+	for k in mini(landed.size(), rows.size()):
+		on_cue = on_cue and bool(landed[k][2]) and absf(float(landed[k][1]) - float(rows[k][4])) <= 0.05
+	_ok("each sound plays as its thing appears, and it is drawn then", on_cue)
+	_ok("and the fourth is still hidden", not g.shown(reading[3]))
+	# a click on the grid (on a hidden cell) reveals the rest at once, with one sound: the best left
+	Audio.tape.clear()
+	var last: HoldItem = reading[reading.size() - 1]
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = (Vector2(g._at[last]) + Vector2(0.5, 0.5)) * float(SalvageGrid.CELL)
+	g._gui_input(click)
+	# (the ring queue may still be spacing the last one: wait for the skip's ring; then nothing
+	# else may be waiting in the queue, which is every ring still to come)
+	t0 = Time.get_ticks_msec()
+	while _rings().is_empty() and Time.get_ticks_msec() - t0 < 3000:
+		await _tree.process_frame
+	var queued: int = (g.get_meta(&"rings", []) as Array).size()
+	var best: StringName = &""
+	var best_g := -2
+	for m: HoldItem in reading.slice(3):
+		var gr := -1 if m is CreditChit else int((m as ModuleData).rarity)
+		if gr > best_g:
+			best_g = gr
+			best = TransferView.tier_sound(m)
+	_ok("a click on the grid shows the rest at once (%d of %d) with one sound, the best grade left (%s)"
+		% [_icons(g), wreck.items.size(), _rings()],
+		not g.revealing() and _icons(g) == wreck.items.size() and _rings() == [String(best)] and queued <= 1)
+	Audio.tape.clear()
+	_cut.open_popup(wreck, BAR_BUTTON)
+	for i in 30:
+		await _tree.process_frame
+	_ok("opened again it rings nothing (%s)" % [_rings()], _rings().is_empty())
+	# a take, to the hold and onto a ring: the stow, never the grade
+	Audio.tape.clear()
+	var top: ModuleData = wreck.items[ModuleData.Rarity.ARTIFACT]
+	await _cut._on_hold_drop({module = top, origin = &"bag"}, _free_cell(top))
+	await _settle()
+	var said := _taped()
+	_ok("taking the artifact to the hold plays the stow and no grade (%s)" % [said],
+		Run.cargo.has(top) and said.has("hold_stow") and _rings().is_empty())
+	var gun := _module_of(w)
+	DB.regrade(gun, int(ModuleData.Rarity.LEGENDARY))
+	wreck.items.append(gun)
+	_cut._refresh()
+	Audio.tape.clear()
+	# (taken whether the ring then fits it or not: the claim comes first)
+	await _cut._on_mount_drop({module = gun, origin = &"bag"}, w, 0)
+	await _settle()
+	said = _taped()
+	_ok("taking a legendary straight onto a ring plays the stow and no grade (%s)" % [said],
+		(Run.installed.has(gun) or Run.cargo.has(gun)) and said.has("hold_stow") and _rings().is_empty())
+	# SECTOR LOOT: a fresh thing in the pile rings; the opened wreck's leftovers rang already
+	_cut.close_popup()
+	var pile := Run.sector_jetsam(_node, true)
+	var fresh := base.duplicate(true) as ModuleData
+	DB.regrade(fresh, int(ModuleData.Rarity.EPIC))
+	pile.items.append(fresh)
+	pile.scanned = false
+	Audio.tape.clear()
+	_cut.open_popup(Run.sector_loot(_node), BAR_BUTTON)
+	t0 = Time.get_ticks_msec()
+	while _cut._pop_grid != null and _cut._pop_grid.revealing() and Time.get_ticks_msec() - t0 < 20000:
+		await _tree.process_frame
+	for i in 10:
+		await _tree.process_frame
+	_ok("SECTOR LOOT rings the pile's new thing and not the opened wreck's leftovers (%s)" % [_rings()],
+		_rings() == ["take_epic"] and Run.jetsam_left(_node, wreck) > 0)
+	Audio.taping = false
+	Audio.tape.clear()
+	_cut.close_popup()
+	pile.items.erase(fresh)
+	_node.jetsam.erase(wreck)
+	await _settle()
+
+
+## Waits out a container's reveal (a second a thing), with a generous deadline.
+func _until_revealed(g: SalvageGrid) -> void:
+	var t0 := Time.get_ticks_msec()
+	while g != null and is_instance_valid(g) and g.revealing() and Time.get_ticks_msec() - t0 < 30000:
+		await _tree.process_frame
+
+
+## Every sound on the tape since it was cleared, by the name asked for.
+func _taped() -> Array[String]:
+	var out: Array[String] = []
+	for row in Audio.tape:
+		out.append(str((row as Array)[6]))
+	return out
+
+
+## The tape's rows that are the rarity ladder.
+func _ring_rows() -> Array[Array]:
+	var out: Array[Array] = []
+	for row in Audio.tape:
+		if str((row as Array)[6]).begins_with("take_"):
+			out.append(row)
+	return out
+
+
+## Just the rarity ladder's sounds on the tape.
+func _rings() -> Array[String]:
+	var out: Array[String] = []
+	for n in _taped():
+		if n.begins_with("take_"):
+			out.append(n)
+	return out
 
 
 func _free_cell(m: HoldItem) -> Vector2i:
