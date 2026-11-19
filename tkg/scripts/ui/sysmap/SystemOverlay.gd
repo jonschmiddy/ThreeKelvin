@@ -4,19 +4,10 @@ extends Node2D
 ## Beacons are lit only in orbit of a place or alongside it, so its events become available there.
 ## Why: docs/why/SystemOverlay.md#overlay-design
 
-const GLYPH := {
-	&"fight": ["..#..", ".#.#.", "#...#", ".#.#.", "..#.."],
-	&"hazard": ["..#..", ".#.#.", ".#.#.", "#...#", "#####"],
-	&"salvage": ["##.##", "#...#", ".....", "#...#", "##.##"],
-	# a reading (science): three bars rising, a readout's columns
-	&"science": ["....#", "..#.#", "..#.#", "#.#.#", "#.#.#"],
-	&"signal": ["#...#", ".#.#.", "..#..", ".#.#.", "#...#"],
-	&"contract": ["#####", "#...#", "#.#.#", "#...#", "#####"],
-	&"quest": ["..#..", "..#..", "#####", "..#..", "..#.."],
-	&"dock": [".###.", "#...#", "#.#.#", "#...#", ".###."],
-	&"harvest": ["#.#.#", ".###.", "##.##", ".###.", "#.#.#"],
-	&"core": ["#...#", ".###.", ".#.#.", ".###.", "#...#"],
-}
+## The beacon glyphs are MapGlyphs' 11 px pictures (Jon, Nov 18), centred on a beacon's point.
+## Why: docs/why/MapGlyphs.md#the-glyphs
+const GLYPH := MapGlyphs.GLYPH
+const GLYPH_HALF := (MapGlyphs.SIZE - 1) / 2
 const SPENT := Color("#3a4654")
 
 var view
@@ -246,9 +237,9 @@ func _meets_sun(at: Vector2, words: String, but := -99, grow := 0.0) -> bool:
 
 
 ## WHERE AN EVENT'S BEACON IS DRAWN round its point `at` (`beacons_at`): its
-## glyph's 5 cells of 2 px, `glyph`, a 10 px square.
+## glyph, `glyph`, an 11 px square centred on it.
 static func beacon_box(at: Vector2) -> Rect2:
-	return Rect2(at.round() + Vector2(-4, -4), Vector2(10, 10))
+	return Rect2(at.round() - Vector2.ONE * GLYPH_HALF, Vector2.ONE * MapGlyphs.SIZE)
 
 
 ## THE BRACKETS' CORNERS round `at` (`_reticle`, e from `bracket_e`), each the square its L fills.
@@ -297,12 +288,9 @@ func _px(p: Vector2, c: Color) -> void:
 	draw_rect(Rect2(p.round(), Vector2.ONE), c)
 
 
-func glyph(at: Vector2, name: StringName, c: Color) -> void:
-	var m: Array = GLYPH.get(name, GLYPH[&"signal"])
-	for r in 5:
-		for k in 5:
-			if (m[r] as String)[k] == "#":
-				draw_rect(Rect2((at + Vector2((k - 2) * 2, (r - 2) * 2)).round(), Vector2(2, 2)), c)
+## `flat`: a spent beacon, its accents in `c`'s grey too.
+func glyph(at: Vector2, name: StringName, c: Color, flat := false) -> void:
+	MapGlyphs.draw(self, beacon_box(at).position, name, c, flat)
 
 
 func option_of(bc) -> Dictionary:
@@ -464,7 +452,7 @@ func _draw() -> void:
 			while y < sx.y - maxf(view.draw_r(b), 2.0) - 1.0:
 				_px(Vector2(sx.x, y), Color(col, 0.25 if spent else 0.5))
 				y += 2.0
-			glyph(at, look[0], SPENT if spent else (Color(col, 0.35) if rival else col))
+			glyph(at, look[0], SPENT if spent else (Color(col, 0.35) if rival else col), spent)
 			if o.get("group", "") != "":
 				var g := String(o.group)
 				if not groups.has(g):
@@ -501,7 +489,7 @@ func _draw() -> void:
 		while y < sx.y - sr - 1.0:
 			_px(Vector2(sx.x, y), Color(col, 0.25 if spent else 0.5))
 			y += 2.0
-		glyph(at, look[0], SPENT if spent else (Color(col, 0.35) if rival else col))
+		glyph(at, look[0], SPENT if spent else (Color(col, 0.35) if rival else col), spent)
 		if o.get("group", "") != "":
 			var g := String(o.group)
 			if not groups.has(g):
@@ -648,9 +636,8 @@ signal marks_drawn
 const MARK_UNDER_WORDS := 40.0
 ## the glyph's cells this far (the outline's width) off the arrow's
 const MARK_GLYPH_GAP := 1
-## Glyph cells are 2 px each (Jon, Nov 5), 10 px, as tall as a side arrow is across.
-const MARK_GLYPH_CELL := 2
-const MARK_GLYPH_PX := 5 * MARK_GLYPH_CELL
+## The beacon's own glyph beside the arrow (Jon, Nov 5), MapGlyphs' 11 px since Nov 18.
+const MARK_GLYPH_PX := MapGlyphs.SIZE
 ## THE ARROW'S LINE, 2 px (Jon, Nov 5, "Two px"), as the glyph's strokes are
 const MARK_LINE := 2
 ## A ship's name sits 1 px off the arrow's outline and is cut with .. past MARK_NAME_MOST.
@@ -815,21 +802,17 @@ func _tri_queue(q: Vector2, dir: Vector2i, c: Color, glyph_too: bool, gname: Str
 	var solid := {}
 	for p: Vector2i in tri_px(dir):
 		solid[p] = true
+	# (each filled pixel with its colour: the line in `c`, the glyph in its own inks)
 	var fill := {}
 	for p: Vector2i in tri_line(dir):
-		fill[p] = true
+		fill[p] = c
 	var shape := solid.duplicate()
 	if glyph_too:
 		var g := _glyph_at(dir)
-		var m: Array = GLYPH.get(gname, GLYPH[&"signal"])
-		for r in 5:
-			for k in 5:
-				if (m[r] as String)[k] == "#":
-					for a in MARK_GLYPH_CELL:
-						for b in MARK_GLYPH_CELL:
-							var gp := g + Vector2i(k * MARK_GLYPH_CELL + a, r * MARK_GLYPH_CELL + b)
-							fill[gp] = true
-							shape[gp] = true
+		for gp3: Vector3i in MapGlyphs.pixels(gname):
+			var gp := g + Vector2i(gp3.x, gp3.y)
+			fill[gp] = MapGlyphs.ink(gp3.z, c)
+			shape[gp] = true
 	var edge := {}
 	for p: Vector2i in fill:
 		for dy in [-1, 0, 1]:
@@ -842,7 +825,7 @@ func _tri_queue(q: Vector2, dir: Vector2i, c: Color, glyph_too: bool, gname: Str
 	for p: Vector2i in edge:
 		mark_rects.append([Rect2(q + Vector2(p), Vector2.ONE), dark])
 	for p: Vector2i in fill:
-		mark_rects.append([Rect2(q + Vector2(p), Vector2.ONE), c])
+		mark_rects.append([Rect2(q + Vector2(p), Vector2.ONE), fill[p]])
 
 
 func _draw_edge_marks(status: String) -> void:

@@ -609,6 +609,11 @@ at all further in. And a ship's arrow with a name (Jon, Nov 5, "hollow arrow
 with their name"): the name's box beside the arrow on its inward side, off
 the arrow, in the mark's box, a side arrow's caps on its axis and an up or
 down arrow's name centred on it.
+
+Since Nov 18 the glyph is the beacon's 11 px picture (`MapGlyphs`, Jon's picks), one row
+taller than the 10 px arrow, so it is centred to the half pixel an odd size on an even one
+allows. The arrow keeps its shape: an 11 px arrow would need a 1 or 3 px point, and the
+3 px square point already read as pointing the other way.
 ```
 
 ## Wide pair framing

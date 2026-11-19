@@ -246,7 +246,7 @@ func _row(e: Dictionary) -> Control:
 	var line := HBoxContainer.new()
 	line.add_theme_constant_override("separation", GAP)
 	var mark := Control.new()
-	mark.custom_minimum_size = Vector2(COLS[0], 10)
+	mark.custom_minimum_size = Vector2(COLS[0], MapGlyphs.SIZE)
 	mark.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var kind := int(e.kind)
 	mark.draw.connect(func() -> void: QuestLog.draw_mark(mark, kind, Vector2.ZERO))

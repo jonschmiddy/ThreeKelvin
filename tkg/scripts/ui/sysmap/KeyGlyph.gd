@@ -1,9 +1,8 @@
 extends Control
 
-## A beacon's glyph at the size the map draws it, for the KEY and the panel's
-## lists: the overlay's own 5x5 pattern, at two pixels a cell.
-
-const SystemOverlayS := preload("res://scripts/ui/sysmap/SystemOverlay.gd")
+## A beacon's glyph at the size the map draws it, for the KEY: MapGlyphs' 11 px picture (Jon, Nov 18);
+## or one of the 5x5 marks below, at two pixels a cell (one in a badge).
+## Why: docs/why/MapGlyphs.md#the-key
 
 ## Marks for non-beacon things in the lists: a beacon glyph beside a world read as a beacon.
 ## The state badges are a tick, a cross, a figure and an arrow back (Jon picked the stamp).
@@ -39,7 +38,11 @@ func small() -> Control:
 
 
 func _draw() -> void:
-	var m: Array = BODY[glyph] if BODY.has(glyph) else SystemOverlayS.GLYPH.get(glyph, SystemOverlayS.GLYPH[&"signal"])
+	if not BODY.has(glyph):
+		# (one row down, so its middle row is the words' caps' middle, as the old 10 px glyph's was)
+		MapGlyphs.draw(self, Vector2(0, 1), glyph, colour)
+		return
+	var m: Array = BODY[glyph]
 	var o := 1 if cell == 2 else 0
 	for r in 5:
 		for k in 5:

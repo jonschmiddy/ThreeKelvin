@@ -2844,10 +2844,12 @@ func _arrow_shapes() -> void:
 		var a_across := ab.size.y if dir.y == 0 else ab.size.x
 		var g_across := gb.size.y if dir.y == 0 else gb.size.x
 		var off := Vector2(dir).normalized().cross(gb.get_center() - ab.get_center())
+		# (Nov 18: the glyph is MapGlyphs' 11 px picture beside the 10 px arrow, one row taller,
+		# so centred to the half pixel an odd size on an even one allows)
 		if diag:
-			if gb.size != Vector2(10, 10) or absf(off) > 0.5:
+			if gb.size != Vector2.ONE * MapGlyphs.SIZE or absf(off) > 0.5:
 				bad.append("%s: the glyph %s, %.1f px off the arrow's middle line" % [dir, gb.size, off])
-		elif g_across != a_across or absf(off) > 0.01:
+		elif g_across != a_across + 1.0 or g_across != MapGlyphs.SIZE or absf(off) > 0.5:
 			bad.append("%s: the glyph %.0f px across the axis, the arrow %.0f; %.1f px off its axis" % [dir, g_across, a_across, off])
 		# the line and the inside, from the solid triangle
 		var solid := {}
@@ -2899,7 +2901,7 @@ func _arrow_shapes() -> void:
 		if nb.intersects(na) or not (nbx as Array)[0].encloses(nb) or not inward or not lined or nb.size.x < 20.0:
 			named_bad.append("%s: the name %s beside the arrow %s (inward %s, on its axis %s)" % [dir, nb, na, inward, lined])
 	ov.free()
-	h._ok("each of the eight edge arrows: its key glyph as tall as the arrow (10 px, 2 px cells), centred on its axis or middle line, and the arrow hollow, its line 2 px in its colour (%d line pixels), the hole inside never in its colour and, past the dark ring inside its line, not drawn (%d such pixels)%s" % [
+	h._ok("each of the eight edge arrows: its key glyph (MapGlyphs, 11 px) one row taller than the 10 px arrow, centred on its axis or middle line to the half pixel, and the arrow hollow, its line 2 px in its colour (%d line pixels), the hole inside never in its colour and, past the dark ring inside its line, not drawn (%d such pixels)%s" % [
 		line_n, deep_n, "" if bad.is_empty() else ": " + "; ".join(bad)], bad.is_empty() and deep_n > 0 and line_n > 0)
 	h._ok("and a ship's arrow named each of the eight ways: the name beside it on its inward side, off the arrow and in the mark's box, on a side arrow's axis and centred on an up or down one%s" % [
 		"" if named_bad.is_empty() else ": " + "; ".join(named_bad)], named_bad.is_empty())
@@ -2979,7 +2981,7 @@ func _pair_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 		var ab: Rect2 = (mk.arrow_box as Rect2).grow(-1.0)
 		var gb: Rect2 = mk.glyph_box
 		var looks := true
-		if gb.has_area() and dir.x * dir.y == 0 and (gb.size.y if dir.y == 0 else gb.size.x) != (ab.size.y if dir.y == 0 else ab.size.x):
+		if gb.has_area() and dir.x * dir.y == 0 and (gb.size.y if dir.y == 0 else gb.size.x) != (ab.size.y if dir.y == 0 else ab.size.x) + 1.0:
 			looks = false
 			bad.append("%s: the arrow at %s pointing %s has its glyph %s beside the arrow's %s" % [nm, mk.at, dir, gb.size, ab.size])
 		var solid := {}
@@ -3656,7 +3658,7 @@ func _ring_sweep() -> void:
 		st.marked, st.off, st.mark_on], st.off > 0 and st.marked == st.off and st.mark_on == 0)
 	h._ok("and each event's arrow carries the event's key glyph, a ship's none (%d of %d arrows not)" % [st.untagged, st.marks],
 		st.marks > 0 and st.untagged == 0)
-	h._ok("and as drawn there, each side arrow's glyph as tall as the arrow and every arrow hollow (%d of %d arrows not)" % [st.look_bad, st.marks],
+	h._ok("and as drawn there, each side arrow's glyph one row taller than the arrow (11 px on 10) and every arrow hollow (%d of %d arrows not)" % [st.look_bad, st.marks],
 		st.marks > 0 and st.look_bad == 0)
 	h._ok("with your ship and five partners off each wide pair's picture (%d times yours, %d partners), every ship's arrow is hollow and named beside it, on its inward side inside the frame: YOU %d times, the pilot's name, cut with '..' %d times (%d of %d ships' arrows named, %d not; %d in a corner)%s" % [
 		st.ship_you_off, st.ship_partners_off, st.ship_you, st.ship_cut, st.ship_named, st.ship_marks, st.ship_name_bad, st.ship_corner,

@@ -4,13 +4,16 @@ extends RefCounted
 ## Nothing is saved: every line is read off the contract, the map and `Run.event_quests` when asked.
 ## Why: docs/why/QuestLog.md#quest-log
 
-## The kind's 5x5 mark drawn 2x2: fetch wears the
-## QUEST cross, hunt the FIGHT mark, heat a heat stack.
+## Fetch wears the map's QUEST pin and hunt its FIGHT sight (`MapGlyphs`, Jon, Nov 18);
+## the others a 5x5 mark drawn 2x2: heat a heat stack.
+## Why: docs/why/MapGlyphs.md#one-icon-one-thing
+const MAP_MARK := {
+	ContractData.Kind.FETCH: &"quest",
+	ContractData.Kind.HUNT: &"fight",
+}
 const MARK := {
 	# an event quest wears the chart's own mark for one, the gold box
 	EVENT: ["#####", "#...#", "#...#", "#...#", "#####"],
-	ContractData.Kind.FETCH: ["..#..", "..#..", "#####", "..#..", "..#.."],
-	ContractData.Kind.HUNT: ["..#..", ".#.#.", "#...#", ".#.#.", "..#.."],
 	ContractData.Kind.HEAT: ["..#..", ".###.", ".###.", "#####", "#####"],
 }
 
@@ -44,10 +47,13 @@ static func mark_colour(kind: int) -> Color:
 	return UITheme.EMBER
 
 
-## Draw a kind's mark at `at` (its top left), 10 px square.
+## Draw a kind's mark at `at` (its top left), 10 px square, or 11 for a map glyph.
 static func draw_mark(ci: CanvasItem, kind: int, at: Vector2) -> void:
-	var rows: Array = MARK.get(kind, [])
 	var ink := mark_colour(kind)
+	if MAP_MARK.has(kind):
+		MapGlyphs.draw(ci, at, MAP_MARK[kind], ink)
+		return
+	var rows: Array = MARK.get(kind, [])
 	for y in rows.size():
 		var r: String = rows[y]
 		for x in r.length():

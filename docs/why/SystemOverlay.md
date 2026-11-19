@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/ui/sysmap/SystemOverlay.gd`, moved out of the 
 
 ## Overlay design
 
-Above `const GLYPH := {`:
+Above `const GLYPH := MapGlyphs.GLYPH` (the glyphs themselves: `MapGlyphs.md`):
 
 ```text
 WHAT IS DRAWN OVER A SYSTEM'S PICTURE: the stations and derelicts, a beacon
@@ -350,7 +350,8 @@ second beacon; and since Nov 5 ("make the icon the same height as the arrow
 and make the arrow hollow") the glyph in 2 px cells, as tall as the arrow,
 and the arrow its line alone (`tri_line`), the map showing through it; that
 line 2 px (Jon, Nov 5, "Two px": the 1 px line read lighter than the glyph's
-2 px strokes). Your ship's and each partner's arrow is hollow too, and named
+2 px strokes). Since Nov 18 the glyph is the beacon's own 11 px picture
+(`MapGlyphs`), each pixel in its own ink, one row taller than the 10 px arrow. Your ship's and each partner's arrow is hollow too, and named
 (Jon, Nov 5, "hollow arrow with their name"): YOU, the star chart's word for
 your ship, in ice, a partner's pilot in the party's green, the map's small
 words beside the arrow on its inward side (`_name_at`), inside the frame and
@@ -412,7 +413,7 @@ inside the frame (a down arrow near a corner slides its name along).
 Above `func _tri_queue(q: Vector2, dir: Vector2i, c: Color, glyph_too: bool, gname: StringName) -> void:`:
 
 ```text
-The arrow's line (`tri_line`) and the glyph's 2 px cells, outlined 1 px
+The arrow's line (`tri_line`) and the glyph's pixels (`MapGlyphs`, each in its own ink since Nov 18), outlined 1 px
 all round as one shape (its corners too, in one even dark), queued for the
 screen to draw over the picture. Inside the hollow arrow the same dark runs
 just inside its line and nothing further in: on a sun's glow, the line with
