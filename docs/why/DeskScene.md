@@ -130,6 +130,52 @@ gamma and the screen look all apply as they do on every other screen. At each wi
   game takes any finer picture.
 - **3840x2160 (4x):** each canvas pixel 2x2, exact.
 
+## Porting a room
+
+DESK 1 is done (`DeskOne`, `shaders/desk_1.gdshader`). A frame differs from the page's in 0 to 31
+pixels of about 2 million, apart from two early power-on frames that differ in up to 2,770, none
+off by more than 8. Each other room is a port of its own `tools/desk/page/scenes/<id>.js`. The
+rooms share `makeLit` (the bake, `desk_room.gdshaderinc`), the tube, the timeline and the sound.
+They do not share their per-frame drawing.
+
+**For each room:**
+1. Add its probe line to `tools/desk/dump.html`'s `PROBE`, listing the closure's names it needs.
+2. Run `dump_desk.py bake <id>`.
+3. Write `Desk<Name>.gd`, the scalar half: clocks, levels, weights, CPU layers.
+4. Write `shaders/<id>.gdshader`, the per-pixel half, in the page's drawing order.
+5. Add the room to `DeskRoom.SHADERS` and `DeskScene.BUILT`.
+6. Dump the page's frames, render `-- sheet=DeskRooms`, and diff them.
+
+**Traps found on DESK 1** (each cost a run):
+- **`hash`.** An unqualified `hash()` inside a static class calls GDScript's own `hash`, so the
+  page's hash is `DeskFx.rnd`. DESK 2 has its own hash: `sin(n * 127.1 + 311.7)`.
+- **`floor`.** `floor()` returns a Variant, and `:=` cannot infer from it; use `floorf`. `wrap` is
+  a global too.
+- **Uniform arrays.** The compatibility renderer lays `float[]` and `vec3[]` uniforms out tight,
+  so pass `vec4` arrays (`DeskRoom._quads`, `_v4`).
+- **Byte stores.** Every store into the page's `Uint8ClampedArray` rounds halves to even (`st8`).
+  A product that lands exactly on .5 rounds the way the page's double does (see `glass_px`).
+- **Bytes on the glass.** A mean read back through 8 bits steps the bezel's glow, so it travels as
+  two bytes. The page's sin-based noise must come from the CPU in doubles.
+- **`aux`** is a device name on Windows; it cannot be a file.
+- **Finding a node by class.** `find_children(type)` matches native classes only; test `is DeskScene`.
+
+**DESK 2** (`desk_2.js`, 860 lines) differs from DESK 1:
+- 33 string bulbs, each with its own tint, so the uniform arrays must reach 64.
+- Dust is drawn before the emitters and lit by the stepped light alone.
+- The LED glow is a box shape (`addGlow`).
+- Its steam box is 36 x 48 at (252, 144) and fades within 4 px of the glass.
+- The screen's light, `crtW`, follows the picture's mean brightness and a colour the page eases 30%
+  a frame. That colour depends on the frame before it; the sheet runs the page's frames in order.
+- Its CRT has its own phases (dot, line, open, boot, title, wipe, settle, on, and shrink when
+  leaving), a 3x3 bloom of a bright-pass, and glitches from a fixed list of start times.
+- One scanline row of 0.3.
+- Its porthole's own stars and ship are drawn over by `drawSky`.
+
+BUNK (1,016 lines) bakes extra fields (patch, pillow, ring, wash), LED lights and a jukebox
+screen. NOOK (776 lines, the shelf-lamp fix of Nov 19 in) has an oscilloscope panel, the rack bulb
+(its lamp time is `T.bulb`, 4.3) and its own CRT.
+
 ## Sound
 
 The page's mix is kept as it is (`scenes/audio.js`, Jon's picks Nov 17 to 19). The bed, the lamp
