@@ -2,9 +2,9 @@
 
     uv run --with pillow --with numpy python tkg/art/tools/ship_guns.py SRC_DIR
 
-SRC_DIR holds gun_<id>.png and guns.json (per gun: side_drawn, anchor, and an
-optional "stencil" list of [x, y, w, h] boxes). Re-run it after the artist drops
-in new PNGs or new anchors; that is the whole update.
+SRC_DIR holds gun_<id>.png and guns.json (per gun: side_drawn, anchor, an optional
+"scale", and an optional "stencil" list of [x, y, w, h] boxes). Re-run it after the
+artist drops in new PNGs or new anchors; that is the whole update.
 
 Writes tkg/art/sprites/guns/:
     <id>_<side>.png  the side the gun was drawn for, as drawn, and the other
@@ -15,7 +15,11 @@ Every gun is shrunk to SCALE of its drawn size first (Jon, Nov 17: "too big"),
 the way the hold icons are: an area shrink on premultiplied colour, hard alpha at
 0.45, the gun's own palette (24 colours), then its 1 px dark outline closed again
 on every edge. Its anchor scales with it, and the belly copy is made from the
-shrunk gun.
+shrunk gun. SCALE is for a gun drawn at Korvan's size, about 52 px a cell of length;
+a gun drawn at another size gives its own "scale" in guns.json, 0.6 x 52 / its px a
+cell, so it stands on the hull as long as a Korvan gun of the same cells (the
+unbranded Mining Laser, Slug Thrower and Cutting Torch, drawn at 43 and 64 px a cell
+for their hold icons: tk-scratch/hold_icons/ship_guns/prep.py).
 
 The anchor is the gun's contact point (hardpoints.md): the row just past a top
 gun's foot, or a belly gun's top row. A flip moves it to (x, h - y).
@@ -191,17 +195,19 @@ def install(src_dir):
             print("  %-6s no gun_%s.png, skipped" % (gid, gid))
             continue
         drawn = Image.open(path).convert("RGBA")
-        src = shrink(drawn, SCALE)
+        # (a gun drawn at another size than Korvan's says its own "scale"; see the docstring)
+        s = float(g.get("scale", SCALE))
+        src = shrink(drawn, s)
         fixed = close_outline(src)
         lit = lights(drawn)
-        stamp_lights(src, lit, SCALE, min((c for c in src.get_flattened_data() if c[3]), key=luma))
+        stamp_lights(src, lit, s, min((c for c in src.get_flattened_data() if c[3]), key=luma))
         w, h = src.size
         side = g.get("side_drawn", "top")
         dax, day = int(g["anchor"][0]), int(g["anchor"][1])
         # (a top gun's contact row is the row past its foot: it stays the row past the shrunk foot)
-        ax = round(dax * SCALE)
-        ay = h if day >= drawn.height else round(day * SCALE)
-        boxes = [[int(bx * SCALE), int(by * SCALE), int(np.ceil(bw * SCALE)) + 1, int(np.ceil(bh * SCALE)) + 1]
+        ax = round(dax * s)
+        ay = h if day >= drawn.height else round(day * s)
+        boxes = [[int(bx * s), int(by * s), int(np.ceil(bw * s)) + 1, int(np.ceil(bh * s)) + 1]
                  for bx, by, bw, bh in g.get("stencil", STENCILS.get(gid, []))]
         entry = {}
         name = "%s_%s.png" % (gid, side)
@@ -213,7 +219,7 @@ def install(src_dir):
             close_outline(flip)
             # (the lights, flipped with the gun, at full brightness again after the relight)
             dh = drawn.height
-            stamp_lights(flip, [(x0, dh - 1 - y1, x1, dh - 1 - y0, c) for x0, y0, x1, y1, c in lit], SCALE,
+            stamp_lights(flip, [(x0, dh - 1 - y1, x1, dh - 1 - y0, c) for x0, y0, x1, y1, c in lit], s,
                          min((c for c in flip.get_flattened_data() if c[3]), key=luma))
             fname = "%s_%s.png" % (gid, other(side))
             flip.save(os.path.join(OUT, fname))

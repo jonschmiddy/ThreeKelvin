@@ -3,6 +3,8 @@ extends Node
 ## Korvan's three hulls at grades C to S with their guns on, as the game draws them
 ## (`ShipView` and a passive `MountPoints`), one still each, and a fight with a medium.
 ## Windowed, through `tools/dev/render.sh`: `-- nolauncher sheet=GunSheet out=<dir> [fight]`.
+## `ids=beam,slug,torch` instead: the medium at grade S with each of those weapons on a top
+## mount (0) and a belly mount (2), one still each, beside Korvan's KM-4 and KH-20 there.
 ## Why: docs/why/Database.md#on-ship-guns
 
 ## A typical loadout per weight: [module id, weapon mount index] (`HULL_MOUNTS` order).
@@ -37,6 +39,15 @@ func _run() -> void:
 	add_child(layer)
 	layer.add_child(bg)
 	_vp = layer
+	var ids := Harness.arg("ids")
+	if ids != "":
+		var m := HullData.Weight.MEDIUM
+		for id in ids.split(","):
+			await _still(bg, m, 3, out, _kit(m, 3, [[StringName(id), 0], [StringName(id), 2]]), id)
+		await _still(bg, m, 3, out, _kit(m, 3, [[&"km4", 0], [&"kh20", 1], [&"km4", 2], [&"kh20", 3]]), "korvan")
+		h.verdict("gunsheet")
+		get_tree().quit(h.code())
+		return
 	for w: HullData.Weight in LOADOUT:
 		for t in 4:
 			await _still(bg, w, t, out, _kit(w, t, LOADOUT[w]))

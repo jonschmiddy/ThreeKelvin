@@ -488,7 +488,9 @@ and an import. `-- artcheck` checks every file in the folder, `-- holdtest` the 
 
 The sets (Nov 18-19): the 25 Korvan parts, 24 Solari (the Heliostat keeps its sprite) and
 the 18 unbranded. The unbranded set's first shrink was rejected ("these look bad"); the
-kept one is 14 from a second round and 4 redrawn (lattice, bracing, oracle, board). Board's
-card was lengthened in its large drawing, never stretched, so it fills its 2x1 like the
-sprite did.
+kept one is 14 from a second round and 5 redrawn (lattice, bracing, oracle, board,
+coolline). Board's card was lengthened in its large drawing, never stretched, so it fills
+its 2x1 like the sprite did. Coolline was redrawn as a dark coiled hose (Nov 19): the
+second round had made it a grey ring, and Jon said of it beside the sprite, "These don't
+match".
 ```

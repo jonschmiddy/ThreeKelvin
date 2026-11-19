@@ -1,0 +1,1 @@
+- **Changed** — on a Korvan hull, the Mining Laser, Slug Thrower and Cutting Torch stand on the ship as full-size guns drawn like their new hold pictures, as long as Korvan's own guns of the same size. The Coolant Line's new hold picture is a dark coiled hose like its old one, not a grey ring.
