@@ -3,6 +3,7 @@
 
     python tools/prose_grade.py                 every encounter, worst first
     python tools/prose_grade.py the_long_crew   one encounter, string by string
+    python tools/prose_grade.py --materials     every material line, graded one by one
     python tools/prose_grade.py --all           every player-facing string over
                                                 the target, worst first (report)
 
@@ -119,6 +120,29 @@ def strings_of(blk: str) -> list:
 	return out
 
 
+MATERIALS = os.path.join(ROOT, "tkg", "scripts", "systems", "MaterialTable.gd")
+
+
+def material_lines() -> list:
+	"""(id, line) for every material's text. One sentence each (draft 2, Nov 18), so the
+	encounter pass and `--all`, which skips one-sentence strings, never saw them."""
+	src = io.open(MATERIALS, encoding="utf-8").read()
+	return re.findall(r'\{id = &"([a-z_0-9]+)".*?text = "((?:[^"\\]|\\.)*)"', src, re.S)
+
+
+def materials_over(show: bool) -> tuple:
+	"""How many material lines there are, and how many are over the target."""
+	rows = material_lines()
+	over = 0
+	for i, s in rows:
+		g, wps, longest = grade(s)
+		bad = g > GRADE_MAX or wps > WORDS_MAX or longest > SENTENCE_MAX
+		over += bad
+		if show or bad:
+			print("%-22s grade %4.1f  %2d words%s  %s" % (i, g, longest, "  <<<" if bad else "", s))
+	return len(rows), over
+
+
 def report_all() -> int:
 	"""Every player-facing string of two sentences or more that is over the
 	target, worst first. A report, never a failure: the ruling covers all text,
@@ -148,6 +172,10 @@ def report_all() -> int:
 def main() -> int:
 	if "--all" in sys.argv:
 		return report_all()
+	if "--materials" in sys.argv:
+		n, bad = materials_over(True)
+		print("\n%d material lines | %d over target" % (n, bad))
+		return 1 if bad else 0
 	by_id = blocks()
 	want = [a for a in sys.argv[1:] if not a.startswith("-")]
 	if want:
@@ -181,9 +209,10 @@ def main() -> int:
 		print("%-24s %5.1f %6.1f %8d %7.1f" % (i, g, wps, longest, worst))
 	whole = " ".join(s for blk in by_id.values() for _, s in strings_of(blk))
 	g, wps, longest = grade(whole)
+	n_mat, mat_over = materials_over(False)
 	print("\n%d encounters | whole table grade %.1f, %.1f words a sentence | %d over target"
-		% (len(rows), g, wps, over))
-	return 1 if over else 0
+		" | %d material lines, %d over" % (len(rows), g, wps, over, n_mat, mat_over))
+	return 1 if over or mat_over else 0
 
 
 if __name__ == "__main__":

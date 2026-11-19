@@ -135,3 +135,21 @@ it, and it never occupies a cell. The claim worth checking is that a FULL
 hold still takes it -- that is the one item in the game where "do I have
 room" is not a question, and the whole point of it.
 ```
+
+## The approved list
+
+Above `const LIST`:
+
+```text
+Jon approved draft 2 of the materials on Nov 18 ("All are good. Just some notes"), and
+`MaterialTable.ROWS` was generated from that list. The fixture is the list, so this
+holds the game to what he approved rather than to itself: every row's name, tier,
+cells, value, source and text, and no row he did not see; each source's count at each
+tier (the list's matrix: six sources, every grade a source should have); every cut id
+loading as the row that took its slot; `pick` and `roll` staying inside their source;
+and the tooltip's NAME / TIER / SOURCE lines.
+
+A change to a material is a change to both files in one commit. The reading level of
+each line is checked by `tools/prose_grade.py` (its last line counts the materials) and
+the tells by `tools/prose_tells.py --strict`, in the gate's prose step, not here.
+```

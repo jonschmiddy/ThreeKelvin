@@ -1,14 +1,19 @@
 extends Harness
 
-## Checks each of 64 authored rows against a real hold; a "5x1" row would parse yet never
-## place.
+## Checks each authored row against a real hold; a "5x1" row would parse yet never
+## place. Then the table against the list Jon approved (draft 2).
 ## Why: docs/why/MaterialTest.md#catalogue-check
+
+## The approved list, which `MaterialTable.ROWS` was generated from.
+## Why: docs/why/MaterialTest.md#the-approved-list
+const LIST := "res://tools/fixtures/materials_draft2.json"
 
 
 func run() -> void:
 	print("=== materials ===")
 	var rows := MaterialTable.all()
 	_ok("catalogue is not empty", not rows.is_empty())
+	_list()
 
 	# --- every row builds -----------------------------------------------------
 	var bad_build: Array[String] = []
@@ -330,6 +335,103 @@ func run() -> void:
 		% [vanished, spilled], vanished == 0)
 
 	verdict("materialtest")
+
+
+## The game's table against the approved list: every row as written, each source's matrix,
+## the cut ids, what `pick` and `roll` hand back, and the tooltip's lines.
+func _list() -> void:
+	print("=== the approved list (draft 2) ===")
+	var doc: Variant = JSON.parse_string(FileAccess.get_file_as_string(LIST))
+	if not _ok("the list loads (%s)" % LIST, typeof(doc) == TYPE_DICTIONARY):
+		return
+	var fields: Array = doc.fields
+	var want: Array = []
+	for r in doc.materials:
+		want.append([r, false])
+	for r in doc.named:
+		want.append([r, true])
+	var wrong: Array[String] = []
+	for pair in want:
+		var r: Dictionary = {}
+		for i in fields.size():
+			r[fields[i]] = pair[0][i]
+		var got := MaterialTable.by_id(StringName(r.id))
+		if got.is_empty() or String(got.id) != r.id:
+			wrong.append("%s missing" % r.id)
+			continue
+		for k in ["name", "tier", "cells", "source", "text"]:
+			if String(got.get(k, "")) != String(r[k]):
+				wrong.append("%s %s is %s, list says %s" % [r.id, k, got.get(k, ""), r[k]])
+		if int(got.get("value", 0)) != int(r.value):
+			wrong.append("%s value is %d, list says %d" % [r.id, int(got.get("value", 0)), int(r.value)])
+		if bool(got.get("named", false)) != bool(pair[1]):
+			wrong.append("%s named is %s" % [r.id, got.get("named", false)])
+	_ok("every row of the list is in the game as written (%d rows)" % want.size(), wrong.is_empty())
+	_ok("and the game has no row the list does not (%d in the game)" % MaterialTable.all().size(),
+		MaterialTable.all().size() == want.size())
+	for line in wrong.slice(0, 12):
+		print("       %s" % line)
+	_matrix(doc)
+	_cut_and_pick(doc)
+
+
+## Each source has exactly the list's count at every tier, so every grade it should have is there.
+func _matrix(doc: Dictionary) -> void:
+	var off: Array[String] = []
+	_ok("the sources are the list's (%s)" % ", ".join(MaterialTable.SOURCES),
+		Array(MaterialTable.SOURCES).map(func(s: StringName) -> String: return String(s)) == doc.sources)
+	for src in doc.matrix:
+		for tier in doc.matrix[src]:
+			var n := MaterialTable.rows_of(StringName(src), StringName(tier)).size()
+			if n != int(doc.matrix[src][tier]):
+				off.append("%s %s: %d, list says %d" % [src, tier, n, int(doc.matrix[src][tier])])
+	_ok("every source has the list's count at every tier%s" % ("" if off.is_empty() else ": " + "; ".join(off)),
+		off.is_empty())
+	var open := true
+	for d in range(1, MapGen.DANGER_MAX + 1):
+		open = open and MaterialTable.admits(&"uncommon", d)
+	_ok("uncommon rolls at every danger, everywhere", open)
+
+
+## Cut ids load as their successor; `pick` stays in its source at or under the grade asked;
+## `roll` pays every source at the rim and in the deep; the tooltip says NAME / TIER / SOURCE.
+func _cut_and_pick(doc: Dictionary) -> void:
+	var lost: Array[String] = []
+	for cut in doc.cut:
+		var m := MaterialData.by_id(StringName(cut))
+		if m == null or String(m.id) != String(doc.cut[cut]):
+			lost.append(String(cut))
+	_ok("a cut id in a save loads as the row that took its slot%s" % ("" if lost.is_empty() else ": " + ", ".join(lost)),
+		lost.is_empty())
+	var bad: Array[String] = []
+	var r := Rng.derive(&"materialtest", 9)
+	for src in MaterialTable.SOURCES:
+		for i in MaterialTable.TIERS.size():
+			var tier := MaterialTable.TIERS[i]
+			var row := MaterialTable.pick(src, tier, r)
+			var at := MaterialTable.TIERS.find(StringName(row.get("tier", &"")))
+			var ok: bool = not row.is_empty() and row.source == src and at <= i \
+				and (tier == &"contraband") == (row.tier == &"contraband")
+			if not ok:
+				bad.append("%s %s -> %s" % [src, tier, row.get("id", "nothing")])
+		for d in [1, MapGen.DANGER_MAX]:
+			var rolled := MaterialTable.roll(src, d, r)
+			if rolled.is_empty() or rolled.source != src or rolled.get("named", false):
+				bad.append("%s rolled at danger %d -> %s" % [src, d, rolled.get("id", "nothing")])
+	_ok("pick and roll stay in their source, at or under the grade%s" % ("" if bad.is_empty() else ": " + "; ".join(bad)),
+		bad.is_empty())
+	var cable := MaterialData.by_id(&"cable_loom")
+	var tip := MaterialIcon.tip_text(cable).split("\n")
+	_ok("the tooltip reads NAME / TIER / SOURCE, then its line (%s)" % " / ".join(tip),
+		tip.size() >= 5 and tip[0] == "CABLE LOOM" and tip[1] == "UNCOMMON" and tip[2] == "WRECK"
+			and tip[3] == "" and " ".join(tip.slice(4)) == cable.text)
+	# The tag shows those lines as they are (`TagLayer.plain` dropped the caps head in the first render).
+	var icon := MaterialIcon.new()
+	icon.setup(cable, &"hold")
+	var ls := icon.tag_lines()
+	_ok("and the tag shows each of them (%d lines)" % ls.size(), ls.size() == tip.size()
+		and String(ls[0][0]) == "CABLE LOOM" and String(ls[2][0]) == "WRECK")
+	icon.free()
 
 
 ## Packs the hold with one-cell blanks until a cell is not free.

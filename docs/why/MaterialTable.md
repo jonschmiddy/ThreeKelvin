@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/systems/MaterialTable.gd`, moved out of the co
 
 ## Material catalogue
 
-Above `const NAMED := &"named"`:
+Above `const SOURCES` (it was above `const NAMED := &"named"`, gone in draft 2):
 
 ```text
 Everything a system can hand you that is not a module.
@@ -49,9 +49,88 @@ MINING IS THE THIN TABLE and is known to be -- the mining-flavoured options
 are where its rolls come from, and the next materials batch should feed it.
 ```
 
+DRAFT 2 (Nov 19, the list Jon approved on Nov 18: "All are good. Just some notes"). The
+draft 1 text above is history (`const NAMED` is now a `named = true` field on the row).
+Draft 2 gives each of six sources (wreck, mining, event, fight, fauna, cosmic) its own
+list in one shape: 6 common, 5 uncommon, 4 rare, 2 epic, 1 legendary, 1 contraband, and at
+the top 1 artifact (wreck, mining, event, fight) or 1 exotic (fauna, cosmic). That is 120
+rolled rows, plus the 7 named ones, 127 in all. Values sit in per-tier bands (common 7-14,
+uncommon 15-25, rare 26-44, epic 72-110, legendary 180-260, exotic 41-66, artifact 90-240,
+contraband 64-130).
+
+The list itself is `tkg/tools/fixtures/materials_draft2.json` (from the review page's
+`tk-scratch/science/minigames/phone/src/materials.json`), and `ROWS` was generated from it,
+so `MaterialTest` holds the two together: every row's name, tier, cells, value, source and
+text, the per-source matrix, and every cut id resolving. A later edit to a row edits the
+fixture in the same commit.
+
+The table moved out of `all()` into a `const` because a 127-row function is a 260-line
+function; the rows are data, and `code_check`'s length rule is about code.
+
+What changed in place, with the reason the list gave: RELIC is PRECURSOR RELIC and Exotic
+is EXOTIC TISSUE (both live ids, unchanged). Five fauna exotics moved along the ladder
+(FLANK HORN and GRAVE SPORES to rare, SINGER'S OIL and NERVE SILK to epic, HEART FLUID to
+legendary at 2x1). Wreck's five artifacts became one each: SINGING TINE to mining, CAGED
+SPHERE to event, CLOSED-BAY KEY to fight, WRONG MASS down to a wreck epic, RELIC kept. The
+encounters pay their story pieces by `material_id`, and none of those ids moved.
+
+No sea or water words for a space creature (Jon, Nov 18, on SHOAL SHELLS, EGG CASES and
+SHOAL GLUE: "Shoal? Water? in space?"); in the game a shoal is a dust cloud.
+
+## Sources
+
+Above `const SOURCES`:
+
+```text
+A source is two things at once: the table `roll` draws from, and the word the tooltip
+says (Jon, Nov 18: the material tooltip lists NAME / TIER / SOURCE, one per line, plus
+its one-line text; "just have it in the text", no stamps or tapes). So every row carries
+`source`, the named rows too, though nothing rolls them (`named = true`): their source is
+where the encounter that hands them over happens.
+
+COSMIC was SKY until Nov 18 (Jon: "SKY is a weird name, we are in space"). It covers
+stars, nebulae and gas giants. Two encounter outcomes at a star moved from mining to it,
+because their own lines are cosmic: scooping a red star's dust cloud, and riding a
+comet's tail.
+
+FIGHT HAS NO ROLLER YET. Before draft 2 nothing paid `material = &"fight"` either; a won
+fight's wreck pays credits, parts and (a creature) EXOTIC TISSUE. Its list is real and the
+science haul can draw on it; whether a ship's wreck should also drop one is a balance
+call, not part of putting the list in.
+```
+
+## Retired ids
+
+Above `const RETIRED`:
+
+```text
+A save stores a material by id and rebuilds the rest from the table, and a row that is
+gone loads as nothing (`SaveGame._item_from`). Draft 2 cut nine rows; one of them
+(SWEEP MIRRORS) is in a real save, Jon's 0.4.1 fixture. Rather than lose a carried item,
+a cut id answers with the row that took its source and tier, which is never bigger, so a
+saved cell still fits (and a load repacks anything that does not).
+
+The save's shape did not change -- still `{kind, id, hold_at, turned}` -- so
+`SaveGame.VERSION` stays where it was. `by_id` is the one door, so a found frame's strip
+pay (`found_scrap.material`) and a market price read through it too.
+```
+
+## Picking a grade
+
+Above `static func pick(`:
+
+```text
+`roll` draws every open row alike, so the grade follows from the list's shape and the
+danger. A science mini game decides the grade first, from its score and the sector, then
+needs a row of that grade from the site's source. `pick` is that seam: the exact grade if
+the source has one, else the nearest grade under it (an artifact asked of fauna or cosmic
+pays its exotic). Contraband is never walked into, because a better score must not hand
+you the thing the scanners look for.
+```
+
 ## Named pool
 
-Above `const NAMED := &"named"`:
+Above the named rows at the end of `ROWS` (it was above `const NAMED := &"named"`, gone in draft 2):
 
 ```text
 THE POOL THAT NOTHING ROLLS. A material written FOR one encounter is handed
@@ -107,7 +186,7 @@ when this changed. That held: the payload still says `{material = &"wreck"}`.
 
 ## Pictured materials
 
-Inside `all()`, above `{id = &"singing_tine", name = "SINGING TINE", tier = &"artifact", cells = "2x2",`:
+Inside `ROWS`, above SINGING TINE (it was inside `all()`):
 
 ```text
 THE FIRST TWO MATERIALS WITH A PICTURE, and the first artifacts that are

@@ -11,8 +11,8 @@ const SEEDS := 4
 const MAT_ROLLS := 6
 const TIERS := [1, 2, 3, 4, 5]
 const MODS := ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Exotic", "Artifact", "Contraband"]
-const MATS := [&"common", &"rare", &"epic", &"legendary", &"exotic", &"artifact", &"contraband"]
-const TABLES := [&"event", &"wreck", &"fight", &"fauna", &"mining"]
+const MATS := [&"common", &"uncommon", &"rare", &"epic", &"legendary", &"exotic", &"artifact", &"contraband"]
+const TABLES := [&"event", &"wreck", &"fight", &"fauna", &"mining", &"cosmic"]
 
 
 func _ready() -> void:
@@ -39,6 +39,7 @@ func _gates() -> void:
 		var t := MapGen.tier(d)
 		var want := {
 			&"common": t < 3,
+			&"uncommon": true,
 			&"rare": true,
 			&"epic": t >= 3,
 			&"legendary": t >= 4,
@@ -246,7 +247,7 @@ func _fallbacks() -> void:
 	# A table whose only rows are common, deep: the table's own commons.
 	var all := MaterialTable.all()
 	var probe := {id = &"deeploot_probe", name = "PROBE", tier = &"common", cells = "1x1",
-		value = 1, drops = &"deeploot_probe", text = ""}
+		value = 1, source = &"deeploot_probe", text = ""}
 	all.append(probe)
 	var row := MaterialTable.roll(&"deeploot_probe", 9, Rng.derive(&"deeploot", 98))
 	all.erase(probe)

@@ -91,6 +91,9 @@ func _fight() -> SectorScreen:
 func _station() -> void:
 	Rng.forced = int(_arg("seed", "4242"))
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	# `mats=a,b,c`: those materials put in the hold first (the `material_hold` stage).
+	for id in _arg("mats").split(",", false):
+		Run.stow(MaterialData.by_id(StringName(id)))
 	var here: MapGen.MapNode = Run.node_at()
 	here.type = MapGen.NodeType.STATION
 	here.development = MapGen.Development.CITY
@@ -290,6 +293,17 @@ func _run() -> void:
 						await _hover(Vector2(480, 20))
 					else:
 						await _hover(at)
+					break
+			await _secs(0.8 + float(_arg("hold", "0")))
+		"material_hold":
+			# materials in your hold (`tab=hold`, `mats=`), the first of `mats=` pointed at: its
+			# tooltip (NAME / TIER / SOURCE, then its line; Jon, Nov 18)
+			await _station()
+			var first := StringName(_arg("mats").get_slice(",", 0))
+			for ic in (Router.current as Node).find_children("*", "MaterialIcon", true, false):
+				var mi := ic as MaterialIcon
+				if mi.is_visible_in_tree() and mi.item != null and mi.item.id == first:
+					await _hover(mi.get_global_rect().get_center())
 					break
 			await _secs(0.8 + float(_arg("hold", "0")))
 		"cutaway_part":

@@ -559,6 +559,12 @@ what is in front of them. Ids only: the prose is copy and may be edited
 without splitting a party, while adding or gating an option may not.
 ```
 
+And the material table (Nov 19, materials draft 2): an outcome pays `MaterialTable.roll`
+off `Rng.derive(&"material", index)`, picking by position in its source's list, so two
+peers with different lists hand different things over at one node. Id, source and tier
+per row, for the same reason the options give ids only: a material's name and line are
+copy, its place in a list is not.
+
 ## Failed join
 
 Inside `_process()`, above `var peer := multiplayer.multiplayer_peer if multiplayer != null else null`:

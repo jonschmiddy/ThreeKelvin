@@ -172,7 +172,8 @@ func _jons_save() -> void:
 	var want: Array = []
 	for k in ["installed", "cargo", "pad"]:
 		for e in d[k]:
-			want.append(str(e["id"]))
+			# A material cut since (SWEEP MIRRORS, draft 2) loads as the row that took its slot.
+			want.append(String(MaterialTable.RETIRED.get(StringName(str(e["id"])), str(e["id"]))))
 	want.sort()
 	var f := FileAccess.open(SaveGame.path, FileAccess.WRITE)
 	f.store_string(raw)

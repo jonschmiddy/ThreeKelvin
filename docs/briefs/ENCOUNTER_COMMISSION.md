@@ -262,8 +262,9 @@ not copy their patterns.
 
 - **Do not touch the existing 47.** Append only.
 - **Do not add a material without a reason.** If a new named item is genuinely
-  needed, add it to `MaterialTable.gd` with `drops = &"named"` and update the
-  census in that file's header. `LAST BROADCAST` is the worked example.
+  needed, add it to `MaterialTable.gd`'s `ROWS` with `named = true` and the
+  `source` its tooltip should say, and to `tkg/tools/fixtures/materials_draft2.json`'s
+  `named` list (MaterialTest holds the two together). `LAST BROADCAST` is the worked example.
 - **Do not rename an `id`.** Saves reference them.
 - **Do not use `consume_material_tier`.**
 - **Do not quote credit figures in prose.**
