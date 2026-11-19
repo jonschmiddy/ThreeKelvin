@@ -1,0 +1,590 @@
+{
+ "desk_1": {
+  "source_take": "desk_i3",
+  "lights": [
+   {
+    "kind": "desk lamp bulb",
+    "seed": [
+     85,
+     136
+    ],
+    "cone": "green dome shade over the bulb; only its bottom sliver shows; light falls down and out"
+   },
+   {
+    "kind": "porthole starlight",
+    "seed": [
+     310,
+     20
+    ]
+   },
+   {
+    "kind": "mug steam (wisps, approx)",
+    "bbox": [
+     270,
+     160,
+     280,
+     174
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     113,
+     4
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     97,
+     21
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     85,
+     31
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     285,
+     38
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     58,
+     45
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     298,
+     46
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     3,
+     50
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     22,
+     52
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     328,
+     55
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     369,
+     56
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     348,
+     57
+    ]
+   }
+  ],
+  "painted_light_to_fix": [
+   "round 4: a faint dithered halo under the shade, about x 64-105, y 132-160, and round 1 leftovers; tools/sync_rooms.py takes them out into desk_1_clean.png"
+  ]
+ },
+ "desk_2": {
+  "source_take": "desk_i1",
+  "lights": [
+   {
+    "kind": "desk lamp bulb",
+    "seed": [
+     332,
+     132
+    ],
+    "cone": "cone shade over the bulb top and back; mouth points down-left, about (-0.45, 1); only a sliver of bulb shows"
+   },
+   {
+    "kind": "porthole starlight",
+    "seed": [
+     323,
+     35
+    ]
+   },
+   {
+    "kind": "mug steam",
+    "seed": [
+     268,
+     173
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     89,
+     27
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     63,
+     40
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     44,
+     46
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     15,
+     49
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     382,
+     53
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     377,
+     62
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     288,
+     64
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     79,
+     72
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     71,
+     74
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     361,
+     75
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     301,
+     78
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     14,
+     70
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     26,
+     75
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     38,
+     74
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     62,
+     74
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     74,
+     76
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     86,
+     72
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     150,
+     2
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     186,
+     2
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     222,
+     2
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     258,
+     2
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     376,
+     108
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     369,
+     110
+    ]
+   }
+  ],
+  "painted_light_to_fix": []
+ },
+ "bunk_1": {
+  "source_take": "bunk_i1",
+  "lights": [
+   {
+    "kind": "porthole starlight",
+    "seed": [
+     333,
+     54
+    ]
+   },
+   {
+    "kind": "clip lamp bulb",
+    "seed": [
+     287,
+     136
+    ],
+    "cone": "architect's lamp clamped to the shelf end, dome shade points down-left at the mug"
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     11,
+     34
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     99,
+     37
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     5,
+     38
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     20,
+     39
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     92,
+     39
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     27,
+     41
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     84,
+     42
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     36,
+     44
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     7,
+     45
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     98,
+     46
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     100,
+     54
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     6,
+     55
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     98,
+     63
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     10,
+     65
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     99,
+     71
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     9,
+     74
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     4,
+     79
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     98,
+     81
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     8,
+     87
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     97,
+     90
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     5,
+     98
+    ]
+   }
+  ],
+  "painted_light_to_fix": []
+ },
+ "nook_1": {
+  "source_take": "nook_i1",
+  "lights": [
+   {
+    "kind": "desk lamp bulb",
+    "seed": [
+     358,
+     113
+    ],
+    "cone": "grey cone shade on a short cord in the right rack; only the bulb bottom sliver shows; light falls down"
+   },
+   {
+    "kind": "porthole starlight",
+    "seed": [
+     55,
+     28
+    ]
+   },
+   {
+    "kind": "oscilloscope screen (green, emissive)",
+    "seed": [
+     22,
+     100
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     103,
+     3
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     115,
+     4
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     127,
+     3
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     151,
+     3
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     163,
+     4
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     175,
+     3
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     199,
+     3
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     211,
+     4
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     223,
+     3
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     247,
+     3
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     259,
+     4
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     271,
+     3
+    ]
+   },
+   {
+    "kind": "string light",
+    "seed": [
+     286,
+     21
+    ]
+   }
+  ],
+  "painted_light_to_fix": [
+   "round 1 halo behind the rack bulb (x 340-372, y 92-122) where the new cone does not cover it, and the scope glow; tools/sync_rooms.py takes them out into nook_1_base.png"
+  ]
+ },
+ "_round": "round 4 monitor A (tk-scratch round4/notes.md, \"For lights.json\" and \"Final pass\")"
+}

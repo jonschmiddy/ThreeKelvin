@@ -161,6 +161,8 @@ const BOOTED: Array[Dictionary] = [
 	{flag = "hinttest", script = "res://scripts/sim/HintTest.gd", how = "hold"},
 	# The sector map's worlds keep up with a pan (no picture trailing its own ring).
 	{flag = "maplagtest", script = "res://scripts/sim/MapLagTest.gd", how = "hold"},
+	# The science desk: its timeline both ways, its sounds once each, the bake, DESK 1's beats.
+	{flag = "desktest", script = "res://scripts/sim/DeskTest.gd", how = "hold"},
 	# Key bindings, rebound through Settings and pressed on real screens, in a settings file of its own.
 	{flag = "bindtest", script = "res://scripts/sim/BindTest.gd", how = "hold"},
 	# The escape menu after reduced motion and skip jump change under it, with the animations on.

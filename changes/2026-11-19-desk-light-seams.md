@@ -1,0 +1,1 @@
+- **Fixed** — Science desk light no longer fills a whole surface with a one-pixel checker (DESK 1's monitor case, the NOOK's book stack, a BUNK photo while the light comes up): the light's steps dither only along the edge between two steps, and a surface lit evenly on a step's midpoint takes the nearest step.

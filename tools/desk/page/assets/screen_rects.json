@@ -1,0 +1,50 @@
+{
+ "desk_1": {
+  "x": 117,
+  "y": 22,
+  "w": 150,
+  "h": 140,
+  "glass_rgb": [
+   5,
+   8,
+   13
+  ],
+  "source_take": "desk_i3"
+ },
+ "desk_2": {
+  "x": 117,
+  "y": 22,
+  "w": 150,
+  "h": 140,
+  "glass_rgb": [
+   5,
+   8,
+   13
+  ],
+  "source_take": "desk_i1"
+ },
+ "bunk_1": {
+  "x": 117,
+  "y": 22,
+  "w": 150,
+  "h": 140,
+  "glass_rgb": [
+   5,
+   8,
+   13
+  ],
+  "source_take": "bunk_i1"
+ },
+ "nook_1": {
+  "x": 117,
+  "y": 22,
+  "w": 150,
+  "h": 140,
+  "glass_rgb": [
+   5,
+   8,
+   13
+  ],
+  "source_take": "nook_i1"
+ }
+}
