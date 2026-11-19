@@ -486,6 +486,9 @@ NOTHING IS LISTED. Whatever `hold/<id>.png` exists is loaded at seed time (guard
 `ResourceLoader.exists`, like `module_sprite`), so adding the next manufacturer's set is a copy
 and an import. `-- artcheck` checks every file in the folder, `-- holdtest` the choice.
 
-First set: the 25 Korvan parts (Nov 18). The unbranded set was shrunk too and rejected
-("these look bad"); Solari had no large source to shrink.
+The sets (Nov 18-19): the 25 Korvan parts, 24 Solari (the Heliostat keeps its sprite) and
+the 18 unbranded. The unbranded set's first shrink was rejected ("these look bad"); the
+kept one is 14 from a second round and 4 redrawn (lattice, bracing, oracle, board). Board's
+card was lengthened in its large drawing, never stretched, so it fills its 2x1 like the
+sprite did.
 ```

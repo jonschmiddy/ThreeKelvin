@@ -1,1 +1,1 @@
-- **Changed** — Korvan and Solari parts in the hold, the drag, the move aboard and the module gallery draw their own full-size pictures, one art pixel to a screen pixel, instead of the hull's picture doubled (all but the Solari Heliostat, which keeps the old one for now).
+- **Changed** — Korvan, Solari and unbranded parts in the hold, the drag, the move aboard and the module gallery draw their own full-size pictures, one art pixel to a screen pixel, instead of the hull's picture doubled (all but the Solari Heliostat, which keeps the old one for now).
