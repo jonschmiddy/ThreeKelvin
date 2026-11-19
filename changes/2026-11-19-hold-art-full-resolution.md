@@ -1,0 +1,1 @@
+- **Changed** — Korvan parts in the hold, the drag, the move aboard and the module gallery draw their own full-size pictures, one art pixel to a screen pixel, instead of the hull's picture doubled.

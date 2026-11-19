@@ -295,6 +295,7 @@ func _module(id: StringName, name: String, manufacturer: StringName, slot: Modul
 	m.scrap_value = ModuleData.SCRAP_VALUE[rarity]
 	# Null until the art exists, which is what the drawn silhouette is for.
 	m.sprite = module_sprite(id)
+	m.hold_sprite = module_hold_sprite(id)
 	modules[id] = m
 
 func _seed_modules() -> void:
@@ -1113,6 +1114,16 @@ func module_sprite(id: StringName) -> Texture2D:
 	if id == &"":
 		return null
 	var path := "res://art/sprites/modules/%s.png" % id
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
+
+## Same convention as `module_sprite`: whatever `hold/<id>.png` exists is used, nothing listed.
+## Why: docs/why/ModuleIcon.md#hold-art
+func module_hold_sprite(id: StringName) -> Texture2D:
+	if id == &"":
+		return null
+	var path := "res://art/sprites/modules/hold/%s.png" % id
 	if not ResourceLoader.exists(path):
 		return null
 	return load(path) as Texture2D
