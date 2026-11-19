@@ -13,7 +13,7 @@ static var enabled := true
 ## Jon's ruling (Nov 19, his A): the room goes by the hull. Salvage frames (unbranded) get the nook,
 ## light hulls the bunk, medium DESK 1, heavy DESK 2. Rooms not yet ported fall back to DESK 1.
 ## Why: docs/why/DeskScene.md#jons-rulings-nov-19
-const BUILT: Array[String] = ["desk_1", "desk_2"]
+const BUILT: Array[String] = ["desk_1", "desk_2", "bunk_1"]
 ## The page's act 1, in scene seconds: LOCAL held, the push in (1x to 8x), the fade to black.
 const HOLD := 0.5
 const ZOOM_END := 2.1

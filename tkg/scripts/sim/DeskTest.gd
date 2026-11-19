@@ -20,6 +20,7 @@ func run(tree: SceneTree) -> void:
 	_beats()
 	_cards()
 	_desk_two()
+	_bunk()
 	verdict("desktest")
 	_tree.quit(1 if _fails > 0 else 0)
 
@@ -232,7 +233,9 @@ func _cards() -> void:
 	var rooms := [DeskScene.room_for(h)]
 	h.weight = HullData.Weight.HEAVY
 	rooms.append(DeskScene.room_for(h))
-	_ok("a medium hull gets DESK 1, a heavy one DESK 2 (%s)" % str(rooms), rooms == ["desk_1", "desk_2"])
+	h.weight = HullData.Weight.LIGHT
+	rooms.append(DeskScene.room_for(h))
+	_ok("a medium hull gets DESK 1, a heavy one DESK 2, a light one the BUNK (%s)" % str(rooms), rooms == ["desk_1", "desk_2", "bunk_1"])
 	_ok("the desk is for readings only", not DeskScene.wants({label = "Sell your place"}))
 
 
@@ -278,3 +281,49 @@ func _desk_two() -> void:
 	held.release(30.0)
 	var wipe: Vector3 = held.frame(DeskTimeline.A + 30.2, 40.2, false)[&"g_title"]
 	_ok("held, its card waits for the tap, then wipes (state %d, wipe row %.0f)" % [st, wipe.z], st == S.TITLE and wipe.x > 0.5 and wipe.z > -99.0)
+
+
+## The BUNK (`DeskBunk`): its bake, its hash (the page's integer mix in doubles), the lamp at its
+## click, the CRT's phases in the page's order both ways, all 25 strings on, and the held card.
+func _bunk() -> void:
+	var m := DeskRoom.load_meta("bunk_1")
+	_ok("the BUNK's bake: 25 string bulbs, 5 LEDs and the readout", not m.is_empty() and int(m.smallCount) == 31 and int(m.smallOver) == 0)
+	var b0: Dictionary = (m.bulbs as Array)[0]
+	_ok("its hash is the page's (bulb 0's phase %.6f vs %.6f)" % [DeskBunk.bh(3.0) * 6.283, float(b0.ph)], _near(DeskBunk.bh(3.0) * 6.283, float(b0.ph), 1e-9))
+	var life := DeskBunk.new(m)
+	life.set_card(DeskCard.title(""))
+	life.set_screen(DeskRoom.SCREEN.get_image())
+	_ok("its sound and card times are the page's (lamp %.2f, CRT %.2f, card at u %.3f)" % [life.lamp_at, life.crt_at, life.title_u],
+		_near(life.lamp_at, 3.55) and _near(life.crt_at, 5.95) and _near(life.title_u, 6.075) and _near(life.done_at, 12.1))
+	var lit_at := -1.0
+	var phases: Array[int] = []
+	var on := 0
+	for k in int(12.0 * 20.0):
+		var ts := DeskTimeline.A + k / 20.0
+		var u := life.frame(ts, DeskTimeline.forward(0.0) + ts, false)
+		if lit_at < 0.0 and (u[&"w_big"] as Vector3).x > 0.0:
+			lit_at = ts
+		var ph: int = u[&"g_ph"]
+		if phases.is_empty() or phases[phases.size() - 1] != ph:
+			phases.append(ph)
+		on = 0
+		for v: float in u[&"str_v"]:
+			on += 1 if v > 0.0 else 0
+	var P := DeskBunk.Ph
+	_ok("the BUNK's lamp strikes at its click (scene %.2f)" % lit_at, lit_at >= life.lamp_at - 0.05 and lit_at < life.lamp_at + 0.1)
+	_ok("its CRT runs dot, line, raster, boot, card, picture (%s)" % str(phases), phases == ([P.OFF, P.DOT, P.LINE, P.OPEN, P.BOOT, P.TITLE, P.PIC] as Array[int]))
+	_ok("all 25 strings come on (%d)" % on, on == 25)
+	var off: Array[int] = []
+	for k in 60:
+		var ph: int = life.frame(life.done_at - k * 0.15, 40.0 + k * 0.07, true)[&"g_ph"]
+		if off.is_empty() or off[off.size() - 1] != ph:
+			off.append(ph)
+	_ok("leaving: picture, collapse, line, dot, dark (%s)" % str(off), off == ([P.PIC, P.COLLAPSE, P.LINE, P.DOT, P.OFF] as Array[int]))
+	var held := DeskBunk.new(m)
+	held.set_card(DeskCard.title(""))
+	held.set_screen(DeskRoom.SCREEN.get_image())
+	held.hold_title()
+	var ph1: int = held.frame(DeskTimeline.A + 30.0, 40.0, false)[&"g_ph"]
+	held.release(30.0)
+	var wipe: Vector3 = held.frame(DeskTimeline.A + 30.2, 40.2, false)[&"g_title"]
+	_ok("held, its card waits for the tap, then wipes (phase %d, wipe row %.0f)" % [ph1, wipe.z], ph1 == P.TITLE and wipe.x > 0.5 and wipe.z > -99.0)

@@ -9,7 +9,7 @@ render_mode unshaded;
 
 #define SMALL_Q 16
 #define SMALL_N 64
-#define SMALL_8
+#define SMALL_SETS 2
 #define SMALL_TINTS
 #include "res://shaders/desk_room.gdshaderinc"
 

@@ -121,10 +121,10 @@ def bake(room):
         print("%-8s %8d bytes raw, %8d gz" % (name, len(raw), (out / (name + ".bin.gz")).stat().st_size))
     meta = got["meta"]
     (out / "meta.json").write_text(json.dumps(meta, separators=(",", ":")), encoding="utf-8")
-    print("meta: %d small lights (%d pixel overflows past eight), tube scale %.6f"
+    print("meta: %d small lights (%d pixel overflows past twelve), tube scale %.6f"
           % (meta["smallCount"], meta["smallOver"], meta["tubeScale"]))
     if meta["smallOver"]:
-        raise SystemExit("more than eight string bulbs light one pixel: widen small_i/small_v")
+        raise SystemExit("more than twelve string bulbs light one pixel: widen small_i/small_v")
 
 
 def frames(room, outdir):

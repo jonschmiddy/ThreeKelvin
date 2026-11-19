@@ -26,8 +26,12 @@ uniform vec3 tint_port = vec3(0.8, 0.88, 1.0);
 uniform vec3 tint_small = vec3(1.0, 0.82, 0.62);
 // (float and vec3 arrays are packed as vec4s: the compatibility renderer laid float[] out tight)
 // A room with more than sixteen small lights defines SMALL_Q (vec4s) before the include; one whose
-// bulbs crowd past four a pixel defines SMALL_8 (the bake's small_i2 / small_v2); one whose bulbs
-// each have their own tint defines SMALL_TINTS (tint_small_a, one a light).
+// bulbs crowd past four a pixel defines SMALL_SETS 2 or 3 (the bake's small_i2 / small_v2, _i3 / _v3);
+// one whose bulbs each have their own tint defines SMALL_TINTS (tint_small_a, one a light). One with
+// lights past the lamp, screen and porthole defines MORE_FIELDS (fields2_tex, w_more, tint_more_*).
+#ifndef SMALL_SETS
+#define SMALL_SETS 1
+#endif
 #ifndef SMALL_Q
 #define SMALL_Q 4
 #endif
@@ -40,9 +44,21 @@ uniform vec3 hot_col = vec3(1.0, 0.7, 0.4);
 uniform float fl_lamp = 1.0;
 uniform float fl_scr = 1.0;
 uniform vec4 fl_small[SMALL_Q];
-#ifdef SMALL_8
+#if SMALL_SETS > 1
 uniform sampler2D small_i2_tex : filter_nearest, repeat_disable;
 uniform sampler2D small_v2_tex : filter_nearest, repeat_disable;
+#endif
+#if SMALL_SETS > 2
+uniform sampler2D small_i3_tex : filter_nearest, repeat_disable;
+uniform sampler2D small_v3_tex : filter_nearest, repeat_disable;
+#endif
+#ifdef MORE_FIELDS
+uniform sampler2D fields2_tex : filter_nearest, repeat_disable;
+uniform vec4 w_more = vec4(0.0);
+uniform vec3 tint_more_0 = vec3(1.0);
+uniform vec3 tint_more_1 = vec3(1.0);
+uniform vec3 tint_more_2 = vec3(1.0);
+uniform vec3 tint_more_3 = vec3(1.0);
 #endif
 #ifdef SMALL_TINTS
 uniform vec4 tint_small_a[SMALL_N];
@@ -108,18 +124,25 @@ void room_lit(ivec2 p, out vec3 base, out vec3 lm) {
 	if (w_big.x > 0.0 && fld.r != 0.0) { lI = fld.r * w_big.x * tg; lr = lI * tint_lamp; }
 	if (w_big.y > 0.0 && fld.g != 0.0) { mI = fld.g * w_big.y * tg; mr = mI * tint_scr; }
 	if (w_big.z > 0.0 && fld.b != 0.0) { orr = fld.b * w_big.z * tg * tint_port; }
+#ifdef MORE_FIELDS
+	vec4 f2 = texelFetch(fields2_tex, p, 0);
+	if (w_more.x > 0.0 && f2.x != 0.0) orr += f2.x * w_more.x * tg * tint_more_0;
+	if (w_more.y > 0.0 && f2.y != 0.0) orr += f2.y * w_more.y * tg * tint_more_1;
+	if (w_more.z > 0.0 && f2.z != 0.0) orr += f2.z * w_more.z * tg * tint_more_2;
+	if (w_more.w > 0.0 && f2.w != 0.0) orr += f2.w * w_more.w * tg * tint_more_3;
+#endif
 	float sl = 0.0;
 	float best = 0.0;
 	int kk = -1;
 	vec3 sr = vec3(0.0);
-#ifdef SMALL_8
-	for (int h = 0; h < 2; h++) {
-		vec4 si = h == 0 ? texelFetch(small_i_tex, p, 0) : texelFetch(small_i2_tex, p, 0);
-		vec4 sv = h == 0 ? texelFetch(small_v_tex, p, 0) : texelFetch(small_v2_tex, p, 0);
-#else
-	{
+	for (int h = 0; h < SMALL_SETS; h++) {
 		vec4 si = texelFetch(small_i_tex, p, 0);
 		vec4 sv = texelFetch(small_v_tex, p, 0);
+#if SMALL_SETS > 1
+		if (h == 1) { si = texelFetch(small_i2_tex, p, 0); sv = texelFetch(small_v2_tex, p, 0); }
+#endif
+#if SMALL_SETS > 2
+		if (h == 2) { si = texelFetch(small_i3_tex, p, 0); sv = texelFetch(small_v3_tex, p, 0); }
 #endif
 		for (int s = 0; s < 4; s++) {
 			int n = int(si[s] + 0.5) - 1;

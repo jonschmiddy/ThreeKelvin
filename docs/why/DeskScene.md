@@ -185,8 +185,20 @@ What the page's script says about it:
 - One scanline row of 0.3.
 - Its porthole's own stars and ship are drawn over by `drawSky`.
 
-BUNK (1,016 lines) bakes extra fields (patch, pillow, ring, wash), LED lights and a jukebox
-screen. NOOK (776 lines, the shelf-lamp fix of Nov 19 in) has an oscilloscope panel, the rack bulb
+**BUNK** (`DeskBunk`, `shaders/bunk_1.gdshader`, done Nov 19): every frame within 0 to 254 of about
+2 million pixels. Two known: a column of 7 art pixels between the power strip's two LEDs (x 291) is
+up to 9 darker. The two lights' fields tie there; the page compares a double against the float32 it
+stored, so the second wins, and float32 here keeps the first. And single canvas pixels where the
+tube's curve rounds to a neighbour. What it adds:
+- Four more fields (`MORE_FIELDS`: the starlight's patch, the pillow, the porthole's ring, the
+  strings' wash) and up to nine small lights a pixel (`SMALL_SETS 3`).
+- Its own hash, an integer mix whose products JS does in doubles (`DeskBunk.bh`, held to the page by
+  desktest).
+- A CRT filter on the whole glass: the glitch remaps the picture, the vignette, a 1-2-1 blur whose
+  glow also bleeds on the bezel's lip. The screen's light follows the lower half of the filtered
+  picture, read on the CPU from the page's own samples.
+- Its scanline is a 0.38 fill that Chrome rounds (158/255), and the room fades in under a black fill
+  over the whole canvas (`canvas_fade`). NOOK (776 lines, the shelf-lamp fix of Nov 19 in) has an oscilloscope panel, the rack bulb
 (its lamp time is `T.bulb`, 4.3) and its own CRT.
 
 ## Sound

@@ -25,7 +25,8 @@ async function boot() {
   DESK.json = async s => JSON.parse(await src(s.replace(/^assets\//, ART)));
   run(await src("page/scenes/roomfx.js"));
   const PROBE = { desk_1: "A, glass, bulbPx, filPx, strings, portGlass, pipeLed, glassShade, TIP, TIPC, SMOKE, BOOT, T, LIT, FLD, SMALL, FAc, A2c, DUSTc, SKYc, KBd, SOLDER_LED, MON_LED, MUGS",
-    desk_2: "A2, base, glassM, portM, portPts, lampBulb, lampHot, strBulbs, FLD, SMALL, LIT, Fa, DUSTC, SKY, BOOT, FONT, recess, T" };
+    desk_2: "A2, base, glassM, portM, portPts, lampBulb, lampHot, strBulbs, FLD, SMALL, LIT, Fa, DUSTC, SKY, BOOT, FONT, recess, T",
+    bunk_1: "art, A2, isGlass, isPort, portIdx, lampPix, bulbs, BULB_TL, LEDS, JB_SCREEN, PILLOW_BULBS, FLD, SMALL, NB, NL, LIT, FA, DUSTC, SKY, SHADE, FONT" };
   for (const id of Object.keys(PROBE)) {
     let s = await src("page/scenes/" + id + ".js");
     // the probe goes in just before the scene registers, inside its closure
@@ -56,17 +57,18 @@ function common(P, A, fa, skip, big) {
   const fields = new Float32Array(N * 4);
   for (let i = 0; i < N; i++) { fields[i*4] = big.lamp[i]; fields[i*4+1] = big.scr[i]; fields[i*4+2] = big.port[i]; }
   // small lights: up to four (index + 1, value) a pixel
-  // (eight where the bulbs crowd: DESK 2's 33 strings; small_i2 / small_v2 hold the second four)
-  const si = new Float32Array(N * 8), sv = new Float32Array(N * 8), cnt = new Uint8Array(N); let over = 0, most = 0;
+  // (more where the bulbs crowd: small_i2 / small_v2 hold the second four, small_i3 / small_v3 the third)
+  const si = new Float32Array(N * 12), sv = new Float32Array(N * 12), cnt = new Uint8Array(N); let over = 0, most = 0;
   P.SMALL.forEach((b, n) => { const [bx, by, bw, bh] = b.box;
     for (let yy = 0; yy < bh; yy++) for (let xx = 0; xx < bw; xx++) { const v = b.f[yy * bw + xx]; if (!v) continue;
-      const i = (by + yy) * W + bx + xx; if (cnt[i] >= 8) { over++; continue; }
-      const k = cnt[i] < 4 ? i*4 + cnt[i] : N*4 + i*4 + cnt[i] - 4; si[k] = n + 1; sv[k] = v; cnt[i]++; most = Math.max(most, cnt[i]); } });
+      const i = (by + yy) * W + bx + xx; if (cnt[i] >= 12) { over++; continue; }
+      const k = (cnt[i] >> 2) * N * 4 + i*4 + (cnt[i] & 3); si[k] = n + 1; sv[k] = v; cnt[i]++; most = Math.max(most, cnt[i]); } });
   const aux = new Float32Array(N * 4);
   for (let i = 0; i < N; i++) { aux[i*4] = LIT.TG[i]; aux[i*4+1] = LIT.AO[i]; aux[i*4+2] = fa[i]; aux[i*4+3] = skip[i]; }
   const a2c = new Float32Array(N * 4); for (let i = 0; i < N; i++) { a2c[i*4] = A[i*3]; a2c[i*4+1] = A[i*3+1]; a2c[i*4+2] = A[i*3+2]; a2c[i*4+3] = 1; }
   return { over, most, planes: { a2c: f32(a2c), fields: f32(fields), small_i: f32(si.subarray(0, N*4)), small_v: f32(sv.subarray(0, N*4)), px: f32(aux),
-    ...(most > 4 ? { small_i2: f32(si.subarray(N*4)), small_v2: f32(sv.subarray(N*4)) } : {}) } };
+    ...(most > 4 ? { small_i2: f32(si.subarray(N*4, N*8)), small_v2: f32(sv.subarray(N*4, N*8)) } : {}),
+    ...(most > 8 ? { small_i3: f32(si.subarray(N*8)), small_v3: f32(sv.subarray(N*8)) } : {}) } };
 }
 const sky = K => ({ o: { W: K.o.W, cx: K.o.cx, cy: K.o.cy, r: K.o.r, idx: K.o.idx }, S: K.S, stars: K.stars });
 
@@ -124,6 +126,34 @@ const ROOMS = {
     c.meta = { T: P.T, boot: P.BOOT,
       strings: P.strBulbs.map(b => ({ side: b.side, k: b.k, cx: b.cx, cy: b.cy, cream: b.cream, col: b.col, ph: b.ph, per: b.per, ph2: b.ph2, per2: b.per2, n: b.pts.length })),
       lamp: P.lampBulb.length, hot: P.lampHot.length,
+      dust: P.DUSTC.motes, sky: sky(P.SKY) };
+    return c;
+  },
+  bunk_1(P) {
+    const skip = new Uint8Array(N); for (let i = 0; i < N; i++) if (P.isGlass[i] || P.isPort[i]) skip[i] = 1;
+    const c = common(P, P.A2, P.FA, skip, P.FLD);
+    // the starlight's patch on the blanket, the pillow's glow, the ring round the porthole, the strings' wash
+    const f2 = new Float32Array(N * 4);
+    for (let i = 0; i < N; i++) { f2[i*4] = P.FLD.patch[i]; f2[i*4+1] = P.FLD.pillow[i]; f2[i*4+2] = P.FLD.ring[i]; f2[i*4+3] = P.FLD.wash[i]; }
+    // roles: 1 the lamp's bulb, 2 its core, 7 the porthole, 8 the CRT, 16 + k string bulb k, 48 + k its core,
+    // 100 + k LED k, 120 + r the junction box's readout row r
+    const role = new Float32Array(N);
+    for (let i = 0; i < N; i++) { if (P.isGlass[i]) role[i] = 8; else if (P.isPort[i]) role[i] = 7; }
+    P.bulbs.forEach((b, k) => { for (const [x, y, core] of b.pix) role[y * W + x] = (core ? 48 : 16) + k; });
+    for (const [x, y, core] of P.lampPix) role[y * W + x] = core ? 2 : 1;
+    P.LEDS.forEach((L, k) => { role[L.y * W + L.x] = 100 + k; });
+    for (let r = 0; r < 3; r++) for (let x = 0; x < 8; x++) role[(P.JB_SCREEN.y + r * 2) * W + P.JB_SCREEN.x + x] = 120 + r;
+    const art = new Float32Array(N * 4); for (let i = 0; i < N; i++) { art[i*4] = P.art[i*3]; art[i*4+1] = P.art[i*3+1]; art[i*4+2] = P.art[i*3+2]; art[i*4+3] = 1; }
+    // the glass: the bezel's shade, and each boot glyph pixel's place (line 1: c, line 2: 100 + c; -1 none)
+    const gl = new Float32Array(GW * GH * 4);
+    for (let k = 0; k < GW * GH; k++) { gl[k*4] = P.SHADE[k]; gl[k*4+1] = -1; }
+    [["SCI-TERM 03", 7, 0], ["BOOT OK", 15, 100]].forEach(([str, y0, base]) => {
+      for (let n = 0; n < str.length; n++) { const g = P.FONT[str[n]] || P.FONT[" "];
+        for (let r = 0; r < 5; r++) for (let cc = 0; cc < 3; cc++) if (g[r*3+cc] === "1") gl[((y0 + r) * GW + 6 + n * 4 + cc) * 4 + 1] = base + n; } });
+    c.planes.role = f32(role); c.planes.glass = f32(gl); c.planes.art = f32(art); c.planes.fields2 = f32(f2);
+    c.meta = { tints: P.SMALL.map(q => q.tint), nb: P.NB, nl: P.NL, pillow: P.PILLOW_BULBS,
+      bulbs: P.bulbs.map(b => ({ order: b.order, ph: b.ph, ph2: b.ph2, w1: b.w1, w2: b.w2, jit: b.jit })),
+      leds: P.LEDS.map(L => ({ x: L.x, y: L.y, col: L.col, kind: L.kind })), jb: { x: P.JB_SCREEN.x, y: P.JB_SCREEN.y },
       dust: P.DUSTC.motes, sky: sky(P.SKY) };
     return c;
   },
