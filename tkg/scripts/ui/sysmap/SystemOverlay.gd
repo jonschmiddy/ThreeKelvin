@@ -290,7 +290,7 @@ func _px(p: Vector2, c: Color) -> void:
 
 ## `flat`: a spent beacon, its accents in `c`'s grey too.
 func glyph(at: Vector2, name: StringName, c: Color, flat := false) -> void:
-	MapGlyphs.draw(self, beacon_box(at).position, name, c, flat)
+	MapGlyphs.draw(self, beacon_box(at).position, name, c, flat, true)
 
 
 func option_of(bc) -> Dictionary:
@@ -809,9 +809,10 @@ func _tri_queue(q: Vector2, dir: Vector2i, c: Color, glyph_too: bool, gname: Str
 	var shape := solid.duplicate()
 	if glyph_too:
 		var g := _glyph_at(dir)
+		var gc := MapGlyphs.boost(c)
 		for gp3: Vector3i in MapGlyphs.pixels(gname):
 			var gp := g + Vector2i(gp3.x, gp3.y)
-			fill[gp] = MapGlyphs.ink(gp3.z, c)
+			fill[gp] = MapGlyphs.ink(gp3.z, gc)
 			shape[gp] = true
 	var edge := {}
 	for p: Vector2i in fill:

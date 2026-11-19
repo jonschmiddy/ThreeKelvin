@@ -40,7 +40,7 @@ func small() -> Control:
 func _draw() -> void:
 	if not BODY.has(glyph):
 		# (one row down, so its middle row is the words' caps' middle, as the old 10 px glyph's was)
-		MapGlyphs.draw(self, Vector2(0, 1), glyph, colour)
+		MapGlyphs.draw(self, Vector2(0, 1), glyph, colour, false, false, MapGlyphs.KEY_LIFT)
 		return
 	var m: Array = BODY[glyph]
 	var o := 1 if cell == 2 else 0

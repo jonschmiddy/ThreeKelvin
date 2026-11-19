@@ -6,8 +6,19 @@ extends RefCounted
 ## Why: docs/why/MapGlyphs.md#the-glyphs
 
 const SIZE := 11
+## THE INK, LIFTED FOR THE TUBE (Jon, Nov 18: "Can we fix the CRT issue?"): 1 px strokes lost a
+## third of their contrast through the default CRT look, so the main colour is brighter (value
+## x INK_V, then INK_LIFT toward white), the fill heavier, and a map beacon wears a dark rim.
+## Why: docs/why/MapGlyphs.md#ink-for-the-tube
+const INK_V := 1.25
+const INK_LIFT := 0.15
+## The KEY strip sits low, where the tube's vignette takes most: its glyphs lift further.
+const KEY_LIFT := 0.3
 ## How much of the beacon's colour a fill pixel (m) keeps.
-const FILL_A := 0.47
+const FILL_A := 0.7
+## The rim behind a map beacon's outer pixels: the edge arrows' dark, at this much.
+const RIM := Color("#05070b")
+const RIM_A := 0.6
 ## M the beacon's colour, m that at FILL_A, I ice, H hot, C chill, . nothing.
 const GLYPH := {
 	# a gunsight
@@ -153,8 +164,9 @@ const GLYPH := {
 }
 const CODES := "MmIHC"
 
-## Each glyph's lit pixels as (x, y, code), parsed once.
+## Each glyph's lit pixels as (x, y, code), and the pixels round them, parsed once.
 static var _px: Dictionary[StringName, Array] = {}
+static var _rim: Dictionary[StringName, Array] = {}
 
 
 static func pixels(name: StringName) -> Array[Vector3i]:
@@ -175,8 +187,35 @@ static func pixels(name: StringName) -> Array[Vector3i]:
 	return got
 
 
-## A pixel's colour: the accents keep the beacon's alpha (a dimmed beacon dims them too), and `flat`
-## paints them in `main` (a spent beacon's grey).
+## The glyph's empty pixels (and one row past it) that touch a lit one, eight ways.
+static func rim_pixels(name: StringName) -> Array[Vector2i]:
+	if not GLYPH.has(name):
+		name = &"signal"
+	if not _rim.has(name):
+		var lit := {}
+		for p: Vector3i in pixels(name):
+			lit[Vector2i(p.x, p.y)] = true
+		var out: Array[Vector2i] = []
+		for q: Vector2i in lit:
+			for dy in [-1, 0, 1]:
+				for dx in [-1, 0, 1]:
+					var n := q + Vector2i(dx, dy)
+					if not lit.has(n) and not out.has(n):
+						out.append(n)
+		_rim[name] = out
+	var got: Array[Vector2i] = []
+	got.assign(_rim[name])
+	return got
+
+
+## The beacon's colour as a glyph draws it: brighter, the hue kept, the alpha kept.
+static func boost(c: Color, lift := INK_LIFT) -> Color:
+	var b := Color.from_hsv(c.h, c.s, minf(1.0, c.v * INK_V), c.a)
+	return b.lerp(Color(1.0, 1.0, 1.0, c.a), lift)
+
+
+## A pixel's colour, `main` already boosted: the accents keep the beacon's alpha (a dimmed beacon
+## dims them too), and `flat` paints them in `main` (a spent beacon's grey).
 static func ink(code: int, main: Color, flat := false) -> Color:
 	if code == 1:
 		return Color(main, main.a * FILL_A)
@@ -185,7 +224,14 @@ static func ink(code: int, main: Color, flat := false) -> Color:
 	return Color([UITheme.ICE, UITheme.HOT, UITheme.CHILL][code - 2], main.a)
 
 
-## `name` with its top left at `at`, in `main`.
-static func draw(ci: CanvasItem, at: Vector2, name: StringName, main: Color, flat := false) -> void:
+## `name` with its top left at `at`, in `main` (boosted here; a `flat` spent one is not), on a dark
+## rim when `rim` (a map beacon, which can stand on a bright sky).
+static func draw(ci: CanvasItem, at: Vector2, name: StringName, main: Color, flat := false, rim := false,
+		lift := INK_LIFT) -> void:
+	if rim:
+		var dark := Color(RIM, RIM_A * main.a)
+		for q: Vector2i in rim_pixels(name):
+			ci.draw_rect(Rect2(at + Vector2(q), Vector2.ONE), dark)
+	var m := main if flat else boost(main, lift)
 	for p: Vector3i in pixels(name):
-		ci.draw_rect(Rect2(at + Vector2(p.x, p.y), Vector2.ONE), ink(p.z, main, flat))
+		ci.draw_rect(Rect2(at + Vector2(p.x, p.y), Vector2.ONE), ink(p.z, m, flat))
