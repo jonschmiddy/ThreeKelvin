@@ -137,6 +137,15 @@ def lights(im):
     return out
 
 
+def stamp_column(p, h, x, y0, y1, c, ink):
+    """One column of a light: rows y0..y1 at full brightness, the row above and below dark."""
+    for y in range(y0, min(y1 + 1, h)):
+        p[x, y] = c
+    for y in (y0 - 1, y1 + 1):
+        if 0 <= y < h and p[x, y][3]:
+            p[x, y] = ink
+
+
 def stamp_lights(im, found, s, ink):
     """Each light back at full brightness on the shrunk cells that cover it, dark above and below."""
     w, h = im.size
@@ -145,11 +154,7 @@ def stamp_lights(im, found, s, ink):
         sx0, sx1 = int(x0 * s), max(int(x0 * s), int(np.ceil((x1 + 1) * s)) - 1)
         sy0, sy1 = int(y0 * s), max(int(y0 * s), int(np.ceil((y1 + 1) * s)) - 1)
         for x in range(sx0, min(sx1 + 1, w)):
-            for y in range(sy0, min(sy1 + 1, h)):
-                p[x, y] = c
-            for y in (sy0 - 1, sy1 + 1):
-                if 0 <= y < h and p[x, y][3]:
-                    p[x, y] = ink
+            stamp_column(p, h, x, sy0, sy1, c, ink)
     return len(found)
 
 
