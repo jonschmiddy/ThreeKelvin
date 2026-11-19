@@ -1435,6 +1435,16 @@ func _draw_flame(ci: CanvasItem) -> void:
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
+## Where this hull's flame can reach parked, LOCAL's cruise burn (full-sheet art px, a box per engine);
+## fixed, so nothing moves as the burn changes. What the cutaway keeps its parts off (`ThrusterFx.reach`).
+func flame_reach() -> Array[Rect2]:
+	var h := _hull()
+	var fx := ThrusterFx.for_view(h, false) if h != null and h.has_exhaust() else null
+	if fx == null:
+		return []
+	return fx.reach(ThrusterFx.Thrust.CRUISE)
+
+
 ## The engines' light for RADIANT's backdrop (`LocalSky._engine_light`); {} when no flame is drawn.
 ## Why: docs/why/ShipView.md#engine-glow
 func engine_glow() -> Dictionary:

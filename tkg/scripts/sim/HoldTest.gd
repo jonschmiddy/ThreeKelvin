@@ -22,9 +22,49 @@ func run() -> void:
 	_korvan_runs_cold()
 	_solari_runs_hot()
 	_solari_heat_not_waste()
+	_hold_art()
 	# (last, and in the tree: it waits on frames, so the run waits on it)
 	await _pick_mode()
 	verdict("holdtest")
+
+
+## HOLD ART: a part with a `hold/` picture draws it in the hold and its ghost, 1:1; the shelf
+## and a part without one keep `sprite`. Why: docs/why/ModuleIcon.md#hold-art
+func _hold_art() -> void:
+	var with: ModuleData = null
+	var without: ModuleData = null
+	for id in DB.modules:
+		var m: ModuleData = DB.modules[id]
+		if with == null and m.hold_sprite != null:
+			with = m
+		if without == null and m.hold_sprite == null and m.sprite != null:
+			without = m
+	_ok("hold art: some part has a hold picture and some part has none",
+		with != null and without != null)
+	if with == null or without == null:
+		return
+	var copy := with.duplicate() as ModuleData
+	_ok("hold art: a copied part keeps its hold picture", copy.hold_sprite == with.hold_sprite)
+	_ok("hold art: drawn at the hold's 2x and at 4x", ModuleIcon.hold_art(with, 2.0)
+		== with.hold_sprite and ModuleIcon.hold_art(with, 4.0) == with.hold_sprite)
+	_ok("hold art: never at 1x, 3x or a fraction, where it would not land whole",
+		ModuleIcon.hold_art(with, 1.0) == null and ModuleIcon.hold_art(with, 3.0) == null
+		and ModuleIcon.hold_art(with, 2.5) == null)
+	_ok("hold art: a part without one falls back to its sprite",
+		ModuleIcon.hold_art(without, 2.0) == null)
+	var icon := ItemIcon.make(with, &"hold") as ModuleIcon
+	_ok("hold art: a hold icon uses it", ModuleIcon.hold_art(icon.module, icon.plate_scale)
+		== with.hold_sprite)
+	var ghost := ModuleIcon.ghost_for(with, &"hold", Vector2.ZERO)
+	var g := ItemIcon.carried as ModuleIcon
+	_ok("hold art: the drag ghost uses it", g != null
+		and ModuleIcon.hold_art(g.module, g.plate_scale) == with.hold_sprite)
+	ItemIcon.carried = null
+	ghost.free()
+	icon.free()
+	var shelf := float(ShelfDisplay.SHELF_CELL) / float(HoldGrid.CELL) * ModuleIcon.HOLD_K
+	_ok("hold art: the shelf (%.1fx) keeps the 20 px art" % shelf,
+		ModuleIcon.hold_art(with, shelf) == null)
 
 
 ## PICK MODE (science S9, the Lab): a hold shown to choose a part from never moves one.

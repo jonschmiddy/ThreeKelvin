@@ -226,13 +226,21 @@ func _swap(from: Control, to: Control, free_from: bool = false) -> void:
 			from.queue_free())
 	tw.tween_property(to, "modulate:a", 1.0, SWAP_S)
 
+## Off the screen in this frame, freed at its end: SAVE & EXIT and ABANDON
+## drop the run before the frame draws, and the inset chart reads the run.
+## Why: docs/why/PauseMenu.md#gone-now
+func gone_now() -> void:
+	_closing = true
+	hide()
+	queue_free()
+
 ## Gone on the close sound's hit. Instant under shot tools, the sim and leaving the run.
 func close() -> void:
 	if _closing:
 		return
 	_closing = true
 	if not Router.animating():
-		queue_free()
+		gone_now()
 		return
 	# Read without a cast: an unset parameter is null, and `null as float`
 	# throws, which is how this hung once (see `setup`).

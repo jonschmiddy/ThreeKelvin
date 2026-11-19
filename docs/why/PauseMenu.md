@@ -55,3 +55,18 @@ Mid-fight, the fight starts over when you come back: combat is outside the
 save, so the run on disk is the one from before it, and SaveGame.mark_fight
 notes which fight to restart.
 ```
+
+## Gone now
+
+Above `func gone_now() -> void:`:
+
+```text
+GONE NOW MEANS NOT DRAWN AGAIN. SAVE & EXIT and ABANDON close the menu,
+then drop the run (`Run.hull = null`) in the same signal. `queue_free`
+alone frees the menu at the frame's end, after the frame's draws: the
+inset `MapChart` was still shown and, when its galaxy's turn asked for a
+redraw in that frame, drew a run with no hull (685 errors, the gate under
+load, Nov 19). Hidden first, as `Router._swap` hides the screen it frees,
+nothing in the menu draws after the press. The rule holds for anything
+that reads the run: leave the screen in the frame the run is dropped.
+```

@@ -62,6 +62,9 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT,
 @export_group("Art")
 ## Transparent, trimmed to bounding box, same 3/4 angle and light direction as hulls.
 @export var sprite: Texture2D
+## The hold's picture, 40 px a cell, drawn one art pixel to one game pixel. Null: `sprite` x2.
+## Exported, as `duplicate()` copies only stored properties. Why: docs/why/ModuleIcon.md#hold-art
+@export var hold_sprite: Texture2D
 ## Offset applied to the sprite when placed on its hardpoint anchor.
 @export var mount_offset: Vector2 = Vector2.ZERO
 ## Illustration used on the cards this module contributes (one per module, not per card).

@@ -95,6 +95,34 @@ bounds the picture is centred on, so no word set out here moves the ship
 or anything on it; inside the room as it really lands.
 ```
 
+## Exhaust lanes
+
+Above `func _exhaust_lanes(ink: Rect2, rs: Rect2) -> Array[Rect2]:`:
+
+```text
+NOTHING LIFTS OUT OVER THE FLAME (Jon, Nov 19, "Can you fix that?"): with his new
+Korvan points, the medium's rear mid-height system mount at S lifted its HULL
+PLATING straight back past the stern, onto the exhaust between the two nozzles,
+its last letter in the flame's dither. The layout only knew the hull's pixels,
+the room, and what it had placed; the coded flame is drawn on its own layer
+(`ShipView._draw_flame`), so to the layout the space behind the stern looked
+empty, and "straight out" from a stern mount is straight into the plume.
+
+The rule: each engine's flame box (`ShipView.flame_reach`: every pixel any frame
+of the loop lights, and the sparks, at CRUISE -- the burn LOCAL's parked ship
+shows, which the cutaway's own ship takes from it -- and fixed at that, so no
+part moves when the burn changes under an open cutaway) is run out sternward to
+the room's edge and seeded into `placed`, so no part, tag, empty mount's words or
+leader goes in it -- on the flame, between two flames, or past the tip in line
+with the jet. A part on a stern mount then finds its nearest clear place above
+the top or below the belly, whichever is nearer, the same search as every other
+part. Every hull with engines, every manufacturer: the boxes come off the hull's own
+rig (`HullData.thrusters` -> `ThrusterFx` nozzles), not a list. The lanes are
+kept out of the picture's bounds, so they never move the ship.
+`-- cutawaytest` checks every startable manufacturer's three hulls at S, fully fitted,
+for a part or word on a flame box.
+```
+
 ## Cutaway card
 
 Above `func _show(m: Variant, at: Rect2 = Rect2()) -> void:`:

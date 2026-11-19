@@ -244,3 +244,36 @@ Living: the bell only shifts its bands (0 to +0.08); the part past the rim
 gets the whole loop. Nothing here touches a hull pixel the strip leaves
 visible: cells are the strip's own, and the streams are cut out by the hull.
 ```
+
+## Flame reach
+
+Above `func reach(thrust: int) -> Array[Rect2]:` and `func _stream_reach(`:
+
+```text
+WHERE THE FLAME CAN BE, not where it is this frame (Jon, Nov 19, Korvan's medium
+at S: the cutaway lifted HULL PLATING backward off the stern onto the exhaust,
+its last letter in the flame's dither). The cutaway keeps its parts and words
+off this, so it has to hold for every frame of the loop: the pixels each frame
+lights, and the sparks and fire blobs (`particles_at`), which fly past the
+plume's tip. The spark bound is worked from `particles_at`'s own ranges: d0 up
+to 1.05 L, then at most 2 px a frame for 7 frames, a 4-cell clump; 5 rows either
+way. Canvas px of the full sprite, the frame the mounts are in. Cached per thrust.
+
+LIT PIXELS, NOT THE BUFFER. The first cut used the box `_build` allocates
+(the stream's full length and spread), which stands about 10 px clear of
+any flame above and below: on Korvan's starter heavy it took the space an
+empty mount's words had beside the top nozzle, the words went the long way
+round, and the heavy fell back to 1x in the cutaway.
+
+WORKED OUT, NOT DRAWN. Building every loop frame to read its lit pixels cost
+116 ms on the click that opens the cutaway in the yard (the full sheet's flame
+is first made then, its async build not landed), and `-- sheet=YardHitchTest`
+allows 250 for the whole click (115 before, 240 that way, 137 now). `_stream_reach`
+runs `_stream`'s own sums -- the same `_lights` and `_tongues`, the same stop at
+the hull -- but per row and step asks only how many rows either side stay over
+the faintest band (thr[3]), and the wobble's pixel: 7 to 25 ms a hull. Checked
+once against the built frames on every startable hull at all three thrusts
+(54 engine-thrusts): it enclosed every lit pixel, within a pixel of tight.
+`_lights` and `_tongues` were cut out of `_build` and `_stream` for this; the
+648 frames those build hashed the same before and after.
+```

@@ -439,7 +439,7 @@ func toggle_menu(animate: bool = true) -> void:
 			_menu.close()
 			_menu_sound(&"menu_close")
 		else:
-			_menu.queue_free()
+			_menu.gone_now()
 		_menu = null
 		return
 	_menu_sound(&"menu_open")
