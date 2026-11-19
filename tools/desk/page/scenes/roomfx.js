@@ -573,6 +573,20 @@ window.ROOMFX = (function(){
     // | 2 other }], small: [{ f, box, w, tint }], ov (overlap), hot }
     const sL = new Float32Array(N), sM = new Float32Array(N), sS = new Float32Array(N), sIdx = new Int16Array(N);
     const knee = c => c < 205 ? c : 205 + (c - 205) / (1 + (c - 205) / 50);
+    // The ramp dithers only on a seam (Nov 19, Jon: "weird latticing on Desk 1"; the rule: stepped bands, dithered
+    // only along the narrow edge between two steps, never as a fill). The dither's window is in light, so a surface
+    // whose light is flat and sits on a step's midpoint (DESK 1's monitor case, the NOOK's crate) was dithered
+    // over its whole area, a one-pixel checker. Now a pixel keeps its dither only when a pixel within SEAM_R of it
+    // (the glass and portholes aside) lies on another step without dither; otherwise it takes its nearest step.
+    const SEAM_R = 2, HK_SKIP = 127, HK = new Int8Array(N), LyA = new Float64Array(N), LA = new Float64Array(N * 3);
+    const hardStep = Ly => { if (Ly < C_LV[0]) return -1; if (Ly >= C_LV[5]) return 5;
+      let k = 0; while (Ly >= C_LV[k + 1]) k++; return (Ly - C_LV[k]) / (C_LV[k + 1] - C_LV[k]) > .5 ? k + 1 : k; };
+    function onSeam(x, y, h){
+      for (let yy = Math.max(0, y - SEAM_R); yy <= Math.min(H - 1, y + SEAM_R); yy++)
+        for (let xx = Math.max(0, x - SEAM_R); xx <= Math.min(W - 1, x + SEAM_R); xx++){
+          const hj = HK[yy * W + xx]; if (hj !== HK_SKIP && hj !== h) return true; }
+      return false;
+    }
     function compose(st){
       const base = new Float32Array(N * 3), Lm = new Float32Array(N * 3);
       const lr = new Float32Array(N * 3), mr = new Float32Array(N * 3), orr = new Float32Array(N * 3);
@@ -591,7 +605,7 @@ window.ROOMFX = (function(){
       const ov = st.ov == null ? .3 : st.ov, amb = st.amb, fa0 = st.fa, fade = st.fade;
       const AA = st.A || A;
       for (let i = 0, j = 0; i < N; i++, j += 3){
-        if (skip[i]) continue;
+        if (skip[i]){ HK[i] = HK_SKIP; continue; }
         const fa = fa0[i] * fade * AO[i];
         let lI = lS[i], mI = mS[i], kl = 1, km = 1;
         // where the lamp and the screen overlap the brighter one wins (summing them washed the desk white)
@@ -602,15 +616,22 @@ window.ROOMFX = (function(){
         Lm[j] = Lr; Lm[j+1] = Lg; Lm[j+2] = Lb;
         const tot = (Lr + Lg + Lb) / 3 || 1;
         sL[i] = lI * kl / tot; sM[i] = mI * km / tot; sS[i] = SL[i] / tot;
+        LyA[i] = tot; LA[j] = Lr; LA[j+1] = Lg; LA[j+2] = Lb; HK[i] = hardStep(tot);
+      }
+      for (let i = 0, j = 0; i < N; i++, j += 3){
+        if (skip[i]) continue;
+        const lI = lS[i], Lr = LA[j], Lg = LA[j+1], Lb = LA[j+2];
         // C: each colour steps along its own ramp; the light picks a step (six, dithered only at their seams),
         // and each step shifts hue as well as value: dark steps go cool and violet, bright ones warm
-        const Ly = tot, x = i % W, y = (i / W) | 0, b = bay(x, y);
+        const Ly = LyA[i], x = i % W, y = (i / W) | 0, b = bay(x, y);
         let q;
         if (Ly < C_LV[0]) q = C_LV[0] * .8;
         else if (Ly >= C_LV[5]) q = C_LV[5];
         else { let k = 0; while (Ly >= C_LV[k + 1]) k++;
           const t = (Ly - C_LV[k]) / (C_LV[k + 1] - C_LV[k]), ws = .18 * sat(Ly / .6);
-          q = t > .5 + (b - .5) * 2 * ws ? C_LV[k + 1] : C_LV[k]; }
+          let up = t > .5 + (b - .5) * 2 * ws;
+          if (up !== (t > .5) && !onSeam(x, y, HK[i])) up = t > .5;     // off a seam: no dither, the nearest step
+          q = up ? C_LV[k + 1] : C_LV[k]; }
         const sc = q / Ly, s = sat((.6 - q) / .45), h = sat((q - .9) / .6) * Math.min(1, sL[i] * 1.5);
         const hot = lI > 1.05 ? (st.hot || 0) * (lI - 1.05) * 4 : 0, lc = st.hotCol || [1, .7, .4];
         base[j] = knee(AA[j] * Lr * sc * (1 - .2 * s) * (1 + .06 * h) + 12 * h + hot * lc[0]);

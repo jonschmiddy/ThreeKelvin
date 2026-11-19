@@ -244,3 +244,15 @@ With less time left than that, it starts part way in. The hum coasts down into t
 2. **What the glass shows (his A).** A title card naming the science site; a tap takes the reading
    (`OptionResolve`, the one rule) and shows its outcome on the glass; LEAVE runs back to LOCAL.
 3. **When it plays.** Behind a switch, on for every science reading.
+
+## The ramp's seams
+
+Jon, Nov 19: "weird latticing on Desk 1". The C ramp's dither window is in
+light, not in pixels: a pixel within up to 18% of a step of its midpoint dithers. Where the light is flat and
+sits on a midpoint, a whole surface fell inside the window and became a one-pixel checker: DESK 1's
+monitor case (its light is one value, 0.501 of the way up its step), the NOOK's book stack, a BUNK
+photo while the light comes up. Jon's rule for light is stepped bands dithered only along the narrow
+edge between two steps, so a pixel now keeps its dither only when a pixel within 2 of it (the glass
+and portholes aside) is on another step undithered; otherwise it takes its nearest step. The page
+(`roomfx.js` `compose`, now two passes) and `desk_room.gdshaderinc` (`on_seam`, reading the
+neighbours' light through `room_ly`) apply the same test, and every room stays within its old diff.

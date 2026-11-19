@@ -109,19 +109,13 @@ float band3(float d, vec2 b0, vec2 b1, vec2 b2, float e, float b) {
 	return s;
 }
 
-// The room's light at p, composed and stepped (`compose`), then flickered (`frame`).
-// base: the lit colour before the byte store; lm: the light there (for steam and dust).
-void room_lit(ivec2 p, out vec3 base, out vec3 lm) {
-	vec4 aux = texelFetch(px_tex, p, 0);
-	if (aux.a > 0.5) {
-		base = vec3(0.0);
-		lm = vec3(0.0);
-		return;
-	}
+// The summed light at p before the ramp (`compose`'s first pass): L, the lamp's and the screen's
+// intensities and their overlap weights, the small lights' sum and the one whose flicker the pixel takes.
+void room_sum(ivec2 p, vec4 aux, out vec3 L, out float lI, out float kl, out float mI, out float km, out float sl, out int kk) {
 	float tg = aux.r;
 	vec3 fld = texelFetch(fields_tex, p, 0).rgb;
-	float lI = 0.0;
-	float mI = 0.0;
+	lI = 0.0;
+	mI = 0.0;
 	vec3 lr = vec3(0.0);
 	vec3 mr = vec3(0.0);
 	vec3 orr = vec3(0.0);
@@ -135,9 +129,9 @@ void room_lit(ivec2 p, out vec3 base, out vec3 lm) {
 	if (w_more.z > 0.0 && f2.z != 0.0) orr += f2.z * w_more.z * tg * tint_more_2;
 	if (w_more.w > 0.0 && f2.w != 0.0) orr += f2.w * w_more.w * tg * tint_more_3;
 #endif
-	float sl = 0.0;
+	sl = 0.0;
 	float best = 0.0;
-	int kk = -1;
+	kk = -1;
 #ifdef SMALL_PICK
 	int pick = int(texelFetch(pick_tex, p, 0).r + 0.5) - 1;
 #else
@@ -170,14 +164,75 @@ void room_lit(ivec2 p, out vec3 base, out vec3 lm) {
 	sr = sl * tint_small;
 #endif
 	float fa = aux.b * st_fade * aux.g;
-	float kl = 1.0;
-	float km = 1.0;
+	kl = 1.0;
+	km = 1.0;
 	if (lI > 0.0 && mI > 0.0) {
 		float k = (max(lI, mI) + ov * min(lI, mI)) / (lI + mI);
 		kl = k;
 		km = k;
 	}
-	vec3 L = amb * fa + lr * kl + mr * km + orr + sr;
+	L = amb * fa + lr * kl + mr * km + orr + sr;
+}
+
+// The light at p that the ramp steps (`compose`'s Ly); -1 on a skipped pixel (the glass, a porthole).
+float room_ly(ivec2 p) {
+	vec4 aux = texelFetch(px_tex, p, 0);
+	if (aux.a > 0.5) return -1.0;
+	vec3 L;
+	float lI;
+	float kl;
+	float mI;
+	float km;
+	float sl;
+	int kk;
+	room_sum(p, aux, L, lI, kl, mI, km, sl, kk);
+	float tot = (L.r + L.g + L.b) / 3.0;
+	return tot == 0.0 ? 1.0 : tot;
+}
+
+// The ramp's step for ly with no dither: below the ramp -1, past it 5, else the nearest step.
+int hard_step(float ly) {
+	if (ly < C_LV[0]) return -1;
+	if (ly >= C_LV[5]) return 5;
+	int k = 0;
+	while (k < 4 && ly >= C_LV[k + 1]) k++;
+	return (ly - C_LV[k]) / (C_LV[k + 1] - C_LV[k]) > 0.5 ? k + 1 : k;
+}
+
+// The ramp dithers only on a seam (Jon, Nov 19: "weird latticing on Desk 1"): a pixel keeps its dither
+// only when a pixel within SEAM_R of it (the glass and portholes aside) is on another step undithered.
+// A surface whose light is flat on a step's midpoint (DESK 1's monitor case) takes its nearest step.
+// Why: docs/why/DeskScene.md#the-ramps-seams
+const int SEAM_R = 2;
+bool on_seam(ivec2 p, int h) {
+	for (int dy = -SEAM_R; dy <= SEAM_R; dy++) {
+		for (int dx = -SEAM_R; dx <= SEAM_R; dx++) {
+			ivec2 q = p + ivec2(dx, dy);
+			if ((dx == 0 && dy == 0) || q.x < 0 || q.y < 0 || q.x >= 384 || q.y >= 216) continue;
+			float lj = room_ly(q);
+			if (lj >= 0.0 && hard_step(lj) != h) return true;
+		}
+	}
+	return false;
+}
+
+// The room's light at p, composed and stepped (`compose`), then flickered (`frame`).
+// base: the lit colour before the byte store; lm: the light there (for steam and dust).
+void room_lit(ivec2 p, out vec3 base, out vec3 lm) {
+	vec4 aux = texelFetch(px_tex, p, 0);
+	if (aux.a > 0.5) {
+		base = vec3(0.0);
+		lm = vec3(0.0);
+		return;
+	}
+	vec3 L;
+	float lI;
+	float kl;
+	float mI;
+	float km;
+	float sl;
+	int kk;
+	room_sum(p, aux, L, lI, kl, mI, km, sl, kk);
 	float tot = (L.r + L.g + L.b) / 3.0;
 	if (tot == 0.0) tot = 1.0;
 	float sL = lI * kl / tot;
@@ -195,7 +250,10 @@ void room_lit(ivec2 p, out vec3 base, out vec3 lm) {
 		while (k < 4 && ly >= C_LV[k + 1]) k++;
 		float t = (ly - C_LV[k]) / (C_LV[k + 1] - C_LV[k]);
 		float ws = 0.18 * sat1(ly / 0.6);
-		q = t > 0.5 + (b - 0.5) * 2.0 * ws ? C_LV[k + 1] : C_LV[k];
+		bool up = t > 0.5 + (b - 0.5) * 2.0 * ws;
+		// off a seam: no dither, the nearest step
+		if (up != (t > 0.5) && !on_seam(p, t > 0.5 ? k + 1 : k)) up = t > 0.5;
+		q = up ? C_LV[k + 1] : C_LV[k];
 	}
 	float sc = q / ly;
 	float s = sat1((0.6 - q) / 0.45);
