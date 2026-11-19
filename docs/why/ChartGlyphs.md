@@ -28,6 +28,13 @@ One source per picture wherever the size allows: the pin and the black hole are
 MapGlyphs' own 11 px grids. The bay is MapGlyphs &"dock" redrawn at 9 and 7, because
 the 11 px dock does not fit the chart's spacing.
 
+A SUN FOR A PLAIN SYSTEM (Jon, Nov 18, after seeing the dots in play: "These are too
+small. They need to be the size of the other icons"; then "system:A"). The dot became a
+sun disc with short rays, 9 zoomed in and 7 at the opening zoom like the others, tinted
+and dimmed like them. It beat a star in an orbit, a ringed planet and a star with two
+planets. A twin keeps its warm second pixel, in the sun's empty lower right corner.
+See #system-icon for what it costs in density.
+
 The style is MapGlyphs': a 1 px outline in the mark's colour, a fill of it at
 FILL_A, ice, hot and chill accents. FILL_A is shared, so the chart took the sector's
 heavier fill (0.47 to 0.7, Nov 18, for the CRT look) with it: the chart is seen
@@ -93,7 +100,7 @@ are (`MapGlyphs.boost`), with NODE_LIFT 0.3, close to the old glyph body's 0.34;
 sector's 0.15 alone left a red core dimmer than before. Markers (pin, skull, diamond,
 YOU) take the sector's own boost. The KEY takes KEY_LIFT for the vignette, as the
 sector's KEY does. A spent place is SPENT, a flat grey and never boosted, as the
-sector's spent beacon is. The plain-system dot is unchanged.
+sector's spent beacon is. (Measured while systems were still dots; the sun takes the same ink.)
 
                         mock      before    after (flat / CRT, medians)
   station, unseen       116/129   116/129   181/186   (region)
@@ -106,4 +113,27 @@ sector's spent beacon is. The plain-system dot is unchanged.
   partner               122/148   123/150   163/176
   KEY start / core      210/143   210/144   225/154 / 165/131
 Every mark measures at or above the mockup Jon picked from.
+```
+
+## System icon
+
+Above `&"system": {`:
+
+```text
+A FULL ICON FOR EVERY SYSTEM, AND WHAT IT COSTS (Jon, Nov 18: "system:A", overlap "as
+is"). Counted on seed 777 mid-run, icons inside the chart's rect, an overlap being two
+icons sharing a lit pixel and a touch two 8-neighbours that share none:
+
+                       opening view (33 icons)   LOCAL REGION (27 icons)
+  the dot it replaced   0 overlap, 0 touch        0, 0
+  A SUN (picked)        1 overlap, 2 touch        0, 0   (5 icons involved)
+  B orbit               1, 0                      0, 0
+  C ringed planet       0, 1                      0, 0
+  D two planets         2, 2                      0, 0
+
+Every meeting is at the opening zoom: a remembered system 6 px from a station on the
+rim, and systems in reach 6 to 7 px apart beside YOU. Two ways out were shown. COVER drew
+far icons first under a solid dark rim, and FAR SMALLER drew far systems at 5 px, which
+barely helped since the pairs that meet are in reach. Jon chose neither ("as is"): the
+icons are drawn in map order on the chart's soft rim, and where two meet they meet.
 ```

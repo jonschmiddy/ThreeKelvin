@@ -1281,8 +1281,8 @@ class MicroGauge extends Control:
 
 
 class Glyph extends Control:
-	## The chart's own mark at its zoomed-in size, for the KEY and the in-range list: a dot for a
-	## plain system, `ChartGlyphs`' icon for the rest (Jon, Nov 18), so the legend draws the chart.
+	## The chart's own mark at its zoomed-in size, for the KEY and the in-range list: `ChartGlyphs`'
+	## icon, a plain system's sun (Jon, Nov 18), so the legend draws the chart.
 	## Why: docs/why/StarchartScreen.md#legend-colours
 
 	var type: MapGen.NodeType = MapGen.NodeType.SYSTEM
@@ -1300,14 +1300,10 @@ class Glyph extends Control:
 		queue_redraw()
 
 	func _draw() -> void:
-		if type == MapGen.NodeType.SYSTEM:
-			var dot := tint.lightened(0.15)
-			draw_rect(Rect2(Vector2(5, 5), Vector2(3, 3)), dot, true)
-			if twin:
-				draw_rect(Rect2(Vector2(9, 8), Vector2.ONE), dot.lerp(UITheme.EMBER, 0.55), true)
-			return
-		ChartGlyphs.draw_node(self, type, Vector2(6, 6), ChartGlyphs.BIG,
-			MapGlyphs.boost(tint.lightened(ChartGlyphs.NEAR_LIFT), lift), Color.TRANSPARENT)
+		var ink := MapGlyphs.boost(tint.lightened(ChartGlyphs.NEAR_LIFT), lift)
+		ChartGlyphs.draw_node(self, type, Vector2(6, 6), ChartGlyphs.BIG, ink, Color.TRANSPARENT)
+		if twin:
+			ChartGlyphs.draw_twin(self, Vector2(6, 6), ChartGlyphs.BIG / 2, ink, Color.TRANSPARENT)
 
 	## One grey for a star in reach that a jump refuses as too deep, so it reads as off.
 	## Jon picked this darkest of three (Oct 30, 'Gray: B2'); it was #4a4e55.

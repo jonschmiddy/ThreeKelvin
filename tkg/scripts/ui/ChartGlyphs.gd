@@ -2,7 +2,7 @@ class_name ChartGlyphs
 extends RefCounted
 
 ## THE STAR CHART'S ICONS (Jon, Nov 18): the sector beacons' style at the chart's sizes, for the
-## chart, its KEY and the in-range list. Plain systems are dots and have none.
+## chart, its KEY and the in-range list; a plain system wears a sun, as big as the rest.
 ## Why: docs/why/ChartGlyphs.md#the-icons
 
 ## THE INK FOR THE TUBE (Jon, Nov 18: "kinda... dull?"): the chart's dimming, softened to a floor, then
@@ -25,6 +25,29 @@ const BIG := 9
 const SMALL := 7
 ## Codes as `MapGlyphs`: M the ink, m it at `MapGlyphs.FILL_A`, I ice, H hot, C chill.
 const NODE := {
+	# a sun with short rays: a plain system ("system:A", Jon, Nov 18)
+	&"system": {
+		9: [
+			"....M....",
+			".M.....M.",
+			"...MMM...",
+			"..MmmmM..",
+			"M.MmHmM.M",
+			"..MmmmM..",
+			"...MMM...",
+			".M.....M.",
+			"....M....",
+		],
+		7: [
+			"...M...",
+			".M...M.",
+			"..MMM..",
+			"M.MHM.M",
+			"..MMM..",
+			".M...M.",
+			"...M...",
+		],
+	},
 	# a flag planted: where the run began
 	&"start": {
 		9: [
@@ -151,14 +174,14 @@ static func node_ink(tint: Color, near: bool, seen: bool) -> Color:
 	return MapGlyphs.boost(c, NODE_LIFT)
 
 
-## Which icon a node type wears; &"" for a plain system, which is a dot.
+## Which icon a node type wears.
 static func kind_of(t: MapGen.NodeType) -> StringName:
 	match t:
 		MapGen.NodeType.START: return &"start"
 		MapGen.NodeType.STATION: return &"station"
 		MapGen.NodeType.PULSAR: return &"pulsar"
 		MapGen.NodeType.CORE: return &"core"
-	return &""
+	return &"system"
 
 
 static func _rows(key: String) -> Array[String]:
@@ -227,8 +250,6 @@ static func _draw(ci: CanvasItem, key: String, cp: Vector2, at: Vector2i, main: 
 static func draw_node(ci: CanvasItem, t: MapGen.NodeType, cp: Vector2, size: int, main: Color,
 		under: Color, flat := false) -> void:
 	var kind := kind_of(t)
-	if kind == &"":
-		return
 	var key := "core" if kind == &"core" else "%s%d" % [kind, size]
 	var half := (MapGlyphs.SIZE if kind == &"core" else size) / 2
 	_draw(ci, key, cp, Vector2i(half, half), main, under, flat)
@@ -249,6 +270,16 @@ static func draw_mark(ci: CanvasItem, name: StringName, cp: Vector2, main: Color
 ## YOU's brackets round the star at `cp`.
 static func draw_you(ci: CanvasItem, cp: Vector2, half: int, main: Color, under: Color) -> void:
 	_draw(ci, "you%d" % half, cp, Vector2i(half, half), MapGlyphs.boost(main), under, false)
+
+
+## TWO SUNS (ruling 20): a pixel of a second, warmer star in the sun icon's empty lower right corner,
+## on its own rim; `half` is the icon's half-width (4 or 3).
+static func draw_twin(ci: CanvasItem, cp: Vector2, half: int, main: Color, under: Color) -> void:
+	var c2 := cp + Vector2(half, half)
+	if under.a > 0.0:
+		for d: Vector2 in [Vector2(-1, 0), Vector2(0, -1)]:
+			ci.draw_rect(Rect2(c2 + d, Vector2.ONE), under, true)
+	ci.draw_rect(Rect2(c2, Vector2.ONE), main.lerp(UITheme.EMBER, 0.55), true)
 
 
 ## The centre pixel the chart draws a mark on, for a star at `at`: the old 13 px glyph's middle.

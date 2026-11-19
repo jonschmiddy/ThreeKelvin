@@ -691,9 +691,9 @@ worse than either showing both or hiding both.
 
 ## Remembered systems
 
-Since Nov 18 the x0.45 is a plain system's (its dot) only. A station's, pulsar's or start's
-icon dims its own softer way to a floor (`ChartGlyphs.node_ink`, docs/why/ChartGlyphs.md#ink):
-at x0.45 a remembered station read as a grey or brown smudge ("kinda... dull?", Jon).
+Since Nov 18 the x0.45 is gone. Every icon, a plain system's sun included, dims its own
+softer way to a floor (`ChartGlyphs.node_ink`, docs/why/ChartGlyphs.md#ink). At x0.45 a
+remembered station read as a grey or brown smudge ("kinda... dull?", Jon).
 
 Above `if not node2.sensed and node2.index != here.index:`:
 

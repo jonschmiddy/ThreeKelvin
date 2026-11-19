@@ -1118,7 +1118,7 @@ func _draw_chart() -> void:
 	# Hovering a candidate shows nothing beyond it: a second web competed with live options.
 
 	var visible := _visible_set(here, reach)
-	# Zoomed out a system is a point of light: 173 fixed-size glyphs made a wall of icons.
+	# Zoomed out every mark is a 7 px icon, zoomed in 9 (`ChartGlyphs`): 13 px glyphs made a wall.
 	var tiny := zoom < 0.78
 	_pickable = PackedVector2Array()
 	drawn_ink.clear()
@@ -1179,8 +1179,8 @@ func _draw_chart() -> void:
 	if show_scale:
 		_draw_scale()
 
-## One system's mark at `p` (the old 13 px glyph's corner): plain systems a dot at every zoom,
-## the rest ChartGlyphs' icon (Jon, Nov 18). Returns where YOU goes (the core's is on its hole).
+## One system's mark at `p` (the old 13 px glyph's corner): ChartGlyphs' icon, a plain system's a sun
+## (Jon, Nov 18). Returns where YOU goes (the core's is on its hole).
 ## Why: docs/why/ChartGlyphs.md#the-icons
 func _draw_node(node2: MapGen.MapNode, p: Vector2, tint: Color, tiny: bool, dim: bool,
 		near: bool, seen: bool) -> Vector2:
@@ -1192,46 +1192,20 @@ func _draw_node(node2: MapGen.MapNode, p: Vector2, tint: Color, tiny: bool, dim:
 		StarchartScreen.Glyph.draw_brackets(self, p, false, node2.index == selected)
 		drawn_ink[node2.index] = ink
 		return p
-	if node2.type != MapGen.NodeType.SYSTEM:
-		# quieter far and unseen but never a smudge (`ChartGlyphs.node_ink`); too deep is flat grey
-		var ink2 := ChartGlyphs.node_ink(tint, near, seen)
-		var spent := node2.cleared
-		if spent:
-			ink2 = ChartGlyphs.SPENT
-		if dim:
-			ink2 = StarchartScreen.Glyph.DIM
-		ChartGlyphs.draw_node(self, node2.type, p + Vector2(6, 6),
-			ChartGlyphs.SMALL if tiny else ChartGlyphs.BIG, ink2, _UNDER, dim or spent)
-		if not tiny:
-			StarchartScreen.Glyph.draw_brackets(self, p, false, node2.index == selected)
-		drawn_ink[node2.index] = ink2
-		return p
-	# Visited systems stay, dimmed, so lit ones are the dish's sight and the ring its edge.
-	# Not `cleared`'s dead grey: these are real places you might route back through.
-	# Why: docs/why/MapChart.md#remembered-systems
-	if not seen:
-		tint = tint.darkened(0.45)
-	# Far systems keep some colour to stay findable; reachable ones get extra weight.
-	var d: float = 3.0 if near else 2.0
-	var at := p + Vector2(6, 6) - Vector2(d, d) * 0.5
-	# on a rim of the void a pixel out on its four sides (not its
-	# corners), so it stands off the arms and the bulge
-	draw_rect(Rect2(at - Vector2(1, 0), Vector2(d + 2.0, d)), _UNDER, true)
-	draw_rect(Rect2(at - Vector2(0, 1), Vector2(d, d + 2.0)), _UNDER, true)
-	var dot := tint.lightened(0.15) if near else tint.darkened(0.35)
+	# quieter far and unseen but never a smudge (`ChartGlyphs.node_ink`); too deep is flat grey
+	var ink2 := ChartGlyphs.node_ink(tint, near, seen)
+	var spent := node2.cleared
+	if spent:
+		ink2 = ChartGlyphs.SPENT
 	if dim:
-		dot = StarchartScreen.Glyph.DIM
-	draw_rect(Rect2(at, Vector2(d, d)), dot, true)
-	drawn_ink[node2.index] = dot
-	# (picked, zoomed in: the brackets the old glyph drew round a picked star)
+		ink2 = StarchartScreen.Glyph.DIM
+	var size := ChartGlyphs.SMALL if tiny else ChartGlyphs.BIG
+	ChartGlyphs.draw_node(self, node2.type, p + Vector2(6, 6), size, ink2, _UNDER, dim or spent)
+	if node2.twin:
+		ChartGlyphs.draw_twin(self, p + Vector2(6, 6), size / 2, ink2, _UNDER)
 	if not tiny:
 		StarchartScreen.Glyph.draw_brackets(self, p, false, node2.index == selected)
-	if node2.twin:
-		# TWO SUNS: a pixel of a second, warmer star off the
-		# dot's lower right corner, on its own rim of the void
-		var c2 := at + Vector2(d + 1.0, d)
-		draw_rect(Rect2(c2 - Vector2(1, 1), Vector2(3, 3)), _UNDER, true)
-		draw_rect(Rect2(c2, Vector2.ONE), StarchartScreen.Glyph.DIM if dim else dot.lerp(UITheme.EMBER, 0.55), true)
+	drawn_ink[node2.index] = ink2
 	return p
 
 ## Bottom right, under MY REGION: the tooltip and party markers move out of its way.
@@ -1548,7 +1522,7 @@ static func hover_e(tiny: bool) -> int:
 	return ChartGlyphs.YOU_HALF_OUT if tiny else ChartGlyphs.YOU_HALF_IN
 
 
-## Zoomed out every system is a two-pixel dot, so the tooltip is what makes places readable.
+## Zoomed out every system is a 7 px icon with no name, so the tooltip is what makes places readable.
 func _draw_tip(n: MapGen.MapNode, here: MapGen.MapNode) -> void:
 	var f := UITheme.pixel_font()
 	var at := screen_pos(n)
