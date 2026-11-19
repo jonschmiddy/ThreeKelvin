@@ -117,22 +117,57 @@ func run(tree: SceneTree) -> void:
 		_ok("and the container did not shrink (%d -> %d)"
 			% [tall, _view._loose._rows], _view._loose._rows >= tall)
 
-	# --- how much it blinks --------------------------------------------------
-	# The alpha swung the full way on all 14 cuts and read as strobing, not interference.
-	# Why: docs/why/TransferTest.md#blink-count
-	var dips := 0
-	var faint := 0
-	for step in SalvageGrid.GLITCH_STEPS:
-		var settled_at := float(step) / float(SalvageGrid.GLITCH_STEPS)
-		var a := 0.6 + settled_at * 0.4
-		if SalvageGrid.GLITCH_DROPS.has(step):
-			a *= SalvageGrid.GLITCH_DROP_TO
-			dips += 1
-		if a < 0.5:
-			faint += 1
-	_ok("it dims %d times in %d cuts, not every one"
-		% [dips, SalvageGrid.GLITCH_STEPS], dips <= 3)
-	_ok("and is plainly visible for the rest (%d faint)" % faint, faint == dips)
+	# --- one at a time, in reading order (Jon, Nov 18) ------------------------
+	# Replaced the glitch's blink count: the vertical sweep and its glitch are gone.
+	# Why: docs/why/TransferTest.md#reveal-order
+	var w3 := Run.new_wreck(_node, DB.enemies[&"cutter"])
+	for k in 3:
+		w3.items.append(LootGen.roll_module(2 + k))
+	var rv := TransferView.new()
+	_tree.root.add_child(rv)
+	rv.setup(w3, _node, func() -> void: pass)
+	await _tree.process_frame
+	var g: SalvageGrid = rv._loose
+	_ok("on opening nothing is shown yet (%d of %d)" % [_icons(g), g._items.size()],
+		g.revealing() and _icons(g) == 0)
+	var first: Array = []
+	g.revealed.connect(func(m: HoldItem, _i: int) -> void: first.append([m, _icons(g)]))
+	var t0 := Time.get_ticks_msec()
+	while first.is_empty() and Time.get_ticks_msec() - t0 < 5000:
+		await _tree.process_frame
+	var want: HoldItem = g._order[0] if not g._order.is_empty() else null
+	var top_left := Vector2i(99, 99)
+	for m in g._order:
+		var at: Vector2i = g._at[m]
+		if at.y < top_left.y or (at.y == top_left.y and at.x < top_left.x):
+			top_left = at
+	_ok("the first to land is the top-left one, alone (%s at %s, %d shown)"
+		% [first[0][0].name if not first.is_empty() else "none", g._at.get(want, -Vector2i.ONE), first[0][1] if not first.is_empty() else -1],
+		not first.is_empty() and first[0][0] == want and g._at[want] == top_left and int(first[0][1]) == 1)
+	_ok("and the next is still hidden", g._order.size() < 2 or not g.shown(g._order[1]))
+	rv.queue_free()
+	await _tree.process_frame
+	# reduced motion: the same turns, each a plain fade, no prism (Jon, Nov 18: "YES")
+	var was_calm := DisplaySettings.reduced_motion
+	DisplaySettings.reduced_motion = true
+	w3.scanned = false
+	var rc := TransferView.new()
+	_tree.root.add_child(rc)
+	rc.setup(w3, _node, func() -> void: pass)
+	var gc: SalvageGrid = rc._loose
+	var fading := -1.0
+	t0 = Time.get_ticks_msec()
+	while fading < 0.0 and Time.get_ticks_msec() - t0 < 5000:
+		await _tree.process_frame
+		for c in gc.get_children():
+			if c is ItemIcon and (c as ItemIcon).held_item() == gc._order[0] and (c as Control).visible 					and (c as Control).modulate.a > 0.05 and (c as Control).modulate.a < 0.95:
+				fading = (c as Control).modulate.a
+	_ok("with reduced motion the first fades in (seen at %.2f) and nothing else is drawn for it" % fading,
+		fading > 0.0 and gc._fx == null)
+	DisplaySettings.reduced_motion = was_calm
+	rc.queue_free()
+	_node.jetsam.erase(w3)
+	await _tree.process_frame
 
 	# --- the sweep is a first-visit thing ------------------------------------
 	# Opening a container sweeps it once; reopening the same one is not discovery.
@@ -141,8 +176,7 @@ func run(tree: SceneTree) -> void:
 	_tree.root.add_child(open_a)
 	open_a.setup(wreck, _node, func() -> void: pass)
 	await _tree.process_frame
-	_ok("the first open sweeps (%.0f)" % open_a._loose._scan,
-		open_a._loose._scan >= 0.0)
+	_ok("the first open reveals", open_a._loose.revealing())
 	_ok("and the container remembers it", wreck.scanned)
 	open_a.queue_free()
 
@@ -150,8 +184,7 @@ func run(tree: SceneTree) -> void:
 	_tree.root.add_child(open_b)
 	open_b.setup(wreck, _node, func() -> void: pass)
 	await _tree.process_frame
-	_ok("the second open does not (%.0f)" % open_b._loose._scan,
-		open_b._loose._scan < 0.0)
+	_ok("the second open does not", not open_b._loose.revealing())
 	_ok("and everything is visible straight away",
 		_icons(open_b._loose) == open_b._loose._items.size())
 	open_b.queue_free()

@@ -39,7 +39,8 @@ jettison lands in one.
 Above `signal revealed(item: HoldItem, index: int)`:
 
 ```text
-ONE THING RESOLVING OUT OF THE SWEEP, on the frame it does.
+ONE THING LANDING, at the peak of its reveal (Nov 18; it was the frame the
+sweep reached it).
 
 The rarity ladder used to sound only when you dragged something into the
 hold, which is the moment you DECIDE about a thing rather than the moment you
@@ -49,7 +50,8 @@ in a wreck before you have read a word of it.
 
 A signal rather than a call into Audio from here: this grid draws a
 container and has no business knowing which sound a rarity maps to. The view
-that opened it already does -- see `TransferView.take_sound`.
+that opened it already does -- see `TransferView.tier_sound` and
+`TransferView.ring_reveal`, which the cutaway's popup also uses.
 ```
 
 ## Drop beam
@@ -67,7 +69,8 @@ accepted and not drawn.
 
 ## Sweep speed
 
-Above `const SCAN_CELLS_PER_SEC := 0.7`:
+HISTORY: the vertical sweep was replaced on Nov 18 (see Reveal order). This
+was above `const SCAN_CELLS_PER_SEC := 0.7`:
 
 ```text
 HOW FAST THE SWEEP CROSSES THE CONTAINER, in cells per second.
@@ -88,6 +91,8 @@ at this rate each one is heard on its own.
 
 ## Glitch timing
 
+HISTORY: the sweep's glitch went with the sweep on Nov 18 (see Reveal order).
+
 Above `const GLITCH_ROWS := 1.5`:
 
 ```text
@@ -107,6 +112,8 @@ rather than a list appearing.
 
 ## Glitch dropouts
 
+HISTORY: the sweep's glitch went with the sweep on Nov 18 (see Reveal order).
+
 Above `const GLITCH_DROPS: Array[int] = [1, 4]`:
 
 ```text
@@ -123,6 +130,8 @@ picture you can see, not the picture being taken away and given back.
 ```
 
 ## Materialise
+
+HISTORY: the sweep's glitch went with the sweep on Nov 18 (see Reveal order).
 
 Above `func _materialise(ic: ItemIcon, seed_at: int) -> void:`:
 
@@ -221,4 +230,56 @@ Where you aimed if that is clear; otherwise the nearest cell that is, scanned
 outward. The hold does the same thing through `target_for` and its `NUDGE` --
 a drop a cell off is a drop that meant the cell next to it, and refusing it
 outright makes packing a test of aim rather than of arithmetic.
+```
+
+## Reveal order
+
+Above `const REVEAL_STEP := SpectroReveal.LEN`, and above `func _apply_reveal()`:
+
+```text
+JON, NOV 18, after two rounds of mockups: "A BUT WAAY longer", then "anim=S1
+SPECTRO SPLIT length=1.00 gap=1.00 overlap=off tint=on". The vertical sweep
+(0.7 cells a second over the whole grid) is gone. It revealed a row at a
+time, so several things landed together and their sounds piled up: the
+"noisy" Jon heard.
+
+NOW: one thing at a time, in READING ORDER (the top row left to right, then
+the next row down, by each thing's top-left cell), a second apart start to
+start with no overlap, each through `SpectroReveal`. A thing stays hidden
+(its empty well) until its turn; it is drawn and rings at its animation's
+peak, 65% in (`revealed`). A full wreck of nine takes about 9 s.
+
+The first look only, as before (`TransferView.first_look`): reopening shows
+everything at once, silent. In SECTOR LOOT, an opened wreck's leftovers
+were found when the wreck was opened: they are shown at once and take no
+turn (`scan(seen)`, `TransferView.seen_before`). The first film had them
+taking a silent second each, so the pile's own things waited behind them. A thing claimed by a partner mid-reveal is
+shown greyed at once and never rung. A thing that is gone mid-reveal (taken
+after it landed, or put back) leaves its slot in the timing, so nothing
+after it jumps forward.
+
+REDUCED MOTION (DisplaySettings.reduced_motion): each thing fades in over
+the same 0.65 s instead, with the same order, timing and sounds. Jon, Nov
+18: "YES".
+
+A rebuild mid-reveal (every take refreshes the grid) re-applies the same
+clock to the new icons, so nothing hidden is shown early and nothing landed
+is rung twice (`_lit`).
+```
+
+## Skip
+
+Above `func skip_reveal() -> void:`:
+
+```text
+A CLICK ON THE GRID REVEALS THE REST AT ONCE, with one sound: the best
+grade among what was left (`TransferView.ring_best`; credits count below a
+common). Jon, Nov 18: "PERFECT". A full wreck takes about 9 s, and the
+second time through a run that is a wait, so the wait can be cut.
+
+Only a click that does not land on a thing already shown: those are being
+picked up, and taking a revealed thing mid-reveal is allowed and lets the
+reveal carry on. There is no key for it: the loot screen had no skip key to
+reuse. TAKE ALL in the cutaway's popup skips first, as nothing may be taken
+before it is revealed.
 ```

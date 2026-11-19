@@ -135,3 +135,32 @@ and the heavy once more with all 9 and twelve malfunctions:
 Then a hull swap (`Run.transfer_to_hull`, Korvan's medium for Solari's
 heavy): the same routines listed, the perks changed.
 ```
+
+## Loot sounds
+
+Above `func _check_loot_sounds() -> void:`:
+
+```text
+Jon, Nov 18: every grade rings its own sound when the loot is revealed, and
+taking a thing always plays the plain stow. Headless, from the tape (`Audio`
+is silent there but still decides, `_dry_play`), so it runs in the gate.
+
+A wreck holding one part of each of the seven grades and a credit chit is
+opened in the popup: each must ring its own sound, in the order the sweep
+found them (read off the grid's own `revealed`), all eight different and
+all on disk -- so a missing `take_uncommon.wav` fails here, not in play.
+Opened again it must ring nothing (once per container). Then a take to the
+hold and one onto a ring: `hold_stow` and no `take_*`. The ring drop is
+checked for the take only; whether the ring then fits it is the refit rule's
+business, tested above.
+```
+
+Nov 18, later, the reveal is one thing a second in reading order: the popup
+check now opens a wreck of every grade and credits and reads, from the tape
+and the grid's own `revealed`: nothing shown on opening; the first three
+land in reading order, each ringing its grade; a second apart (within 0.1 s
+on the game clock); each drawn as it rings; the fourth still hidden; then a
+click on a hidden cell shows the rest with exactly one ring, the best grade
+left, and nothing else in the ring queue. It waits for three, not nine, so
+the gate pays about three seconds, not ten. The layout checks open a pile
+marked as seen, as they are about the popup's shape, not the reveal.
