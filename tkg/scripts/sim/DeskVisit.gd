@@ -137,11 +137,10 @@ func _run() -> void:
 	await _shot("5_outcome")
 	_h._ok("the tap took the reading once (DATA +%d, now +%d)" % [pays, Run.data - data0], Run.data - data0 == pays)
 	if d.game != null:
-		# after a game only its LEAVE leaves; a click anywhere else on the screen does nothing
-		MiniGamePlay.click_glass(d, Vector2(40, 60))
-		_h._ok("a click beside LEAVE does not leave", not d.leaving)
-		MiniGamePlay.click_glass(d, Vector2(MiniShell.BUTTON.get_center()))
-		_h._ok("LEAVE after the game leaves", d.leaving)
+		# A (Nov 20): the result card is up (GAVE UP and the haul); a click anywhere on the glass leaves
+		_h._ok("the result card is up after the give-up (%s)" % d.game.end_text, d.game.card_up() and d.game.end_text == MiniShell.GAVE_UP)
+		MiniGamePlay.click_glass(d, Vector2(20, 110))
+		_h._ok("a click on the card's glass, off LEAVE, leaves", d.leaving)
 	else:
 		d.tap()
 		_h._ok("a tap after the outcome leaves", d.leaving)

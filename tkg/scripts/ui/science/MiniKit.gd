@@ -1,16 +1,16 @@
 class_name MiniKit
 extends RefCounted
 
-## THE ONE UI KIT round every science mini game (Jon, Nov 20: "Perfect."): the header row, the
-## bottom deck (status line + control row), buttons, dial, meter, tell card. A port of the approved
-## `tools/dev/minigame/layout/kit.js`, function for function and pixel for pixel, onto a MiniPix.
-## Kinds are "neutral" (or ""), "yours", "goal", "good", "bad"; an unknown kind is neutral.
+## THE ONE UI KIT round every science mini game: header, control deck, buttons, dial, meter, tell
+## card, toasts and the result card, on the whole 150x140 glass (status A, Nov 20). A port of
+## `tools/dev/minigame/layout/kit.js`, pixel for pixel, onto a MiniPix. Kinds: "neutral" (or ""),
+## "yours", "goal", "good", "bad"; an unknown kind is neutral.
 ## Why: docs/why/MiniGame.md#the-ui-kit
 
-## The game area: every game draws exactly this.
+## The game area: every game draws exactly this, the whole glass (A: no strip under it).
 const W := 150
-const H := 130
-## Side gutter (text, buttons, GIVE UP all start/end 3 in); the gap between controls.
+const H := 140
+## Side gutter (text and buttons start/end 3 in); the gap between controls.
 const GUT := 3
 const GAP := 4
 ## ROW.HEAD: band rows 0-8, rule row 9, text rows 2-6.
@@ -20,40 +20,34 @@ const HEAD_TY := 2
 const HEAD_RULE := 9
 ## ROW.PLAY: the first play row.
 const PLAY_Y := 10
-## ROW.DECK_C / DECK_N: the bottom deck's top row with controls / without.
-const DECK_C := 98
-const DECK_N := 121
-## The status text row from the deck's top (100 or 123): 4 clear rows above the haul line (132).
-const STATUS_TY := 2
-## ROW.CTRL: the control row, rows 107-129, every control centred on row 118.
-const CTRL_Y := 107
+## ROW.DECK_C / DECK_N: the deck's top row with controls (its rule) / without (none: H).
+const DECK_C := 116
+const DECK_N := 140
+## ROW.CTRL: the control row, rows 117-139, every control centred on row 128.
+const CTRL_Y := 117
 const CTRL_H := 23
-const CTRL_CY := 118
+const CTRL_CY := 128
 ## ROW.TELL: the tell card, rows 45-61, centred on x 75.
 const TELL_Y := 45
 const TELL_H := 17
 const TELL_CX := 75
-## ROW.STRIP: the shell's (mockups only).
-const STRIP_Y := 130
-const STRIP_H := 10
 ## BTN: heights standard (label, or icon+label in a line) / large (icon over label); widths S/M/L; their y.
 const BTN_H := 13
 const BTN_HL := 19
 const BTN_W: Array[int] = [25, 33, 45]
-const BTN_YS := 112
-const BTN_YL := 109
+const BTN_YS := 122
+const BTN_YL := 119
 ## DIAL.R: 19 px across, the large button's height.
 const DIAL_R := 9
 ## METER: 1 px frame, 3x5 segments on a 4 px pitch.
 const METER_H := 7
 const METER_PITCH := 4
-## The one border colour (PAL.panel): header, deck, strip.
+## The one border colour (PAL.panel): header, deck, cards.
 const BORDER := MiniPix.PANEL
 const OFF := Color("#18212d")
 const SHADE := Color("#4a5a70")
-## PAL.t2 (the goal blue) and PAL.t3 (the mockup strip's epic name).
+## PAL.t2 (the goal blue).
 const T2 := Color("#6a9ad4")
-const T3 := Color("#8b4fd4")
 const LABEL := MiniPix.COLD
 const VALUE := MiniPix.ICE
 const CARD_TX := MiniPix.HOT
@@ -64,6 +58,12 @@ const KIND := {
 	"goal": [T2, MiniPix.ICE, T2],
 	"good": [MiniPix.GOOD, MiniPix.MARK, MiniPix.GOOD],
 	"bad": [MiniPix.BAD, Color("#e07a62"), MiniPix.BAD],
+	# the tiers' inks (MiniPix.TIERS 0-4), for a toast that names a find's tier (Seismic's dig results)
+	"t0": [Color("#98a0a8"), Color("#98a0a8"), Color("#98a0a8")],
+	"t1": [Color("#4fbf82"), Color("#4fbf82"), Color("#4fbf82")],
+	"t2": [T2, T2, T2],
+	"t3": [Color("#8b4fd4"), Color("#8b4fd4"), Color("#8b4fd4")],
+	"t4": [Color("#d99b29"), Color("#d99b29"), Color("#d99b29")],
 }
 ## Button skins: [edge, face, hi, lo, text, dy].
 const SKIN := {
@@ -200,32 +200,18 @@ static func header(px: MiniPix, left: Variant, right: Variant, pad_r := 0) -> Ve
 	return Vector2i(x, rx - 4)
 
 
-## The bottom deck's top row: with controls 98, without 121.
+## The deck's top row: with controls 116 (its rule), without 140 (no deck).
 static func deck_y(controls: bool) -> int:
 	return DECK_C if controls else DECK_N
 
 
-## The deck: border colour from its top rule down to row 129.
+## The deck, for games with controls: border colour from its top rule down to row 139. Without: none.
 static func deck(px: MiniPix, controls: bool) -> void:
-	var y := deck_y(controls)
+	if not controls:
+		return
+	var y := deck_y(true)
 	px.rect(0, y, W, H - y, BORDER)
 	px.rect(0, y, W, 1, MiniPix.LINE)
-
-
-## The one place for status words, centred on the deck's status line. `parts`: "ROUTED" (with
-## `kind`) or [["COLD 1/2", "neutral"], ["VALVE DRY", "bad"]].
-static func status(px: MiniPix, parts: Variant, kind := "", controls := false) -> void:
-	if parts == null or (parts is String and parts == "") or (parts is Array and (parts as Array).is_empty()):
-		return
-	var list: Array = [[parts, kind]] if parts is String else parts
-	var y := deck_y(controls) + STATUS_TY
-	var w := 8 * (list.size() - 1)
-	for p: Array in list:
-		w += tw(p[0])
-	var x := (W >> 1) - (w >> 1)
-	for p: Array in list:
-		px.text(s(p[0]), x, y, ink(s(p[1]) if p.size() > 1 and p[1] != null else ""))
-		x += tw(p[0]) + 9
 
 
 ## A 9x9 icon from ICONS in `col`. Returns 9 (0 for an unknown name).
@@ -344,6 +330,12 @@ static func dial_angle(v: float) -> float:
 	return (-135.0 + 270.0 * clampf(v, 0.0, 1.0)) * PI / 180.0
 
 
+## Every game's tell ends its icons with this (Esc gives up, A): the key cap at rest, never blinking.
+const ESC := "key:ESC"
+## The cap's resting frame (a key icon lights on t 0-0.5, 1-1.5 ...).
+const ESC_T := 0.5
+
+
 ## A tell icon's width: TK.icon kinds, "key:SPACE" (one cap) or "keys:WAD" (a row of caps).
 static func icon_w(k: String) -> int:
 	if k.begins_with("key:"):
@@ -354,6 +346,8 @@ static func icon_w(k: String) -> int:
 
 
 static func draw_icon(px: MiniPix, k: String, x: int, y: int, t: float) -> void:
+	if k == ESC:
+		t = ESC_T
 	if k.begins_with("key:"):
 		px.icon("key", x, y, t, k.substr(4))
 	elif k.begins_with("keys:"):
@@ -387,15 +381,102 @@ static func tell(px: MiniPix, text: String, icons: Array[String] = [], t := 0.0)
 	return b
 
 
-## kit.js's mockup strip (the game never draws it; MiniShell draws the approved one).
-static func strip(px: MiniPix, result := false, name := "FLARE GLASS", tag := "[EPIC]", col := T3) -> void:
-	var y := STRIP_Y
-	px.rect(0, y, W, 10, BORDER)
-	var bx := W - GUT - 33
-	px.rect(bx, y, 33, 9, MiniPix.BEVEL_LO)
-	px.rect(bx + 1, y + 1, 31, 7, BORDER)
-	px.rect(bx + 1, y + 1, 31, 1, MiniPix.LINE)
-	px.text("LEAVE" if result else "GIVE UP", bx + 16, y + 2, MiniPix.CHILL, "center")
-	if result:
-		px.text(name, GUT, y + 1, col)
-		px.text(tag, GUT + (name.length() + 1) * 4, y + 1, MiniPix.COLD)
+# ---------------------------------------------------------------- popups (A, Nov 20)
+
+## The tiers' names, as the haul's [TIER] says them; their ink is `MiniPix.TIERS` (the item colours).
+const TIERS: Array[String] = ["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY"]
+## The result card: centred on x 75 and the tell card's centre row 53 (rows 33-73); its lines'
+## padding, its width's bounds (x 3-146 at most), and the wait after the end.
+const CARD_CX := 75
+const CARD_CY := 53
+const CARD_PAD := 8
+const CARD_MIN_W := 79
+const CARD_MAX_W := 144
+const CARD_H := 41
+const CARD_DELAY := 0.6
+## A toast: rows 12-22 (2 under the header rule), centred on x 75; full for 0.9 s, gone at 1.2 s.
+const TOAST_Y := 12
+const TOAST_H := 11
+const TOAST_CX := 75
+const TOAST_HOLD := 0.9
+const TOAST_LIFE := 1.2
+
+
+## The tell card's box: bevelLo edge, border-colour face, bevelHi top line.
+static func box(px: MiniPix, x: int, y: int, w: int, h: int) -> void:
+	px.rect(x, y, w, h, MiniPix.BEVEL_LO)
+	px.rect(x + 1, y + 1, w - 2, h - 2, BORDER)
+	px.rect(x + 1, y + 1, w - 2, 1, MiniPix.BEVEL_HI)
+
+
+## A tier's ink (0 common to 4 legendary): the name's colour on the card.
+static func tier_ink(tier: int) -> Color:
+	return MiniPix.TIERS[clampi(tier, 0, 4)]
+
+
+static func card_tag(tier: int) -> String:
+	return "[%s]" % TIERS[clampi(tier, 0, 4)]
+
+
+## Whether NAME [TIER] fits on the card; a name too long for both drops its [TIER].
+static func card_full(status: String, haul: String, tier: int) -> bool:
+	return haul == "" or maxi(maxi(tw(status), tw(haul + " " + card_tag(tier))), 33) + 2 * CARD_PAD <= CARD_MAX_W
+
+
+## The card's box for an END word, the haul's NAME and its tier (`cardRect`).
+static func card_rect(status: String, haul: String, tier: int) -> Rect2i:
+	var hl := tw(haul + " " + card_tag(tier)) if haul != "" else 0
+	var w := maxi(maxi(tw(status), hl), 33) + 2 * CARD_PAD
+	if not card_full(status, haul, tier):
+		w = maxi(maxi(tw(status), tw(haul)), 33) + 2 * CARD_PAD
+	w = clampi(w, CARD_MIN_W, CARD_MAX_W)
+	return Rect2i(CARD_CX - (w >> 1), CARD_CY - (CARD_H >> 1), w, CARD_H)
+
+
+## LEAVE on the card `b`: the kit's button, 33x13, centred, 25 rows down.
+static func card_leave(b: Rect2i) -> Rect2i:
+	return Rect2i(CARD_CX - 16, b.position.y + 25, 33, BTN_H)
+
+
+## THE RESULT CARD (A): the END word in its kind's colour, a rule, NAME [TIER] (the name in its
+## tier's ink, [TIER] quiet) and an amber LEAVE, over the play area. `t`: seconds since the end;
+## nothing before CARD_DELAY (an empty Rect2i). Returns its box.
+static func result_card(px: MiniPix, status: String, kind: String, haul: String, tier: int, t: float) -> Rect2i:
+	if t < CARD_DELAY:
+		return Rect2i()
+	var b := card_rect(status, haul, tier)
+	var x := b.position.x
+	var y := b.position.y
+	var cx := x + (b.size.x >> 1)
+	box(px, x, y, b.size.x, b.size.y)
+	px.text(status, cx - (tw(status) >> 1), y + 5, ink(kind))
+	px.rect(x + 6, y + 13, b.size.x - 12, 1, MiniPix.LINE)
+	if haul != "":
+		var full := card_full(status, haul, tier)
+		var line := haul + " " + card_tag(tier) if full else haul
+		var hx := cx - (tw(line) >> 1)
+		px.text(haul, hx, y + 17, tier_ink(tier))
+		if full:
+			px.text(card_tag(tier), hx + (haul.length() + 1) * 4, y + 17, MiniPix.COLD)
+	var lb := card_leave(b)
+	button(px, lb.position.x, lb.position.y, lb.size.x, lb.size.y, "LEAVE", "active")
+	return b
+
+
+## A TOAST (a LIVE word): the same box, 11 tall, its text in its kind's colour; full for 0.9 s,
+## then two dimmer steps to 1.2 s (the kit's 2x2 dither: 3 of 4 pixels, then 1 of 4), then gone.
+## Draw-only: it never takes a click. `age`: seconds since the event. True while it shows.
+static func toast(px: MiniPix, text: String, kind: String, age: float, cx := TOAST_CX, y := TOAST_Y) -> bool:
+	if text == "" or age < 0.0 or age >= TOAST_LIFE:
+		return false
+	var d := 1.0 if age < TOAST_HOLD else (0.66 if age < TOAST_HOLD + (TOAST_LIFE - TOAST_HOLD) / 2.0 else 0.33)
+	var w := tw(text) + 10
+	var x := cx - (w >> 1)
+	var one := MiniPix.new(w, TOAST_H)
+	box(one, 0, 0, w, TOAST_H)
+	one.text(text, 5, 3, ink(kind))
+	for j in TOAST_H:
+		for i in w:
+			if d >= 1.0 or MiniPix.lit(x + i, y + j, d):
+				px.dot(x + i, y + j, one.img.get_pixel(i, j))
+	return true

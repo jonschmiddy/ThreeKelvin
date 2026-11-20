@@ -125,15 +125,15 @@ func _play(d: DeskScene, n: MapGen.MapNode, sc: SectorScreen, data0: int, pile0:
 			row = r
 	var drawn := "%s [%s]" % [d.game.haul, String(d.game.haul_tier).to_upper()]
 	var want := "%s [%s]" % [paid.get("name", ""), String(paid.get("tier", &"")).to_upper()]
-	_h._ok("the line reads the paid row, %s, a %s material (site %s)" % [drawn, ScienceHaul.source_of(site), site],
-		not paid.is_empty() and drawn == want and not row.is_empty() and StringName(row.source) == ScienceHaul.source_of(site))
+	_h._ok("the result card is up and reads the paid row, %s, a %s material (site %s)" % [drawn, ScienceHaul.source_of(site), site],
+		d.game.card_up() and not paid.is_empty() and drawn == want and not row.is_empty() and StringName(row.source) == ScienceHaul.source_of(site))
+	_h._ok("the card's word is the game's end (%s)" % d.game.end_text, d.game.end_text == (MiniShell.GAVE_UP if fail else g.end_text) and d.game.end_text != "")
 	_h._ok("a %s run scores as it should (%.2f)" % ["given-up" if fail else "clean", d.game.score],
 		d.game.score <= 0.2 if fail else d.game.score >= 0.95)
 	if Harness.arg("quit") != "":
-		click_glass(d, Vector2(40, 60))
-		_h._ok("a click on the game after its end does not leave", not d.leaving)
-		click_glass(d, Vector2(MiniShell.BUTTON.get_center()))
-		_h._ok("LEAVE leaves", d.leaving)
+		# A (Nov 20): a click anywhere on the glass leaves once the card is up, LEAVE or not
+		click_glass(d, Vector2(20, 110))
+		_h._ok("a click on the result card's glass, off LEAVE, leaves", d.leaving)
 		await _until(func() -> bool: return _desk() == null, 1200)
 		await Harness.frames(_tree, 90)
 		await _shot("5_local")
@@ -142,7 +142,7 @@ func _play(d: DeskScene, n: MapGen.MapNode, sc: SectorScreen, data0: int, pile0:
 
 
 ## The scripted player through the screen: a gesture (down to up) every 0.45 s (or its own longer wait) for a planned
-## run, the pilots every frame; `fail` lets Esc go 2 s in. Stills mid-way and, after a plan, a beat on.
+## run, the pilots every frame; `fail` plays a plan's first gesture, then gives up with Esc 2 s in (A: no GIVE UP on the glass). Stills mid-way and, after a plan, a beat on.
 func _drive(d: DeskScene, g: MiniGame, fail: bool) -> void:
 	var sv := MiniSolver.for_game(g)
 	var total := sv.plan.size()
@@ -160,6 +160,11 @@ func _drive(d: DeskScene, g: MiniGame, fail: bool) -> void:
 				await Harness.frames(_tree, 2)
 			return
 		if total > 0:
+			if fail and sent > 0:
+				# a give-up plays the plan's first gesture only, so a short plan (Pulsar's two) never wins
+				# first and a game that pays for progress on a give-up (Anomaly) still pays little
+				await _tree.process_frame
+				continue
 			if queue.is_empty():
 				break
 			var hold := 0.45

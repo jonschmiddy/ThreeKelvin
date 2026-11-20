@@ -29,14 +29,14 @@ static var _pre_task := -1
 static var _pre_key := ""
 static var _pre_got := {}
 
-## 6x6 cells of 17 art px (the tray in rows 10-119); a canister's thickness; the exit row's top;
-## UNDO, over GIVE UP.
-const C := 17
+## 6x6 cells of 18 art px (the tray in rows 10-125: A, Nov 20); a canister's thickness; the exit row's
+## top; UNDO, at the foot of the right column a row under the tray's rim.
+const C := 18
 const T := C - 2
 const GX := 6
 const GY := 14
 const EXY := GY + ROW * C
-const UB := Rect2i(MiniKit.W - MiniKit.GUT - 33, 106, 33, MiniKit.BTN_H)
+const UB := Rect2i(MiniKit.W - MiniKit.GUT - 33, 127, 33, MiniKit.BTN_H)
 const STEEL: Array[Color] = [MiniPix.ICE, MiniPix.CHILL, MiniPix.CHILL, MiniPix.COLD, MiniPix.COLD, MiniPix.COLD,
 	MiniPix.LINE, MiniPix.LINE, MiniPix.BEVEL_LO]
 
@@ -477,7 +477,6 @@ func _draw_plate() -> Image:
 		b.dot(x, EXY, MiniPix.BEVEL_HI)
 		for y in range(EXY + 1, EXY + C - 1):
 			b.dot(x, y, MiniPix.LINE if (y - EXY) % 4 == 2 else MiniPix.VOID)
-	MiniKit.deck(b, false)
 	return b.img
 
 
@@ -606,7 +605,10 @@ func _draw() -> void:
 		_leaving()
 	_hud()
 	if not started:
-		MiniKit.tell(px, "GET THE SAMPLE OUT.", controls(), clock)
+		var icons := controls()
+		icons.append(MiniKit.ESC)
+		MiniKit.tell(px, "GET THE SAMPLE OUT.", icons, clock)
+	draw_toast()
 	dirty = true
 
 
@@ -625,8 +627,6 @@ func _leaving() -> void:
 
 func _hud() -> void:
 	MiniKit.header(px, null, [["MOVES", moves_], ["PAR", int(P.par)]])
-	if out_t >= 0.0 and clock - out_t > 1.0:
-		MiniKit.status(px, "SAMPLE OUT", "good", false)
 	var can := undos > 0 and not hist.is_empty() and not over
 	MiniKit.button(px, UB.position.x, UB.position.y, UB.size.x, UB.size.y, "UNDO %d" % undos,
 		"disabled" if not can else ("pressed" if undo_down else "normal"))
@@ -774,6 +774,7 @@ func commit(i: int, np: int) -> void:
 		out_t = clock + 0.05
 		sfx(&"out")
 		sfx(&"win")
+		say_end("SAMPLE OUT", "good")
 		done(score_of(moves_, int(P.par)), "Out in %d moves (par %d)" % [moves_, int(P.par)])
 		return
 	sel = i

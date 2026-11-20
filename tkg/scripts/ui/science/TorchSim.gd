@@ -7,7 +7,8 @@ extends RefCounted
 ## Why: docs/why/MiniGame.md#the-round-2-games
 
 const W := 304.0
-const H := 200.0
+## 116 art rows: the camera runs to the kit's deck rule (status A, Nov 20; was 200, the old deck at 98).
+const H := 232.0
 const SPEED := 34.0
 const TR := 2.0
 const SR := 1.5

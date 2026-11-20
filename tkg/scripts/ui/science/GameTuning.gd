@@ -21,16 +21,17 @@ const MATCH := 0.012
 ## The game area, as every game draws it (the UI kit, Nov 20).
 const W := MiniKit.W
 const H := MiniKit.H
-## The scope frames, SS square at SY; HS is the glass centre's offset in a frame.
+## The scope frames, SS square at SY (two fill the width, so A drops them to the middle of rows 10-115);
+## HS is the glass centre's offset in a frame.
 const SCX: Array[int] = [0, 76]
 const SCL: Array[String] = ["TARGET", "YOURS"]
-const SY := 20
+const SY := 29
 const SS := 74
 const R := 32
 const HS := SS >> 1
-## The knobs' centre row (2 above the control row's) and radius: ticks reach rows 105-127, even the lit
-## 180 deg tick, clear of the haul line (Jon, Nov 20). LOCK's right edge is GIVE UP's.
-const KY := MiniKit.CTRL_CY - 2
+## The knobs' centre row (the control row's) and radius: ticks fill rows 117-139, even the lit 180 deg
+## tick. LOCK's right edge is on the gutter.
+const KY := MiniKit.CTRL_CY
 const KR := 7
 const LOCK := Rect2i(MiniKit.W - MiniKit.GUT - 25, MiniKit.BTN_YS, 25, MiniKit.BTN_H)
 const NEAR := 1.1 / R
@@ -413,14 +414,6 @@ static func _pitch(k: Dictionary) -> int:
 	return maxi(23, 19 + MiniKit.tw(k.lab))
 
 
-func _fmt(k: Dictionary, v: int) -> String:
-	if k.key == "ph":
-		return str(v * 45)
-	if k.key == "amp":
-		return ("%.2f" % AMPS[v]).substr(1)
-	return str(v)
-
-
 ## The detent's angle in degrees, 0 straight up, clockwise.
 static func det_a(k: Dictionary, v: int) -> float:
 	if k.wrap:
@@ -572,15 +565,12 @@ func _draw(now: float) -> void:
 	for k in knobs.size():
 		_knob(k, _drag_on and _drag_k == k, now)
 	_lock_btn()
-	if over:
-		MiniKit.status(px, "MATCH!" if d < MATCH else "NO MATCH", "good" if d < MATCH else "bad", true)
-	else:
-		var parts: Array = []
-		for k in knobs.size():
-			parts.append([String(knobs[k].lab) + " " + _fmt(knobs[k], int(cur[knobs[k].key])), "good" if is_right(k) else "neutral"])
-		MiniKit.status(px, parts, "", true)
+	# A (Nov 20): no status line; a right dial wears its green collar, MATCH! / NO MATCH the shell's card
 	if not acted and not over:
-		MiniKit.tell(px, "MATCH THE WAVE.", controls(), (now - T0) / 1000.0)
+		var icons := controls()
+		icons.append(MiniKit.ESC)
+		MiniKit.tell(px, "MATCH THE WAVE.", icons, (now - T0) / 1000.0)
+	draw_toast()
 	dirty = true
 
 
@@ -766,6 +756,7 @@ func _do_lock() -> void:
 	if over:
 		return
 	over = true
+	say_end("MATCH!" if d < MATCH else "NO MATCH", "good" if d < MATCH else "bad")
 	sfx(&"lock")
 	var sc := score(d, taps, par_now, free)
 	if d < MATCH:

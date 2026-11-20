@@ -7,19 +7,21 @@ extends MiniGame
 ## Why: docs/why/MiniGame.md#culture-dish
 
 const CFG := {
-	1: {R = 4, s = 6, steps = 3, seeds = 1, food = 3, stain = 3},
-	2: {R = 4, s = 6, steps = 3, seeds = 2, food = 4, stain = 4},
-	3: {R = 5, s = 5, steps = 3, seeds = 2, food = 5, stain = 6},
-	4: {R = 5, s = 5, steps = 3, seeds = 3, food = 6, stain = 7},
-	5: {R = 5, s = 5, steps = 4, seeds = 2, food = 6, stain = 6},
+	1: {R = 4, s = 6.5, steps = 3, seeds = 1, food = 3, stain = 3},
+	2: {R = 4, s = 6.5, steps = 3, seeds = 2, food = 4, stain = 4},
+	3: {R = 5, s = 5.5, steps = 3, seeds = 2, food = 5, stain = 6},
+	4: {R = 5, s = 5.5, steps = 3, seeds = 3, food = 6, stain = 7},
+	5: {R = 5, s = 5.5, steps = 4, seeds = 2, food = 6, stain = 6},
 }
 const DIRS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(0, 1)]
 const W := MiniKit.W
 const H := MiniKit.H
+## The dish (A, Nov 20: the whole glass): rim RO 55 -> 60 and agar AR 51 -> 56 with the hex spacing
+## (CFG.s) grown alike, centred on row 70 (rows 10-130, the shadow to 135, 1 px clear of the buttons).
 const CX := 75
-const CY := 65
-const AR := 51
-const RO := 55
+const CY := 70
+const AR := 56
+const RO := 60
 const STEPMS := 520.0
 const T0 := 1000.0
 ## The colour ramps as 0xRRGGBB (the page's `rgb` arrays it writes straight into its pixels).
@@ -530,11 +532,20 @@ func again() -> void:
 	mode = "place"
 
 
-func finish() -> void:
+## The end (KEEP, the last try, or a give-up: `quit`, which the shell names GAVE UP). The card says
+## the try's line: ALL FED; n/m FED  k DEAD  NO TRIES; n/m FED (k DEAD) on KEEP.
+func finish(quit := false) -> void:
 	if ended:
 		return
 	ended = true
 	mode = "done"
+	if not quit and not bparts.is_empty():
+		var words: Array[String] = []
+		var out_of := false
+		for q: Array in bparts:
+			words.append(String(q[0]))
+			out_of = out_of or q[0] == "NO TRIES"
+		say_end("  ".join(words), "good" if bparts[0][1] == "good" else ("bad" if out_of else "neutral"))
 	var bf := maxf(0.0, best.frac)
 	var nf := (p.food as Array).size()
 	var detail := "Never grew"
@@ -547,7 +558,7 @@ func give_up() -> void:
 	_later.clear()
 	if not ended:
 		mode = "done"
-		finish()
+		finish(true)
 
 
 ## GROW's centre on the canvas (the solver presses it there).
@@ -559,8 +570,9 @@ static func grow_at() -> Vector2:
 ## buttons the frame drew, and draws them when the game is drawn.
 func panel(now: float) -> void:
 	buttons.clear()
-	var y0 := 104
+	# the seeds / rings left sit on the buttons' centre row (BY+6, row 131)
 	var by := MiniKit.deck_y(false) - 2 - MiniKit.BTN_H
+	var y0 := by - 3
 	if mode == "place" and drawing:
 		px.rect(4, y0 + 7, 11, 3, MiniPix.BEVEL_LO)
 		px.rect(5, y0 + 8, 9, 1, MiniPix.CHILL)

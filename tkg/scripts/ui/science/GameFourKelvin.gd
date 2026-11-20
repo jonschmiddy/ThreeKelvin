@@ -10,9 +10,10 @@ const W := MiniKit.W
 const H := MiniKit.H
 ## The deal's view width: the belt is laid out as the 140 px prototype's (fit4 widened only the view).
 const GENW := 140
-## View: kit header rows 0 to 9, the belt 10 to 91, the progress bar 94 and 95, the kit deck 98 to 129.
+## View: kit header rows 0 to 9, the belt 10 to 109, the progress bar 112 and 113, the kit deck 116 to
+## 139 (status A, Nov 20: the belt took the freed rows, 82 -> 100, world 1:1).
 const VY := 10
-const BH := 82
+const BH := 100
 const SHIPX := 46
 const DT := 1.0 / 30.0
 const TURN := 3.6
@@ -158,7 +159,8 @@ static func gen(r: RandomNumberGenerator, d: int) -> Dictionary[String, Variant]
 		nodes.append(y)
 		i += 1
 	var rocks: Array = []
-	var want := MiniPix.jr(float(c.dens) * ln / 1000.0)
+	# rocks per area as the 82-row belt had them, so the taller belt is no emptier
+	var want := MiniPix.jr(float(c.dens) * ln / 1000.0 * BH / 82.0)
 	var t_ := 0
 	while t_ < want * 6 and rocks.size() < want:
 		t_ += 1
@@ -292,6 +294,7 @@ func _finish() -> void:
 		return
 	fired = true
 	var m := int(floorf(_dist() * 5.0))
+	say_end("IMPACT" if crashed else "BELT CLEAR", "bad" if crashed else "good")
 	done(score_of(F, _dist(), ore_val), ("Hull broke at " if crashed else "Cleared the belt, ") + "%d m, ore %d of %d" % [m, ore_n, (F.glints as Array).size()])
 
 
@@ -651,6 +654,7 @@ func _render() -> void:
 			for k in range(-1, 2):
 				_p(_sx(s.x) + k, float(s.y) + VY + j, MiniPix.FLARE if k or j else MiniPix.HOT)
 	_hud()
+	draw_toast()
 	dirty = true
 
 
@@ -705,11 +709,9 @@ func _hud() -> void:
 	px.text("ENERGY", ex, MiniKit.CTRL_CY - 6, MiniKit.LABEL)
 	MiniKit.meter(px, ex, MiniKit.CTRL_CY, ew, 1.0, "yours")
 	if mode == "ready":
-		MiniKit.tell(px, "FLY THE SHIP.", ["keys:WAD"] as Array[String], clock)
+		MiniKit.tell(px, "FLY THE SHIP.", ["keys:WAD", MiniKit.ESC] as Array[String], clock)
 	elif mode == "end":
 		_intent_tag()
-		if end_t > (1.0 if crashed else 0.5):
-			MiniKit.status(px, "IMPACT" if crashed else "BELT CLEAR", "bad" if crashed else "good", true)
 
 
 ## A WARNING tag over the rock that did it, raised once it is far too late (Jon, Nov 17).

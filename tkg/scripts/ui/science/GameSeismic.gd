@@ -28,15 +28,16 @@ const W := MiniKit.W
 const H := MiniKit.H
 const PY0 := MiniKit.PLAY_Y
 const PH := MiniKit.DECK_N - MiniKit.PLAY_Y
-## The right column: the two tools, then the graph down to row 120.
+## The right column: the two tools, then the graph down to row 137 (A, Nov 20: 16 rows taller, its
+## five tier rows 14.2 px apart, not 11).
 const CXL := MiniKit.W - MiniKit.GUT - 33
 const CW := 33
 const GY := 44
-const GH := 78
+const GH := 94
 const BL := CXL + 5
 const BR := CXL + CW - 3
 const T0 := GY + 8
-const T1 := T0 + 55
+const T1 := T0 + 71
 const TOOLS: Array[String] = ["scan", "dig"]
 const TB_Y: Array[int] = [12, 12 + MiniKit.BTN_H + MiniKit.GAP]
 const NO_CELL := Vector2i(-1, -1)
@@ -481,6 +482,8 @@ func _end_sweep() -> void:
 	sweep = {}
 	busy = false
 	sel = p
+	if (scans[p].d as PackedFloat64Array).is_empty():
+		say("QUIET", "neutral")
 	if scans_left <= 0 and tool == "scan":
 		tool = "dig"
 
@@ -539,11 +542,14 @@ func _dug(x: int, y: int) -> void:
 		sfx(&"ore")
 		gems.append({"d": q, "t": _now()})
 		msg = TN[int(deps[q].t)]
+		say(msg, "t%d" % int(deps[q].t))
 	elif near >= 0:
 		msg = "CLOSE"
 		close_t = _now()
+		say(msg, "neutral")
 	else:
 		msg = "EMPTY"
+		say(msg, "bad")
 	if deps.all(func(e: Dictionary) -> bool: return e.got):
 		after(0.5, func() -> void:
 			sfx(&"win")
@@ -561,6 +567,8 @@ func _finish(why: String) -> void:
 	busy = false
 	var deps := _deps()
 	var got := deps.filter(func(e: Dictionary) -> bool: return e.got).size()
+	if why != "STOPPED":
+		say_end(why, "good" if why == "ALL DUG" else "bad")
 	done(score_of(deps, scans_left + digs_left), "%d of %d finds dug · %d scans" % [got, deps.size(), scans.size()])
 
 
@@ -824,14 +832,11 @@ func _render(now: float) -> void:
 	if hover_cell != NO_CELL and not over and not busy:
 		_cursor()
 	_clipping = false
-	var quiet := _graph(now, ci)
+	_graph(now, ci)
 	if not touched and scans.is_empty() and now - 1000.0 < 6000.0:
-		MiniKit.tell(px, "SCAN, THEN DIG.", ["click"] as Array[String], (now - 1000.0) / 1000.0)
-	if msg != "":
-		var kind := "good" if msg == "ALL DUG" or TN.has(msg) else ("bad" if msg == "EMPTY" or msg == "NO DIGS LEFT" else "neutral")
-		MiniKit.status(px, msg, kind, false)
-	elif quiet:
-		MiniKit.status(px, "QUIET", "neutral", false)
+		MiniKit.tell(px, "SCAN, THEN DIG.", ["click", MiniKit.ESC] as Array[String], (now - 1000.0) / 1000.0)
+	# A (Nov 20): no status line; dig results and QUIET are toasts, ALL DUG / NO DIGS LEFT the shell's card
+	draw_toast()
 	dirty = true
 
 
@@ -1031,12 +1036,12 @@ func _cursor() -> void:
 	_r(x + CP - 1, y + CP - 2, 1, 2, c)
 
 
-## The graph of the sweeping or the current scan; true when that scan heard nothing.
-func _graph(now: float, ci: int) -> bool:
+## The graph of the sweeping or the current scan.
+func _graph(now: float, ci: int) -> void:
 	var live := not sweep.is_empty()
 	var gp := int(sweep.p) if live else ci
 	if gp < 0:
-		return false
+		return
 	var up_to := INF
 	if live and not sweep.end:
 		up_to = maxf(0.0, (now - float(sweep.t0) - 250.0) / float(sweep.dur) * rg)
@@ -1065,4 +1070,3 @@ func _graph(now: float, ci: int) -> bool:
 				px.rect(x, sx - w, 1, 1, hi)
 		px.rect(BL + h + 1, sx, 1, 1, WHITE if lit else ol)
 	px.text("#%d" % (gp + 1), CXL + CW - 2, T1 + 2, MiniPix.HOT if peek >= 0 else MiniPix.CHILL, "right")
-	return sp.is_empty() and (not live or bool(sweep.end))

@@ -29,6 +29,13 @@ var seed := 0
 ## Whether frames are drawn as the game runs (a scripted run in the headless test plays thousands of
 ## steps without looking).
 var drawing := true
+## The END word the shell's result card shows (`say_end`) and its kind; none: the shell says GAVE UP.
+var end_text := ""
+var end_kind := ""
+## The LIVE word on show (`say`), its kind, and when it was said (on `t`).
+var toast_text := ""
+var toast_kind := ""
+var toast_at := -9.0
 var _fired := false
 ## setTimeout's queue: [due seconds, Callable].
 var _later: Array = []
@@ -113,6 +120,32 @@ func done(score: float, detail: String) -> void:
 		return
 	_fired = true
 	finished.emit(clampf(score, 0.0, 1.0), detail)
+
+
+## A LIVE word as a toast (`pop.say`): it replaces the one on show. Status A (Nov 20).
+## Why: docs/why/MiniGame.md#status-a-the-card-and-toasts
+func say(text: String, kind := "neutral") -> void:
+	toast_text = text
+	toast_kind = kind
+	toast_at = t
+
+
+## The END word for the shell's result card (`pop.finish`), said before `done`; the toast goes.
+func say_end(text: String, kind := "good") -> void:
+	end_text = text
+	end_kind = kind
+	toast_text = ""
+
+
+## The toast on show, drawn last over the game's frame (`pop.draw`); none once the game has ended.
+func draw_toast() -> void:
+	if end_text == "":
+		MiniKit.toast(px, toast_text, toast_kind, t - toast_at)
+
+
+## Whether a toast is on show (a game that draws on change redraws while it fades).
+func toasting() -> bool:
+	return end_text == "" and toast_text != "" and t - toast_at < MiniKit.TOAST_LIFE
 
 
 func after(secs: float, f: Callable) -> void:

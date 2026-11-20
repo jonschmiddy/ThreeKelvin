@@ -21,22 +21,23 @@ const CHECK_SCORE: Array[float] = [1.0, 0.75, 0.58, 0.48, 0.42]
 ## The game area, as every game draws it (the UI kit, Nov 20).
 const W := MiniKit.W
 const H := MiniKit.H
-## Cores, the stack tube (its slot height is per deal), the tray of loose layers, the buttons.
+## Cores, the stack tube (its slot height is per deal), the tray of loose layers, the buttons. A (Nov 20):
+## layers 10 rows, the cores' foot at 61, the tray's sockets 12 rows on 16, the tube's foot at 108.
 const CX0 := 17
 const CDX := 18
 const CW := 14
-const LH := 8
+const LH := 10
 const GH := 5
-const CB := 53
+const CB := 61
 const SX := 113
 const SW := 26
-const SB := 89
+const SB := 108
 const PX0 := 4
 const PDX := 20
 const PW := 18
-const PHH := 10
-const PY0 := 73
-const PDY := 13
+const PHH := 12
+const PY0 := 83
+const PDY := 16
 const BY := MiniKit.BTN_YS
 const BH := MiniKit.BTN_H
 ## CHECK over GIVE UP, CLEAR left of it: (x, width).
@@ -48,7 +49,7 @@ const CROSS: Array[String] = ["#...#", ".#.#.", "..#..", ".#.#.", "#...#"]
 
 var p: Dictionary = {}
 var n := 6
-## The tube's slot height: its 70 rows shared by the deal's layers.
+## The tube's slot height: its 88 rows shared by the deal's layers, 11 at most (a 10-row layer).
 var SH := 8
 var checks := 3
 var given := {}
@@ -311,7 +312,7 @@ func _mount() -> void:
 		done(0.0, "No puzzle")
 		return
 	n = p.n
-	SH = mini(9, 70 / n)
+	SH = mini(11, 88 / n)
 	checks = 3 + (1 if sensors >= 2 else 0) + (1 if sensors >= 4 else 0)
 	if sensors >= 1:
 		given[0] = true
@@ -463,10 +464,9 @@ func _draw(now: float) -> void:
 	MiniKit.button(px, BCL.x, BY, BCL.y, BH, "CLEAR", "disabled" if ended else ("pressed" if pressed == "clear" else "normal"))
 	var full := not slots.has(-1)
 	MiniKit.button(px, BCK.x, BY, BCK.y, BH, "CHECK", "disabled" if ended or not full else ("active-pressed" if pressed == "check" else "active"))
-	if msg != "":
-		MiniKit.status(px, msg, ("good" if win_at else "bad") if ended else "neutral", true)
-	if not acted and msg == "":
-		MiniKit.tell(px, "STACK THE LAYERS IN ORDER.", ["drag"] as Array[String], now / 1000.0)
+	# A (Nov 20): no status line; n/N IN PLACE is a toast, the end the shell's card
+	if not acted:
+		MiniKit.tell(px, "STACK LAYERS IN ORDER.", ["drag", MiniKit.ESC] as Array[String], now / 1000.0)
 	if not drag.is_empty() and drag.has("kind") and drag.moved:
 		var w := PW if drag.from == "pal" else SW
 		var h := PHH if drag.from == "pal" else SH - 1
@@ -474,6 +474,7 @@ func _draw(now: float) -> void:
 		var y := int(drag.y) - (h >> 1)
 		px.rect(x - 1, y - 1, w + 2, h + 2, MiniPix.BEVEL_LO)
 		_layer(int(drag.kind), x, y, w, h, 0.08)
+	draw_toast()
 	dirty = true
 
 
@@ -675,14 +676,17 @@ func check() -> void:
 		ended = true
 		win_at = _now()
 		msg = "ORDER CONFIRMED"
+		say_end(msg, "good")
 		sfx(&"confirm")
 		sfx(&"win")
 		var u := used
 		after((90.0 * n + 500.0) / 1000.0, func() -> void: done(score(u, 1.0), "Ordered %d layers on check %d of %d" % [n, u, checks]))
 		return
 	msg = "%d/%d IN PLACE" % [right, n]
+	say(msg, "neutral")
 	if used >= checks:
 		ended = true
+		say_end(msg, "bad")
 		var fr := last_frac
 		after(0.9, func() -> void: done(score(0, fr), "%d/%d layers in place after %d checks" % [right, n, checks]))
 

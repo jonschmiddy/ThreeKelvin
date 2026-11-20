@@ -158,7 +158,7 @@ func leave() -> void:
 
 
 ## The tap: takes the reading once the card is up; once its outcome is up, leaves (after a game,
-## its LEAVE does).
+## a click on its result card does).
 func tap() -> void:
 	if leaving or room == null:
 		return
@@ -205,7 +205,7 @@ func _gui_input(e: InputEvent) -> void:
 		accept_event()
 		return
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
-		# after a game only its LEAVE leaves (only pressable things look pressable); else a tap
+		# after a game a click anywhere leaves once its result card is up (A, Nov 20); else a tap
 		if game != null:
 			if game.leave_hit(room.glass_at_f(mb.position * DeskRoom.CANVAS / size)):
 				leave()
@@ -245,10 +245,11 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if e.is_action_pressed(&"ui_cancel"):
-		# Esc during a game gives up (it still pays); after it, or before one, it leaves
+		# Esc during a game gives up (it still pays); after it, once the result card is up, or
+		# before a game, it leaves
 		if game != null and game.playing():
 			game.give_up()
-		else:
+		elif game == null or game.card_up():
 			leave()
 		get_viewport().set_input_as_handled()
 

@@ -2,7 +2,8 @@ extends Node
 
 ## The science mini games, headless (`-- sheet=MiniGameTest [seeds=50] [games=a,b]`): per game, 50
 ## seeds at each depth deal the same puzzle twice, a scripted solve scores about 1, a give-up 0 to
-## 0.2; then a solve through the shell's glass pays its tier, with the win then the reward sound.
+## 0.2; then a solve through the shell's glass pays its tier, with the win then the reward sound,
+## and the result card (A); Esc gives up.
 ## Why: docs/why/MiniGame.md#tests
 
 const STEP := 1.0 / 30.0
@@ -91,7 +92,7 @@ func _depth(id: StringName, d: int, seeds: int) -> void:
 	_h._ok("%s depth %d: the solver solves every puzzle" % [id, d], solved == seeds)
 	_h._ok("%s depth %d: a perfect solve scores about 1" % [id, d], perfect == seeds)
 	_h._ok("%s depth %d: a give-up scores 0 to 0.2" % [id, d], quits == seeds)
-	_h._ok("%s depth %d: every deal fills the game area, exactly 150x130 (152 wide shown 150)" % [id, d], sized == seeds)
+	_h._ok("%s depth %d: every deal fills the glass, exactly 150x140 (152x140 shown 150)" % [id, d], sized == seeds)
 
 
 ## The puzzle as data, for comparing two deals.
@@ -339,8 +340,10 @@ func _haul() -> void:
 		_h._ok("pay grants one material by its catalogue name and tier (%s)" % str(h), not h.is_empty() and String(h.name) != "" and StringName(h.tier) in MaterialTable.TIERS)
 
 
-## The shell round a game: a scripted run through the glass (offset by where the game sits) ends
-## it once, at the tier its score earns at sector 5; the win then the reward; NAME [TIER] shows.
+## The shell round a game (status A, Nov 20): a scripted run through the glass (offset by where the
+## game sits) ends it once, at the tier its score earns at sector 5; the win then the reward. While
+## it plays the glass is the game's canvas and nothing leaves; 0.6 s after the end the result card
+## is up with the game's END word and the paid NAME [TIER], and a click anywhere leaves.
 func _shell(id: StringName) -> void:
 	Audio.taping = true
 	Audio.tape.clear()
@@ -352,18 +355,21 @@ func _shell(id: StringName) -> void:
 	var g := MiniGames.make(id)
 	sh.start(g, 5, 0, MiniGames.stream(11), 11)
 	var sv := MiniSolver.for_game(g)
-	var mid := Vector2(MiniShell.BUTTON.get_center())
-	var no_leave_in_play := not sh.leave_hit(mid)
-	var low := _lit_low(g)
+	var bare := _glass_is_game(sh)
+	var no_leave := true
+	var early := false
 	for k in STEPS_MAX:
-		if sh.revealed:
+		if sh.revealed and sh.card_up():
 			break
 		for e in sv.act(g, STEP):
 			_send_glass(sh, e)
 		sh.tick(STEP)
-		if k % 10 == 0:
-			low = maxi(low, _lit_low(g))
-	low = maxi(low, _lit_low(g))
+		if sh.playing():
+			no_leave = no_leave and not sh.leave_hit(Vector2(75, 70)) and not sh.leave_hit(Vector2(130, 135))
+			if k % 10 == 0:
+				bare = bare and _glass_is_game(sh)
+		elif sh.card_up() and sh.t < sh._done_at + MiniKit.CARD_DELAY - 0.001:
+			early = true
 	Audio.taping = false
 	var names: Array[String] = []
 	for e: Array in Audio.tape:
@@ -373,43 +379,76 @@ func _shell(id: StringName) -> void:
 	var win := names.find("mg_win")
 	var reward := names.find("mg_reward_4")
 	_h._ok("%s: the win, then the reward a beat later (%s)" % [id, ", ".join(names.slice(maxi(0, names.size() - 6)))], win >= 0 and reward > win)
-	_h._ok("%s: the haul line is revealed" % id, sh.revealed)
-	var ink := false
-	var quiet := false
-	for y in range(MiniShell.STRIP_Y, MiniShell.STRIP_Y + 5):
-		for x in MiniShell.GW:
+	_h._ok("%s: while it plays the glass is the game's canvas, nothing over it (no strip, no GIVE UP)" % id, bare)
+	_h._ok("%s: while it plays a click leaves nothing" % id, no_leave)
+	_h._ok("%s: the game names its end for the card (say_end: %s)" % [id, g.end_text], g.end_text != "" and sh.end_text == g.end_text)
+	_card_checks(id, sh, early, "TEST STOCK", 4)
+	_give_up(id)
+
+
+## The card over the finished game: up only 0.6 s after the end, exactly `MiniKit.result_card` with
+## the shell's END word and the paid NAME [TIER] (tier `ti`), the tier's ink on the glass, and a
+## click anywhere on the glass leaves.
+func _card_checks(id: StringName, sh: MiniShell, early: bool, name: String, ti: int) -> void:
+	_h._ok("%s: the result card waits 0.6 s after the end, then is up" % id, not early and sh.card_up() and sh.revealed)
+	var want := MiniPix.new(MiniShell.GW, MiniShell.GH)
+	want.clear(MiniShell.BORDER)
+	var src := Rect2i(Vector2i(maxi(0, -sh.at.x), maxi(0, -sh.at.y)), sh.game.px.img.get_size())
+	src.size -= src.position
+	want.img.blit_rect(sh.game.px.img, src, sh.at + src.position)
+	var b := MiniKit.result_card(want, sh.end_text, sh.end_kind, name, ti, sh.t - sh._done_at)
+	_h._ok("%s: the card is the kit's, %s over NAME [TIER] (%s %s)" % [id, sh.end_text, name, MiniKit.card_tag(ti)],
+		b.size.x > 0 and sh.haul == name and sh.card_tier() == ti and want.img.get_data() == sh.glass.get_data())
+	var ink := 0
+	var quiet := 0
+	for y in range(b.position.y + 17, b.position.y + 22):
+		for x in range(b.position.x, b.end.x):
 			var c := sh.glass.get_pixel(x, y)
-			ink = ink or c.is_equal_approx(UITheme.tier_colour(&"legendary"))
-			quiet = quiet or c.is_equal_approx(MiniPix.COLD)
-	_h._ok("%s: the line is the name in its tier's ink, then [TIER] quiet" % id, ink and quiet)
-	_h._ok("%s: GIVE UP becomes LEAVE once the line is in, and only LEAVE leaves" % id,
-		no_leave_in_play and sh.leave_hit(mid) and not sh.leave_hit(Vector2(40, 60)) and not sh.leave_hit(Vector2(4, 134)))
-	_h._ok("%s: nothing lit within 4 rows of the haul line (lowest lit row %d, start to result)" % [id, low], low <= CLEAR_LAST)
-	_h._ok("%s: the strip is the one border colour" % id, sh.glass.get_pixel(1, MiniShell.GH - 1).is_equal_approx(MiniShell.BORDER))
-	var bp := MiniShell.BUTTON.position
-	_h._ok("%s: LEAVE is the kit's normal button (light top, dark foot)" % id,
-		sh.glass.get_pixel(bp.x + 2, bp.y + 1).is_equal_approx(MiniPix.BEVEL_HI) and sh.glass.get_pixel(bp.x + 2, bp.y + 7).is_equal_approx(MiniKit.OFF)
-		and sh.glass.get_pixel(bp.x + 2, bp.y + 4).is_equal_approx(MiniPix.LINE))
+			ink += 1 if c.is_equal_approx(UITheme.tier_colour(UITheme.TIER_ORDER[ti])) else 0
+			quiet += 1 if c.is_equal_approx(MiniPix.COLD) else 0
+	_h._ok("%s: the name in its tier's ink, then [TIER] quiet (%d, %d px)" % [id, ink, quiet], ink > 0 and quiet > 0)
+	var anywhere := true
+	for p: Vector2 in [Vector2(0, 0), Vector2(75, 70), Vector2(149.5, 139.5), Vector2(10, 130), Vector2(140, 20)]:
+		anywhere = anywhere and sh.leave_hit(p)
+	_h._ok("%s: once the card is up a click anywhere on the glass leaves" % id, anywhere)
 
 
-## The game area every game fills (Jon, Nov 19: no black bars), and the last row anything may light
-## (the haul line is row 132: 4 rows stay clear, Nov 20).
-const AREA := Vector2i(150, 130)
-const CLEAR_LAST := 127
+## Esc (the desk calls `give_up`) while it plays: the game ends with GAVE UP, scores 0 to 0.2, the
+## glass stays the game's until 0.6 s after, then the card is up.
+func _give_up(id: StringName) -> void:
+	var sh := MiniShell.new()
+	sh.scored.connect(func(_tr: int) -> void: sh.set_haul("SLAG", &"common"))
+	sh.start(MiniGames.make(id), 2, 0, MiniGames.stream(13), 13)
+	for k in 6:
+		sh.tick(STEP)
+	sh.give_up()
+	var ended := not sh.playing()
+	var t0 := sh._done_at
+	var bare := true
+	while sh.t < t0 + MiniKit.CARD_DELAY - STEP * 1.5:
+		sh.tick(STEP)
+		bare = bare and not sh.card_up() and _glass_is_game(sh)
+	var up := false
+	for k in 4:
+		sh.tick(STEP)
+		up = up or sh.card_up()
+	_h._ok("%s: Esc gives up (GAVE UP, score %.2f), the glass the game's until the card 0.6 s on" % [id, sh.score],
+		ended and sh.score <= 0.2 and sh.end_text == MiniShell.GAVE_UP and bare and up)
+	while not sh.revealed:
+		sh.tick(STEP)
+	_card_checks(id, sh, false, "SLAG", 0)
 
 
-## The lowest row of the canvas holding anything brighter than the kit's border colour (a veil over the
-## deck is darker, not lit); a 152-wide canvas is read as shown, without its outer columns.
-static func _lit_low(g: MiniGame) -> int:
-	var img := g.px.img
-	var x0 := 1 if g.px.w == AREA.x + 2 else 0
-	var b := MiniKit.BORDER.r + MiniKit.BORDER.g + MiniKit.BORDER.b + 0.002
-	for y in range(g.px.h - 1, CLEAR_LAST - 2, -1):
-		for x in range(x0, g.px.w - x0):
-			var c := img.get_pixel(x, y)
-			if c.r + c.g + c.b > b:
-				return y
-	return CLEAR_LAST - 2
+## The game area every game fills, the whole glass (Jon, Nov 19: no black bars; A, Nov 20: no strip).
+const AREA := Vector2i(150, 140)
+
+
+## Whether every pixel of the glass is the game's canvas (a 152-wide canvas shown without its outer columns).
+static func _glass_is_game(sh: MiniShell) -> bool:
+	var src := Rect2i(-sh.at, Vector2i(MiniShell.GW, MiniShell.GH))
+	if not Rect2i(Vector2i.ZERO, sh.game.px.img.get_size()).encloses(src):
+		return false
+	return sh.game.px.img.get_region(src).get_data() == sh.glass.get_data()
 
 
 static func _send_glass(sh: MiniShell, e: Dictionary) -> void:

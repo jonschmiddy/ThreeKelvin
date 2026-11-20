@@ -3,8 +3,8 @@ extends MiniGame
 
 ## GRAVITY SLING (Jon, Nov 17: "should be a dial, not a click"): turn the AIM dial, pull the sling
 ## back and let go; stars and planets bend the probe's path into the target ring. A port of the
-## approved `sling2.js`: more masses by sector, a moving target from 4, a no-fly zone at 5. In its
-## approved layout and the UI kit (Nov 20): the nav plot in the play rows, its own dial and pull.
+## approved `sling2.js`: more masses by sector, a moving target from 4, a no-fly zone at 5. In the UI
+## kit, status A (Nov 20): the nav plot the whole width, its own dial and pull; toasts and the card.
 ## Why: docs/why/MiniGame.md#gravity-sling
 
 const CFG := {
@@ -30,20 +30,21 @@ const HIT := 2
 const ZONE := 3
 const W := MiniKit.W
 const H := MiniKit.H
-## The deck's rule; the nav plot in rows FT to FY - 1, the 1000 x 640 field at FHP / FH px a unit,
-## FWP wide (`Math.ceil(FW * SC)`), centred at FX (the kit's border colour either side).
-const FY := MiniKit.DECK_C
+## The deck's rule (its own: the dial and the sling need 34 rows); the nav plot in rows FT to FY - 1,
+## the 1000 x 640 field at FHP / FH px a unit (0.15: the most the width allows), FWP wide
+## (`Math.ceil(FW * SC)`, the whole glass), at FX.
+const FY := 106
 const FT := MiniKit.PLAY_Y
 const FHP := FY - FT
 const SC := FHP / FH
-const FWP := 138
+const FWP := 150
 const FX := (W - FWP) >> 1
-## The aim dial (raised 2: its foot on row 127, 4 rows clear of the haul line, Jon, Nov 20).
+## The aim dial (r 13, kept, Jon, Nov 20): rows 110-136, centred in the deck.
 const DX := MiniKit.GUT + 13
-const DY := 114
+const DY := FY + 17
 const DRAD := 13
 const FKX := 142
-const RY := FY + 16
+const RY := FY + 17
 const PULLMAX := 72
 ## The pouch's rest x.
 const PX0 := 134
@@ -573,19 +574,19 @@ func _draw_deck() -> Image:
 		var rad := a * PI / 180.0
 		d.dotf(DX + (DRAD - 3) * cos(rad), DY - FY - (DRAD - 3) * sin(rad), MiniPix.ICE if a == 0 else MiniPix.COLD)
 	d.text("AIM", DX + DRAD + 4, DY - FY - 6, MiniKit.LABEL)
-	line(d, FKX + 3, 29, FKX + 3, 18, MiniPix.BEVEL_LO)
-	line(d, FKX + 4, 29, FKX + 4, 18, MiniPix.COLD)
-	line(d, FKX + 3, 18, FKX, 8, MiniPix.COLD)
-	line(d, FKX + 4, 18, FKX + 1, 8, MiniPix.CHILL)
-	line(d, FKX + 3, 18, FKX, 25, MiniPix.COLD)
-	line(d, FKX + 4, 18, FKX + 1, 25, MiniPix.BEVEL_LO)
+	line(d, FKX + 3, 30, FKX + 3, 19, MiniPix.BEVEL_LO)
+	line(d, FKX + 4, 30, FKX + 4, 19, MiniPix.COLD)
+	line(d, FKX + 3, 19, FKX, 9, MiniPix.COLD)
+	line(d, FKX + 4, 19, FKX + 1, 9, MiniPix.CHILL)
+	line(d, FKX + 3, 19, FKX, 26, MiniPix.COLD)
+	line(d, FKX + 4, 19, FKX + 1, 26, MiniPix.BEVEL_LO)
 	for x in range(PX0 - PULLMAX, PX0 - 4, 3):
 		d.dot(x, RY - FY, MiniPix.LINE)
 	for k in 10:
 		var x := MiniPix.jr(PX0 - 14 - k * (PULLMAX - 14) / 9.0)
-		d.dot(x, 28, MiniPix.CHILL if k % 5 == 0 else MiniPix.LINE)
+		d.dot(x, 29, MiniPix.CHILL if k % 5 == 0 else MiniPix.LINE)
 		if k % 5 == 0:
-			d.dot(x, 27, MiniPix.CHILL)
+			d.dot(x, 28, MiniPix.CHILL)
 	return d.img
 
 
@@ -726,20 +727,9 @@ func _draw_hud() -> void:
 	var right: Array = [["PWR", pow_, "yours"]] if pow_ > 0 else ([["LAST", last_pow]] if last_pow > 0 else [["PWR", "-"]])
 	MiniKit.header(px, {label = "LAUNCH", value = left, vkind = "bad" if left <= 1 else ""}, right)
 	if not started:
-		MiniKit.tell(px, "HIT THE TARGET.", controls(), clock)
-
-
-## The status line: the note while it shows, else the last launch's result.
-func _draw_status() -> void:
-	var s := ""
-	var k := ""
-	if note != "" and clock < note_t:
-		s = note
-		k = "bad" if note == "OUT OF PROBES" else "neutral"
-	elif miss_txt != "":
-		s = miss_txt
-		k = "good" if miss_txt == "HIT" else ("bad" if miss_txt == "IMPACT" or miss_txt == "NO-FLY" else "neutral")
-	MiniKit.status(px, s, k, true)
+		var icons := controls()
+		icons.append(MiniKit.ESC)
+		MiniKit.tell(px, "HIT THE TARGET.", icons, clock)
 
 
 ## The dial's knob and needle, the angle, the sling's pouch and bands, the power, the dimmer.
@@ -764,16 +754,16 @@ func _draw_controls() -> void:
 	var PY := MiniPix.jr(RY + sh)
 	var t_ := minf(1.0, off / PULLMAX)
 	var band := MiniPix.THEM if t_ < 0.35 else (MiniPix.EMBER if t_ < 0.75 else MiniPix.BAD)
-	line(px, FKX, FY + 8, PX - 1, PY - 2, band)
-	line(px, FKX, FY + 25, PX - 1, PY + 2, band)
+	line(px, FKX, FY + 9, PX - 1, PY - 2, band)
+	line(px, FKX, FY + 26, PX - 1, PY + 2, band)
 	px.rect(PX - 3, PY - 4, 5, 9, MiniPix.BEVEL_LO)
 	px.rect(PX - 2, PY - 3, 3, 7, MiniPix.shade(MiniPix.THEM, -0.4))
 	px.rect(PX, PY - 1, 2, 2, MiniPix.ICE)
 	px.dot(PX + 2, PY, MiniPix.EMBER)
 	if last_pow > 0:
 		var lx := MiniPix.jr(PX0 - off_of(last_pow))
-		px.rect(lx - 1, FY + 25, 3, 1, MiniKit.T2)
-		px.dot(lx, FY + 24, MiniKit.T2)
+		px.rect(lx - 1, FY + 26, 3, 1, MiniKit.T2)
+		px.dot(lx, FY + 25, MiniKit.T2)
 	if pull.is_empty() and not dim and last_pow < 0 and used == 0 and int(floorf(clock * 1.5)) % 2:
 		px.text("<", PX - 8, PY - 2, MiniPix.EMBER)
 	if dim:
@@ -781,7 +771,7 @@ func _draw_controls() -> void:
 			_shade = Image.create(W, H - FY - 1, false, Image.FORMAT_RGBA8)
 			_shade.fill(Color(MiniPix.VOID, 0.35))
 		px.img.blend_rect(_shade, Rect2i(0, 0, W, H - FY - 1), Vector2i(0, FY + 1))
-	_draw_status()
+	draw_toast()
 
 
 func _draw_old() -> void:
@@ -884,6 +874,7 @@ func up(_p: Vector2i, cancel := false) -> void:
 		if off > 3.0:
 			note = "TOO WEAK"
 			note_t = clock + 1.2
+			say("TOO WEAK", "neutral")
 		restub()
 		return
 	sfx(&"launch")
@@ -927,6 +918,7 @@ func land(f: Dictionary) -> void:
 		sfx(&"hit")
 		sfx(&"win")
 		fx = {x = ex, y = ey, c = MiniPix.GOOD, t0 = clock}
+		say_end("HIT", "good")
 		done(score_hit(used, float(r.hitD), tr), "Hit on launch %d of %d, %d%% off centre" % [used, max_shots, MiniPix.jr(100.0 * float(r.hitD) / tr)])
 		return
 	if int(r.end) == CRASH:
@@ -934,10 +926,12 @@ func land(f: Dictionary) -> void:
 	var miss := MiniPix.jr(maxf(0.0, float(r.best) - tr))
 	best_miss = minf(best_miss, float(r.best))
 	miss_txt = "IMPACT" if int(r.end) == CRASH else ("NO-FLY" if int(r.end) == ZONE else "MISS %d" % miss)
+	say(miss_txt, "bad" if int(r.end) == CRASH or int(r.end) == ZONE else "neutral")
 	if used >= max_shots:
 		over = true
 		note = "OUT OF PROBES"
 		note_t = clock + 99.0
+		say_end("OUT OF PROBES", "bad")
 		done(score_miss(best_miss, tr), "No hit in %d launches" % max_shots)
 		return
 	restub()

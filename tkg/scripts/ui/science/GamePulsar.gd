@@ -29,20 +29,21 @@ const GW := 120
 const RAWY := 14
 const RAWH := 13
 const WFY := 29
-const WFH := 45
-const PRY := 75
+const WFH := 55
+const PRY := 85
 const PRH := 16
-## The deck's rule: 3 rows above the kit's 98, to hold Pulsar's own 29 px dial.
-const DECK := 95
-## The dial (r 14, its foot on row 127, 4 rows clear of the haul line, Jon, Nov 20).
+## The deck's rule: its own, 11 rows above the kit's 116, to hold Pulsar's own 29 px dial (A, Nov 20:
+## the deck moved down the 10 freed rows whole; the glass grew into them).
+const DECK := 105
+## The dial (r 14, kept, Jon, Nov 20): its ring on rows 107-137.
 const DX := MiniKit.GUT + 15
-const DY := 112
+const DY := 122
 const DR := 14
 const SX := DX + DR + 7
 const SW := 104
-const SY := 120
-## LOCK, over GIVE UP.
-const LB := Rect2i(MiniKit.W - MiniKit.GUT - 33, 104, 33, MiniKit.BTN_H)
+const SY := 130
+## LOCK.
+const LB := Rect2i(MiniKit.W - MiniKit.GUT - 33, 114, 33, MiniKit.BTN_H)
 const GLASS := Color("#06110b")
 const GRAT := Color("#0d2116")
 const WHITE_G := Color("#effff7")
@@ -408,10 +409,10 @@ func _draw_plate() -> Image:
 	var b := MiniPix.new(W, H)
 	b.rect(0, 0, W, H, MiniPix.PANEL)
 	b.rect(1, 11, W - 2, 1, MiniPix.BEVEL_HI)
-	b.rect(1, 11, 1, 82, MiniPix.BEVEL_HI)
-	b.rect(1, 93, W - 2, 1, MiniPix.BEVEL_LO)
-	b.rect(W - 2, 11, 1, 83, MiniPix.BEVEL_LO)
-	b.rect(3, 13, W - 6, 79, GLASS)
+	b.rect(1, 11, 1, 92, MiniPix.BEVEL_HI)
+	b.rect(1, 103, W - 2, 1, MiniPix.BEVEL_LO)
+	b.rect(W - 2, 11, 1, 93, MiniPix.BEVEL_LO)
+	b.rect(3, 13, W - 6, 89, GLASS)
 	b.rect(0, DECK, W, H - DECK, MiniKit.BORDER)
 	b.rect(0, DECK, W, 1, MiniPix.LINE)
 	for x in range(GX, GX + GW + 1, 15):
@@ -570,16 +571,13 @@ func _draw() -> void:
 				px.dot(lx + x, ly + y, col)
 			elif r <= 4.2 and on and MiniPix.bay(lx + x, ly + y) < (4.2 - r) / 2.6:
 				px.dot(lx + x, ly + y, MiniPix.GOOD)
-	if stamp_txt != "" and clock < stamp_t:
-		# the kit's status line, on this deck's row (DECK + 2, not the kit's 100)
-		var k := "good" if stamp_txt == "LOCKED" else ("bad" if stamp_txt == "NO LOCK" or stamp_txt == "LOST" else "neutral")
-		px.text(stamp_txt, (W >> 1) - (MiniKit.tw(stamp_txt) >> 1), DECK + MiniKit.STATUS_TY, MiniKit.ink(k))
 	_apply_glitch()
 	if msg != "":
 		px.text(msg, W / 2, RAWY + RAWH - 2, MiniPix.HOT, "center")
 	elif not started:
-		MiniKit.tell(px, "TUNE IN THE PULSAR.", ["dial"] as Array[String], clock)
+		MiniKit.tell(px, "TUNE IN THE PULSAR.", ["dial", MiniKit.ESC] as Array[String], clock)
 	_draw_dial(on)
+	draw_toast()
 
 
 ## The kit's header: SIG as a draining meter (+ which pulsar of two), LOCK lit when a lock would hold.
@@ -743,6 +741,7 @@ func lock() -> void:
 		gl.t = -1.0
 		stamp_txt = "NO LOCK"
 		stamp_t = clock + 1.0
+		say("NO LOCK", "bad")
 		misses += 1
 		if sig <= 0.0:
 			_lose()
@@ -751,12 +750,15 @@ func lock() -> void:
 	sfx(&"lock")
 	stamp_txt = "LOCKED" if pa >= 0.7 else "WEAK"
 	stamp_t = clock + 1.2
+	say(stamp_txt, "good" if pa >= 0.7 else "neutral")
 	if locks.size() < n_t:
 		msg = ""
 		return
 	ended = true
 	msg = ""
 	sfx(&"win")
+	# the END word now (the card's; the toast goes), the take 0.9 s later
+	say_end(stamp_txt, "good" if stamp_txt == "LOCKED" else "neutral")
 	var sc := final_score(locks, n_t, sig)
 	stamp_t = clock + 99.0
 	var detail := ", ".join(locks.map(func(l: Dictionary) -> String: return "P %s (true %s)" % [_fmt(l.pf), _fmt(l.tru)])) \
@@ -772,6 +774,7 @@ func _lose() -> void:
 	sig = 0.0
 	stamp_txt = "LOST"
 	stamp_t = clock + 99.0
+	say_end("LOST", "bad")
 	var sc := lost_score(locks, n_t)
 	var nl := locks.size()
 	after(0.9, func() -> void: done(sc, "Signal lost, %d/%d locked" % [nl, n_t]))

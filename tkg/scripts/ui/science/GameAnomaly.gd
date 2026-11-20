@@ -3,7 +3,8 @@ extends MiniGame
 
 ## ANOMALY COUNT (Jon loved, Nov 17; round 3: "bigger than the others?"): a microscope feed; mark
 ## every critter the rule names. A port of the approved `anomaly2.js`, in its approved layout and the
-## UI kit (Nov 20): the lens between the header and the deck, the rule on the status line.
+## UI kit (Nov 20); status A (Nov 20): the lens back to r 55 in the middle of the whole glass, the rule
+## in the bottom corners it leaves free.
 ## Why: docs/why/MiniGame.md#the-round-2-games
 
 const CFG := {
@@ -21,12 +22,14 @@ const KEYS: Array[String] = ["shape", "spots", "ring", "tail"]
 const W := MiniKit.W
 const H := MiniKit.H
 const CX := 75
-const CY := 65
-const LENS := 52
+const CY := 75
+const LENS := 55
+## The dish's scale on the lens (positions, swim speed and its edge are in r 52 units).
+const PS := LENS / 52.0
 ## Critter scale, and its sprite box and centre.
-const K := 1.6
-const SP := 35
-const SHC := 17
+const K := 1.7
+const SP := 37
+const SHC := 18
 const SPOTS := [[[0, 0]], [[-1.7, -1.2], [1.7, 1.2]], [[-1.9, -1.5], [1.9, -1.5], [0, 2.1]]]
 const ROD_SPOTS := [[[0, 0]], [[0, -1.9], [0, 1.9]], [[0, -3.1], [0, 0], [0, 3.1]]]
 
@@ -488,7 +491,7 @@ func _mount() -> void:
 		_seeds.append(float(((i * 2654435761) & 0xFFFFFFFF) % 100) / 16.0)
 		var s: Dictionary = pz.specs[i]
 		var p: Vector2 = pz.pos[i]
-		crit.append({s = s, x = p.x, y = p.y, rot = int(s.rot), swim = int(pz.swim) and int(s.tail), ph = i % 4})
+		crit.append({s = s, x = p.x * PS, y = p.y * PS, rot = int(s.rot), swim = int(pz.swim) and int(s.tail), ph = i % 4})
 	_pick_hints()
 	_layers()
 	_draw()
@@ -502,32 +505,32 @@ func _pick_hints() -> void:
 		hints.append(int(left[i]))
 
 
-## The deck: the rule to match on the status line (goal blue, blinking for a moment when it changes;
-## an OR rule on one line, "+" closed up only when the spaced rule would pass the gutters).
+## The rule to match, a STANDING readout in the bottom corners the round lens leaves free (A, Nov 20):
+## one term a line in goal blue (blinking for a moment when it changes), "+" before the 2nd and 3rd;
+## an OR rule's second half bottom-right under a neutral OR. The last line on rows H-7 to H-3.
 func _draw_rule() -> void:
-	MiniKit.deck(px, false)
 	if ended:
-		var all := found == total
-		MiniKit.status(px, "ALL LOGGED" if all else "TIME UP", "good" if all else "bad", false)
 		return
-	var lines := rule_text(pz.rules[phase])
-	if _rule_w(lines) > W - 2 * MiniKit.GUT:
-		for i in lines.size():
-			lines[i] = "+".join(lines[i].split(" + "))
 	var fl := clock - rule_flash < 1.2 and int(floorf(clock * 5.0)) % 2 == 0
 	var col := MiniPix.ICE if fl else MiniKit.ink("goal")
-	var y := MiniKit.deck_y(false) + MiniKit.STATUS_TY
-	var x := (W >> 1) - (_rule_w(lines) >> 1)
-	for i in lines.size():
-		if i:
-			px.text("OR", x + 4, y, MiniKit.ink("neutral"))
-			x += 16
-		px.text(lines[i], x, y, col)
-		x += lines[i].length() * 4
+	var terms: Array = pz.rules[phase].terms
+	_rule_block(terms[0], false, col)
+	if terms.size() > 1:
+		_rule_block(terms[1], true, col)
 
 
-static func _rule_w(lines: Array[String]) -> int:
-	return " OR ".join(lines).length() * 4 - 1
+## One term's lines: left-aligned at the gutter, or right-aligned under "OR" at the right.
+func _rule_block(term: Array, right: bool, col: Color) -> void:
+	var rows: Array[String] = []
+	if right:
+		rows.append("OR")
+	for i in term.size():
+		rows.append(("+" if i else "") + word(term[i].k, term[i].v))
+	for i in rows.size():
+		var s := rows[i]
+		var y := H - 7 - (rows.size() - 1 - i) * 6
+		var x := W - MiniKit.GUT - MiniKit.tw(s) if right else MiniKit.GUT
+		px.text(s, x, y, MiniKit.ink("neutral") if right and i == 0 else col)
 
 
 func _draw() -> void:
@@ -567,8 +570,9 @@ func _draw() -> void:
 	right.append(["TIME", ceili(time_left), "bad" if fr < 0.25 else ""])
 	MiniKit.header(px, {label = "FOUND", value = "%d/%d" % [got, need.size()], vkind = "good" if got == need.size() else ""}, right)
 	if not started:
-		MiniKit.tell(px, "FIND EVERY MATCH.", ["click"] as Array[String], clock)
+		MiniKit.tell(px, "FIND EVERY MATCH.", ["click", MiniKit.ESC] as Array[String], clock)
 	_loupe()
+	draw_toast()
 	dirty = true
 
 
@@ -646,12 +650,12 @@ func _step(dt: float) -> void:
 		if not c.swim:
 			continue
 		var a := int(c.rot) * PI / 4.0
-		c.x += sin(a) * 3.2 * dt
-		c.y -= cos(a) * 3.2 * dt
+		c.x += sin(a) * 3.2 * PS * dt
+		c.y -= cos(a) * 3.2 * PS * dt
 		var r := Vector2(c.x, c.y).length()
-		if r > DISH_R:
-			c.x *= DISH_R / r
-			c.y *= DISH_R / r
+		if r > DISH_R * PS:
+			c.x *= DISH_R * PS / r
+			c.y *= DISH_R * PS / r
 			var to_c := atan2(-float(c.x), float(c.y))
 			c.rot = posmod(MiniPix.jr(to_c / (PI / 4.0)) % 8, 8)
 	if time_left <= 0.0:
@@ -717,6 +721,7 @@ func tap(i: int) -> void:
 	else:
 		wrong += 1
 		fx.append({i = i, t0 = clock, life = 1.1, bad = true})
+		say("WRONG", "bad")
 
 
 func _next_phase() -> void:
@@ -734,6 +739,7 @@ func _end() -> void:
 	if ended:
 		return
 	ended = true
+	say_end("ALL LOGGED" if found == total else "TIME UP", "good" if found == total else "bad")
 	done(score(found, total, wrong, time_left / T), "Found %d/%d, %d wrong" % [found, total, wrong])
 
 

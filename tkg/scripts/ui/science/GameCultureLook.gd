@@ -476,11 +476,14 @@ static func _hud(g: GameCulture, now: float, t: float) -> void:
 	var right: Array = ["FED", "%d/%d" % [fed, nf], null]
 	if fed == nf:
 		right[2] = "good"
-	MiniKit.header(px, {label = "TRY", value = "%d/%d" % [mini(g.attempt + 1, g.tries), g.tries]}, [right])
+	# A (Nov 20): the try's dead join FED in the header (bad) while it has any; the END line is the card
+	var pairs: Array = [right]
+	if not g.run.is_empty() and int(g.run.hits) != 0:
+		pairs.append(["DEAD", int(g.run.hits), "bad"])
+	MiniKit.header(px, {label = "TRY", value = "%d/%d" % [mini(g.attempt + 1, g.tries), g.tries]}, pairs)
 	MiniKit.deck(px, false)
-	if g.banner != "" and not g.bparts.is_empty():
-		MiniKit.status(px, g.bparts, "", false)
 	if not g.touched and t < 6000.0:
-		MiniKit.tell(px, "EAT EVERY SPECK.", ["click"] as Array[String], t / 1000.0)
+		MiniKit.tell(px, "EAT EVERY SPECK.", ["click", MiniKit.ESC] as Array[String], t / 1000.0)
 	g.panel(now)
+	g.draw_toast()
 	g.dirty = true

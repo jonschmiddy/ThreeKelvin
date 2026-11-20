@@ -40,50 +40,57 @@ flows, Centrifuge on a move, during the spin and for its start frame's icon.
 
 ## The shell
 
-`MiniShell` owns the glass, 150 x 140 art pixels, one to an art pixel of the room: the game's
-canvas centred above a strip (rows 130 to 139) that holds GIVE UP while it plays and the haul line
-after. Both games' canvases are 144 wide and at most 126 tall, so they fit at 1:1, as on the
-phone page (one shared scale, Jon: "bigger than the others?").
+`MiniShell` owns the glass, 150 x 140 art pixels, one to an art pixel of the room. Since status A
+(Nov 20) the game's canvas is the whole glass: while it plays the shell draws nothing over it (a
+152-wide canvas loses a column each side). Its tell is on the desk's title card under the site's
+name, so it is read before the tap; the game's own start frame repeats it, as the prototype's did.
 
-The tell (the game's one line and its control icons, Jon's Nov 17 rulings) goes on the desk's
-title card under the site's name, in the card's phosphor, so it is read before the tap; the game's
-own start frame repeats it, as the prototype's did. GIVE UP is a real button on the glass (and
-Esc); it scores what the game had, and a failure still pays common.
+Esc gives up while a game plays (`DeskScene._input`); it scores what the game had, and a failure
+still pays common. No click on the glass gives up.
 
 The glass is set every frame it changes (`DeskRoom.show_screen`, the texture updated in place).
 The rooms whose screen light follows the picture (DESK 2, BUNK, NOOK) read it on the CPU, about
 21,000 pixels in GDScript, so that light follows the game twice a second (`LIGHT_EVERY`), not every
 frame.
 
-## The strip: one border colour, and LEAVE
+## Status A: the card and toasts
 
-Jon, Nov 19: "every game have the same color border if they need it. The give up bar should also
-be that color." `MiniShell.BORDER` is the terminal's panel (#111823): the strip and any room a game
-leaves are drawn in it. And "How do you leave once you get the reward?": once the haul line is in,
-GIVE UP becomes LEAVE in the same place, the one way out besides Esc. A click anywhere else on the
-glass does nothing (only pressable things look pressable). The haul line sits left of LEAVE from
-x 3; a name too long for both drops its [TIER] (its ink still says the tier).
+Jon, Nov 20, picking A of three: "I like A. You can just get rid of the bottom bar with GIVE UP. You
+can just press ESC to give up." The strip under the game (GIVE UP, then the haul line and LEAVE) and
+every game's status line are gone; their words go three ways (`fit/status_inventory.md`):
 
-With the UI kit (Nov 20) the haul line moved to row 132 (`STRIP_Y`), and GIVE UP / LEAVE are the
-kit's normal button (`MiniKit.SKIN.normal`) in the same 33 x 9 place (x 114, rows 130 to 138).
+- The END word (ROUTED, OVERHEAT...) is the RESULT CARD. The game says it with `MiniGame.say_end`
+  before `done`; the shell draws `MiniKit.result_card` over the game 0.6 s after the end, once the
+  haul is paid: the word in its kind's colour, NAME [TIER] (the name in its tier's ink, the tier
+  quiet in COLD, as the hold colours an item), an amber LEAVE. A give-up with no word says GAVE UP.
+- A LIVE word (LEAK, NO LOCK, TOO FAST...) is a TOAST: `MiniGame.say`, drawn by the game last in
+  its frame (`draw_toast`), rows 12 to 22, full for 0.9 s, then two dithered steps, gone at 1.2 s.
+  It never takes a click.
+- A STANDING readout (COLD 1/2, VALVE DRY) finds its own spot or goes when the board shows it.
+
+While the card is up a click anywhere on the glass, or Esc, leaves. This overrides Jon's Nov 19
+"only LEAVE leaves" for the result card alone: the card covers the game, so every click on it is a
+click on it. The reward sound keeps its timing (the win's peak, or 1.1 s after the end), and the
+card's NAME [TIER] row is swept in over the 0.65 s before it, the loot reveal's S1 sweep.
 
 ## The UI kit
 
 Jon, Nov 19: "I'd like the UI/UX for all of the games to be about the same as much as possible."
 The kit (`tools/dev/minigame/layout/kit.js`, its rules in `kit_spec.md`) was drawn round every game
 on sheets and approved Nov 20: "Perfect." `MiniKit` is its port, function for function, so a game
-calls the kit and never draws its own chrome. The rules, in short:
+calls the kit and never draws its own chrome. The rules, in short (status A, Nov 20):
 
-- Every game draws exactly 150 x 130 (fit4; fit3 for Seismic, Culture, Dock, Core Scan).
+- Every game draws exactly 150 x 140, the whole glass (152 x 140 for the torch, the leak, the dock).
 - One header row (band rows 0 to 8, rule on row 9): the game's main state left, its counters right.
-- One bottom deck: rule on row 98 with on-screen controls (control row 107 to 129, centred on 118),
-  121 without; the status line two rows under the rule is the only place for status words.
-- One tell card (rows 45 to 61, centred on x 75), one button style, one meter, one dial, solid
-  #111823 borders, and four accents with one meaning each: yours amber, goal blue, good green, bad red.
+- Games with on-screen controls have a deck: rule on row 116, the control row 117 to 139 centred
+  on 128. Games without have none: the play area runs to row 139. There is no status line.
+- One tell card (rows 45 to 61, centred on x 75) whose icons end with the ESC key cap
+  (`MiniKit.ESC`, at rest), one button style, one meter, one dial, the result card and toasts,
+  solid #111823 borders, and four accents with one meaning each: yours amber, goal blue, good
+  green, bad red.
 - Pulsar, Sling and Tuning keep their own dials.
 
-Deck clearance (Jon, Nov 20: "the dials come right up to the reward line"): the haul line is row
-132, so nothing lit sits in rows 128 to 131; every control, meter and status word ends by row 127.
+`MiniKit.status` and `STATUS_TY` are no-ops kept only while games move to A; a moved game never calls them.
 
 ## Sounds
 
@@ -97,8 +104,8 @@ Jon's picks, copied from the phone page's `src/sfx/` (`sfx.json`, wired Nov 18) 
   (1.283 s in), or 1.1 s after the end when there was no win, as the page timed it; a failure
   plays the common one, never a buzzer.
 
-The haul line is swept in over the 0.65 s before the reward sound, the loot reveal's S1 split
-shortened to one line. It reads `FLARE GLASS [EPIC]` (Jon, Nov 19: "ITEM NAME [RARITY]"): the
+The result card's NAME [TIER] row is swept in over the 0.65 s before the reward sound, the loot
+reveal's S1 split shortened to one line. It reads `FLARE GLASS [EPIC]` (Jon, Nov 19: "ITEM NAME [RARITY]"): the
 name in its tier's ink (`UITheme.tier_colour`, as the result page and the hold colour an item),
 the bracketed tier in COLD, as the item tooltips set the rarity word quiet under the coloured
 name. The tier is the material's own, which can sit under the tier won when the catalogue has
@@ -122,6 +129,20 @@ Pulsar (`pulsar2.js`), Tray (`tray2.js`), Anomaly (`anomaly2.js`), Beams (`beams
 (`wreck3.js`). The prototypes' WebAudio tones were muted on that page (`TK_MUTE_TONES`), so they
 are not ported; the picked takes play instead.
 
+On status A (Nov 20, `a_swaps.PULSAR` and `ANOMALY`): Pulsar keeps its own r 14 dial (Jon) and its
+own deck, which moves down the 10 freed rows whole (rule 95 to 105, the dial's ring on rows 107 to
+137); the phosphor glass grows into them (the waterfall 45 to 55 rows). NO LOCK, WEAK and the first
+of two LOCKED are toasts; LOCKED, WEAK or LOST at the end is the card, said at the lock (the take
+follows 0.9 s later, as before). Anomaly's lens goes back to its prototype size (r 55, critters
+x1.7) in the middle of rows 10 to 139; the rule, a standing readout, sits in the bottom corners the
+round lens leaves free, one term a line in goal blue, an OR rule's second half bottom-right under a
+neutral OR. WRONG is a toast on a wrong pick; ALL LOGGED or TIME UP is the card.
+
+Four Kelvin on status A (`a_swaps.FOURKELVIN`): the belt takes the freed rows, 82 to 100 (rows 10
+to 109, world 1:1, the progress bar 112 and 113, the deck from 116). Rocks are dealt per area
+(`dens x BH / 82`), so the taller belt is no emptier than the approved one. IMPACT or BELT CLEAR is
+the card when the run ends; it has no live words (the WARNING: ROCK tag stays in the view).
+
 ## Beams and Spectrum on the glass
 
 The two prototypes were taller than the glass's game area (Beams 150 x 150; Spectrum up to 153 at
@@ -138,6 +159,16 @@ unchanged (his yes to the "fit2" sheet):
 
 The prototype diff holds each against the prototype's own file with the same layout swaps
 (`tools/dev/minigame/diff.py`, `LAYOUT`).
+
+On status A (Nov 20, `a_swaps.BEAMS` and `SPECTRUM`) both take the whole glass:
+- Beams: the table, its frame and the emitter sit in rows 11 to 138 with 1 px side margins, cells
+  as big as those allow (the 106-px cap was the LIT column's, gone with the kit header): 24 / 20 /
+  17 px at 5x5 / 6x6 / 7x7 with the emitter at a side, 22 / 18 / 16 with it above or below. ALL
+  LIT is the card; there are no live words.
+- Spectrum: the tube rows share rows 36 to 139 (104, was 85), the tubes up to their 14-row cap.
+  LINES m/n moves to the header, its value red while extras are on; the MATCH meter shrinks to fit
+  the widest right side (33 px, or 25 when the star has 10 lines or more) and its percentage goes.
+  n EXTRA is a toast when a wrong tube goes on; MATCH! is the card.
 
 ## Which game a site deals
 
@@ -164,14 +195,27 @@ apart from encounters); until then those games open by the dev flag.
 route, the valve, sensors bolting route tiles that needed turning (the fix for Jon's "some harder
 ones with high sensors are impossible?"), never dealt solved, the time limit from the pace model,
 the score from heat and turns over par. Drawing order and every colour are the prototype's.
-Since Nov 20 it is the approved page (`layout.page_js("coolant")`: fit4 + `KIT_COOLANT`): 150 x 130,
-tiles as big as the kit's play rows (11 to 119) allow, the header, the deck and the tell from `MiniKit`.
+Since Nov 20 it is the approved page (`layout.page_js("coolant")`: fit4 + `KIT_COOLANT` + `a_swaps.COOLANT`):
+150 x 140, tiles as big as the play rows (11 to 138) and 1 px side margins allow (24 px at sectors 1
+and 2, 20 at 3 and 4, 16 at 5), the header and the tell (with ESC) from `MiniKit`. It is the first
+game on status A: COLD n/m and the valve's word drop (the grid shows both), LEAK is a toast when a
+leak opens, ROUTED and OVERHEAT go on the shell's result card.
 
 ## Centrifuge
 
 `centrifuge2.js`, rule for rule: the balanced load from rotationally symmetric sets, the per-sector
 shape checks, blocked slots, the heaviest tube placed at sensors 3+, the dot's blur by sensors,
 drag and tap both, the 2.2 s spin with the shake, the score from the imbalance and extra moves.
+On status A (Nov 20, `a_swaps.CENTRIFUGE`) the bowl keeps its size (the width binds it beside the
+rack) and the set drops 9 rows to the middle of the glass; READY and SPINNING drop (SPIN's amber and
+the spin say them), BALANCED / WOBBLE n% / ROTOR FAULT go on the card.
+
+## Ice Core
+
+On status A (Nov 20, `a_swaps.ICECORE`) the 18 freed rows go to bigger pieces: core layers 8 -> 10
+rows, the tray's sockets 10 -> 12, the tube's slots up to 11 rows (a 10-row layer, the cores' own)
+in 88 rows. n/N IN PLACE after a CHECK is a toast; ORDER CONFIRMED, or the last check's count, is
+the card. The tell reads STACK LAYERS IN ORDER.: the old words and the ESC cap ran 160 px wide.
 
 ## Gravity Sling
 
@@ -191,6 +235,12 @@ about half a second, so the desk starts it on a worker as the card goes up, as i
 (`MiniGames.prefetch`), and the test keeps each deal for the scripted solve and the give-up
 (`GameSling.memo_on`). The solver searches round the deal's good shot for one that lands near the
 ring's centre, since a perfect score asks for a first-launch hit within about a fifth of the ring.
+
+On status A (Nov 20, `a_swaps.SLING`) the dial keeps r 13 and the sling its pull (Jon); the field
+grows to the whole width at the scale the width allows (0.1375 to 0.15: 138 x 88 to 150 x 96, rows
+10 to 105) and the deck's rule drops 98 to 106, its dial and sling 1 row lower in it so they sit
+centred. The deck still greys out while a probe flies and after the end. TOO WEAK, MISS n, IMPACT
+and NO-FLY are toasts; HIT or OUT OF PROBES is the card; LAST n stays in the header.
 
 ## The tray's search
 
@@ -239,6 +289,12 @@ stream.
 The slow wander of your curve reads the page's clock itself (`performance.now()`), not the time
 since the mount; the game's clock starts at 1000 ms, where the prototype diff holds the page's.
 
+On status A (Nov 20, `a_swaps.TUNING`) it keeps its own knobs (r 7), now on the control row's centre
+so their ticks fill rows 117-139; the knob values drop (a right dial wears its green collar, YOURS
+draws the value); the two scopes, bound by the width, drop 9 rows to the middle of the play rows.
+MATCH! / NO MATCH go on the card. Sample Tray (`a_swaps.TRAY`): cells 17 -> 18 px, UNDO at the foot
+of the right column under the rim, SAMPLE OUT on the card.
+
 ## Seismic Scan
 
 `seismic2.js` in its approved page (`layout.page_js("seismic")`: fit3, rings "B", the kit; Nov 20),
@@ -251,12 +307,18 @@ sorted stably, as V8 sorts. The sweep and its echoes move on the page's 30 frame
 or not the frame is drawn. The page's touch path (press to preview, lift to act) is not ported: the
 desk is a mouse, so a press acts, as the page's mouse path does.
 
+On status A (Nov 20, `a_swaps.SEISMIC`) the field keeps its cells (the width binds it, beside the
+tool column) and centres in rows 10-139; the graph screen grows 16 rows to row 137, its tier rows
+14.2 px apart. A dig's result is a toast in the find's tier ink (the kit's `t0`-`t4` kinds), CLOSE
+neutral, EMPTY bad; a scan that hears nothing says QUIET. ALL DUG / NO DIGS LEFT go on the card.
+
 ## Core Scan
 
 `tomo2.js` in its approved page (`layout.page_js("corescan")`: fit3, the kit; Nov 20), rule for rule:
 a picture of the sector's size (and its mirror) dealt from those a line-by-line solver can finish,
 the rows sensors fill in drawn from the stream after the deal (`TK.shuffle`), cracks and the ones
-forgiven, the score from cracks and time over par.
+forgiven, the score from cracks and time over par. On status A (Nov 20, `a_swaps.CORESCAN`) the
+clues and glass centre in rows 10-139 (from `deck_y`); FOUND: NAME / SCAN LOST go on the card.
 
 ## Culture Dish
 
@@ -271,6 +333,11 @@ press to preview the rings, lift to drop the seed (the diff's pointer is not a m
 previews too. JS `sort` is stable and GDScript's is not, so the food's sort breaks ties by place.
 The look's own hash (`hr`) multiplies past 2^53 in doubles, as the page does.
 
+On status A (Nov 20, `a_swaps.CULTURE`) the dish grows (rim 55 -> 60, agar 51 -> 56, the hex
+spacing 6 -> 6.5 and 5 -> 5.5: the same board and rule) on row 70, its shadow 1 px clear of the
+buttons; the seeds and rings left sit on the buttons' row. DEAD k joins FED in the header while the
+try has any; the try's line (ALL FED, or n/m FED  k DEAD  NO TRIES, or what KEEP kept) is the card's.
+
 ## Tumble Dock
 
 `wreck2.js` in its approved page (`layout.page_js("dock")`: fit3, the kit; Nov 20), rule for rule:
@@ -283,6 +350,20 @@ stops it as its rest point enters the bracket, then tapers the spin a turn ahead
 the port's rest point reaches the bracket's near edge, so it latches slowly. On the page's own
 sim, 300 deals at each sector score 0.95 to 0.99.
 
+## The camera games on the whole glass
+
+Cutting Torch, Leak Hunt and Tumble Dock are camera views under the kit (status A, Nov 20,
+`a_swaps.py`). Each view now runs to the deck's rule at 116, 18 rows more than before. The torch's
+hull plate is 18 rows taller; the crate, the lines and the gaps are the same sizes. The leak's
+back wall is 18 rows taller, and the band where a leak can sit grows with it, since it is the wall
+above the consoles. The dock's spin centre drops 9 rows. Each game's toast and the rest of the kit
+are drawn on the 150-wide layer, 1 px in, so the toast's dither lands where the page's does.
+A word the status line held for 99 s is the END word, for the card; any other word is a toast.
+The dock's SPIN, DRIFT and STILL readouts are gone, because the arrows already turn green when the
+wreck is slow enough. TOO FAST is a toast that shows once each time the port enters the bracket
+too fast for the clamp. The old status line said it whenever the port was close, so every slow
+approach showed it too.
+
 ## Tests
 
 `-- sheet=MiniGameTest` (headless, gated): every game, 50 seeds at every depth, sensors 0 to 5 in
@@ -290,7 +371,10 @@ turn; deals, deals the same twice, a scripted solve (`MiniSolver`: a plan of mov
 deal, or a pilot that flies Four Kelvin and the torch frame by frame, every move through the game's
 own input) scores about 1, a give-up 0 to 0.2; the tier
 ladder; every tier pays; a solve through the shell's glass at sector 5 pays legendary once, the
-win then the reward sound. It counts work done, never time, so it holds on a busy machine.
+win then the reward sound; while it plays the glass is exactly the game's canvas and no click
+leaves; the game names its end (`say_end`); 0.6 s after the end the result card is up, pixel for
+pixel `MiniKit.result_card` with that word and the paid NAME [TIER], and a click anywhere leaves;
+Esc (`give_up`) ends it with GAVE UP and the same card. Every deal draws exactly 150 x 140. It counts work done, never time, so it holds on a busy machine.
 `dump=<dir>` writes each game's deal and canvases for `tools/dev/minigame/diff.py`, which draws the
 same deal in the prototype's own file in Chrome and counts the pixels that differ (0 for all eleven).
 

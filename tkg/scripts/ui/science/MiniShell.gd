@@ -2,9 +2,9 @@ class_name MiniShell
 extends RefCounted
 
 ## Everything round a science mini game on the desk's glass (150 x 140, an art pixel each): the
-## game's canvas, GIVE UP, and the haul line; the game's sounds, Four Kelvin's win on a real
-## success, then the tier's reward a beat later (Jon, Nov 18), with the line revealed on it.
-## The game never shows a tier; this does, from score and depth (`ScienceHaul.tier_of`).
+## game's canvas, the whole glass (A, Nov 20); its sounds, the win, the tier's reward a beat later
+## (Jon, Nov 18); and after the end the result card over the game, NAME [TIER] swept in on the
+## reward. The game never shows a tier; this does, from score and depth (`ScienceHaul.tier_of`).
 ## Why: docs/why/MiniGame.md#the-shell
 
 ## Said once the game ends, with the tier its score and depth earned.
@@ -12,19 +12,10 @@ signal scored(tier: int)
 
 const GW := 150
 const GH := 140
-## The game sits centred above the strip; the strip holds GIVE UP, then the haul line (its text
-## on row 132, Nov 20: four rows clear of the kit's lowest lit row).
-const AREA_H := 130
-const STRIP_Y := 132
-## THE ONE BORDER COLOUR (Jon, Nov 19: "every game have the same color border if they need it. The
-## give up bar should also be that color"): the terminal's panel. The strip and any room a game
-## leaves are drawn in it.
+## THE ONE BORDER COLOUR (Jon, Nov 19): the terminal's panel, under any room a game leaves.
 const BORDER := MiniPix.PANEL
-const GIVE_UP := "GIVE UP"
-## At the end the button says LEAVE, the one way out (Esc too); nothing else on the glass leaves.
-const LEAVE := "LEAVE"
-## GIVE UP / LEAVE: rows 130-138, right edge 3 in, the kit's normal button.
-const BUTTON := Rect2i(GW - 3 - 33, AREA_H, 33, 9)
+## The card's word after a give-up the game did not name.
+const GAVE_UP := "GAVE UP"
 ## Each game's sounds (the phone page's sfx.json, Jon's picks Nov 17 to 18): [file, offset s].
 ## A positive offset starts it that much later, a negative one starts that far into the file.
 const SFX := {
@@ -50,7 +41,8 @@ const SFX_PATH := "res://assets/audio/sfx/%s.wav"
 ## The reward waits for the win (its peak, 1.283 s in) or, with none, 1.1 s after the end.
 const WIN_PEAK := 1.283
 const REWARD_MIN := 1.1
-## The line's reveal (the loot reveal's S1 sweep): 0.65 s up to the reward's sound, 0.35 s after.
+## NAME [TIER]'s reveal on the card (the loot reveal's S1 sweep): 0.65 s up to the reward's sound,
+## 0.35 s after.
 const REVEAL_PRE := 0.65
 const REVEAL_POST := 0.35
 const FRINGE: Array[Color] = [Color(1.0, 0.27, 0.27), Color(1.0, 0.86, 0.24), Color(0.27, 1.0, 0.47), Color(0, 0, 0, 0), Color(0.31, 0.55, 1.0)]
@@ -67,7 +59,14 @@ var haul := ""
 var haul_tier: StringName = &""
 ## The game's canvas on the glass.
 var at := Vector2i.ZERO
+## NAME [TIER] is in (0.35 s after the reward's sound).
 var revealed := false
+## The END word on the card, and its kind (the game's `finish`, else GAVE UP).
+var end_text := ""
+var end_kind := "neutral"
+var _gave_up := false
+## Whether the take has paid (`set_haul`): the card waits for it.
+var _paid := false
 var _win_at := -1.0
 var _done_at := -1.0
 var _reward_at := -1.0
@@ -88,7 +87,7 @@ func start(g: MiniGame, d: int, s: int, r: RandomNumberGenerator, sd := 0) -> vo
 	game.finished.connect(_on_finished)
 	game.mount(depth, s, r)
 	# a canvas two wider than the glass (152) loses a column each side, its own frame inside it
-	at = Vector2i((GW - game.px.w) / 2, maxi(0, (AREA_H - game.px.h) / 2))
+	at = Vector2i((GW - game.px.w) / 2, maxi(0, (GH - game.px.h) / 2))
 	_compose()
 
 
@@ -111,31 +110,39 @@ func tick(dt: float) -> bool:
 			_dirty = true
 		if t >= _reward_at + REVEAL_POST and not revealed:
 			revealed = true
+	# the card comes up, then NAME [TIER] sweeps in: drawn every step until both are in
+	if _done_at >= 0.0 and not (revealed and card_up()):
+		_dirty = true
 	if game.dirty or _dirty:
 		_compose()
 		return true
 	return false
 
 
-## The player gives up: the game scores what it had (often 0).
+## The player gives up (Esc): the game scores what it had (often 0).
 func give_up() -> void:
 	if playing():
+		_gave_up = true
 		game.give_up()
 
 
-## What the haul paid, for its line: the material's name and its own tier.
+## What the haul paid, for the card: the material's name and its own tier (the take is in).
 func set_haul(name: String, of_tier: StringName) -> void:
 	haul = name
 	haul_tier = of_tier
+	_paid = true
 	_dirty = true
+
+
+## Whether the result card is up: 0.6 s after the end, once the haul is paid. While it is, a
+## click anywhere on the glass, or Esc, leaves (A).
+func card_up() -> bool:
+	return _done_at >= 0.0 and _paid and t >= _done_at + MiniKit.CARD_DELAY
 
 
 ## The pointer at glass point `gf` (fractional glass pixels).
 func press(gf: Vector2) -> void:
 	var g := Vector2i(gf.floor())
-	if playing() and BUTTON.has_point(g):
-		give_up()
-		return
 	if playing():
 		game.pf = gf - Vector2(at)
 		game.down(g - at)
@@ -212,6 +219,12 @@ func _on_finished(sc: float, d: String) -> void:
 	_take_asked()
 	score = sc
 	detail = d
+	end_text = game.end_text
+	end_kind = game.end_kind
+	if _gave_up:
+		# a give-up says so; every game names its own end (`say_end`, held by MiniGameTest)
+		end_text = GAVE_UP
+		end_kind = "neutral"
 	tier = ScienceHaul.tier_of(sc, depth)
 	_done_at = t
 	# the phone page's timing: 0.45 s, then the win's peak or 0.65 s, whichever is later
@@ -243,7 +256,7 @@ func _play_due() -> void:
 	_queued = keep
 
 
-## The glass: the inset, the game, the strip.
+## The glass: the game's canvas, the whole of it; after the end, the result card over it.
 func _compose() -> void:
 	glass.fill(BORDER)
 	var src := Rect2i(Vector2i(maxi(0, -at.x), maxi(0, -at.y)), game.px.img.get_size())
@@ -251,57 +264,37 @@ func _compose() -> void:
 	glass.blit_rect(game.px.img, src, at + src.position)
 	game.dirty = false
 	_dirty = false
-	var strip := MiniPix.new(GW, GH, glass)
-	strip.rect(0, AREA_H, GW, GH - AREA_H, BORDER)
-	if playing():
-		_button(strip, GIVE_UP)
-		return
-	if _reward_at >= 0.0 and t >= _reward_at - REVEAL_PRE:
-		_line(strip)
-	if revealed:
-		_button(strip, LEAVE)
+	if card_up():
+		_card(MiniPix.new(GW, GH, glass))
 
 
-## Whether a press at glass point `gf` is on LEAVE (shown once the haul line is in).
-func leave_hit(gf: Vector2) -> bool:
-	return revealed and not playing() and BUTTON.has_point(Vector2i(gf.floor()))
+## Whether a press at glass point `gf` leaves: anywhere on the glass once the card is up (A).
+func leave_hit(_gf: Vector2) -> bool:
+	return not playing() and card_up()
 
 
-## The kit's normal button (Nov 20), text centred.
-func _button(c: MiniPix, label: String) -> void:
-	var b := BUTTON
-	MiniKit.button(c, b.position.x, b.position.y, b.size.x, b.size.y, label)
-
-
-## The haul line, swept in left to right up to the reward's sound (the S1 split's sweep).
-func _line(c: MiniPix) -> void:
+## The card's tier: the material's own (a tier with no material pays the nearest lower one).
+func card_tier() -> int:
 	var key := haul_tier if haul_tier != &"" else ScienceHaul.tier_key(tier)
-	var col := UITheme.tier_colour(key)
+	return clampi(UITheme.TIER_ORDER.find(key), 0, 4)
+
+
+## The result card (`MiniKit.result_card`), its NAME [TIER] row swept in left to right up to the
+## reward's sound (the S1 split's sweep): the row not yet reached is the card's face again.
+func _card(c: MiniPix) -> void:
+	var ti := card_tier()
+	var b := MiniKit.result_card(c, end_text, end_kind, haul, ti, t - _done_at)
 	var tau := t - _reward_at
-	if tau >= 0.0:
-		_words(c, key, col)
+	if haul == "" or tau >= 0.0:
 		return
 	var pp := (tau + REVEAL_PRE) / REVEAL_PRE
-	var lx := MiniPix.jr(-4.0 + (GW + 8) * minf(1.0, pp / 0.55))
-	var line := MiniPix.new(GW, GH)
-	_words(line, key, col)
-	if lx > 0:
-		c.img.blend_rect(line.img, Rect2i(0, STRIP_Y - 1, mini(lx, GW), 7), Vector2i(0, STRIP_Y - 1))
+	var x0 := b.position.x + 1
+	var x1 := b.end.x - 1
+	var lx := x0 - 4 + MiniPix.jr((x1 - x0 + 8) * clampf(pp / 0.55, 0.0, 1.0))
+	var y := b.position.y + 15
+	c.rect(maxi(lx, x0), y, x1 - maxi(lx, x0), 9, BORDER)
 	if pp < 0.6:
 		for k in FRINGE.size():
-			var fc := FRINGE[k] if FRINGE[k].a > 0.0 else col
-			c.rect(lx - 3 + k, STRIP_Y - 2, 1, 9, fc)
-
-
-## NAME [TIER], as the game writes an item (Jon, Nov 19): the name in its tier's ink
-## (`UITheme.tier_colour`), the tier quiet in COLD, as the hold's tooltips set it.
-func _words(c: MiniPix, key: StringName, col: Color) -> void:
-	var tag := "[%s]" % String(key).to_upper()
-	var x := 3
-	if haul != "":
-		c.text(haul, x, STRIP_Y, col)
-		x += (haul.length() + 1) * 4
-		# left of LEAVE; a long name drops [TIER] (its ink still says the tier)
-		if x + tag.length() * 4 - 1 > BUTTON.position.x - 3:
-			return
-	c.text(tag, x, STRIP_Y, MiniPix.COLD if haul != "" else col)
+			var fx := lx - 3 + k
+			if fx >= x0 and fx < x1:
+				c.rect(fx, y, 1, 9, FRINGE[k] if FRINGE[k].a > 0.0 else MiniKit.tier_ink(ti))

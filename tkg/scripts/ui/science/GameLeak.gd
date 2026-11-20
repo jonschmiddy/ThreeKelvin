@@ -7,16 +7,21 @@ extends MiniGame
 ## Why: docs/why/MiniGame.md#the-round-2-games
 
 const PW := 152
-const VH := 92
-const HUD := 38
+## Status A (Nov 20): the room runs to the deck's rule at 116 (it ran to the old deck at 98). The back
+## wall is 18 rows taller: the consoles, the chair and the floor (FLOOR, 20 rows) moved down 18, and
+## the leaks' band with them. The smoke's view stops 6 rows above the deck (VH).
+const VH := 110
+const HUD := 30
 const PH := VH + HUD
-## The room's rows: its floor grating runs on under the deck's top rows (the UI kit, Nov 20).
-const ROOM_H := 98
+## The room's rows: its floor grating runs on under the deck's top rows.
+const ROOM_H := 116
+## The floor grating's top row (a tap there does nothing); the consoles stand on it.
+const FLOOR := 96
 ## Where a leak can be: the back wall above the consoles.
 const RX0 := 6.0
 const RX1 := 146.0
 const RY0 := 10.0
-const RY1 := 70.0
+const RY1 := 88.0
 const CFG := {
 	1: {leaks = 1, wind = 0, S = 450.0, life = 2.6, tol = 5.0, secs = 60.0, spare = 2},
 	2: {leaks = 1, wind = 0, S = 320.0, life = 2.2, tol = 4.5, secs = 60.0, spare = 2},
@@ -43,9 +48,6 @@ var S: Dictionary = {}
 var mode := "smoke"
 var done_fired := false
 var end_t := 0.0
-var status := ""
-var status_col := MiniPix.CHILL
-var status_t := 0.0
 var fx: Array = []
 var junk: Array = []
 var motes: Array = []
@@ -227,9 +229,9 @@ func _draw_room() -> Image:
 			var c := 2
 			if y < 5:
 				c = 0 if y == 4 else (3 if y == 1 else 2)
-			elif y >= 78:
-				c = 1 if ((x + (y >> 1)) % 4 == 0 or y == 78) else 2
-				if y == 79:
+			elif y >= FLOOR:
+				c = 1 if ((x + (y >> 1)) % 4 == 0 or y == FLOOR) else 2
+				if y == FLOOR + 1:
 					c = 4
 			else:
 				var pxl := (x - 1) % 30
@@ -274,18 +276,18 @@ func _draw_room() -> Image:
 		s.dot(x + 1, 10 + i, CABLE_DK)
 	s.dot(cx, 28, MiniPix.HOT)
 	for cw: Vector2i in [Vector2i(4, 30), Vector2i(104, 44)]:
-		for y in range(66, 78):
+		for y in range(FLOOR - 12, FLOOR):
 			for x in range(cw.x, cw.x + cw.y):
-				var e := x == cw.x or y == 66 or x == cw.x + cw.y - 1
-				s.dot(x, y, (M[6] if y == 66 or x == cw.x else M[0]) if e else (M[5] if y < 69 else M[3]))
+				var e := x == cw.x or y == FLOOR - 12 or x == cw.x + cw.y - 1
+				s.dot(x, y, (M[6] if y == FLOOR - 12 or x == cw.x else M[0]) if e else (M[5] if y < FLOOR - 9 else M[3]))
 		for x in range(cw.x + 3, cw.x + cw.y - 3, 4):
-			s.dot(x, 68, MiniPix.BAD if (x * 13) % 5 == 0 else M[2])
+			s.dot(x, FLOOR - 10, MiniPix.BAD if (x * 13) % 5 == 0 else M[2])
 	for i in 7:
-		s.dot(60 + i, 74 - i / 2, M[5])
-		s.dot(60 + i, 75 - i / 2, M[0])
+		s.dot(60 + i, FLOOR - 4 - i / 2, M[5])
+		s.dot(60 + i, FLOOR - 3 - i / 2, M[0])
 	for y in 5:
-		s.dot(60, 70 + y, M[5])
-		s.dot(66, 71 + y, M[4])
+		s.dot(60, FLOOR - 8 + y, M[5])
+		s.dot(66, FLOOR - 7 + y, M[4])
 	s.text("DECK 4", PW - 28, VH - 10, M[3])
 	for y in 3:
 		for x in range(-3, 4):
@@ -350,7 +352,7 @@ func _draw() -> void:
 			var y := MiniPix.jr(float(f.y) + sin(aa) * r)
 			if bt(x, y) < 1.0 - k:
 				px.dot(x, y, MiniPix.GOOD if f.ok else MiniPix.BAD)
-	for c: Vector4i in [Vector4i(1, 11, 1, 1), Vector4i(PW - 2, 11, -1, 1), Vector4i(1, 96, 1, -1), Vector4i(PW - 2, 96, -1, -1)]:
+	for c: Vector4i in [Vector4i(1, 11, 1, 1), Vector4i(PW - 2, 11, -1, 1), Vector4i(1, VH + 4, 1, -1), Vector4i(PW - 2, VH + 4, -1, -1)]:
 		for i in 5:
 			px.dot(c.x + c.z * i, c.y, M[6])
 			px.dot(c.x, c.y + c.w * i, M[6])
@@ -358,7 +360,7 @@ func _draw() -> void:
 		for x in range(2, PW - 2):
 			if bt(x, 0) < 0.5:
 				px.dot(x, 11, MiniPix.EMBER)
-				px.dot(x, 96, MiniPix.EMBER)
+				px.dot(x, VH + 4, MiniPix.EMBER)
 	_kit(tt)
 	dirty = true
 
@@ -445,7 +447,7 @@ func _draw_smoke() -> void:
 
 
 ## The kit over the room, on a 150-wide layer laid 1 px in: the header (DRONE 2, PUFFS, PATCHES
-## left), the tell card, the deck with the status line, AIR, and SMOKE / PATCH (the mode amber).
+## left), the tell card, the deck with AIR and SMOKE / PATCH (the mode amber), the toast last.
 func _kit(tt: float) -> void:
 	if _kit_px == null:
 		_kit_px = MiniPix.new(MiniKit.W, MiniKit.H)
@@ -456,7 +458,7 @@ func _kit(tt: float) -> void:
 	var low: bool = float(S.air) < 0.25
 	MiniKit.header(k, "DRONE 2", [["PUFFS", int(S.puffs)], ["PATCHES", left, null if left else "bad"]])
 	if not int(S.puffs) and not S.over:
-		MiniKit.tell(k, "PATCH THE LEAK.", ["click"] as Array[String], tt)
+		MiniKit.tell(k, "PATCH THE LEAK.", ["click", MiniKit.ESC] as Array[String], tt)
 	MiniKit.deck(k, true)
 	k.text("AIR", MiniKit.GUT, cy - 6, MiniPix.BAD if low else MiniKit.LABEL)
 	MiniKit.meter(k, MiniKit.GUT, cy, int(KB[0].x) - 1 - MiniKit.GAP - MiniKit.GUT, S.air, "bad" if low else "neutral")
@@ -464,9 +466,9 @@ func _kit(tt: float) -> void:
 		var dis: bool = S.over or (b.id == "patch" and not left)
 		var st := "disabled" if dis else ("active" if mode == b.id else "normal")
 		MiniKit.button(k, int(b.x) - 1, MiniKit.BTN_YL, KB_W, MiniKit.BTN_HL, b.lab, st, b.id)
-	if status_t > 0.0 or S.over:
-		var kind := "good" if status_col == MiniPix.GOOD else ("bad" if status_col == MiniPix.BAD else "neutral")
-		MiniKit.status(k, status, kind, true)
+	# A (Nov 20): no status line; the toast on the kit's layer, as the page's pop.draw in its translate
+	if end_text == "":
+		MiniKit.toast(k, toast_text, toast_kind, t - toast_at)
 	px.blit(k.img, 1, 0)
 
 
@@ -478,10 +480,14 @@ static func btn(bid: String) -> Vector2i:
 	return Vector2i.ZERO
 
 
+## A word said as the status line said it (A, Nov 20): one held 99 s is the END word (the card), any
+## other a toast.
 func _say(txt: String, c: Color, sec: float = 2.0) -> void:
-	status = txt
-	status_col = c
-	status_t = sec
+	var kind := "good" if c == MiniPix.GOOD else ("bad" if c == MiniPix.BAD else "neutral")
+	if sec >= 99.0:
+		say_end(txt, kind)
+	else:
+		say(txt, kind)
 
 
 func _events() -> void:
@@ -520,7 +526,6 @@ func _step(dt: float) -> void:
 			(p.trail as Array).pop_front()
 	step(S, P, dt)
 	_events()
-	status_t -= dt
 	var keep: Array = []
 	for f: Dictionary in fx:
 		f.age += dt
@@ -541,9 +546,9 @@ func _step(dt: float) -> void:
 		if float(j.x) < 4 or float(j.x) > PW - 8:
 			j.vx *= -1
 			j.x = clampf(j.x, 4, PW - 8)
-		if float(j.y) < 11 or float(j.y) > 72:
+		if float(j.y) < 11 or float(j.y) > FLOOR - 6:
 			j.vy *= -1
-			j.y = clampf(j.y, 11, 72)
+			j.y = clampf(j.y, 11, FLOOR - 6)
 	if S.over and _finish_at < 0.0 and float(S.t) - end_t > 1.0:
 		_finish_at = t + 0.1
 	if _finish_at >= 0.0 and t >= _finish_at:
@@ -573,7 +578,7 @@ func down(_p: Vector2i) -> void:
 					and not (b.id == "patch" and int(S.used) >= int(P.patches)):
 				mode = b.id
 		return
-	if y < MiniKit.PLAY_Y or y >= 78:
+	if y < MiniKit.PLAY_Y or y >= FLOOR:
 		return
 	if mode == "smoke":
 		sfx(&"puff")

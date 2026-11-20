@@ -447,6 +447,7 @@ func tap(i: int, j: int, now: float) -> void:
 		over = true
 		lost = now
 		var f := found()
+		say_end("SCAN LOST", "bad")
 		done(0.15 * f / total, "Glass broke, %d/%d found" % [f, total])
 
 
@@ -455,6 +456,7 @@ func _win(now: float) -> void:
 	over = true
 	won = now
 	var secs := MiniPix.jr((now - 1000.0) / 1000.0)
+	say_end("FOUND: " + String(P.name), "good")
 	done(score_of(mistakes, secs, par), "%s, %d crack%s" % [String(P.name).to_lower(), mistakes, "" if mistakes == 1 else "s"])
 
 
@@ -525,11 +527,10 @@ func _render(now: float) -> void:
 		var u := minf(1.0, (now - won) / 600.0)
 		if u < 1.0:
 			px.rect(GX, GY + MiniPix.jr(u * GW), GW, 1, WHITE)
-		MiniKit.status(px, "FOUND: " + String(P.name), "good", false)
-	elif lost > 0.0:
-		MiniKit.status(px, "SCAN LOST", "bad", false)
+	# A (Nov 20): no status line; FOUND: NAME / SCAN LOST are the shell's card
 	if not touched and now - 1000.0 < 4500.0:
-		MiniKit.tell(px, "FILL IN THE SCAN.", ["click"] as Array[String], (now - 1000.0) / 1000.0)
+		MiniKit.tell(px, "FILL IN THE SCAN.", ["click", MiniKit.ESC] as Array[String], (now - 1000.0) / 1000.0)
+	draw_toast()
 	dirty = true
 
 

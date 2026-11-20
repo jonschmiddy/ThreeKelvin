@@ -385,10 +385,11 @@ func _mount() -> void:
 	var w: int = P.w
 	var h: int = P.h
 	limit = time_limit(P, depth, sensors)
-	# the tile size, even: as big as the kit's play rows allow, inside the grid's 1 px frame
+	# the tile size, even: as big as the kit's play rows allow, inside the grid's 1 px frame, with
+	# 1 px margins at the sides (A, Nov 20: the whole glass is the game, rows 10-139)
 	var py0 := MiniKit.PLAY_Y + 1
 	var ph := MiniKit.deck_y(false) - 1 - py0
-	S = mini((W - 4 - 2 * E) / w, ph / h) & ~1
+	S = mini((W - 2 - 2 * E) / w, ph / h) & ~1
 	GX = (W - w * S) / 2
 	GY = py0 + ((ph - h * S) >> 1)
 	px = MiniPix.new(W, H)
@@ -404,6 +405,7 @@ func _tick(_dt: float) -> void:
 			over = true
 			lost = true
 			last = -1
+			say_end("OVERHEAT", "bad")
 			done(0.1, "Overheated before the route closed")
 	# the coolant flows at about 30 frames a second, before and after the end
 	var ph := int(floorf(t * 30.0))
@@ -421,13 +423,17 @@ func tap(i: int) -> void:
 	taps += 1
 	last = i
 	sfx(&"turn")
+	var leaks := (F.leaks as Array).size()
 	F = flood(P)
+	if (F.leaks as Array).size() > leaks:
+		say("LEAK", "bad")
 	if win(P, F):
 		over = true
 		won = true
 		last = -1
 		sfx(&"flow")
 		sfx(&"win")
+		say_end("ROUTED", "good")
 		done(score_of(heat, taps, int(P.par)), "Routed at %d%% heat in %d turns (par %d)" % [MiniPix.jr(heat * 100.0), taps, int(P.par)])
 	_render()
 
@@ -464,6 +470,7 @@ func _render() -> void:
 		_tile(i)
 	_ends()
 	_hud()
+	draw_toast()
 	dirty = true
 
 
@@ -679,24 +686,7 @@ func _hud() -> void:
 	var hot := heat > 0.75
 	MiniKit.header(px, {label = "HEAT", kind = "bad" if hot else "", meter = {w = 53, frac = heat, kind = "bad" if hot else "neutral"}},
 		[["TURNS", taps], ["PAR", int(P.par)]])
-	MiniKit.deck(px, false)
-	if won:
-		MiniKit.status(px, "ROUTED", "good", false)
-		return
-	if lost:
-		MiniKit.status(px, "OVERHEAT", "bad", false)
-		return
-	if taps == 0:
-		MiniKit.tell(px, "COOL THE SAMPLE.", ["click"] as Array[String], t)
-		return
-	var n := 0
-	for b: bool in F.reached:
-		if b:
-			n += 1
-	var rows: Array[int] = P.rows
-	var parts: Array = [["COLD %d/%d" % [n, rows.size()], "good" if n == rows.size() else "neutral"]]
-	if int(P.valve) >= 0:
-		parts.append(["VALVE OPEN", "good"] if (F.lit as Dictionary).has(int(P.valve)) else ["VALVE DRY", "neutral"])
-	if not (F.leaks as Array).is_empty():
-		parts.append(["LEAK", "bad"])
-	MiniKit.status(px, parts, "", false)
+	# A (Nov 20): no status line; ROUTED / OVERHEAT are the shell's card, LEAK a toast, COLD and the
+	# valve the grid's own
+	if not over and taps == 0:
+		MiniKit.tell(px, "COOL THE SAMPLE.", ["click", MiniKit.ESC] as Array[String], t)

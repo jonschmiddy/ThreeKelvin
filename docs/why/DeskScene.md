@@ -113,8 +113,9 @@ on LOCAL, a fight, a death. Leaving before the tap takes nothing, and the event 
 - **A tap after the outcome, or Esc any time, leaves.** Before the tap, the card is what squeezes away.
 - **With a mini game** (Nov 19, `docs/why/MiniGame.md`): the card also carries the game's one line and
   its control icons; the tap mounts the site's game on the glass instead of taking the reading; the
-  game's end takes it (`take(tier)`, its haul paid inside the take) and the haul line shows on the
-  glass. Esc during the game gives up; the desk cannot be left between the end and the take.
+  game's end takes it (`take(tier)`, its haul paid inside the take) and the result card shows on the
+  glass. Esc during the game gives up; the desk cannot be left between the end and the take. Once
+  the card is up (status A, Nov 20) a click anywhere on the glass, or Esc, leaves.
 
 ## Window size
 

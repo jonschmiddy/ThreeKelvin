@@ -3,7 +3,8 @@ extends MiniGame
 
 ## STAR LIGHT (Jon, Nov 17: "a delight"): switch gas tubes on until your light matches the star's,
 ## line for line. A port of the approved `spectrum2.js` as fit4 laid it out (fit2 taken to every tube
-## count: the rows share 85 px) and dressed in the kit (Nov 20): MATCH meter in the header, status in the deck.
+## count) and dressed in the kit (Nov 20): MATCH meter and LINES in the header; on status A the rows share
+## rows 36 to 139, n EXTRA is a toast and MATCH! the shell's result card.
 ## Why: docs/why/MiniGame.md#beams-and-spectrum-on-the-glass
 
 const BINS := 21
@@ -19,9 +20,9 @@ const H := MiniKit.H
 const SX := 21
 const BW := 6
 const SW := BINS * BW
-## The tube rows share rows 36 to 120; a strip is up to 14 tall, centred in its row.
+## The tube rows share rows 36 to 139 (A, Nov 20: the whole glass); a strip is up to 14 tall, centred in its row.
 const ROWS_Y := 36
-const ROWS_H := 85
+const ROWS_H := 104
 const DARK := Color("#151c26")
 const DARK2 := Color("#0b0f15")
 const BROKEN_LINE := Color("#1f2935")
@@ -354,9 +355,9 @@ func _render(now: float) -> void:
 			_draw_line(x, y + 2, SH, _bin_col(bn), 0.5 if lit else 0.0, false)
 			if not lit:
 				px.rect(x, y + 2, 2, SH, MiniPix.mix(_bin_col(bn), Color.BLACK, 0.55))
-	_deck(cnt)
 	if not toggles and not over:
-		MiniKit.tell(px, "MATCH THE STAR.", ["click"] as Array[String], (now - 1000.0) / 1000.0)
+		MiniKit.tell(px, "MATCH THE STAR.", ["click", MiniKit.ESC] as Array[String], (now - 1000.0) / 1000.0)
+	draw_toast()
 	dirty = true
 
 
@@ -412,26 +413,16 @@ static func _counts(mine: int, target: int) -> Vector3i:
 	return Vector3i(matched, extras, n)
 
 
-## The kit header: the MATCH meter left, the switch count right.
+## The kit header: the MATCH meter left; LINES m/n (red while extras are on) and the switch count right
+## (A: LINES left the status line). The meter is as wide as the widest right side lets it (n/n and a
+## two-digit count): 33 for a star of up to 9 lines, 25 for 10 or more.
 func _header(cnt: Vector3i) -> void:
 	var frac := maxf(0.0, cnt.x - cnt.y) / cnt.z
 	var full := frac == 1.0 and not cnt.y
-	MiniKit.header(px, {label = "MATCH", meter = {w = 53, frac = frac, kind = "good" if full else "neutral"},
-		value = "%d%%" % MiniPix.jr(frac * 100.0), vkind = "good" if full else ""}, [["SWITCHES", toggles]])
-
-
-## The kit deck: the status line only (the tubes are the controls).
-func _deck(cnt: Vector3i) -> void:
-	MiniKit.deck(px, false)
-	if won != 0.0:
-		MiniKit.status(px, "MATCH!", "good", false)
-	elif over:
-		MiniKit.status(px, "NO MATCH", "bad", false)
-	elif toggles:
-		var parts: Array = [["LINES %d/%d" % [cnt.x, cnt.z], "good" if cnt.x == cnt.z else "neutral"]]
-		if cnt.y:
-			parts.append(["%d EXTRA" % cnt.y, "bad"])
-		MiniKit.status(px, parts, "", false)
+	var mw := 44 - (str(cnt.z).length() * 8 + 3)
+	var lk := "bad" if cnt.y else ("good" if cnt.x == cnt.z else "")
+	MiniKit.header(px, {label = "MATCH", meter = {w = mw, frac = frac, kind = "good" if full else "neutral"}},
+		[["LINES", "%d/%d" % [cnt.x, cnt.z], lk], ["SWITCHES", toggles]])
 
 
 func _tick(_dt: float) -> void:
@@ -450,6 +441,7 @@ func row_at(i: int) -> Vector2i:
 func toggle(i: int, now: float) -> void:
 	if over or broken.has(i) or locked.has(i):
 		return
+	var xb := _counts(union(P.tray, on), int(P.target)).y
 	on ^= 1 << i
 	toggles += 1
 	sfx(&"tube")
@@ -464,12 +456,17 @@ func toggle(i: int, now: float) -> void:
 		elif not ((still >> bn) & 1):
 			fly.append({bin = bn, y0 = y, t = now, up = false})
 			land_t.erase(bn)
+	# a wrong tube going on: n EXTRA, a toast (A)
+	var xa := _counts(union(tray, on), int(P.target)).y
+	if lit and xa > xb:
+		say("%d EXTRA" % xa, "bad")
 	if union(tray, on) == int(P.target):
 		over = true
 		after(0.3, func() -> void:
 			won = _now()
 			sfx(&"match")
 			sfx(&"win"))
+		say_end("MATCH!", "good")
 		done(score_of(toggles, min_t, (now - 1000.0) / 1000.0, t1), "Matched in %d switch%s (best %d)" % [toggles, "" if toggles == 1 else "es", min_t])
 
 

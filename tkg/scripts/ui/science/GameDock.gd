@@ -7,8 +7,9 @@ extends MiniGame
 ## Why: docs/why/MiniGame.md#tumble-dock
 
 const PW := 152
-const VH := 98
-const PH := 130
+## Status A (Nov 20): the camera runs to the deck's rule at 116 (it ran to the old deck at 98).
+const VH := 116
+const PH := 140
 ## Spin per thruster pulse (deg/s), drift per slide pulse (px/s), how far off the clamp the port may sit.
 const STEP := 12.0
 const DSTEP := 2.0
@@ -31,7 +32,8 @@ const SPIN_DK := Color("#1c3a2a")
 const FLARE_DK := Color("#5a2e10")
 const DRIFT_DK := Color("#0b3531")
 const CX := PW / 2
-const CY := 52
+## The spin centre: 9 lower than before A (half the 18 rows the camera gained).
+const CY := 61
 const N4: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
 var P: Dictionary[String, Variant] = {}
@@ -44,9 +46,8 @@ var stars := PackedFloat64Array()
 var fx: Array[Dictionary] = []
 var done_fired := false
 var end_t := 0.0
-var status := ""
-var status_kind := "neutral"
-var status_t := 0.0
+## Whether the port sat in the bracket too fast last frame (TOO FAST toasts as it comes in).
+var _was_fast := false
 var press := ""
 var press_t := 0.0
 var arc_flash := 0.0
@@ -329,10 +330,13 @@ func _static_layers() -> void:
 
 # ---------------------------------------------------------------- the clock
 
+## A word said as the status line said it (A, Nov 20): one held 99 s is the END word (the card), any
+## other a toast.
 func _say(txt: String, kind: String, secs := 2.0) -> void:
-	status = txt
-	status_kind = kind
-	status_t = secs
+	if secs >= 99.0:
+		say_end(txt, kind)
+	else:
+		say(txt, kind)
 
 
 func _events() -> void:
@@ -376,7 +380,6 @@ func _step(dt: float) -> void:
 		S.th = float(lt.th0) - wrap180(lt.th0) * e
 		S.x = float(lt.x0) + (float(lt.kx) - float(lt.x0)) * e
 	_events()
-	status_t -= dt
 	press_t -= dt
 	arc_flash -= dt
 	var keep: Array[Dictionary] = []
@@ -473,12 +476,14 @@ func _draw(now: float) -> void:
 		_put(x - 2 * sgn, ty + 4, tc)
 		if not ok and bl == 1:
 			_put(x + sgn, ty, tc)
-	var rd: Array = []
-	_draw_spin(wx, tt, rd)
-	_draw_drift(wx, rd)
+	_draw_spin(wx, tt)
+	_draw_drift(wx)
 	_draw_clamp(kx, ty, tt, ok)
-	if near:
-		rd.append(["TOO FAST", "bad"])
+	# TOO FAST: the port in the bracket and the clamp did not grab it, a toast each time it comes in
+	var fast := near and placed(S, P)
+	if fast and not _was_fast:
+		say("TOO FAST", "bad")
+	_was_fast = fast
 	if ok and not (S.latch as Dictionary).is_empty() and float(S.t) - float(S.latch.t) < 0.25:
 		for sgn: int in [-1, 1]:
 			for k in 3:
@@ -487,13 +492,13 @@ func _draw(now: float) -> void:
 	var img := px.img
 	for i in _vig:
 		img.set_pixel(i % PW, i / PW, MiniPix.BEVEL_LO)
-	_hud(now, rd)
+	_hud(now)
 	dirty = true
 
 
 ## The spin arrow under the wreck (its length and running chevrons are the spin), or when stopped
 ## a thin arc from the port to the bracket, the short way round.
-func _draw_spin(wx: int, tt: float, rd: Array) -> void:
+func _draw_spin(wx: int, tt: float) -> void:
 	var n := absf(S.w) / STEP
 	if (n > 0.15 or int(S.wk) != 0) and not S.docked:
 		var span := minf(200.0, 20.0 + n * 28.0)
@@ -502,8 +507,6 @@ func _draw_spin(wx: int, tt: float, rd: Array) -> void:
 		var sl := slow_spin(S, P)
 		_arrow_arc(35, 90.0 - dir * span / 2.0, 90.0 + dir * span / 2.0, MiniPix.HOT if fl else (MiniPix.GOOD if sl else MiniPix.FLARE),
 			MiniPix.EMBER if fl else (SPIN_DK if sl else FLARE_DK), n, tt)
-		if float(S.t) >= 6.0 or int(S.used) > 0:
-			rd.append(["SPIN %d" % absi(S.wk), "good" if sl else "neutral"])
 	elif not S.docked and not S.over:
 		var e := err(S)
 		if absf(e) > float(P.tol):
@@ -521,12 +524,10 @@ func _draw_spin(wx: int, tt: float, rd: Array) -> void:
 			var s := -1 if e > 0.0 else 1
 			for q: Vector2i in [Vector2i(s, 0), Vector2i(0, -1), Vector2i(0, 1), Vector2i(-s, -1), Vector2i(-s, 1)]:
 				_put(hx + q.x, hy + q.y, MiniPix.HOT)
-		if float(S.t) >= 6.0 or int(S.used) > 0:
-			rd.append(["STILL", "good"])
 
 
 ## The drift: a cyan arrow above the wreck, as long as the drift is fast.
-func _draw_drift(wx: int, rd: Array) -> void:
+func _draw_drift(wx: int) -> void:
 	var dn := absf(S.vx) / DSTEP
 	if int(P.drift) == 0 or S.docked or not (dn > 0.12 or int(S.vk) != 0):
 		return
@@ -542,8 +543,6 @@ func _draw_drift(wx: int, rd: Array) -> void:
 		_put(hx - dir * j, y - j, dc)
 		_put(hx - dir * j, y + j, dc)
 	_put(hx + dir, y, dc)
-	if float(S.t) >= 6.0 or int(S.used) > 0:
-		rd.append(["DRIFT %d" % absi(S.vk), "good" if dc == MiniPix.GOOD else "neutral"])
 
 
 ## Your docking clamp, hanging from the header rule; it reaches down once docked.
@@ -693,7 +692,7 @@ func _hull(m: int, v: int, sx: int, sy: int, tt: float, lit6: bool) -> Color:
 
 
 ## The kit, as the page draws it inside `translate(1,0)`: on a 150-wide layer laid 1 px in.
-func _hud(now: float, rd: Array) -> void:
+func _hud(now: float) -> void:
 	var k := _kit
 	k.img.fill(Color(0, 0, 0, 0))
 	var left := int(P.gas) - int(S.used)
@@ -707,12 +706,8 @@ func _hud(now: float, rd: Array) -> void:
 		tm[2] = "bad"
 	MiniKit.header(k, lhs, [tm])
 	if float(S.t) < 6.0 and int(S.used) == 0:
-		MiniKit.tell(k, "STOP IT UNDER THE CLAMP.", ["click"] as Array[String], now)
+		MiniKit.tell(k, "STOP IT UNDER THE CLAMP.", ["click", MiniKit.ESC] as Array[String], now)
 	MiniKit.deck(k, true)
-	if status_t > 0.0 or S.over:
-		MiniKit.status(k, status, status_kind, true)
-	elif not rd.is_empty():
-		MiniKit.status(k, rd, "", true)
 	var want := ""
 	if not S.over and int(P.depth) <= 3 and int(S.wk) != 0:
 		want = "ccw" if int(S.wk) > 0 else "cw"
@@ -720,4 +715,7 @@ func _hud(now: float, rd: Array) -> void:
 		var on: bool = press == b.id and press_t > 0.0
 		var st := "disabled" if S.over or int(S.used) >= int(P.gas) else (("active-pressed" if on else "active") if want == b.id else ("pressed" if on else "normal"))
 		MiniKit.button(k, int(b.x) - 1, BY, int(b.w), BH, "", st, b.id)
+	# A (Nov 20): no status line; the toast last, on the kit's layer (the page's pop.draw)
+	if end_text == "":
+		MiniKit.toast(k, toast_text, toast_kind, t - toast_at)
 	px.img.blend_rect(k.img, Rect2i(0, 0, MiniKit.W, MiniKit.H), Vector2i(1, 0))

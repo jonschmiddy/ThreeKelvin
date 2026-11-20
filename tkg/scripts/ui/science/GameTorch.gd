@@ -8,8 +8,8 @@ extends MiniGame
 ## Why: docs/why/MiniGame.md#the-round-2-games
 
 const PW := 152
-const PH := 100
-const HUD := 30
+const PH := 116
+const HUD := 24
 const MSG := {zap = "ZAP! LIVE LINE", fuel = "FUEL LINE!", burn = "CRATE BURNT", piece = "EMPTY PIECE", free = "CUT FREE", gas = "OUT OF GAS", fire = "TORCH OUT"}
 ## The kit's HITS meter width, right-aligned on the control row; GAS takes the rest.
 const HITS_W := 25
@@ -35,9 +35,6 @@ var drag := false
 var down_at := Vector2.ZERO
 var done_fired := false
 var end_t := 0.0
-var status := ""
-var status_col := MiniPix.CHILL
-var status_t := 0.0
 var shake_t := 0.0
 var torch_a := NAN
 var fx: Array = []
@@ -399,7 +396,7 @@ func _draw() -> void:
 			var v := sqrt(dx * dx + dy * dy)
 			if v > 0.0 and MiniPix.bay(x, y) < v * 0.45:
 				_put(x, y, MiniPix.BEVEL_LO)
-	for c: Vector4i in [Vector4i(1, 11, 1, 1), Vector4i(PW - 2, 11, -1, 1), Vector4i(1, 96, 1, -1), Vector4i(PW - 2, 96, -1, -1)]:
+	for c: Vector4i in [Vector4i(1, 11, 1, 1), Vector4i(PW - 2, 11, -1, 1), Vector4i(1, PH - 4, 1, -1), Vector4i(PW - 2, PH - 4, -1, -1)]:
 		for i in 5:
 			_put(c.x + c.z * i, c.y, METAL[6])
 			_put(c.x, c.y + c.w * i, METAL[6])
@@ -667,7 +664,7 @@ func _plan() -> void:
 
 
 ## The kit over the camera: the header (ARM CAM and its REC lamp), the tell card, the deck with the
-## status line and the GAS and HITS meters. Drawn on a 150-wide layer laid 1 px in.
+## GAS and HITS meters, the toast last. Drawn on a 150-wide layer laid 1 px in.
 func _hud(t_: float) -> void:
 	if _kit_px == null:
 		_kit_px = MiniPix.new(MiniKit.W, MiniKit.H)
@@ -677,7 +674,7 @@ func _hud(t_: float) -> void:
 	if int(floorf(t_ * 2.0)) % 2:
 		k.dot(hd.x, 4, MiniPix.BAD)
 	if not S.over and (S.pts as Array).size() <= 1 and path.is_empty():
-		MiniKit.tell(k, "CUT OUT THE CRATE.", ["click"] as Array[String], t_)
+		MiniKit.tell(k, "CUT OUT THE CRATE.", ["click", MiniKit.ESC] as Array[String], t_)
 	MiniKit.deck(k, true)
 	var gl := clampf(1.0 - float(S.used) / float(P.gas), 0.0, 1.0)
 	var low := gl < 0.2
@@ -687,9 +684,9 @@ func _hud(t_: float) -> void:
 	MiniKit.meter(k, MiniKit.GUT, cy, hx - 4 - MiniKit.GUT, gl, "bad" if low else "neutral")
 	k.text("HITS", hx, cy - 6, MiniPix.BAD if int(S.hits) else MiniKit.LABEL)
 	MiniKit.meter(k, hx, cy, HITS_W, float(S.hits) / TorchSim.HITS_MAX, "bad")
-	if (status_t > 0.0 or S.over) and status != "":
-		var kind := "bad" if status_col == MiniPix.BAD else ("good" if status_col == MiniPix.GOOD else "neutral")
-		MiniKit.status(k, status, kind, true)
+	# A (Nov 20): no status line; the toast on the kit's layer, as the page's pop.draw in its translate
+	if end_text == "":
+		MiniKit.toast(k, toast_text, toast_kind, t - toast_at)
 	px.blit(k.img, 1, 0)
 
 
@@ -816,10 +813,14 @@ func _jet(t_: float, hx: float, hy: float, ux: float, uy: float, ox: float, oy: 
 
 # ---------------------------------------------------------------- the clock
 
+## A word said as the status line said it (A, Nov 20): one held 99 s is the END word (the card), any
+## other a toast; warn (EMPTY PIECE) is a neutral toast.
 func _say(txt: String, c: Color, secs: float = 2.5) -> void:
-	status = txt
-	status_col = c
-	status_t = secs
+	var kind := "good" if c == MiniPix.GOOD else ("bad" if c == MiniPix.BAD else "neutral")
+	if secs >= 99.0:
+		say_end(txt, kind)
+	else:
+		say(txt, kind)
 
 
 func _sparks(x: float, y: float, nn: int, cols: Array[Color], sp: float) -> void:
@@ -894,7 +895,6 @@ func _step(dt: float) -> void:
 			cut[k] = S.t
 			cut_list.append(k)
 	_events()
-	status_t -= dt
 	shake_t = maxf(0.0, shake_t - dt)
 	var keep: Array = []
 	for f: Dictionary in fx:

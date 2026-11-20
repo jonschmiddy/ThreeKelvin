@@ -16,16 +16,17 @@ const CFG := {
 ## The game area, as every game draws it (the UI kit, Nov 20).
 const W := MiniKit.W
 const H := MiniKit.H
-## The rotor's hub (the bowl in rows 13-117), and the bowl, rotor, slot ring and hub window radii.
+## The rotor's hub (the bowl in rows 22-126, the glass's middle: A, Nov 20), and the bowl, rotor, slot
+## ring and hub window radii.
 const CX := 53
-const CY := 65
+const CY := 74
 const RB := 52
 const RR := 46
 const RS := 34
 const HUB := 14
-const RACK := Rect2i(108, 12, 40, 82)
+const RACK := Rect2i(108, 21, 40, 82)
 ## SPIN, centred under the rack.
-const SPIN := Rect2i(111, 98, 33, MiniKit.BTN_HL)
+const SPIN := Rect2i(111, 107, 33, MiniKit.BTN_HL)
 const WELL := Color("#05070b")
 const HELD := Color("#2a1a0c")
 const LIQ: Array[Color] = [Color(0, 0, 0, 0), MiniPix.TRACTOR, MiniPix.HOT, MiniPix.FLARE, MiniPix.BAD]
@@ -426,13 +427,12 @@ func _render() -> void:
 	_rack()
 	_spin_button()
 	MiniKit.header(px, {label = "ROTOR", value = N}, [["MOVES", moves]])
-	MiniKit.deck(px, false)
+	# A (Nov 20): no status line; READY and SPINNING are SPIN's amber and the spin itself
 	if not acted and not over:
-		MiniKit.tell(px, "BALANCE THE TUBES.", ["click", "drag"] as Array[String], t)
-	else:
-		MiniKit.status(px, msg_txt, "good" if msg_col == MiniPix.GOOD else ("bad" if msg_col == MiniPix.BAD else "neutral"), false)
+		MiniKit.tell(px, "BALANCE THE TUBES.", ["click", "drag", MiniKit.ESC] as Array[String], t)
 	if not drag.is_empty() and drag.moved:
 		_tube_side(int(drag.x) - 3, int(drag.y) - 7, int(drag.m), true)
+	draw_toast()
 	dirty = true
 
 
@@ -637,6 +637,7 @@ func _finish(r: float) -> void:
 	var pct := MiniPix.jr(r * 100.0)
 	msg_txt = "BALANCED" if r < 1e-6 else ("ROTOR FAULT" if r > 0.3 else "WOBBLE %d%%" % pct)
 	msg_col = MiniPix.GOOD if r < 1e-6 else (MiniPix.BAD if r > 0.3 else MiniPix.WARN)
+	say_end(msg_txt, "good" if r < 1e-6 else ("bad" if r > 0.3 else "neutral"))
 	if r < 1e-6:
 		sfx(&"win")
 	_render()

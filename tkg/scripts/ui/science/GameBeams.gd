@@ -3,7 +3,7 @@ extends MiniGame
 
 ## BEAM BENCH (Jon loved, Nov 17): tap a mirror to turn it; light every sensor. A port of the
 ## approved `beams2.js` in its approved layout and the UI kit (Nov 20): LIT and TURNS in the header,
-## the table as large as the play rows allow with its emitter, ALL LIT on the deck.
+## the table as large as the whole glass allows with its emitter, ALL LIT on the shell's result card (status A).
 ## Why: docs/why/MiniGame.md#beams-and-spectrum-on-the-glass
 
 const DX: Array[int] = [0, 1, 0, -1]
@@ -18,8 +18,8 @@ const CFG := {
 	4: {n = 7, pm = 5, dec = 2, rocks = 3, glass = 1, sens = 3, min_par = 3, t1 = 55.0},
 	5: {n = 7, pm = 5, dec = 3, rocks = 3, glass = 2, sens = 3, min_par = 3, t1 = 65.0},
 }
-const W := 150
-const H := 130
+const W := MiniKit.W
+const H := MiniKit.H
 const TABLE := Color("#0d121b")
 const TABLE_LIT := Color("#111823")
 const PEG := Color("#18212d")
@@ -370,11 +370,12 @@ func _mount() -> void:
 	t1 = float(CFG[depth].t1) + (int(sensors >= 2) + int(sensors >= 4)) * 15.0
 	for cell: Variant in P.board:
 		board.append((cell as Dictionary).duplicate() if cell != null else null)
-	# the table, its frame and the emitter's housing in the kit's play rows, cells as large as they allow
-	var py0 := MiniKit.PLAY_Y
-	var ph := MiniKit.deck_y(false) - py0
+	# the table, its frame and the emitter's housing in rows 11-138 with 1 px side margins (A, Nov 20: the
+	# whole glass), cells as large as they allow
+	var py0 := MiniKit.PLAY_Y + 1
+	var ph := MiniKit.deck_y(false) - 1 - py0
 	var sd: int = P.src.d
-	cs = mini(106 / n, ((ph - 15) if sd == 0 or sd == 2 else (ph - 6)) / n)
+	cs = mini((W - 2 - (15 if sd == 1 or sd == 3 else 6)) / n, (ph - (15 if sd == 0 or sd == 2 else 6)) / n)
 	bw = n * cs
 	var el := 12 if sd == 1 else 3
 	var er := 12 if sd == 3 else 3
@@ -599,6 +600,7 @@ func _render(now: float) -> void:
 	_hud(tr, now)
 	if not over and lit == (P.sensors as Array).size() and settled:
 		_win(now)
+	draw_toast()
 	dirty = true
 
 
@@ -657,7 +659,7 @@ func _pieces(tr: Dictionary, now: float) -> int:
 	return lit
 
 
-## The kit's header (LIT and its lamps, TURNS), the tell card, ALL LIT on the deck's status line.
+## The kit's header (LIT and its lamps, TURNS) and the tell card; ALL LIT is the shell's card (A).
 func _hud(tr: Dictionary, now: float) -> void:
 	var hd := MiniKit.header(px, "LIT", [["TURNS", taps]])
 	var sens: Array = P.sensors
@@ -667,15 +669,14 @@ func _hud(tr: Dictionary, now: float) -> void:
 		px.rect(hd.x + k * 7, 2, 5, 5, Color.BLACK)
 		px.rect(hd.x + 1 + k * 7, 3, 3, 3, scol[board[i].c] if on else OFF_LAMP)
 	if not taps and not over and now - 1000.0 < 4500.0:
-		MiniKit.tell(px, "LIGHT EVERY SENSOR.", ["click"] as Array[String], (now - 1000.0) / 1000.0)
-	if won:
-		MiniKit.status(px, "ALL LIT", "good", false)
+		MiniKit.tell(px, "LIGHT EVERY SENSOR.", ["click", MiniKit.ESC] as Array[String], (now - 1000.0) / 1000.0)
 
 
 func _win(now: float) -> void:
 	sfx(&"win")
 	over = true
 	won = now
+	say_end("ALL LIT", "good")
 	done(score_of(taps, int(P.par), (now - 1000.0) / 1000.0, t1), "All %d lit with %d turns (best %d)" % [(P.sensors as Array).size(), taps, int(P.par)])
 
 
