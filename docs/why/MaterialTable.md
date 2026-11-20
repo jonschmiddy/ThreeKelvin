@@ -77,6 +77,13 @@ encounters pay their story pieces by `material_id`, and none of those ids moved.
 No sea or water words for a space creature (Jon, Nov 18, on SHOAL SHELLS, EGG CASES and
 SHOAL GLUE: "Shoal? Water? in space?"); in the game a shoal is a dust cloud.
 
+Nov 19, the same rule run over the rest (Jon's picks off a page of three options each):
+BLOOD SALT is BLOOD CRYSTALS, SIEVE PLATES FEEDING COMBS (they read as baleen), EAR STONES
+BALANCE STONES (a fish's), RENDERED FAT HEAT FAT (whaling), SINGER'S OIL SONG GLAND (whale
+oil), CALYX AGAR CALYX GROWTH GEL (agar is seaweed), CHARGE WOOL CHARGE STRAND, NERVE SILK
+NERVE CORD, CORONA AMBER CORONA SLAG (and the corona encounter's "amber" with it), and MOON
+DUST is no longer "sold as ballast". Ids unchanged, so saves read the new names.
+
 ## Sources
 
 Above `const SOURCES`:
