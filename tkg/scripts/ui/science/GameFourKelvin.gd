@@ -709,7 +709,8 @@ func _hud() -> void:
 	px.text("ENERGY", ex, MiniKit.CTRL_CY - 6, MiniKit.LABEL)
 	MiniKit.meter(px, ex, MiniKit.CTRL_CY, ew, 1.0, "yours")
 	if mode == "ready":
-		MiniKit.tell(px, "FLY THE SHIP.", ["keys:WAD", MiniKit.ESC] as Array[String], clock)
+		# the top spot: the ship starts on row 60, under the middle
+		MiniKit.tell(px, "FLY THE SHIP.", ["keys:WAD"] as Array[String], clock, MiniKit.TELL_TOP)
 	elif mode == "end":
 		_intent_tag()
 

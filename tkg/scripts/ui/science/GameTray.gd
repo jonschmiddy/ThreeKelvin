@@ -605,9 +605,8 @@ func _draw() -> void:
 		_leaving()
 	_hud()
 	if not started:
-		var icons := controls()
-		icons.append(MiniKit.ESC)
-		MiniKit.tell(px, "GET THE SAMPLE OUT.", icons, clock)
+		# the top spot: the middle hides the sample's row
+		MiniKit.tell(px, "GET THE SAMPLE OUT.", controls(), clock, MiniKit.TELL_TOP)
 	draw_toast()
 	dirty = true
 

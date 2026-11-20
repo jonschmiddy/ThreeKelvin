@@ -27,10 +27,13 @@ const DECK_N := 140
 const CTRL_Y := 117
 const CTRL_H := 23
 const CTRL_CY := 128
-## ROW.TELL: the tell card, rows 45-61, centred on x 75.
+## ROW.TELL: the tell card, rows 45-73, centred on x 75; HIGH (rows 33-61) and TOP (rows 12-40) where
+## the middle would hide what a player needs to start.
 const TELL_Y := 45
-const TELL_H := 17
+const TELL_H := 29
 const TELL_CX := 75
+const TELL_HIGH := 33
+const TELL_TOP := 12
 ## BTN: heights standard (label, or icon+label in a line) / large (icon over label); widths S/M/L; their y.
 const BTN_H := 13
 const BTN_HL := 19
@@ -330,10 +333,19 @@ static func dial_angle(v: float) -> float:
 	return (-135.0 + 270.0 * clampf(v, 0.0, 1.0)) * PI / 180.0
 
 
-## Every game's tell ends its icons with this (Esc gives up, A): the key cap at rest, never blinking.
+## The tell card's second line, always (Jon, Nov 20: "CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE
+## UP"): this key cap at rest, never blinking, then GIVE in the quiet label ink. No game lists it.
 const ESC := "key:ESC"
 ## The cap's resting frame (a key icon lights on t 0-0.5, 1-1.5 ...).
 const ESC_T := 0.5
+const GIVE := "TO GIVE UP"
+
+## The last tell card drawn, for MiniGameTest: its canvas, words, icons, clock and box.
+static var told_px: MiniPix = null
+static var told_text := ""
+static var told_icons: Array[String] = []
+static var told_t := 0.0
+static var told_at := Rect2i()
 
 
 ## A tell icon's width: TK.icon kinds, "key:SPACE" (one cap) or "keys:WAD" (a row of caps).
@@ -358,26 +370,32 @@ static func draw_icon(px: MiniPix, k: String, x: int, y: int, t: float) -> void:
 		px.icon(k, x, y, t)
 
 
-## The tell card's box for `text` and `icons`.
-static func tell_rect(text: String, icons: Array[String] = []) -> Rect2i:
+## The tell card's box for `text` and `icons`, its top on row `y`.
+static func tell_rect(text: String, icons: Array[String] = [], y := TELL_Y) -> Rect2i:
 	var iw := 0
 	for k in icons:
 		iw += icon_w(k) + 3
-	var w := iw + tw(text) + 12
-	return Rect2i(TELL_CX - (w >> 1), TELL_Y, w, TELL_H)
+	var w := maxi(iw + tw(text), icon_w(ESC) + 3 + tw(GIVE)) + 12
+	return Rect2i(TELL_CX - (w >> 1), y, w, TELL_H)
 
 
-## The one-line start card: icons, then the words, in one box at the kit's spot. Returns its box.
-static func tell(px: MiniPix, text: String, icons: Array[String] = [], t := 0.0) -> Rect2i:
-	var b := tell_rect(text, icons)
-	px.rect(b.position.x, b.position.y, b.size.x, b.size.y, MiniPix.BEVEL_LO)
-	px.rect(b.position.x + 1, b.position.y + 1, b.size.x - 2, b.size.y - 2, BORDER)
-	px.rect(b.position.x + 1, b.position.y + 1, b.size.x - 2, 1, MiniPix.BEVEL_HI)
+## The start card: line 1 the icons (at y+2), then the words (y+6); line 2 the ESC cap (y+15), then
+## TO GIVE UP (y+20), left-aligned under line 1. Its top on row `y` (TELL_Y, TELL_HIGH, TELL_TOP).
+static func tell(px: MiniPix, text: String, icons: Array[String] = [], t := 0.0, y := TELL_Y) -> Rect2i:
+	var b := tell_rect(text, icons, y)
+	box(px, b.position.x, b.position.y, b.size.x, b.size.y)
 	var x := b.position.x + 6
 	for k in icons:
 		draw_icon(px, k, x, b.position.y + 2, t)
 		x += icon_w(k) + 3
 	px.text(text, x, b.position.y + 6, CARD_TX)
+	draw_icon(px, ESC, b.position.x + 6, b.position.y + 15, 0.0)
+	px.text(GIVE, b.position.x + 6 + icon_w(ESC) + 3, b.position.y + 20, LABEL)
+	told_px = px
+	told_text = text
+	told_icons = icons.duplicate()
+	told_t = t
+	told_at = b
 	return b
 
 
@@ -402,7 +420,7 @@ const TOAST_HOLD := 0.9
 const TOAST_LIFE := 1.2
 
 
-## The tell card's box: bevelLo edge, border-colour face, bevelHi top line.
+## The cards' box (tell, result, toast): bevelLo edge, border-colour face, bevelHi top line.
 static func box(px: MiniPix, x: int, y: int, w: int, h: int) -> void:
 	px.rect(x, y, w, h, MiniPix.BEVEL_LO)
 	px.rect(x + 1, y + 1, w - 2, h - 2, BORDER)

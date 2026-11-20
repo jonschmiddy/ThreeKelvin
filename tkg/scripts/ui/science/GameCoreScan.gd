@@ -529,7 +529,7 @@ func _render(now: float) -> void:
 			px.rect(GX, GY + MiniPix.jr(u * GW), GW, 1, WHITE)
 	# A (Nov 20): no status line; FOUND: NAME / SCAN LOST are the shell's card
 	if not touched and now - 1000.0 < 4500.0:
-		MiniKit.tell(px, "FILL IN THE SCAN.", ["click", MiniKit.ESC] as Array[String], (now - 1000.0) / 1000.0)
+		MiniKit.tell(px, "FILL IN THE SCAN.", ["click"] as Array[String], (now - 1000.0) / 1000.0)
 	draw_toast()
 	dirty = true
 

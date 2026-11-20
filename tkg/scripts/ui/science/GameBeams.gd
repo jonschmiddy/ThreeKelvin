@@ -669,7 +669,7 @@ func _hud(tr: Dictionary, now: float) -> void:
 		px.rect(hd.x + k * 7, 2, 5, 5, Color.BLACK)
 		px.rect(hd.x + 1 + k * 7, 3, 3, 3, scol[board[i].c] if on else OFF_LAMP)
 	if not taps and not over and now - 1000.0 < 4500.0:
-		MiniKit.tell(px, "LIGHT EVERY SENSOR.", ["click", MiniKit.ESC] as Array[String], (now - 1000.0) / 1000.0)
+		MiniKit.tell(px, "LIGHT EVERY SENSOR.", ["click"] as Array[String], (now - 1000.0) / 1000.0)
 
 
 func _win(now: float) -> void:

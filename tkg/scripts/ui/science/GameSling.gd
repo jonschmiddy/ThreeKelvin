@@ -727,9 +727,7 @@ func _draw_hud() -> void:
 	var right: Array = [["PWR", pow_, "yours"]] if pow_ > 0 else ([["LAST", last_pow]] if last_pow > 0 else [["PWR", "-"]])
 	MiniKit.header(px, {label = "LAUNCH", value = left, vkind = "bad" if left <= 1 else ""}, right)
 	if not started:
-		var icons := controls()
-		icons.append(MiniKit.ESC)
-		MiniKit.tell(px, "HIT THE TARGET.", icons, clock)
+		MiniKit.tell(px, "HIT THE TARGET.", controls(), clock)
 
 
 ## The dial's knob and needle, the angle, the sling's pouch and bands, the power, the dimmer.

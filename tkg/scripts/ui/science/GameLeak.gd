@@ -458,7 +458,7 @@ func _kit(tt: float) -> void:
 	var low: bool = float(S.air) < 0.25
 	MiniKit.header(k, "DRONE 2", [["PUFFS", int(S.puffs)], ["PATCHES", left, null if left else "bad"]])
 	if not int(S.puffs) and not S.over:
-		MiniKit.tell(k, "PATCH THE LEAK.", ["click", MiniKit.ESC] as Array[String], tt)
+		MiniKit.tell(k, "PATCH THE LEAK.", ["click"] as Array[String], tt)
 	MiniKit.deck(k, true)
 	k.text("AIR", MiniKit.GUT, cy - 6, MiniPix.BAD if low else MiniKit.LABEL)
 	MiniKit.meter(k, MiniKit.GUT, cy, int(KB[0].x) - 1 - MiniKit.GAP - MiniKit.GUT, S.air, "bad" if low else "neutral")

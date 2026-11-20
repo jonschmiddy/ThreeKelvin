@@ -5,7 +5,7 @@ with GIVE UP. You can just press ESC to give up."): each game's swaps on top of 
 What a game's list does (kit_spec.md, "Status A"): the page is exactly 150x140 (152x140 for the torch,
 the leak, the dock); the play area grows into every freed row (the status line's and the strip's);
 status words go to the result card (END: `pop.finish`), toasts (LIVE: `pop.say`) or their own spot
-(STANDING, per fit/status_inventory.md); the tell's icons end with `KIT.ESC`. Every `old` must be in
+(STANDING, per fit/status_inventory.md); the tell's icons never list ESC (its second line has it). Every `old` must be in
 the page exactly once. One list per game; add yours to SWAPS.
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ COOLANT = [
      "    if(P.valve>=0)parts.push(F.lit.has(P.valve)?['VALVE OPEN','good']:['VALVE DRY','neutral']);\n"
      "    if(F.leaks.length)parts.push(['LEAK','bad']);\n"
      "    KIT.status(g,parts,null,false);\n",
-     "    if(!over&&taps===0)KIT.tell(g,'COOL THE SAMPLE.',['click',KIT.ESC],(performance.now()-t0p)/1000);\n"),
+     "    if(!over&&taps===0)KIT.tell(g,'COOL THE SAMPLE.',['click'],(performance.now()-t0p)/1000);\n"),
     ("tiles.forEach((_,i)=>drawTile(i));drawEnds();hud()}",
      "tiles.forEach((_,i)=>drawTile(i));drawEnds();hud();pop.draw(g,performance.now()/1000)}"),
     ("    F=flood(P);\n    if(win(P,F)){",
@@ -57,7 +57,7 @@ BEAMS = [
     ("    if(!taps&&!over&&now-t0<4500)KIT.tell(g,'LIGHT EVERY SENSOR.',['click'],(now-t0)/1000);\n"
      "    if(won)KIT.status(g,'ALL LIT','good',false);\n"
      "    if(!over&&lit===P.sensors.length&&settled)win(now);\n",
-     "    if(!taps&&!over&&now-t0<4500)KIT.tell(g,'LIGHT EVERY SENSOR.',['click',KIT.ESC],(now-t0)/1000);\n"
+     "    if(!taps&&!over&&now-t0<4500)KIT.tell(g,'LIGHT EVERY SENSOR.',['click'],(now-t0)/1000);\n"
      "    if(!over&&lit===P.sensors.length&&settled)win(now);\n"
      "    pop.draw(g,now/1000);\n"),
     ("    over=true;won=now;\n", "    over=true;won=now;pop.finish('ALL LIT','good',now/1000);\n"),
@@ -94,7 +94,7 @@ SPECTRUM = [
      "      else if(toggles){const parts=[['LINES '+matched+'/'+tgt.length,matched===tgt.length?'good':'neutral']];if(extras)parts.push([extras+' EXTRA','bad']);KIT.status(g,parts,null,false)}}\n"
      "\n"
      "    if(!toggles&&!over)TK.KIT.tell(g,'MATCH THE STAR.',['click'],(now-t0)/1000);\n",
-     "    if(!toggles&&!over)TK.KIT.tell(g,'MATCH THE STAR.',['click',TK.KIT.ESC],(now-t0)/1000);\n"
+     "    if(!toggles&&!over)TK.KIT.tell(g,'MATCH THE STAR.',['click'],(now-t0)/1000);\n"
      "    pop.draw(g,now/1000);\n"),
     ("    if(power<=0)return;\n    on^=1<<i;",
      "    if(power<=0)return;\n    const xb=extrasOf(union(P.tray,on));\n    on^=1<<i;"),
@@ -126,7 +126,7 @@ FOURKELVIN = [
     ("      if(mode==='ready')KIT.tell(g,'FLY THE SHIP.',['keys:WAD'],clock);\n"
      "      else if(mode==='end'){intentTag();\n"
      "        if(endT>(crashed?1:0.5))KIT.status(g,crashed?'IMPACT':'BELT CLEAR',crashed?'bad':'good',true)}\n",
-     "      if(mode==='ready')KIT.tell(g,'FLY THE SHIP.',['keys:WAD',KIT.ESC],clock);\n"
+     "      if(mode==='ready')KIT.tell(g,'FLY THE SHIP.',['keys:WAD'],clock,{y:KIT.ROW.TELL.top});\n"
      "      else if(mode==='end')intentTag();\n"
      "      pop.draw(g,performance.now()/1000);\n"),
     ("      if(!last)last=now;acc+=Math.min(0.25,(now-last)/1000);last=now;\n"
@@ -157,7 +157,7 @@ CENTRIFUGE = [
      "    else KIT.status(g,msgTxt,msgCol===PAL.good?'good':msgCol===PAL.bad?'bad':'neutral',false);\n"
      "    // a tube in your hand\n"
      "    if(drag&&drag.moved)tubeSide(drag.x-3,drag.y-7,drag.m,true);\n",
-     "    if(!acted&&!over)KIT.tell(g,'BALANCE THE TUBES.',['click','drag',KIT.ESC],(performance.now()-t0)/1000);\n"
+     "    if(!acted&&!over)KIT.tell(g,'BALANCE THE TUBES.',['click','drag'],(performance.now()-t0)/1000);\n"
      "    // a tube in your hand\n"
      "    if(drag&&drag.moved)tubeSide(drag.x-3,drag.y-7,drag.m,true);\n"
      "    pop.draw(g,performance.now()/1000);\n"),
@@ -173,7 +173,7 @@ SWAPS["centrifuge"] = CENTRIFUGE
 # follow; the tray's sockets 18x10 -> 18x12 on a 16 row pitch (rows 83-110); the tube's 88 rows of slots,
 # 11 px (a 10-row layer, the cores' own) up to 8 layers, 9 at 9, 8 at 10, foot SB 89 -> 108 (OLD rows 111-115).
 # n/N IN PLACE after a CHECK is a toast (the ticks and crosses stay); ORDER CONFIRMED, or n/N IN PLACE on the
-# last check, is the card, 0.6 s after the game's own wait. The tell's words shorten to fit the ESC cap.
+# last check, is the card, 0.6 s after the game's own wait.
 ICECORE = [
     ("const W=150,H=130;\n// each layer kind", "const W=150,H=140;\n// each layer kind"),
     ("const CX0=17,CDX=18,CW=14,LH=8,GH=5,CB=53;", "const CX0=17,CDX=18,CW=14,LH=10,GH=5,CB=61;"),
@@ -184,7 +184,7 @@ ICECORE = [
      "  const pop=KIT.popups(ctx,{delay:.09*n+1.1});"),
     ("    const m=msg;\n    if(m)KIT.status(g,m,finished?(winAt?'good':'bad'):'neutral',true);\n"
      "    if(!acted&&!m)KIT.tell(g,'STACK THE LAYERS IN ORDER.',['drag'],now/1000);",
-     "    if(!acted)KIT.tell(g,'STACK LAYERS IN ORDER.',['drag',KIT.ESC],now/1000);"),
+     "    if(!acted)KIT.tell(g,'STACK THE LAYERS IN ORDER.',['drag'],now/1000);"),
     ("layer(drag.kind,x,y,w,h,.08)}\n  }", "layer(drag.kind,x,y,w,h,.08)}\n    pop.draw(g,now/1000);\n  }"),
     ("msg='ORDER CONFIRMED';", "msg='ORDER CONFIRMED';pop.finish(msg,'good',performance.now()/1000);"),
     ("    msg=`${right}/${n} IN PLACE`;\n    if(used>=checks){finished=true;",
@@ -206,7 +206,7 @@ TRAY = [
     ("  KIT.deck(b,false);\n", ""),
     ("    if(outT>=0&&clock-outT>1)KIT.status(g,'SAMPLE OUT','good',false);\n", ""),
     ("    if(!started)KIT.tell(g,'GET THE SAMPLE OUT.',CONTROLS,clock);\n",
-     "    if(!started)KIT.tell(g,'GET THE SAMPLE OUT.',[...CONTROLS,KIT.ESC],clock);\n    pop.draw(g,clock);\n"),
+     "    if(!started)KIT.tell(g,'GET THE SAMPLE OUT.',CONTROLS,clock,{y:KIT.ROW.TELL.top});\n    pop.draw(g,clock);\n"),
     ("  const hist=[];", "  const hist=[];const pop=KIT.popups(ctx);"),
     ("outT=clock+.05;", "outT=clock+.05;pop.finish('SAMPLE OUT','good',clock);"),
     ("  p.cv.addEventListener('pointerdown',e=>{\n    if(over)return;",
@@ -229,7 +229,7 @@ TUNING = [
     ("    if(finished)KIT.status(G,d<MATCH?'MATCH!':'NO MATCH',d<MATCH?'good':'bad',true);\n"
      "    else KIT.status(G,knobs.map(k=>[k.lab+' '+k.fmt(cur[k.key]),isRight(k)?'good':'neutral']),null,true);\n"
      "    if(!acted&&!finished)KIT.tell(G,'MATCH THE WAVE.',['dial','click'],(now-t0)/1000);\n",
-     "    if(!acted&&!finished)KIT.tell(G,'MATCH THE WAVE.',['dial','click',KIT.ESC],(now-t0)/1000);\n"
+     "    if(!acted&&!finished)KIT.tell(G,'MATCH THE WAVE.',['dial','click'],(now-t0)/1000);\n"
      "    pop.draw(G,now/1000);\n"),
     ("  let drag=null,lastFrame=0,acted=false;", "  let drag=null,lastFrame=0,acted=false;const pop=KIT.popups(ctx,{delay:1.3});"),
     ("    TK.sfx('tuning2','lock');const sc=score(d,taps,parNow,free);",
@@ -267,7 +267,6 @@ TORCH = [
      "    // the kit: header over the camera's top rows; deck (status line, GAS + HITS meters) over its foot",
      "[[1,11,1,1],[PW-2,11,-1,1],[1,PH-4,1,-1],[PW-2,PH-4,-1,-1]])for(let i=0;i<5;i++){put(g,x+dx*i,y,M[6]);put(g,x,y+dy*i,M[6])}\n"
      "    // the kit: header over the camera's top rows; deck (GAS + HITS meters) under its foot; the toast last"),
-    ("K.tell(g,'CUT OUT THE CRATE.',['click'],t);", "K.tell(g,'CUT OUT THE CRATE.',['click',K.ESC],t);"),
     ("      if((statusT>0||S.over)&&status)K.status(g,status,statusCol===A.bad?'bad':statusCol===A.good?'good':'neutral',true);\n"
      "      g.restore()}",
      "      pop.draw(g,t);\n      g.restore()}"),
@@ -303,7 +302,6 @@ LEAK = [
      "    if(mode==='patch'&&!S.over){for(let x=2;x<PW-2;x++){if(bt(x,0)<0.5){put(g,x,11,A.ember);put(g,x,96,A.ember)}}}",
      "[[1,11,1,1],[PW-2,11,-1,1],[1,VH+4,1,-1],[PW-2,VH+4,-1,-1]])for(let i=0;i<5;i++){put(g,x+dx*i,y,M[6]);put(g,x,y+dy*i,M[6])}\n"
      "    if(mode==='patch'&&!S.over){for(let x=2;x<PW-2;x++){if(bt(x,0)<0.5){put(g,x,11,A.ember);put(g,x,VH+4,A.ember)}}}"),
-    ("K.tell(g,'PATCH THE LEAK.',['click'],t);", "K.tell(g,'PATCH THE LEAK.',['click',K.ESC],t);"),
     ("      if(statusT>0||S.over)K.status(g,status,statusCol===A.good?'good':statusCol===A.bad?'bad':'neutral',true);\n"
      "      g.restore()}",
      "      pop.draw(g,t);\n      g.restore()}"),
@@ -329,7 +327,7 @@ DOCK = [
     # status line said it whenever the port was close, which every slow approach is too
     ("    if(near)rd.push(['TOO FAST','bad']);\n",
      "    {const fast=near&&placed(S,P);if(fast&&!wasNear)pop.say('TOO FAST','bad',now);wasNear=fast}\n"),
-    ("KT.tell(g,'STOP IT UNDER THE CLAMP.',['click'],now);", "KT.tell(g,'STOP IT UNDER THE CLAMP.',['click',KT.ESC],now);"),
+    ("KT.tell(g,'STOP IT UNDER THE CLAMP.',['click'],now);", "KT.tell(g,'STOP IT UNDER THE CLAMP.',['click'],now,{y:KT.ROW.TELL.high});"),
     ("      if(statusT>0||S.over)KT.status(g,status,statusCol===A.good?'good':statusCol===A.bad?'bad':'neutral',true);\n"
      "      else if(rd.length)KT.status(g,rd,null,true);\n"
      "      for(const b of B)button(b,now);\n      g.restore()}",
@@ -359,8 +357,6 @@ PULSAR = [
     ("const locks=[],timers=[];let misses=0;", "const locks=[],timers=[];let misses=0;const pop=KIT.popups(ctx);"),
     ("    if(stampTxt&&clock<stampT){const k=stampTxt==='LOCKED'?'good':stampTxt==='NO LOCK'||stampTxt==='LOST'?'bad':'neutral';"
      "TK.text(g,stampTxt,(W>>1)-((stampTxt.length*4-1)>>1),DECK+KIT.ROW.STATUS_TY,KIT.KIND[k].text)}\n", ""),
-    ("else if(!started)KIT.tell(g,'TUNE IN THE PULSAR.',CONTROLS,clock);",
-     "else if(!started)KIT.tell(g,'TUNE IN THE PULSAR.',[...CONTROLS,KIT.ESC],clock);"),
     ("KIT.button(g,LB.x,LB.y,LB.w,LB.h,'LOCK',finished?'disabled':hot?(pressed?'active-pressed':'active'):(pressed?'pressed':'normal'));",
      "KIT.button(g,LB.x,LB.y,LB.w,LB.h,'LOCK',finished?'disabled':hot?(pressed?'active-pressed':'active'):(pressed?'pressed':'normal'));\n"
      "    pop.draw(g,clock);"),
@@ -399,7 +395,6 @@ ANOMALY = [
      "        TK.text(g,s,x,y,right&&i===0?KIT.KIND.neutral.text:col)})};\n"
      "    block(terms[0],false);if(terms[1])block(terms[1],true);\n"),
     ("ruleFlash=-9;", "ruleFlash=-9;const pop=KIT.popups(ctx);"),
-    ("if(!started)KIT.tell(g,'FIND EVERY MATCH.',CONTROLS,clock);", "if(!started)KIT.tell(g,'FIND EVERY MATCH.',[...CONTROLS,KIT.ESC],clock);"),
     ("    drawLoupe();\n  }\n  function step(dt){", "    drawLoupe();\n    pop.draw(g,clock);\n  }\n  function step(dt){"),
     ("}else{wrong++;fx.push({i,t0:clock,life:1.1,bad:true})}", "}else{wrong++;fx.push({i,t0:clock,life:1.1,bad:true});pop.say('WRONG','bad',clock)}"),
     ("    if(finished)return;finished=true;\n    ctx.done(",
@@ -433,7 +428,6 @@ SLING = [
      "      else if(missTxt){s=missTxt;k=missTxt==='HIT'?'good':missTxt==='IMPACT'||missTxt==='NO-FLY'?'bad':'neutral'}\n"
      "      KIT.status(g,s,k,true)}\n",
      "    pop.draw(g,clock);\n"),
-    ("if(!started)KIT.tell(g,'HIT THE TARGET.',CONTROLS,clock);", "if(!started)KIT.tell(g,'HIT THE TARGET.',[...CONTROLS,KIT.ESC],clock);"),
     ("  const old=[];\n", "  const old=[];const pop=KIT.popups(ctx);\n"),
     ("if(off>3){note='TOO WEAK';noteT=clock+1.2}", "if(off>3){note='TOO WEAK';noteT=clock+1.2;pop.say('TOO WEAK','neutral',clock)}"),
     ("if(hit){over=true;missTxt='HIT';", "if(hit){over=true;missTxt='HIT';pop.finish('HIT','good',clock);"),
@@ -456,7 +450,7 @@ CORESCAN = [
      "    const pop=KIT.popups(ctx);"),
     ("KIT.status(g,'FOUND: '+P.name,'good',false)}\n      else if(lost)KIT.status(g,'SCAN LOST','bad',false);\n"
      "      if(!touched&&now-t0<4500)KIT.tell(g,'FILL IN THE SCAN.',['click'],(now-t0)/1000);\n",
-     "}\n      if(!touched&&now-t0<4500)KIT.tell(g,'FILL IN THE SCAN.',['click',KIT.ESC],(now-t0)/1000);\n"
+     "}\n      if(!touched&&now-t0<4500)KIT.tell(g,'FILL IN THE SCAN.',['click'],(now-t0)/1000);\n"
      "      pop.draw(g,now/1000);\n"),
     ("        over=true;lost=now;const f=found();\n",
      "        over=true;lost=now;const f=found();pop.finish('SCAN LOST','bad',now/1000);\n"),
@@ -481,7 +475,7 @@ SEISMIC = [
     ("      if(!touched&&!scans.length&&now-t00<6000)KIT.tell(g,'SCAN, THEN DIG.',['click'],(now-t00)/1000);\n"
      "      if(msg)KIT.status(g,msg,msg==='ALL DUG'||TN.includes(msg)?'good':msg==='EMPTY'||msg==='NO DIGS LEFT'?'bad':'neutral',false);\n"
      "      else if(quiet)KIT.status(g,'QUIET','neutral',false);\n",
-     "      if(!touched&&!scans.length&&now-t00<6000)KIT.tell(g,'SCAN, THEN DIG.',['click',KIT.ESC],(now-t00)/1000);\n"
+     "      if(!touched&&!scans.length&&now-t00<6000)KIT.tell(g,'SCAN, THEN DIG.',['click'],(now-t00)/1000);\n"
      "      pop.draw(g,now/1000);\n"),
     ("      if(!p.out.length)tone(140,.2,'sine',.03);\n",
      "      if(!p.out.length){tone(140,.2,'sine',.03);pop.say('QUIET','neutral',performance.now()/1000)}\n"),
@@ -514,7 +508,7 @@ CULTURE = [
      "[['FED',food+'/'+p.food.length,food===p.food.length?'good':null]].concat(run&&run.hits?[['DEAD',run.hits,'bad']]:[]))}"),
     ("    if(banner&&bparts)KIT.status(g,bparts,null,false);\n"
      "    if(!touched&&t<6000)KIT.tell(g,'EAT EVERY SPECK.',['click'],t/1000);\n    drawPanel(now);\n",
-     "    if(!touched&&t<6000)KIT.tell(g,'EAT EVERY SPECK.',['click',KIT.ESC],t/1000);\n    drawPanel(now);\n"
+     "    if(!touched&&t<6000)KIT.tell(g,'EAT EVERY SPECK.',['click'],t/1000);\n    drawPanel(now);\n"
      "    pop.draw(g,now/1000);\n"),
     ("    const y0=104,BY=KIT.deckY(false)-2-KIT.BTN.H; // seeds / rings centred on row 113; buttons rows 106-118",
      "    const BY=KIT.deckY(false)-2-KIT.BTN.H,y0=BY-3; // seeds / rings centred on row 131 (BY+6); buttons rows 125-137"),

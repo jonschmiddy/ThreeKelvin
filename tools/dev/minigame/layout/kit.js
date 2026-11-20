@@ -19,7 +19,7 @@ const ROW={
   PLAY:{y:10},                           // first play row
   DECK_C:116,DECK_N:140,                 // the deck's top row: with controls (its rule) / no controls (none: H)
   CTRL:{y:117,h:23,cy:128},              // control row: rows 117-139, every control centred on row 128
-  TELL:{y:45,h:17,cx:75},                // the tell card: rows 45-61, centred on x 75
+  TELL:{y:45,h:29,cx:75,high:33,top:12}, // the tell card: rows 45-73, centred on x 75 (high: rows 33-61, top: 12-40)
 };
 const BTN={H:13,HL:19,W:[25,33,45],YS:122,YL:119}; // heights: standard (label or icon+label in a line) / large (icon over label); widths S/M/L; their y in the control row
 const DIAL={R:9};                        // 19 px across: the large button's height
@@ -154,11 +154,13 @@ function dial(g,cx,cy,a,o){o=o||{};const r=DIAL.R,st=o.state||'normal';
 // a 0..1 setting as a pointer angle over the usual 270 degree sweep
 const dialAngle=v=>(-135+270*Math.max(0,Math.min(1,v)))*Math.PI/180;
 
-// ---- TELL card: the one-line start card. icons first, then the words, in one box at ROW.TELL.
+// ---- TELL card: the start card, two lines (Jon, Nov 20: "CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE UP").
+// Line 1: the game's control icons, then its words (hot). Line 2, always: the ESC key cap, then TO GIVE UP in
+// the quiet label ink, left-aligned under line 1. The game's icons never list ESC (line 2 has it).
 // icons: TK.icon kinds ('click','hold','drag','drag-h','drag-v','dial') or 'key:SPACE' / 'keys:WAD' (a row of key caps).
-// Every game's tell ends its icons with KIT.ESC (Esc gives up, A): the key cap at rest, never blinking, no words.
+// o.y: the card's top row (ROW.TELL.y 45; .high 33 or .top 12 where the middle hides what a player needs to start).
 const ICW={click:13,hold:21,drag:22,'drag-h':22,'drag-v':22,dial:13};
-const ESC='key:ESC',ESC_T=.5;            // ESC_T: the cap's resting frame (TK.icon lights a key on t 0-0.5, 1-1.5 ...)
+const ESC='key:ESC',ESC_T=.5,GIVE='TO GIVE UP'; // ESC_T: the cap's resting frame (TK.icon lights a key on t 0-0.5, 1-1.5 ...)
 function iconW(k){if(k.startsWith('key:'))return k.slice(4).length*4+5;if(k.startsWith('keys:'))return k.slice(5).length*11-2;return ICW[k]||13}
 function drawIcon(g,k,x,y,t){
   if(k===ESC)t=ESC_T;
@@ -167,12 +169,16 @@ function drawIcon(g,k,x,y,t){
   else if(k.startsWith('keys:'))k.slice(5).split('').forEach((ch,i)=>key(ch,x+i*11));
   else TK.icon(g,k,x,y,{t});
 }
-function tellRect(text,icons){icons=icons||[];const iw=icons.reduce((a,k)=>a+iconW(k)+3,0),w=iw+tw(text)+12;
-  return{x:ROW.TELL.cx-(w>>1),y:ROW.TELL.y,w,h:ROW.TELL.h,iw}}
-function tell(g,text,icons,t){icons=icons||[];const b=tellRect(text,icons);
-  R(g,b.x,b.y,b.w,b.h,P.bevelLo);R(g,b.x+1,b.y+1,b.w-2,b.h-2,BORDER);R(g,b.x+1,b.y+1,b.w-2,1,P.bevelHi);
+// line 1's icons at y+2, its words at y+6; line 2's cap at y+15 (its edge rows y+16 to y+26), TO GIVE UP at y+20
+function tellRect(text,icons,o){icons=icons||[];o=o||{};const iw=icons.reduce((a,k)=>a+iconW(k)+3,0),
+    w=Math.max(iw+tw(text),iconW(ESC)+3+tw(GIVE))+12;
+  return{x:ROW.TELL.cx-(w>>1),y:o.y!=null?o.y:ROW.TELL.y,w,h:ROW.TELL.h,iw}}
+function tell(g,text,icons,t,o){icons=icons||[];const b=tellRect(text,icons,o);
+  box(g,b.x,b.y,b.w,b.h);
   let x=b.x+6;for(const k of icons){drawIcon(g,k,x,b.y+2,t||0);x+=iconW(k)+3}
-  TK.text(g,text,x,b.y+6,CARD_TX);return b}
+  TK.text(g,text,x,b.y+6,CARD_TX);
+  drawIcon(g,ESC,b.x+6,b.y+15,0);TK.text(g,GIVE,b.x+6+iconW(ESC)+3,b.y+20,LABEL);
+  return b}
 
 // ---- popups (Jon, Nov 20, his A: "I like A. You can just get rid of the bottom bar with GIVE UP. You can just
 // press ESC to give up."): the tell card's box (bevelLo edge, border-colour face, bevelHi top line) twice over.
@@ -194,7 +200,7 @@ function textB(g,s,x,y,c){for(const ch of String(s)){if(BR[ch]){g.fillStyle=c;BR
 // at least 79, at most 144 (x 3-146); [TIER] drops first if it would not fit. It waits CARD.delay (0.6 s).
 const CARD={cx:75,cy:53,pad:8,minW:79,maxW:144,h:41,delay:.6};
 // The card's box {x,y,w,h,full,tag,leave:{x,y,w,h}} for an END word, the haul's NAME and its tier (0-4 or 'EPIC').
-function cardRect(haul,tier){
+function cardRect(status,haul,tier){
   const tag='['+TIERS[tierIx(tier)]+']',hl=haul?tw(haul+' '+tag):0;
   let w=Math.max(tw(status),hl,33)+2*CARD.pad,full=true;
   if(w>CARD.maxW&&haul){full=false;w=Math.max(tw(status),tw(haul),33)+2*CARD.pad}
@@ -249,7 +255,7 @@ function popups(ctx,o){o=o||{};
   return st;
 }
 
-const KIT={W,H,GUT,GAP,ROW,BTN,DIAL,METER,BORDER,KIND,LABEL,VALUE,ICONS,ESC,CARD,TOAST,TIERS,TIER_INK,
+const KIT={W,H,GUT,GAP,ROW,BTN,DIAL,METER,BORDER,KIND,LABEL,VALUE,ICONS,ESC,GIVE,CARD,TOAST,TIERS,TIER_INK,
   pair,meter,header,deckY,deck,button,btnW,glyph,dial,dialAngle,tell,tellRect,iconW,cardRect,resultCard,toast,popups};
 TK.KIT=KIT;if(typeof window!=='undefined')window.KIT=KIT;
 })();

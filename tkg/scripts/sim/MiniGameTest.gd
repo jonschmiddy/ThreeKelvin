@@ -44,6 +44,7 @@ func _run() -> void:
 			_depth(id, d, seeds)
 		print("minigame %s: %d ms" % [id, Time.get_ticks_msec() - t0])
 		_shell(id)
+		_tell(id)
 	_h.verdict("minigametest")
 	get_tree().quit(_h.code())
 
@@ -338,6 +339,38 @@ func _haul() -> void:
 	if n != null:
 		var h := ScienceHaul.pay(3, &"belt", n)
 		_h._ok("pay grants one material by its catalogue name and tier (%s)" % str(h), not h.is_empty() and String(h.name) != "" and StringName(h.tier) in MaterialTable.TIERS)
+
+
+## The start card at every depth (Jon, Nov 20: "CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE UP"): the
+## game draws a tell, its line 1 lists no ESC (line 2 has it), and the card on its canvas is exactly the
+## kit's, both lines, nothing drawn over it.
+func _tell(id: StringName) -> void:
+	var ok := true
+	var why := ""
+	for d in range(1, 6):
+		MiniKit.told_px = null
+		var g := MiniGames.make(id)
+		g.seed = 5
+		g.mount(d, 1, MiniGames.stream(5))
+		g.tick(STEP)
+		var px := MiniKit.told_px
+		if px == null:
+			ok = false
+			why += " d%d no card" % d
+			continue
+		var b := MiniKit.told_at
+		var esc := MiniKit.told_icons.any(func(k: String) -> bool: return k.contains("ESC"))
+		var want := MiniPix.new(px.w, px.h)
+		MiniKit.tell(want, MiniKit.told_text, MiniKit.told_icons, MiniKit.told_t, b.position.y)
+		var same := want.img.get_region(b).get_data() == px.img.get_region(b).get_data()
+		var quiet := 0
+		for y in range(b.position.y + 20, b.position.y + 25):
+			for x in range(b.position.x + 26, b.position.x + 26 + MiniKit.tw(MiniKit.GIVE)):
+				quiet += 1 if px.img.get_pixel(x, y).is_equal_approx(MiniKit.LABEL) else 0
+		if esc or not same or quiet == 0 or b.size.y != MiniKit.TELL_H:
+			ok = false
+			why += " d%d%s%s%s" % [d, " ESC on line 1" if esc else "", "" if same else " card not the kit's", "" if quiet > 0 else " no TO GIVE UP"]
+	_h._ok("%s: the start card has its ESC TO GIVE UP line under the game's own, line 1 no ESC, at every depth%s" % [id, why], ok)
 
 
 ## The shell round a game (status A, Nov 20): a scripted run through the glass (offset by where the

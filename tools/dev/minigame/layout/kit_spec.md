@@ -21,7 +21,8 @@ Load `kit.js` after `tk_helpers.js` / `tk_font.js` (it registers `TK.KIT`). For 
   else the rule stands (only pressable things look pressable).
 - **Toasts** (`KIT.toast`): rows 12-22, centred, full for 0.9 s, two dithered steps, gone at 1.2 s; never take
   a click, never look pressable. One at a time; a new one replaces the old.
-- **ESC on the tell**: every game's tell card ends its icons with `KIT.ESC` (the key cap, at rest, no words).
+- **ESC on the tell** (Jon, Nov 20: "Maybe. CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE UP"): the tell card
+  has two lines, the game's controls and words, then the ESC key cap and TO GIVE UP in quiet ink.
 - **Play areas grow** into every freed row (the status line's and the strip's). Pulsar and Sling keep their
   dials (r 14, r 13). Anomaly's lens goes back to r 55 with its rule in the bottom corners. Same rules and
   puzzle sizes; whole pixels; nothing overlapping or cut at any depth's worst case.
@@ -68,11 +69,19 @@ the frame, `if (pop.click(now)) return;` first in the pointer handler. The card 
 `window.__HAUL` (`{name, tier}`) to show, so a page in `diff.py` never draws it. In the game: `MiniGame.say`,
 `MiniGame.say_end`, `MiniGame.draw_toast()` (last in the frame), `MiniGame.toasting()` (redraw while it fades).
 
-## Tell card: `KIT.tell(g, text, icons, t)`
-- One line: icons, then the words (ending in a full stop), in `hot`. Box rows 45-61, centred on x 75, in every game.
-- Box: `bevelLo` edge, border-colour face, `bevelHi` top line. Icons are `TK.icon` kinds (`click`, `hold`, `drag`, `drag-h`, `drag-v`, `dial`) and key caps (`key:SPACE`, `keys:WAD`).
-- The icons end with `KIT.ESC` (`key:ESC`, 17 wide, drawn at rest: it never blinks).
-- Shown until the first input, then gone. Max width ~140 px: about 24 characters with one icon and ESC.
+## Tell card: `KIT.tell(g, text, icons, t, {y})`
+Jon, Nov 20: "Maybe. CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE UP".
+- Line 1: the game's icons (y+2), then its words (y+6, ending in a full stop) in `hot`.
+- Line 2, always: the `KIT.ESC` key cap (`key:ESC`, 17 wide, at rest: it never blinks) at y+15, then
+  `TO GIVE UP` at y+20 in `cold` (the label ink), left-aligned under line 1 so the icons make one column.
+  A game's icons never list ESC (MiniGameTest checks it).
+- Box: `bevelLo` edge, border-colour face, `bevelHi` top line; 29 tall, centred on x 75; width = the wider
+  line + 12 (line 2 is 59). Rows 45-73 (`ROW.TELL.y`). Icons are `TK.icon` kinds (`click`, `hold`, `drag`,
+  `drag-h`, `drag-v`, `dial`) and key caps (`key:SPACE`, `keys:WAD`).
+- Where the middle hides what a player needs to start, the game passes `{y}`: `ROW.TELL.top` (rows 12-40:
+  Sample Tray, the sample's row; Four Kelvin, the ship on row 60) or `ROW.TELL.high` (rows 33-61, the result
+  card's top: Tumble Dock, the spin arc's arrowheads). Godot: `MiniKit.tell(px, text, icons, t, MiniKit.TELL_TOP)`.
+- Shown until the first input, then gone. Max width 144 px: 26 characters with one drag icon.
 
 ## Buttons: `KIT.button(g, x, y, w, h, label, state, icon)`
 - Heights: 13 (label, or 9x9 icon + label in a line) at y 122; 19 (icon over label) at y 119.
@@ -110,5 +119,6 @@ yours, so a warning is neutral until it is bad.
 2. Every `KIT.status` call goes: END words to `pop.finish` (`say_end` in Godot, before `done`), LIVE words to
    `pop.say` (`say`), STANDING readouts per `status_inventory.md`. `KIT.status` and `ROW.STATUS_TY` are no-ops
    kept only while games move; a moved game never calls them.
-3. The tell's icons end with `KIT.ESC`; `pop.draw(g, now)` last in the frame; `pop.click(now)` first on a press.
+3. The tell lists the game's own icons only (its second line is ESC); `pop.draw(g, now)` last in the frame;
+   `pop.click(now)` first on a press.
 4. Check 150 x 140 at every depth's worst case, nothing overlapping or cut, and 0 px in `diff.py` at start and end.

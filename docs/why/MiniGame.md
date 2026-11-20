@@ -84,8 +84,11 @@ calls the kit and never draws its own chrome. The rules, in short (status A, Nov
 - One header row (band rows 0 to 8, rule on row 9): the game's main state left, its counters right.
 - Games with on-screen controls have a deck: rule on row 116, the control row 117 to 139 centred
   on 128. Games without have none: the play area runs to row 139. There is no status line.
-- One tell card (rows 45 to 61, centred on x 75) whose icons end with the ESC key cap
-  (`MiniKit.ESC`, at rest), one button style, one meter, one dial, the result card and toasts,
+- One tell card, two lines (Jon, Nov 20: "CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE UP"): the
+  game's icons and words, then the ESC key cap (`MiniKit.ESC`, at rest) and TO GIVE UP in the quiet
+  label ink. Rows 45 to 73, centred on x 75; rows 12 to 40 (`TELL_TOP`) for the tray and Four
+  Kelvin, 33 to 61 (`TELL_HIGH`) for the dock, where the middle hides the sample, the ship or the
+  spin arc. One button style, one meter, one dial, the result card and toasts,
   solid #111823 borders, and four accents with one meaning each: yours amber, goal blue, good
   green, bad red.
 - Pulsar, Sling and Tuning keep their own dials.
@@ -197,7 +200,7 @@ ones with high sensors are impossible?"), never dealt solved, the time limit fro
 the score from heat and turns over par. Drawing order and every colour are the prototype's.
 Since Nov 20 it is the approved page (`layout.page_js("coolant")`: fit4 + `KIT_COOLANT` + `a_swaps.COOLANT`):
 150 x 140, tiles as big as the play rows (11 to 138) and 1 px side margins allow (24 px at sectors 1
-and 2, 20 at 3 and 4, 16 at 5), the header and the tell (with ESC) from `MiniKit`. It is the first
+and 2, 20 at 3 and 4, 16 at 5), the header and the tell from `MiniKit`. It is the first
 game on status A: COLD n/m and the valve's word drop (the grid shows both), LEAK is a toast when a
 leak opens, ROUTED and OVERHEAT go on the shell's result card.
 
@@ -215,7 +218,7 @@ the spin say them), BALANCED / WOBBLE n% / ROTOR FAULT go on the card.
 On status A (Nov 20, `a_swaps.ICECORE`) the 18 freed rows go to bigger pieces: core layers 8 -> 10
 rows, the tray's sockets 10 -> 12, the tube's slots up to 11 rows (a 10-row layer, the cores' own)
 in 88 rows. n/N IN PLACE after a CHECK is a toast; ORDER CONFIRMED, or the last check's count, is
-the card. The tell reads STACK LAYERS IN ORDER.: the old words and the ESC cap ran 160 px wide.
+the card. The tell reads STACK THE LAYERS IN ORDER. (140 px; ESC is on its second line).
 
 ## Gravity Sling
 
@@ -374,7 +377,8 @@ ladder; every tier pays; a solve through the shell's glass at sector 5 pays lege
 win then the reward sound; while it plays the glass is exactly the game's canvas and no click
 leaves; the game names its end (`say_end`); 0.6 s after the end the result card is up, pixel for
 pixel `MiniKit.result_card` with that word and the paid NAME [TIER], and a click anywhere leaves;
-Esc (`give_up`) ends it with GAVE UP and the same card. Every deal draws exactly 150 x 140. It counts work done, never time, so it holds on a busy machine.
+Esc (`give_up`) ends it with GAVE UP and the same card; at every depth the start card is the kit's,
+its ESC TO GIVE UP line under the game's own, which lists no ESC. Every deal draws exactly 150 x 140. It counts work done, never time, so it holds on a busy machine.
 `dump=<dir>` writes each game's deal and canvases for `tools/dev/minigame/diff.py`, which draws the
 same deal in the prototype's own file in Chrome and counts the pixels that differ (0 for all eleven).
 

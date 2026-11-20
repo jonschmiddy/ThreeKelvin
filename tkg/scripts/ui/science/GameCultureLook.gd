@@ -483,7 +483,7 @@ static func _hud(g: GameCulture, now: float, t: float) -> void:
 	MiniKit.header(px, {label = "TRY", value = "%d/%d" % [mini(g.attempt + 1, g.tries), g.tries]}, pairs)
 	MiniKit.deck(px, false)
 	if not g.touched and t < 6000.0:
-		MiniKit.tell(px, "EAT EVERY SPECK.", ["click", MiniKit.ESC] as Array[String], t / 1000.0)
+		MiniKit.tell(px, "EAT EVERY SPECK.", ["click"] as Array[String], t / 1000.0)
 	g.panel(now)
 	g.draw_toast()
 	g.dirty = true

@@ -567,9 +567,7 @@ func _draw(now: float) -> void:
 	_lock_btn()
 	# A (Nov 20): no status line; a right dial wears its green collar, MATCH! / NO MATCH the shell's card
 	if not acted and not over:
-		var icons := controls()
-		icons.append(MiniKit.ESC)
-		MiniKit.tell(px, "MATCH THE WAVE.", icons, (now - T0) / 1000.0)
+		MiniKit.tell(px, "MATCH THE WAVE.", controls(), (now - T0) / 1000.0)
 	draw_toast()
 	dirty = true
 

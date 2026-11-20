@@ -689,4 +689,4 @@ func _hud() -> void:
 	# A (Nov 20): no status line; ROUTED / OVERHEAT are the shell's card, LEAK a toast, COLD and the
 	# valve the grid's own
 	if not over and taps == 0:
-		MiniKit.tell(px, "COOL THE SAMPLE.", ["click", MiniKit.ESC] as Array[String], t)
+		MiniKit.tell(px, "COOL THE SAMPLE.", ["click"] as Array[String], t)

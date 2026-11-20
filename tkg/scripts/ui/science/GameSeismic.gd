@@ -834,7 +834,7 @@ func _render(now: float) -> void:
 	_clipping = false
 	_graph(now, ci)
 	if not touched and scans.is_empty() and now - 1000.0 < 6000.0:
-		MiniKit.tell(px, "SCAN, THEN DIG.", ["click", MiniKit.ESC] as Array[String], (now - 1000.0) / 1000.0)
+		MiniKit.tell(px, "SCAN, THEN DIG.", ["click"] as Array[String], (now - 1000.0) / 1000.0)
 	# A (Nov 20): no status line; dig results and QUIET are toasts, ALL DUG / NO DIGS LEFT the shell's card
 	draw_toast()
 	dirty = true

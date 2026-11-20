@@ -466,7 +466,7 @@ func _draw(now: float) -> void:
 	MiniKit.button(px, BCK.x, BY, BCK.y, BH, "CHECK", "disabled" if ended or not full else ("active-pressed" if pressed == "check" else "active"))
 	# A (Nov 20): no status line; n/N IN PLACE is a toast, the end the shell's card
 	if not acted:
-		MiniKit.tell(px, "STACK LAYERS IN ORDER.", ["drag", MiniKit.ESC] as Array[String], now / 1000.0)
+		MiniKit.tell(px, "STACK THE LAYERS IN ORDER.", ["drag"] as Array[String], now / 1000.0)
 	if not drag.is_empty() and drag.has("kind") and drag.moved:
 		var w := PW if drag.from == "pal" else SW
 		var h := PHH if drag.from == "pal" else SH - 1

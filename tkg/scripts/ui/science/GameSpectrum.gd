@@ -356,7 +356,7 @@ func _render(now: float) -> void:
 			if not lit:
 				px.rect(x, y + 2, 2, SH, MiniPix.mix(_bin_col(bn), Color.BLACK, 0.55))
 	if not toggles and not over:
-		MiniKit.tell(px, "MATCH THE STAR.", ["click", MiniKit.ESC] as Array[String], (now - 1000.0) / 1000.0)
+		MiniKit.tell(px, "MATCH THE STAR.", ["click"] as Array[String], (now - 1000.0) / 1000.0)
 	draw_toast()
 	dirty = true
 
