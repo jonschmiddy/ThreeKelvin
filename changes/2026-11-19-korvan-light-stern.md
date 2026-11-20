@@ -1,0 +1,1 @@
+- **Changed** — Korvan's light hull has a new stern: two flared bell thrusters seen side on, with the feed pipes and frame kept, and its two flames now leave from the bells' mouths.
