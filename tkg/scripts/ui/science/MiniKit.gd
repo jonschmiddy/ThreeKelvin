@@ -380,17 +380,22 @@ static func tell_rect(text: String, icons: Array[String] = [], y := TELL_Y) -> R
 
 
 ## The start card: line 1 the icons (at y+2), then the words (y+6); line 2 the ESC cap (y+15), then
-## TO GIVE UP (y+20), left-aligned under line 1. Its top on row `y` (TELL_Y, TELL_HIGH, TELL_TOP).
+## TO GIVE UP (y+20), each line centred in the card. Its top on row `y` (TELL_Y, TELL_HIGH, TELL_TOP).
 static func tell(px: MiniPix, text: String, icons: Array[String] = [], t := 0.0, y := TELL_Y) -> Rect2i:
 	var b := tell_rect(text, icons, y)
 	box(px, b.position.x, b.position.y, b.size.x, b.size.y)
-	var x := b.position.x + 6
+	# each line centred in the card (Jon, Nov 20: "can we center the text?")
+	var iw := 0
+	for k in icons:
+		iw += icon_w(k) + 3
+	var x := b.position.x + ((b.size.x - iw - tw(text)) >> 1)
 	for k in icons:
 		draw_icon(px, k, x, b.position.y + 2, t)
 		x += icon_w(k) + 3
 	px.text(text, x, b.position.y + 6, CARD_TX)
-	draw_icon(px, ESC, b.position.x + 6, b.position.y + 15, 0.0)
-	px.text(GIVE, b.position.x + 6 + icon_w(ESC) + 3, b.position.y + 20, LABEL)
+	var x2 := b.position.x + ((b.size.x - icon_w(ESC) - 3 - tw(GIVE)) >> 1)
+	draw_icon(px, ESC, x2, b.position.y + 15, 0.0)
+	px.text(GIVE, x2 + icon_w(ESC) + 3, b.position.y + 20, LABEL)
 	told_px = px
 	told_text = text
 	told_icons = icons.duplicate()

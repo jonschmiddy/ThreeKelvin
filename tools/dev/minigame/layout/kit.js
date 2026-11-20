@@ -156,7 +156,7 @@ const dialAngle=v=>(-135+270*Math.max(0,Math.min(1,v)))*Math.PI/180;
 
 // ---- TELL card: the start card, two lines (Jon, Nov 20: "CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE UP").
 // Line 1: the game's control icons, then its words (hot). Line 2, always: the ESC key cap, then TO GIVE UP in
-// the quiet label ink, left-aligned under line 1. The game's icons never list ESC (line 2 has it).
+// the quiet label ink, each line centred in the card (Jon: "can we center the text?"). The game's icons never list ESC (line 2 has it).
 // icons: TK.icon kinds ('click','hold','drag','drag-h','drag-v','dial') or 'key:SPACE' / 'keys:WAD' (a row of key caps).
 // o.y: the card's top row (ROW.TELL.y 45; .high 33 or .top 12 where the middle hides what a player needs to start).
 const ICW={click:13,hold:21,drag:22,'drag-h':22,'drag-v':22,dial:13};
@@ -175,9 +175,11 @@ function tellRect(text,icons,o){icons=icons||[];o=o||{};const iw=icons.reduce((a
   return{x:ROW.TELL.cx-(w>>1),y:o.y!=null?o.y:ROW.TELL.y,w,h:ROW.TELL.h,iw}}
 function tell(g,text,icons,t,o){icons=icons||[];const b=tellRect(text,icons,o);
   box(g,b.x,b.y,b.w,b.h);
-  let x=b.x+6;for(const k of icons){drawIcon(g,k,x,b.y+2,t||0);x+=iconW(k)+3}
+  // each line centred in the card (Jon, Nov 20: "can we center the text?")
+  let x=b.x+((b.w-b.iw-tw(text))>>1);for(const k of icons){drawIcon(g,k,x,b.y+2,t||0);x+=iconW(k)+3}
   TK.text(g,text,x,b.y+6,CARD_TX);
-  drawIcon(g,ESC,b.x+6,b.y+15,0);TK.text(g,GIVE,b.x+6+iconW(ESC)+3,b.y+20,LABEL);
+  const x2=b.x+((b.w-iconW(ESC)-3-tw(GIVE))>>1);
+  drawIcon(g,ESC,x2,b.y+15,0);TK.text(g,GIVE,x2+iconW(ESC)+3,b.y+20,LABEL);
   return b}
 
 // ---- popups (Jon, Nov 20, his A: "I like A. You can just get rid of the bottom bar with GIVE UP. You can just

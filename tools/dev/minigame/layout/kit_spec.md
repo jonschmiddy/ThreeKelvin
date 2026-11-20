@@ -73,7 +73,7 @@ the frame, `if (pop.click(now)) return;` first in the pointer handler. The card 
 Jon, Nov 20: "Maybe. CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE UP".
 - Line 1: the game's icons (y+2), then its words (y+6, ending in a full stop) in `hot`.
 - Line 2, always: the `KIT.ESC` key cap (`key:ESC`, 17 wide, at rest: it never blinks) at y+15, then
-  `TO GIVE UP` at y+20 in `cold` (the label ink), left-aligned under line 1 so the icons make one column.
+  `TO GIVE UP` at y+20 in `cold` (the label ink), each line centred in the card (Jon, Nov 20: "can we center the text?").
   A game's icons never list ESC (MiniGameTest checks it).
 - Box: `bevelLo` edge, border-colour face, `bevelHi` top line; 29 tall, centred on x 75; width = the wider
   line + 12 (line 2 is 59). Rows 45-73 (`ROW.TELL.y`). Icons are `TK.icon` kinds (`click`, `hold`, `drag`,
