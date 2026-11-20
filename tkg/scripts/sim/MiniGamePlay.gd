@@ -116,6 +116,17 @@ func _play(d: DeskScene, n: MapGen.MapNode, sc: SectorScreen, data0: int, pile0:
 		String(ScienceHaul.tier_key(d.game.tier)).to_upper(), d.game.haul, d.game.detail])
 	_h._ok("the game's end took the reading once (DATA +%d)" % (Run.data - data0), Run.data - data0 == OptionTable.reading(1))
 	_h._ok("and paid its haul, a material in the system (%d)" % gained, gained >= 1 and d.game.haul != "")
+	# the line on the glass is the row the take paid, from the site's own source (`site=` stands in another)
+	var paid: Dictionary = d.result.get("haul", {})
+	var site := StringName(MiniGames.force.get("site", OptionTable.by_id(StringName(Harness.arg("event", String(SITE)))).get("site", &"")))
+	var row: Dictionary = {}
+	for r: Dictionary in MaterialTable.all():
+		if String(r.name) == String(paid.get("name", "")):
+			row = r
+	var drawn := "%s [%s]" % [d.game.haul, String(d.game.haul_tier).to_upper()]
+	var want := "%s [%s]" % [paid.get("name", ""), String(paid.get("tier", &"")).to_upper()]
+	_h._ok("the line reads the paid row, %s, a %s material (site %s)" % [drawn, ScienceHaul.source_of(site), site],
+		not paid.is_empty() and drawn == want and not row.is_empty() and StringName(row.source) == ScienceHaul.source_of(site))
 	_h._ok("a %s run scores as it should (%.2f)" % ["given-up" if fail else "clean", d.game.score],
 		d.game.score <= 0.2 if fail else d.game.score >= 0.95)
 	if Harness.arg("quit") != "":
