@@ -100,7 +100,7 @@ static func _free(busy: PackedByteArray, m: HullScars._Mask, x: int, y: int) -> 
 # ------------------------------------------------------------------ A  heat-scarred
 
 ## Heat tint round the furnace and along the line, soot at the bells and trailing aft,
-## and cracks run out from the ring with a warped plate beside it.
+## and cracks run out from the ring.
 static func heat(img: Image, base: Image, r: HullGrade._Ramps, m: HullScars._Mask, amt: float, hs: int, at: Dictionary,
 		busy: PackedByteArray = PackedByteArray()) -> void:
 	var src := img.duplicate() as Image
@@ -189,7 +189,8 @@ static func _aft_soot(img: Image, src: Image, r: HullGrade._Ramps, m: HullScars.
 				_take(busy, m, x, y)
 
 
-## Cracks out from the ring, a dark line with its lower lip lit; the nearest plate warped.
+## Cracks out from the ring, a dark line with its lower lip lit. (The plate beside it was
+## once buckled in diagonal bands; Jon, Nov 20: "great except for the stripes".)
 static func _cracks(img: Image, src: Image, r: HullGrade._Ramps, m: HullScars._Mask, amt: float, hs: int, rg: Rect2,
 		busy: PackedByteArray) -> void:
 	if rg.size.x <= 0.0:
@@ -212,7 +213,7 @@ static func _cracks(img: Image, src: Image, r: HullGrade._Ramps, m: HullScars._M
 			_take(busy, m, x, y)
 			if m.ok(x, y + 1):
 				img.set_pixel(x, y + 1, HullScars.up(r, src.get_pixel(x, y + 1), 0.2))
-	# the warped plate: the one nearest the ring, buckled in bands
+	# the plate beside the ring stays the heat's, unpainted, so the patches still keep off it
 	if amt < 0.5:
 		return
 	var best: Array = []
@@ -223,17 +224,9 @@ static func _cracks(img: Image, src: Image, r: HullGrade._Ramps, m: HullScars._M
 		if dd < bd and dd > rg.size.x:
 			bd = dd
 			best = pl
-	if best.is_empty():
-		return
-	var bx: Rect2i = best[2]
-	for p: Vector2i in best[0]:
-		var w := sin(float(p.x - bx.position.x) * 0.5 + float(p.y - bx.position.y) * 0.9)
-		var c := src.get_pixel(p.x, p.y)
-		if w > 0.45:
-			img.set_pixel(p.x, p.y, HullScars.up(r, c, 0.1))
-		elif w < -0.45:
-			img.set_pixel(p.x, p.y, HullScars.down(r, c, 0.14))
-		_take(busy, m, p.x, p.y)
+	if not best.is_empty():
+		for p: Vector2i in best[0]:
+			_take(busy, m, p.x, p.y)
 
 
 # ------------------------------------------------------------------ B  patched junker

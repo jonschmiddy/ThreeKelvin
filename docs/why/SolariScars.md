@@ -44,3 +44,11 @@ the line scorch, the bell soot, the aft streaks, the weld's scorch and the tide 
 a checkerboard across the plates; each is now a solid step with a ragged edge cut from
 soft noise or a per-row length. The band's flakes are solid blobs, not 4x3 cells. The
 furnace's halo rings are solid too.
+
+## No bow light, no buckled plate
+
+Jon, Nov 20: the white nav light HullGrade put on each Solari prow tip ("remove") is gone at
+every grade, its glow with it (`nav` is empty in Solari's placements; Korvan keeps its own).
+The end cap's lens still flashes with each flare (`SolariFurnace`). The heat idea's plate
+buckled into diagonal bands beside the ring read as stripes ("great except for the
+stripes") and is gone; the plate stays the heat's, so the patches still keep off it.
