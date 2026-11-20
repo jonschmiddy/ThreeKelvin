@@ -341,6 +341,10 @@ func _shell(id: StringName) -> void:
 	_h._ok("%s: GIVE UP becomes LEAVE once the line is in, and only LEAVE leaves" % id,
 		no_leave_in_play and sh.leave_hit(mid) and not sh.leave_hit(Vector2(40, 60)) and not sh.leave_hit(Vector2(4, 134)))
 	_h._ok("%s: the strip is the one border colour" % id, sh.glass.get_pixel(1, MiniShell.GH - 1).is_equal_approx(MiniShell.BORDER))
+	var bp := MiniShell.BUTTON.position
+	_h._ok("%s: LEAVE is the kit's normal button (light top, dark foot)" % id,
+		sh.glass.get_pixel(bp.x + 2, bp.y + 1).is_equal_approx(MiniPix.BEVEL_HI) and sh.glass.get_pixel(bp.x + 2, bp.y + 7).is_equal_approx(MiniKit.OFF)
+		and sh.glass.get_pixel(bp.x + 2, bp.y + 4).is_equal_approx(MiniPix.LINE))
 
 
 static func _send_glass(sh: MiniShell, e: Dictionary) -> void:

@@ -6,7 +6,8 @@
 `dump=` writes each game's deal (depth 3, sensors 1, seed 5) as the page names it, the stream's draws
 after the deal, its canvas at the start, and its canvas after the scripted run's moves but the last
 and the frames the page's loop draws them on. This runs the prototype's own file (`proto/`, copied
-from tk-scratch/science/minigames/phone/src, Nov 18) in the installed Chrome on that same deal, its
+from tk-scratch/science/minigames/phone/src, Nov 18) as Jon approved it re-laid out and in the one UI
+kit (`layout/`, Nov 20) in the installed Chrome on that same deal, its
 clock held, the same moves sent as pointer and key events, counts the pixels that differ and writes
 <dir>/<id>_<frame>_compare.png: prototype, game, and the differing pixels in red, at 4x.
 """
@@ -22,6 +23,9 @@ import tempfile
 from pathlib import Path
 
 from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import layout  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 PROTO = HERE / "proto"
@@ -42,39 +46,7 @@ GAMES = {
     "tuning": ("tuning2", "const g=gen(ctx.rng,ctx.depth),c=g.cfg", "const g=window.__P,c=g.cfg"),
 }
 
-# The layouts Jon picked to fit the glass (Nov 19, "fit2"): the prototype's own file with these swaps
-# is what the game is held to. Beams: LIT and TURNS in a left column, the table the square beside it.
-# Spectrum: a tighter header, a 5-px meter carrying MATCH! (its dividers gone once full).
-BEAMS_FIT = [
-    ("const W=150,H=150,CS=Math.floor(118/n),BW=n*CS,BX=Math.floor((W-BW)/2),BY=14+Math.floor((H-14-BW)/2);",
-     "const W=150,H=130,CS=Math.floor(106/n),BW=n*CS,BX=20+Math.floor((130-BW)/2),BY=Math.floor((H-BW)/2);"),
-    ("TK.text(g,'LIT',4,3,PAL.cold);", "TK.text(g,'LIT',4,4,PAL.cold);"),
-    ("R(g,19+k*7,3,5,5,'#000');R(g,20+k*7,4,3,3,on?col:'#1f2935')", "R(g,5,12+k*7,5,5,'#000');R(g,6,13+k*7,3,3,on?col:'#1f2935')"),
-    ("TK.text(g,'TURNS '+taps,W-4,3,PAL.cold,'right');", "TK.text(g,'TURNS',1,H-20,PAL.cold);TK.text(g,String(taps),10,H-13,PAL.cold,'center');"),
-    ("if(won)TK.text(g,'ALL LIT',W>>1,H-7,PAL.hot,'center');", "if(won){TK.text(g,'ALL',10,48,PAL.hot,'center');TK.text(g,'LIT',10,55,PAL.hot,'center')}"),
-]
-
-SPECTRUM_FIT = [
-    ("ROW=13,TY=50,H=TY+T*ROW+12;", "ROW=13,TY=40,H=TY+T*ROW-1;"),
-    ("strip(4,10);strip(22,10);", "strip(2,10);strip(17,10);"),
-    ("TK.text(b,'STAR',2,7,PAL.chill);TK.text(b,'YOU',2,25,PAL.chill);", "TK.text(b,'STAR',2,5,PAL.chill);TK.text(b,'YOU',2,20,PAL.chill);"),
-    ("drawLine(lineX(bn),4,10,", "drawLine(lineX(bn),2,10,"),
-    ("drawLine(x,22,10,binCol(bn),.6,", "drawLine(x,17,10,binCol(bn),.6,"),
-    ("R(g,x,15,2,1,PAL.good);R(g,x,20,2,1,PAL.good);for(let y=16;y<20;y++)", "R(g,x,13,2,1,PAL.good);R(g,x,15,2,1,PAL.good);for(let y=14;y<15;y++)"),
-    ("drawLine(x+wob,22,10,binCol(bn),0,false);R(g,x-1+wob,21,4,1,PAL.bad);R(g,x-1+wob,32,4,1,PAL.bad);",
-     "drawLine(x+wob,17,10,binCol(bn),0,false);R(g,x-1+wob,16,4,1,PAL.bad);R(g,x-1+wob,27,4,1,PAL.bad);"),
-    ("(f.y0+(22-f.y0)*u*u):(22+(f.y0-22)*u)", "(f.y0+(17-f.y0)*u*u):(17+(f.y0-17)*u)"),
-    ("MY=36;", "MY=31;"),
-    ("R(g,MX-1,MY-1,MW+2,10,'#000');R(g,MX,MY,MW,8,PAL.void);", "R(g,MX-1,MY-1,MW+2,7,'#000');R(g,MX,MY,MW,5,PAL.void);"),
-    ("for(let y=0;y<8;y++)R(g,MX+x,MY+y,1,1,y===0?mix(mcol,'#ffffff',.5):y>5?", "for(let y=0;y<5;y++)R(g,MX+x,MY+y,1,1,y===0?mix(mcol,'#ffffff',.5):y>3?"),
-    ("for(let k=1;k<tgt.length;k++){const x=MX+Math.round(MW*k/tgt.length);R(g,x,MY,1,8,'#000')}",
-     "if(!(frac===1&&!extras))for(let k=1;k<tgt.length;k++){const x=MX+Math.round(MW*k/tgt.length);R(g,x,MY,1,5,'#000')}"),
-    ("MX+MW-2,MY+2,frac>0.55", "MX+MW-2,MY,frac>0.55"),
-    ("if(won)TK.text(g,'MATCH!',W>>1,H-8,PAL.good,'center');", "if(won)TK.text(g,'MATCH!',SX+(SW>>1),MY,'#0a0e15','center');"),
-    ("TK.text(g,'NO POWER',W>>1,H-8,PAL.bad,'center');", "TK.text(g,'NO POWER',SX+(SW>>1),MY,PAL.bad,'center');"),
-    ("if(over&&!won)TK.text(g,'NO MATCH',W>>1,H-8,PAL.bad,'center');", "if(over&&!won)TK.text(g,'NO MATCH',SX+(SW>>1),MY,PAL.bad,'center');"),
-]
-LAYOUT = {"beams": BEAMS_FIT, "spectrum": SPECTRUM_FIT}
+# The layouts (fit2 for Beams and Spectrum, fit3, fit4, the kit) are in layout/: `layout.page_js`.
 
 
 # The prototype's helpers with nothing that runs on its own: the clock is `__now`, frames are queued
@@ -124,13 +96,12 @@ DRIVER = """
 
 
 def page_for(gid: str) -> str:
+    """The page as Jon approved it (Nov 20): kit.js, then the prototype's own file re-laid out to fill
+    150x130 and dressed in the kit (`layout/`), its deal line reading the dumped deal."""
     name, deal, mine = GAMES[gid]
-    js = (PROTO / (name + ".js")).read_text(encoding="utf-8")
-    assert deal in js, gid
+    js = layout.page_js(gid)
+    assert js.count(deal) == 1, gid
     js = js.replace(deal, mine, 1)
-    for a, b in LAYOUT.get(gid, []):
-        assert a in js, (gid, a)
-        js = js.replace(a, b)
     helpers = (PROTO / "tk_helpers.js").read_text(encoding="utf-8").rstrip().rstrip(",")
     font = (PROTO / "tk_font.js").read_text(encoding="utf-8")
     return "<!doctype html><body style='margin:0'><script>%s</script><script>%s</script></body>" % (SHELL % (helpers, font), js)

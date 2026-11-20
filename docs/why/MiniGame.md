@@ -41,7 +41,7 @@ flows, Centrifuge on a move, during the spin and for its start frame's icon.
 ## The shell
 
 `MiniShell` owns the glass, 150 x 140 art pixels, one to an art pixel of the room: the game's
-canvas centred above a strip (rows 131 to 139) that holds GIVE UP while it plays and the haul line
+canvas centred above a strip (rows 130 to 139) that holds GIVE UP while it plays and the haul line
 after. Both games' canvases are 144 wide and at most 126 tall, so they fit at 1:1, as on the
 phone page (one shared scale, Jon: "bigger than the others?").
 
@@ -63,6 +63,27 @@ leaves are drawn in it. And "How do you leave once you get the reward?": once th
 GIVE UP becomes LEAVE in the same place, the one way out besides Esc. A click anywhere else on the
 glass does nothing (only pressable things look pressable). The haul line sits left of LEAVE from
 x 3; a name too long for both drops its [TIER] (its ink still says the tier).
+
+With the UI kit (Nov 20) the haul line moved to row 132 (`STRIP_Y`), and GIVE UP / LEAVE are the
+kit's normal button (`MiniKit.SKIN.normal`) in the same 33 x 9 place (x 114, rows 130 to 138).
+
+## The UI kit
+
+Jon, Nov 19: "I'd like the UI/UX for all of the games to be about the same as much as possible."
+The kit (`tools/dev/minigame/layout/kit.js`, its rules in `kit_spec.md`) was drawn round every game
+on sheets and approved Nov 20: "Perfect." `MiniKit` is its port, function for function, so a game
+calls the kit and never draws its own chrome. The rules, in short:
+
+- Every game draws exactly 150 x 130 (fit4; fit3 for Seismic, Culture, Dock, Core Scan).
+- One header row (band rows 0 to 8, rule on row 9): the game's main state left, its counters right.
+- One bottom deck: rule on row 98 with on-screen controls (control row 107 to 129, centred on 118),
+  121 without; the status line two rows under the rule is the only place for status words.
+- One tell card (rows 45 to 61, centred on x 75), one button style, one meter, one dial, solid
+  #111823 borders, and four accents with one meaning each: yours amber, goal blue, good green, bad red.
+- Pulsar, Sling and Tuning keep their own dials.
+
+Deck clearance (Jon, Nov 20: "the dials come right up to the reward line"): the haul line is row
+132, so nothing lit sits in rows 128 to 131; every control, meter and status word ends by row 127.
 
 ## Sounds
 
@@ -143,6 +164,8 @@ apart from encounters); until then those games open by the dev flag.
 route, the valve, sensors bolting route tiles that needed turning (the fix for Jon's "some harder
 ones with high sensors are impossible?"), never dealt solved, the time limit from the pace model,
 the score from heat and turns over par. Drawing order and every colour are the prototype's.
+Since Nov 20 it is the approved page (`layout.page_js("coolant")`: fit4 + `KIT_COOLANT`): 150 x 130,
+tiles as big as the kit's play rows (11 to 119) allow, the header, the deck and the tell from `MiniKit`.
 
 ## Centrifuge
 

@@ -3,7 +3,8 @@ extends MiniGame
 
 ## COOLANT ROUTING (Jon: loved, Nov 17): turn pipe tiles to carry coolant from the hot core to the
 ## sample chamber before HEAT fills. A port of the approved prototype's `coolant2.js`, rule for rule
-## and pixel for pixel; the puzzle is dealt from the seeded stream, never solved.
+## and pixel for pixel, in its approved layout and the UI kit (Nov 20); the puzzle is dealt from the
+## seeded stream, never solved.
 ## Why: docs/why/MiniGame.md#coolant
 
 ## Directions 0 N, 1 E, 2 S, 3 W; a tile's pipes are a 4-bit mask, bit = 1 << dir.
@@ -17,7 +18,9 @@ const CFG := {
 	4: {w = 6, h = 6, valve = 1, two = 1, crack = 2, secs = 90, empty = 0.25, ok = 0.2},
 	5: {w = 7, h = 6, valve = 1, two = 1, crack = 3, secs = 105, empty = 0.3, ok = 0.2},
 }
-const W := 144
+## The game area, as every game draws it (the UI kit, Nov 20).
+const W := MiniKit.W
+const H := MiniKit.H
 ## The core's and the chambers' column width.
 const E := 14
 const WATER := Color("#2a9e90")
@@ -45,8 +48,6 @@ var limit := 0.0
 var S := 18
 var GX := 0
 var GY := 11
-var H := 0
-var TY := 0
 
 
 func id() -> StringName:
@@ -377,17 +378,19 @@ func _mount() -> void:
 	P = gen(depth, sensors, rng)
 	if P.is_empty():
 		push_error("GameCoolant: no puzzle at depth %d" % depth)
-		px = MiniPix.new(W, 100)
+		px = MiniPix.new(W, H)
 		over = true
 		done(0.0, "No puzzle")
 		return
 	var w: int = P.w
 	var h: int = P.h
 	limit = time_limit(P, depth, sensors)
-	S = mini(mini(18, (W - 4 - 2 * E) / w), 96 / h) & ~1
+	# the tile size, even: as big as the kit's play rows allow, inside the grid's 1 px frame
+	var py0 := MiniKit.PLAY_Y + 1
+	var ph := MiniKit.deck_y(false) - 1 - py0
+	S = mini((W - 4 - 2 * E) / w, ph / h) & ~1
 	GX = (W - w * S) / 2
-	H = GY + h * S + 19
-	TY = H - 12
+	GY = py0 + ((ph - h * S) >> 1)
 	px = MiniPix.new(W, H)
 	F = flood(P)
 	_render()
@@ -673,41 +676,27 @@ func _ends() -> void:
 
 
 func _hud() -> void:
-	px.text("HEAT", 2, 2, MiniPix.BAD if heat > 0.75 else MiniPix.CHILL)
-	var bx := 20
-	var bw := W - 2 - 62 - bx
-	px.rect(bx, 2, bw, 5, MiniPix.BEVEL_LO)
-	var fw := MiniPix.jr((bw - 2) * heat)
-	if fw > 0:
-		px.rect(bx + 1, 3, fw, 3, MiniPix.BAD if heat > 0.75 else MiniPix.EMBER)
-		px.rect(bx + 1, 3, fw, 1, MiniPix.FLARE if heat > 0.75 else MiniPix.HOT)
-	px.text("TURNS %d PAR %d" % [taps, int(P.par)], W - 2, 2, MiniPix.ICE, "right")
+	var hot := heat > 0.75
+	MiniKit.header(px, {label = "HEAT", kind = "bad" if hot else "", meter = {w = 53, frac = heat, kind = "bad" if hot else "neutral"}},
+		[["TURNS", taps], ["PAR", int(P.par)]])
+	MiniKit.deck(px, false)
 	if won:
-		px.text("ROUTED", W / 2, TY, MiniPix.GOOD, "center")
+		MiniKit.status(px, "ROUTED", "good", false)
 		return
 	if lost:
-		px.text("OVERHEAT", W / 2, TY, MiniPix.BAD, "center")
+		MiniKit.status(px, "OVERHEAT", "bad", false)
 		return
 	if taps == 0:
-		# the start frame: the goal, and the input as an icon
-		var s := "COOL THE SAMPLE."
-		var tw := s.length() * 4 - 1
-		var x0 := int(floorf(W / 2.0 - (13 + 5 + tw) / 2.0))
-		px.icon("click", x0, TY - 4, t)
-		px.text(s, x0 + 13 + 5, TY, MiniPix.HOT)
+		MiniKit.tell(px, "COOL THE SAMPLE.", ["click"] as Array[String], t)
 		return
 	var n := 0
 	for b: bool in F.reached:
 		if b:
 			n += 1
 	var rows: Array[int] = P.rows
-	var parts: Array = [["COLD %d/%d" % [n, rows.size()], MiniPix.GOOD if n == rows.size() else MiniPix.CHILL]]
+	var parts: Array = [["COLD %d/%d" % [n, rows.size()], "good" if n == rows.size() else "neutral"]]
 	if int(P.valve) >= 0:
-		parts.append(["VALVE OPEN", MiniPix.GOOD] if (F.lit as Dictionary).has(int(P.valve)) else ["VALVE DRY", MiniPix.WARN])
+		parts.append(["VALVE OPEN", "good"] if (F.lit as Dictionary).has(int(P.valve)) else ["VALVE DRY", "neutral"])
 	if not (F.leaks as Array).is_empty():
-		parts.append(["LEAK", MiniPix.BAD])
-	var all := "  ".join(parts.map(func(p: Array) -> String: return String(p[0])))
-	var x := int(floorf(W / 2.0 - (all.length() * 4 - 1) / 2.0))
-	for p: Array in parts:
-		px.text(String(p[0]), x, TY, p[1])
-		x += String(p[0]).length() * 4 + 8
+		parts.append(["LEAK", "bad"])
+	MiniKit.status(px, parts, "", false)

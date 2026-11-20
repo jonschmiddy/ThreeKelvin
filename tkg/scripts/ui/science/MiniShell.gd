@@ -12,9 +12,10 @@ signal scored(tier: int)
 
 const GW := 150
 const GH := 140
-## The game sits centred above the strip; the strip holds GIVE UP, then the haul line.
+## The game sits centred above the strip; the strip holds GIVE UP, then the haul line (its text
+## on row 132, Nov 20: four rows clear of the kit's lowest lit row).
 const AREA_H := 130
-const STRIP_Y := 131
+const STRIP_Y := 132
 ## THE ONE BORDER COLOUR (Jon, Nov 19: "every game have the same color border if they need it. The
 ## give up bar should also be that color"): the terminal's panel. The strip and any room a game
 ## leaves are drawn in it.
@@ -22,7 +23,8 @@ const BORDER := MiniPix.PANEL
 const GIVE_UP := "GIVE UP"
 ## At the end the button says LEAVE, the one way out (Esc too); nothing else on the glass leaves.
 const LEAVE := "LEAVE"
-const BUTTON := Rect2i(GW - 3 - 33, STRIP_Y - 1, 33, 9)
+## GIVE UP / LEAVE: rows 130-138, right edge 3 in, the kit's normal button.
+const BUTTON := Rect2i(GW - 3 - 33, AREA_H, 33, 9)
 ## Each game's sounds (the phone page's sfx.json, Jon's picks Nov 17 to 18): [file, offset s].
 ## A positive offset starts it that much later, a negative one starts that far into the file.
 const SFX := {
@@ -261,12 +263,10 @@ func leave_hit(gf: Vector2) -> bool:
 	return revealed and not playing() and BUTTON.has_point(Vector2i(gf.floor()))
 
 
+## The kit's normal button (Nov 20), text centred.
 func _button(c: MiniPix, label: String) -> void:
 	var b := BUTTON
-	c.rect(b.position.x, b.position.y, b.size.x, b.size.y, MiniPix.BEVEL_LO)
-	c.rect(b.position.x + 1, b.position.y + 1, b.size.x - 2, b.size.y - 2, BORDER)
-	c.rect(b.position.x + 1, b.position.y + 1, b.size.x - 2, 1, MiniPix.LINE)
-	c.text(label, b.position.x + (b.size.x - (label.length() * 4 - 1)) / 2, b.position.y + 2, MiniPix.CHILL)
+	MiniKit.button(c, b.position.x, b.position.y, b.size.x, b.size.y, label)
 
 
 ## The haul line, swept in left to right up to the reward's sound (the S1 split's sweep).
