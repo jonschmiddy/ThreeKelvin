@@ -82,6 +82,24 @@ def shrink(im, s):
     return q
 
 
+def shrink_own(im, s):
+    """The same area shrink, each pixel then the drawing's own nearest colour, weighing
+    saturation: a median cut merged Solari's thin orange glows into the bronze round them."""
+    w, h = max(1, round(im.width * s)), max(1, round(im.height * s))
+    a = np.asarray(im).astype(float)
+    al = a[..., 3:] / 255.0
+    pm = np.concatenate([a[..., :3] * al, a[..., 3:]], -1)
+    sm = np.asarray(Image.fromarray(pm.astype(np.uint8)).resize((w, h), Image.BOX)).astype(float)
+    A = sm[..., 3:] / 255.0
+    rgb = np.where(A > 0, sm[..., :3] / np.maximum(A, 1e-6), 0).reshape(-1, 3)
+    own = np.unique(a[a[..., 3] >= 128][:, :3], axis=0)
+    feat = lambda c: np.concatenate([c, (c.max(-1, keepdims=True) - c.min(-1, keepdims=True)) * 0.8], -1)
+    fo, fr = feat(own), feat(rgb)
+    pick = np.concatenate([((fr[i:i + 4096, None, :] - fo[None]) ** 2).sum(-1).argmin(1) for i in range(0, len(fr), 4096)])
+    out = np.concatenate([own[pick].reshape(h, w, 3), np.where(A > ALPHA_CUT, 255, 0)], -1).astype(np.uint8)
+    return Image.fromarray(out).copy()
+
+
 def close_outline(im):
     """Every opaque pixel with a clear neighbour is outline-dark; returns the light ones it fixed."""
     w, h = im.size
@@ -187,10 +205,13 @@ def restamp(src, out, boxes):
     return out
 
 
-def install(src_dir):
+def install(src_dir, keep_others=False):
     spec = json.load(io.open(os.path.join(src_dir, "guns.json"), encoding="utf-8"))
     os.makedirs(OUT, exist_ok=True)
     table = {}
+    # `--keep`: add these guns to what is installed, leaving every other gun as it is
+    if keep_others and os.path.exists(os.path.join(OUT, "guns.json")):
+        table = json.load(io.open(os.path.join(OUT, "guns.json"), encoding="utf-8"))
     for gid in sorted(spec):
         if gid.startswith("_"):
             continue
@@ -202,9 +223,12 @@ def install(src_dir):
         drawn = Image.open(path).convert("RGBA")
         # (a gun drawn at another size than Korvan's says its own "scale"; see the docstring)
         s = float(g.get("scale", SCALE))
-        src = shrink(drawn, s)
+        # A gun drawn in Solari's lit bronze keeps its own colours and its glow is not a lamp
+        # to stamp (brass highlights read as lamps). Why: docs/why/ShipGun.md#solari-guns
+        own = bool(g.get("own_colours", False))
+        src = shrink_own(drawn, s) if own else shrink(drawn, s)
         fixed = close_outline(src)
-        lit = lights(drawn)
+        lit = [] if own else lights(drawn)
         stamp_lights(src, lit, s, min((c for c in src.get_flattened_data() if c[3]), key=luma))
         w, h = src.size
         side = g.get("side_drawn", "top")
@@ -219,7 +243,8 @@ def install(src_dir):
         src.save(os.path.join(OUT, name))
         entry[side] = {"file": name, "anchor": [ax, ay]}
         if side == "top" or FLIP_BELLY_GUNS:
-            flip = relight(src)
+            # a plain flip where the relight splashed colour across the breeches (Jon, Nov 20)
+            flip = relight(src, "plain") if g.get("relight", True) is False else relight(src)
             flip = restamp(src, flip, boxes)
             close_outline(flip)
             # (the lights, flipped with the gun, at full brightness again after the relight)
@@ -248,4 +273,4 @@ def install(src_dir):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         sys.exit(__doc__)
-    install(sys.argv[1])
+    install(sys.argv[1], keep_others="--keep" in sys.argv[2:])

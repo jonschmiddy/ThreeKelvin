@@ -39,10 +39,13 @@ func _hold_art() -> void:
 			with = m
 		if without == null and m.hold_sprite == null and m.sprite != null:
 			without = m
-	_ok("hold art: some part has a hold picture and some part has none",
-		with != null and without != null)
-	if with == null or without == null:
+	_ok("hold art: some part has a hold picture", with != null)
+	if with == null:
 		return
+	# (every part has its own since Solari's Heliostat, Nov 20: the fallback is tried on a copy without)
+	if without == null:
+		without = with.duplicate() as ModuleData
+		without.hold_sprite = null
 	var copy := with.duplicate() as ModuleData
 	_ok("hold art: a copied part keeps its hold picture", copy.hold_sprite == with.hold_sprite)
 	_ok("hold art: drawn at the hold's 2x and at 4x", ModuleIcon.hold_art(with, 2.0)

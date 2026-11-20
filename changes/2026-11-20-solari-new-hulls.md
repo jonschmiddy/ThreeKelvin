@@ -2,3 +2,4 @@
 - **Added** — Solari's furnace burns: embers and sparks behind the grate, and flare-ups that run out both ways along the line, to the brass cap and back to the stern. A worn hull's furnace sputters and misfires and its cab glass dips now and then; a clean one flares on a steady beat.
 - **Changed** — A worn Solari hull now shows heat scars round its furnace, pipe and engines, swapped and welded plates with a panel torn off, and old bronze in its seams, rivets and band, all in solid marks with no dotted patterns. Better grades carry less of it, and S is clean.
 - **Changed** — Solari's guns and parts sit on the mounts Jon placed for the new hulls. The orange band picks up more scratches and scuffs the lower the grade, and the prow chevrons and bow light are gone.
+- **Changed** — Solari's 25 parts have new hold pictures in the bronze of the new hulls, the Heliostat Lance included, and Solari's seven guns now stand on the ship at full size, on top or under the belly.

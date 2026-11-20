@@ -15,6 +15,38 @@
    "file": "beam_top.png"
   }
  },
+ "emberlance": {
+  "belly": {
+   "anchor": [
+    20,
+    0
+   ],
+   "file": "emberlance_belly.png"
+  },
+  "top": {
+   "anchor": [
+    20,
+    24
+   ],
+   "file": "emberlance_top.png"
+  }
+ },
+ "heliostat": {
+  "belly": {
+   "anchor": [
+    67,
+    0
+   ],
+   "file": "heliostat_belly.png"
+  },
+  "top": {
+   "anchor": [
+    67,
+    31
+   ],
+   "file": "heliostat_top.png"
+  }
+ },
  "kh20": {
   "belly": {
    "anchor": [
@@ -95,6 +127,38 @@
    "file": "km4_top.png"
   }
  },
+ "overpressure": {
+  "belly": {
+   "anchor": [
+    50,
+    0
+   ],
+   "file": "overpressure_belly.png"
+  },
+  "top": {
+   "anchor": [
+    50,
+    34
+   ],
+   "file": "overpressure_top.png"
+  }
+ },
+ "plasma": {
+  "belly": {
+   "anchor": [
+    23,
+    0
+   ],
+   "file": "plasma_belly.png"
+  },
+  "top": {
+   "anchor": [
+    23,
+    32
+   ],
+   "file": "plasma_top.png"
+  }
+ },
  "slug": {
   "belly": {
    "anchor": [
@@ -111,6 +175,38 @@
    "file": "slug_top.png"
   }
  },
+ "sparkthrower": {
+  "belly": {
+   "anchor": [
+    22,
+    0
+   ],
+   "file": "sparkthrower_belly.png"
+  },
+  "top": {
+   "anchor": [
+    22,
+    37
+   ],
+   "file": "sparkthrower_top.png"
+  }
+ },
+ "sunspot": {
+  "belly": {
+   "anchor": [
+    29,
+    0
+   ],
+   "file": "sunspot_belly.png"
+  },
+  "top": {
+   "anchor": [
+    29,
+    62
+   ],
+   "file": "sunspot_top.png"
+  }
+ },
  "torch": {
   "belly": {
    "anchor": [
@@ -125,6 +221,22 @@
     18
    ],
    "file": "torch_top.png"
+  }
+ },
+ "ventcan": {
+  "belly": {
+   "anchor": [
+    42,
+    0
+   ],
+   "file": "ventcan_belly.png"
+  },
+  "top": {
+   "anchor": [
+    42,
+    33
+   ],
+   "file": "ventcan_top.png"
   }
  },
  "widow": {
