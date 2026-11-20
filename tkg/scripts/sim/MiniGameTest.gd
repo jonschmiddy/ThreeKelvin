@@ -45,6 +45,7 @@ func _run() -> void:
 		print("minigame %s: %d ms" % [id, Time.get_ticks_msec() - t0])
 		_shell(id)
 		_tell(id)
+		_tell_click(id)
 	_h.verdict("minigametest")
 	get_tree().quit(_h.code())
 
@@ -171,7 +172,7 @@ static func send(g: MiniGame, e: Dictionary) -> void:
 	var q := Vector2i(p.floor())
 	match String(e.k):
 		"down":
-			g.down(q)
+			g.glass_down(q)
 		"move":
 			g.move(q)
 		"up":
@@ -371,6 +372,105 @@ func _tell(id: StringName) -> void:
 			ok = false
 			why += " d%d%s%s%s" % [d, " ESC on line 1" if esc else "", "" if same else " card not the kit's", "" if quiet > 0 else " no TO GIVE UP"]
 	_h._ok("%s: the start card has its ESC TO GIVE UP line under the game's own, line 1 no ESC, at every depth%s" % [id, why], ok)
+
+
+## Where a click on each game's glass hits nothing playable: the header band's top-left corner (glass
+## 1,1), a label in every game. Some games already set a flag on any press (their own rule, kept):
+## Anomaly and Four Kelvin start their clock; the rest mark themselves started (the centrifuge also
+## stops its card's icon clock). That flag may differ.
+const EMPTY := Vector2(1.5, 1.5)
+const ANY_PRESS := {&"anomaly": ["started"], &"fourkelvin": ["mode"], &"tray": ["started"], &"centrifuge": ["acted", "_icon_t"],
+	&"seismic": ["touched"], &"culture": ["touched"]}
+## The games whose clock that press starts: their twins part from there, so they are held at the click.
+const CLOCK_STARTS: Array[StringName] = [&"anomaly", &"fourkelvin"]
+
+
+## Any click on the glass puts the start card away (Jon, Nov 20: Ice Core's card hid ONE UPSIDE DOWN
+## until the first drag). Two shells deal the same game; one gets a click on empty glass. Its next
+## drawn frame has no card, the card's box is all that differs on the canvas, and its state is the
+## twin's (bar the flag a game already sets on any press, `ANY_PRESS`).
+## Why: docs/why/MiniGame.md#the-start-card-goes-on-any-click
+func _tell_click(id: StringName) -> void:
+	for d in range(1, 6):
+		var a := MiniShell.new()
+		var b := MiniShell.new()
+		a.start(MiniGames.make(id), d, 1, MiniGames.stream(5), 5)
+		a.tick(STEP)
+		MiniKit.told_px = null
+		b.start(MiniGames.make(id), d, 1, MiniGames.stream(5), 5)
+		b.tick(STEP)
+		var shown := MiniKit.told_px != null
+		var card := Rect2i(MiniKit.told_at.position - a.at, MiniKit.told_at.size)
+		a.press(EMPTY)
+		a.release(EMPTY)
+		var allow: Array = ANY_PRESS.get(id, [])
+		var why := _state_diff(a.game, b.game, allow)
+		MiniKit.told_px = null
+		var n := 0
+		var drawn := false
+		while n < 10 and not drawn:
+			drawn = a.tick(STEP)
+			n += 1
+		var gone := drawn and MiniKit.told_px == null
+		for k in n:
+			b.tick(STEP)
+		var outside := 0
+		if not id in CLOCK_STARTS:
+			why += _state_diff(a.game, b.game, allow)
+			outside = _differs_outside(a.game.px, b.game.px, card)
+		_h._ok("%s depth %d: a click on empty glass hides the start card, nothing else (card %s, gone %s, %d px outside it%s)"
+			% [id, d, shown, gone, outside, why], shown and gone and outside == 0 and why == "")
+
+
+## The script variables that differ between two games, minus the card's own, the pointer, the frame.
+func _state_diff(a: MiniGame, b: MiniGame, allow: Array) -> String:
+	var skip := ["told", "pf", "dirty", "px"] + allow
+	var out := ""
+	for p: Dictionary in a.get_property_list():
+		var n := String(p.name)
+		if not (int(p.usage) & PROPERTY_USAGE_SCRIPT_VARIABLE) or n in skip:
+			continue
+		if _snap(a.get(n), 0) != _snap(b.get(n), 0):
+			out += ", %s differs" % n
+	return out
+
+
+## A value as text for comparing twins: objects by their state, not their ids.
+static func _snap(v: Variant, depth: int) -> String:
+	if v is Dictionary:
+		var parts: PackedStringArray = []
+		for k: Variant in v:
+			parts.append("%s:%s" % [str(k), _snap(v[k], depth + 1)])
+		return "{" + ",".join(parts) + "}"
+	if v is Array:
+		var parts: PackedStringArray = []
+		for e: Variant in v:
+			parts.append(_snap(e, depth + 1))
+		return "[" + ",".join(parts) + "]"
+	if v is Callable:
+		return "callable:" + String((v as Callable).get_method())
+	if v is RandomNumberGenerator:
+		return "rng:%d" % (v as RandomNumberGenerator).state
+	if v is Object:
+		var o := v as Object
+		if o is Image or o is MiniPix or depth > 3 or o.get_script() == null:
+			return o.get_class()
+		var parts: PackedStringArray = []
+		for p: Dictionary in o.get_property_list():
+			if int(p.usage) & PROPERTY_USAGE_SCRIPT_VARIABLE:
+				parts.append("%s=%s" % [p.name, _snap(o.get(p.name), depth + 1)])
+		return "obj(" + ",".join(parts) + ")"
+	return var_to_str(v)
+
+
+## How many pixels differ between two canvases outside box `r`.
+static func _differs_outside(a: MiniPix, b: MiniPix, r: Rect2i) -> int:
+	var n := 0
+	for y in a.h:
+		for x in a.w:
+			if not r.has_point(Vector2i(x, y)) and a.img.get_pixel(x, y) != b.img.get_pixel(x, y):
+				n += 1
+	return n
 
 
 ## The shell round a game (status A, Nov 20): a scripted run through the glass (offset by where the

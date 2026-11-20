@@ -726,7 +726,7 @@ func _draw_hud() -> void:
 	var left := max_shots - used
 	var right: Array = [["PWR", pow_, "yours"]] if pow_ > 0 else ([["LAST", last_pow]] if last_pow > 0 else [["PWR", "-"]])
 	MiniKit.header(px, {label = "LAUNCH", value = left, vkind = "bad" if left <= 1 else ""}, right)
-	if not started:
+	if not started and not told:
 		MiniKit.tell(px, "HIT THE TARGET.", controls(), clock)
 
 

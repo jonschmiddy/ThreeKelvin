@@ -73,6 +73,22 @@ While the card is up a click anywhere on the glass, or Esc, leaves. This overrid
 click on it. The reward sound keeps its timing (the win's peak, or 1.1 s after the end), and the
 card's NAME [TIER] row is swept in over the 0.65 s before it, the loot reveal's S1 sweep.
 
+## The start card goes on any click
+
+Jon, Nov 20: any click anywhere on the glass hides the start (tell) card, in all seventeen games. In
+Ice Core the card covered ONE UPSIDE DOWN until the first drag, and a click on empty space did
+nothing: the card waited on the game's own `acted`, set only by a button or a drag.
+
+The rule is in one place. The shell sends every press through `MiniGame.glass_down`, which sets
+`told` and then calls the game's own `down`, so a click on something playable still does that
+thing. Each game's card asks `not told` beside its own flag; nothing else reads `told`, so the
+click changes no rule, score or deal. A key game (Four Kelvin's W, A, D) still hides it on its
+first key. The paper pages do the same in `kit.js` (a capture `pointerdown` listener, then
+`KIT.tell` draws nothing), so `diff.py` stays at 0 px. MiniGameTest clicks the header's top-left
+corner (glass 1,1, a label in every game) on one of two twin shells: the next frame has no card,
+the canvases differ only in the card's box, and the state is the twin's. Anomaly and Four Kelvin
+already start their clock on any click and the tray marks itself started; those flags may differ.
+
 ## The UI kit
 
 Jon, Nov 19: "I'd like the UI/UX for all of the games to be about the same as much as possible."
@@ -378,7 +394,8 @@ win then the reward sound; while it plays the glass is exactly the game's canvas
 leaves; the game names its end (`say_end`); 0.6 s after the end the result card is up, pixel for
 pixel `MiniKit.result_card` with that word and the paid NAME [TIER], and a click anywhere leaves;
 Esc (`give_up`) ends it with GAVE UP and the same card; at every depth the start card is the kit's,
-its ESC TO GIVE UP line under the game's own, which lists no ESC. Every deal draws exactly 150 x 140. It counts work done, never time, so it holds on a busy machine.
+its ESC TO GIVE UP line under the game's own, which lists no ESC, and a click on empty glass hides
+it and changes nothing else. Every deal draws exactly 150 x 140. It counts work done, never time, so it holds on a busy machine.
 `dump=<dir>` writes each game's deal and canvases for `tools/dev/minigame/diff.py`, which draws the
 same deal in the prototype's own file in Chrome and counts the pixels that differ (0 for all eleven).
 

@@ -673,7 +673,7 @@ func _hud(t_: float) -> void:
 	var hd := MiniKit.header(k, "ARM CAM", null)
 	if int(floorf(t_ * 2.0)) % 2:
 		k.dot(hd.x, 4, MiniPix.BAD)
-	if not S.over and (S.pts as Array).size() <= 1 and path.is_empty():
+	if not S.over and not told and (S.pts as Array).size() <= 1 and path.is_empty():
 		MiniKit.tell(k, "CUT OUT THE CRATE.", ["click"] as Array[String], t_)
 	MiniKit.deck(k, true)
 	var gl := clampf(1.0 - float(S.used) / float(P.gas), 0.0, 1.0)

@@ -36,6 +36,9 @@ var end_kind := ""
 var toast_text := ""
 var toast_kind := ""
 var toast_at := -9.0
+## Whether a press on the glass has put the start (tell) card away: every game's card asks it.
+## Why: docs/why/MiniGame.md#the-start-card-goes-on-any-click
+var told := false
 var _fired := false
 ## setTimeout's queue: [due seconds, Callable].
 var _later: Array = []
@@ -73,6 +76,14 @@ func tick(dt: float) -> void:
 	for e: Array in due:
 		(e[1] as Callable).call()
 	_tick(dt)
+
+
+## Any press on the glass (the shell's and the tests' way in): the start card goes, whatever it hit,
+## then the game's own `down` does whatever it does there, as before.
+## Why: docs/why/MiniGame.md#the-start-card-goes-on-any-click
+func glass_down(p: Vector2i) -> void:
+	told = true
+	down(p)
 
 
 ## Pointer at canvas pixel p (may lie off the canvas while a drag holds it).

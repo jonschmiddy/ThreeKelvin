@@ -428,7 +428,7 @@ func _render() -> void:
 	_spin_button()
 	MiniKit.header(px, {label = "ROTOR", value = N}, [["MOVES", moves]])
 	# A (Nov 20): no status line; READY and SPINNING are SPIN's amber and the spin itself
-	if not acted and not over:
+	if not acted and not told and not over:
 		MiniKit.tell(px, "BALANCE THE TUBES.", ["click", "drag"] as Array[String], t)
 	if not drag.is_empty() and drag.moved:
 		_tube_side(int(drag.x) - 3, int(drag.y) - 7, int(drag.m), true)
@@ -669,7 +669,10 @@ func rack_at(q: Vector2i) -> int:
 func down(q: Vector2i) -> void:
 	if over or spinning:
 		return
-	acted = true
+	if not acted:
+		# the first press puts the start card away: an idle rotor draws nothing, so draw it now
+		acted = true
+		_render()
 	if SPIN.has_point(q):
 		if tray.is_empty():
 			press = 1
