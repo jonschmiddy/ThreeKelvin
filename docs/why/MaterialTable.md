@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/systems/MaterialTable.gd`, moved out of the co
 
 ## Material catalogue
 
-Above `const NAMED := &"named"`:
+Above `const SOURCES` (it was above `const NAMED := &"named"`, gone in draft 2):
 
 ```text
 Everything a system can hand you that is not a module.
@@ -49,9 +49,94 @@ MINING IS THE THIN TABLE and is known to be -- the mining-flavoured options
 are where its rolls come from, and the next materials batch should feed it.
 ```
 
+DRAFT 2 (Nov 19, the list Jon approved on Nov 18: "All are good. Just some notes"). The
+draft 1 text above is history (`const NAMED` is now a `named = true` field on the row).
+Draft 2 gives each of six sources (wreck, mining, event, fight, fauna, cosmic) its own
+list in one shape: 6 common, 5 uncommon, 4 rare, 2 epic, 1 legendary, 1 contraband, and at
+the top 1 artifact (wreck, mining, event, fight) or 1 exotic (fauna, cosmic). That is 120
+rolled rows, plus the 7 named ones, 127 in all. Values sit in per-tier bands (common 7-14,
+uncommon 15-25, rare 26-44, epic 72-110, legendary 180-260, exotic 41-66, artifact 90-240,
+contraband 64-130).
+
+The list itself is `tkg/tools/fixtures/materials_draft2.json` (from the review page's
+`tk-scratch/science/minigames/phone/src/materials.json`), and `ROWS` was generated from it,
+so `MaterialTest` holds the two together: every row's name, tier, cells, value, source and
+text, the per-source matrix, and every cut id resolving. A later edit to a row edits the
+fixture in the same commit.
+
+The table moved out of `all()` into a `const` because a 127-row function is a 260-line
+function; the rows are data, and `code_check`'s length rule is about code.
+
+What changed in place, with the reason the list gave: RELIC is PRECURSOR RELIC and Exotic
+is EXOTIC TISSUE (both live ids, unchanged). Five fauna exotics moved along the ladder
+(FLANK HORN and GRAVE SPORES to rare, SINGER'S OIL and NERVE SILK to epic, HEART FLUID to
+legendary at 2x1). Wreck's five artifacts became one each: SINGING TINE to mining, CAGED
+SPHERE to event, CLOSED-BAY KEY to fight, WRONG MASS down to a wreck epic, RELIC kept. The
+encounters pay their story pieces by `material_id`, and none of those ids moved.
+
+No sea or water words for a space creature (Jon, Nov 18, on SHOAL SHELLS, EGG CASES and
+SHOAL GLUE: "Shoal? Water? in space?"); in the game a shoal is a dust cloud.
+
+Nov 19, the same rule run over the rest (Jon's picks off a page of three options each):
+BLOOD SALT is BLOOD CRYSTALS, SIEVE PLATES FEEDING COMBS (they read as baleen), EAR STONES
+BALANCE STONES (a fish's), RENDERED FAT DEEP FAT (whaling), SINGER'S OIL SONG GLAND (whale
+oil), CALYX AGAR CALYX GROWTH GEL (agar is seaweed), CHARGE WOOL CHARGE STRAND, NERVE SILK
+NERVE CORD, CORONA AMBER CORONA SLAG (and the corona encounter's "amber" with it), and MOON
+DUST is no longer "sold as ballast". Ids unchanged, so saves read the new names.
+
+## Sources
+
+Above `const SOURCES`:
+
+```text
+A source is two things at once: the table `roll` draws from, and the word the tooltip
+says (Jon, Nov 18: the material tooltip lists NAME / TIER / SOURCE, one per line, plus
+its one-line text; "just have it in the text", no stamps or tapes). So every row carries
+`source`, the named rows too, though nothing rolls them (`named = true`): their source is
+where the encounter that hands them over happens.
+
+COSMIC was SKY until Nov 18 (Jon: "SKY is a weird name, we are in space"). It covers
+stars, nebulae and gas giants. Two encounter outcomes at a star moved from mining to it,
+because their own lines are cosmic: scooping a red star's dust cloud, and riding a
+comet's tail.
+
+FIGHT is paid by a beaten ship's wreck (Jon, Nov 19: "Yeah, fights can win materials"):
+`Combat.WRECK_FIGHT_MATERIALS`, `docs/why/Combat.md#fight-materials`. Nothing paid it
+before draft 2's first commit either.
+```
+
+## Retired ids
+
+Above `const RETIRED`:
+
+```text
+A save stores a material by id and rebuilds the rest from the table, and a row that is
+gone loads as nothing (`SaveGame._item_from`). Draft 2 cut nine rows; one of them
+(SWEEP MIRRORS) is in a real save, Jon's 0.4.1 fixture. Rather than lose a carried item,
+a cut id answers with the row that took its source and tier, which is never bigger, so a
+saved cell still fits (and a load repacks anything that does not).
+
+The save's shape did not change -- still `{kind, id, hold_at, turned}` -- so
+`SaveGame.VERSION` stays where it was. `by_id` is the one door, so a found frame's strip
+pay (`found_scrap.material`) and a market price read through it too.
+```
+
+## Picking a grade
+
+Above `static func pick(`:
+
+```text
+`roll` draws every open row alike, so the grade follows from the list's shape and the
+danger. A science mini game decides the grade first, from its score and the sector, then
+needs a row of that grade from the site's source. `pick` is that seam: the exact grade if
+the source has one, else the nearest grade under it (an artifact asked of fauna or cosmic
+pays its exotic). Contraband is never walked into, because a better score must not hand
+you the thing the scanners look for.
+```
+
 ## Named pool
 
-Above `const NAMED := &"named"`:
+Above the named rows at the end of `ROWS` (it was above `const NAMED := &"named"`, gone in draft 2):
 
 ```text
 THE POOL THAT NOTHING ROLLS. A material written FOR one encounter is handed
@@ -107,7 +192,7 @@ when this changed. That held: the payload still says `{material = &"wreck"}`.
 
 ## Pictured materials
 
-Inside `all()`, above `{id = &"singing_tine", name = "SINGING TINE", tier = &"artifact", cells = "2x2",`:
+Inside `ROWS`, above SINGING TINE (it was inside `all()`):
 
 ```text
 THE FIRST TWO MATERIALS WITH A PICTURE, and the first artifacts that are
@@ -117,4 +202,35 @@ whether to keep four cells clear for is the better job for them.
 
 2x2 at artifact value is the whole point: four cells is a quarter of a
 small hold, so carrying one out is a decision rather than a pickup.
+```
+
+## Deep wrecks
+
+Above `const WRECK_SHARES`:
+
+```text
+Draft 2 gave every source the same shape (6 common, 5 uncommon, 4 rare, 2 epic, 1
+legendary, 1 top, 1 contraband), and `roll` drew every open row alike. Deep, that cut what
+a WRECK roll was worth: at tier 4 and 5 the old wreck table held five artifacts and paid
+about 110 a roll; draft 2's paid 61, mostly uncommons and rares. Jon, Nov 19: "Bump it I
+think. but they can also get artifacts, too."
+
+So the wreck source, and only it, has shares by depth (`WRECK_SHARES`): a grade's rows
+count that many times in the roll, 0 closes the grade, anything unlisted is 1. And from
+the Legendary tier (`WRECK_PRECURSOR_TIER`) a wreck also turns up the precursor pieces the
+list put in other sources' top slots (SINGING TINE, CAGED SPHERE, CLOSED-BAY KEY), beside
+its own PRECURSOR RELIC and WRONG MASS: the list's own notes say precursor pieces come off
+deep wrecks. Such a piece still says its own source on the tooltip.
+
+Expected value of a wreck roll and its odds, from the list (tier: before -> after):
+  tier 3   44 -> 52    epic 17% -> 29%
+  tier 4   61 -> 103   uncommon 36% -> 0, rare 29 -> 42, epic 14 -> 21, legendary 7 -> 11,
+                       artifact 7 -> 21 (relic, tine, sphere, key), contraband 7 -> 5
+  tier 5   61 -> 122   rare 30, epic 22, legendary 15, artifact 30, contraband 4
+Tiers 1-2 are unchanged, draw for draw. Mining, event, fight, fauna and cosmic stay at
+every row alike (63, 65, 64, 55, 60 deep): Jon's call was about wrecks.
+
+Measured against two other tables: closing uncommons at tier 4 with epic and up doubled
+paid 103 at both deep tiers, flat rather than rising; doubling every deep grade with
+uncommons kept paid 87.
 ```

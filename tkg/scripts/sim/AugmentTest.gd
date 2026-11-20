@@ -403,7 +403,7 @@ func _bench() -> void:
 	_ok("DEVELOP's bill reads '%s'" % Fabricator.cost_line(n, dvl),
 		Fabricator.cost_line(n, dvl) == "1 survey film → 6 DATA")
 	_ok("READ's bill reads '%s'" % Fabricator.cost_line(n, rd),
-		Fabricator.cost_line(n, rd) == "1 relic → 15 DATA")
+		Fabricator.cost_line(n, rd) == "1 precursor relic → 15 DATA")
 	_ok("RELIC ANALYSIS still prices in credits ('%s')" % Fabricator.cost_line(n, by[&"analysis"]),
 		Fabricator.cost_line(n, by[&"analysis"]).ends_with("credits"))
 	_purse(0, 0)

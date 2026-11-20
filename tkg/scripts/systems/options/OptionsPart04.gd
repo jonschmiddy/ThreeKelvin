@@ -34,7 +34,7 @@ static func entries() -> Array[Dictionary]:
 						return {text = "It comes free all at once, and a slab of crust goes into your intakes."}},
 				{label = "Scoop the dust", effect = func() -> Dictionary:
 					Run.heat += 9
-					return {text = "The hold fills with fine metal while the ship heats.", material = &"mining"}},
+					return {text = "The hold fills with fine metal while the ship heats.", material = &"cosmic"}},
 				{label = "Go around", stay = true, effect = func() -> Dictionary:
 					return {text = "You go around the cloud."}},
 			],
@@ -293,7 +293,7 @@ static func entries() -> Array[Dictionary]:
 					check = {attr = &"thrust", need = 7},
 					met = func() -> Dictionary:
 						Run.fuel += 5
-						return {text = "You hold in the tail for eleven minutes while ice packs the open hold.", material = &"mining"},
+						return {text = "You hold in the tail for eleven minutes while ice packs the open hold.", material = &"cosmic"},
 					clean = func() -> Dictionary:
 						Run.fuel += 3
 						Run.heat += 10

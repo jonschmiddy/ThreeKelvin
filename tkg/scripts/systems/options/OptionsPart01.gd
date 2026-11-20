@@ -132,7 +132,7 @@ static func entries() -> Array[Dictionary]:
 			site = &"star",
 			subject = {stage = &"single", pieces = [&"ship_cl_stack"], dark = 0.75, bake = 0.9, at = Vector2(40.0, 10.0)},
 			title = "The corona",
-			body = "A wreck close to a flaring star has a crust of amber and full holds, if your vents can carry the heat.",
+			body = "A wreck close to a flaring star has a crust of slag and full holds, if your vents can carry the heat.",
 			tags = [&"hazard", &"salvage"],
 			group = &"",
 			weight = 7,
@@ -144,7 +144,7 @@ static func entries() -> Array[Dictionary]:
 				{label = "Go in hot",
 					check = {attr = &"thermal", need = 6},
 					met = func() -> Dictionary:
-						return {text = "Your vents hold, and you take a plate of amber crust and a rack.", material_id = &"corona_amber", material = &"wreck"},
+						return {text = "Your vents hold, and you take a plate of star slag and a rack.", material_id = &"corona_amber", material = &"wreck"},
 					clean = func() -> Dictionary:
 						Run.heat += 6
 						return {text = "You take one rack off the wreck before the heat drives you out.", material = &"wreck"},

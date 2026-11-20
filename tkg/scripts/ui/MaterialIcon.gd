@@ -18,7 +18,7 @@ func setup(m: MaterialData, from: StringName) -> void:
 	item = m
 	origin = from
 	# `Widgets.tip` wraps, as Godot does not and a raw paragraph becomes a banner.
-	# The facts line carries what the crate cannot show: what a station will pay.
+	# Name, tier and source one a line, then its one line (Jon, Nov 18).
 	# Why: docs/why/MaterialIcon.md#tooltip
 	tooltip_text = tip_text(m)
 	queue_redraw()
@@ -26,9 +26,17 @@ func setup(m: MaterialData, from: StringName) -> void:
 
 ## One place for the tooltip words, as the cutaway's card must say the same thing.
 static func tip_text(m: MaterialData) -> String:
-	var shape := "%d x %d" % [m.size.x, m.size.y]
-	return Widgets.tip("%s\n%s \u00b7 %s \u00b7 SELLS FOR %d\n\n%s" % [
-		m.name.to_upper(), String(m.tier).to_upper(), shape, m.value, m.text])
+	return Widgets.tip("%s\n%s\n%s\n\n%s" % [m.name.to_upper(), String(m.tier).to_upper(),
+		String(m.source).to_upper(), m.text])
+
+
+## The tag's lines, as `tip_text` reads: TagLayer would drop the caps head as a title.
+## Why: docs/why/TagLayer.md#lines-as-written
+func tag_lines() -> Array[Array]:
+	var out: Array[Array] = []
+	for l in tip_text(item).split("\n"):
+		out.append([l, UITheme.ICE])
+	return out
 
 
 ## A non-module hold item as a control for the cutaway's card,

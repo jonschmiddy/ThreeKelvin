@@ -473,6 +473,13 @@ func content_fingerprint() -> int:
 		opt_ids.append(String(o.id))
 	opt_ids.sort()
 	parts.append("|".join(opt_ids))
+	# And each material's id, source and tier: a node's roll picks by place, from the list.
+	# Why: docs/why/NetSession.md#content-fingerprint
+	var mat_ids: PackedStringArray = []
+	for m in MaterialTable.all():
+		mat_ids.append("%s/%s/%s" % [m.id, m.source, m.tier])
+	mat_ids.sort()
+	parts.append("|".join(mat_ids))
 	return hash("|".join(parts))
 
 

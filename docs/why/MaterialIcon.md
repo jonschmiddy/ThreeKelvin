@@ -49,6 +49,12 @@ the colour and its footprint is in the shape, but what a station will PAY is
 nowhere on the icon, and that is the number a packing decision turns on.
 ```
 
+SUPERSEDED Nov 19 by Jon's ruling of Nov 18: the material tooltip lists NAME / TIER /
+SOURCE, one per line (his example: Cable Loom / Uncommon / Mining), plus the one-line
+flavour text, and shows no research points. Source is "just in the text", not a stamp or
+a coloured tape on the crate. The facts line (TIER · SHAPE · SELLS FOR n) went with it:
+the shape is the crate, and the price is on the station's counter, where a sale happens.
+
 ## Art or crate
 
 Inside `_draw()`, above `if item.sprite != null:`:

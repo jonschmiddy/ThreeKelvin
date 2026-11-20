@@ -144,7 +144,12 @@ func _show(c: Control, text: String) -> void:
 		_tag.size = _tag.get_combined_minimum_size()
 	else:
 		var tag := HoloTag.new()
-		tag.set_lines(HoloTag.sentence(plain(text)))
+		# A control with `tag_lines()` gives its lines as written: `plain` would drop a caps head.
+		# Why: docs/why/TagLayer.md#lines-as-written
+		var ls: Array = HoloTag.sentence(plain(text))
+		if c.has_method("tag_lines"):
+			ls = c.call("tag_lines")
+		tag.set_lines(ls)
 		_tag = tag
 		add_child(_tag)
 	_tag.position = _spot(c, _tag.size)

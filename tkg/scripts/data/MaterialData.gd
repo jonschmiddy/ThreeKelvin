@@ -9,13 +9,16 @@ extends HoldItem
 ## everything else on the instance is recoverable from the table.
 @export var id: StringName = &""
 
-## `common` through `legendary`, plus `contraband`, `exotic` and `artifact`.
+## `MaterialTable.TIERS`: `common` through `legendary`, plus `exotic`, `artifact` and `contraband`.
 ## Carried rather than looked up because it decides the colour it draws in.
 @export var tier: StringName = &"common"
 
 ## What a station pays. Flat, everywhere -- `MATERIALS_NOTE` §3.3. A regional
 ## multiplier can be added later without touching one row of the catalogue.
 @export var value: int = 0
+
+## Where it came from (`MaterialTable.SOURCES`), which the tooltip says.
+@export var source: StringName = &""
 
 ## The line it says when you look at it.
 @export var text: String = ""
@@ -35,6 +38,7 @@ static func of(row: Dictionary) -> MaterialData:
 	m.name = String(row.get("name", ""))
 	m.tier = StringName(row.get("tier", &"common"))
 	m.value = int(row.get("value", 0))
+	m.source = StringName(row.get("source", &""))
 	m.text = String(row.get("text", ""))
 	m.size = parse_cells(String(row.get("cells", "1x1")))
 	# BY CONVENTION FROM THE ID, exactly as modules and hulls resolve theirs.

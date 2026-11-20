@@ -224,6 +224,7 @@ func _own_template() -> void:
 	h._ok("one wreck per hull (%d)" % (ws.size() - before), ws.size() - before == 3)
 	var credits := 0
 	var parts := 0
+	var mats := 0
 	var empty := 0
 	for i in range(before, ws.size()):
 		var w := ws[i]
@@ -238,9 +239,10 @@ func _own_template() -> void:
 			c == 0 or (c >= int(round(purse * 0.8)) and c <= int(round(purse * 1.2))))
 		credits += c
 		parts += _parts(w.items)
+		mats += w.items.filter(func(m: HoldItem) -> bool: return m is MaterialData).size()
 		if w.items.is_empty():
 			empty += 1
-	var line := Combat.wreck_line(credits, parts, 0, 3, empty)
+	var line := Combat.wreck_line(credits, parts, mats, 3, empty)
 	print("  the line: %s" % cb.summary)
 	h._ok("the victory line says what the wrecks hold (%s)" % line,
 		cb.summary.begins_with(line))

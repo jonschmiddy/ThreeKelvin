@@ -32,3 +32,20 @@ A part's readout (the body `ModuleIcon.tip_for` builds, tagged with the
 `module` meta) is the one rich body with no plate and no arrow (Jon, Nov 9:
 "remove the square border around the whole thing"); its row draws its own
 shadows. Every other rich body keeps the box and the arrow.
+
+## Lines as written
+
+Inside `_show()`, above the `HoloTag`'s `set_lines`:
+
+```text
+`plain` makes a tooltip one sentence: it drops a short caps first paragraph as a title
+(the thing under the pointer is the title) and joins every other line into one run of
+words. A material's tooltip is the case that rule cannot serve. Jon ruled on Nov 18 that
+it lists NAME / TIER / SOURCE, one per line, then its one-line text: three short caps
+lines, which `plain` would drop as a title, or join into "CABLE LOOM UNCOMMON WRECK".
+The first render of draft 2 showed the tag with the sentence alone.
+
+So a control may answer `tag_lines()` with the tag's lines itself, already wrapped
+(`HoloTag.sentence`), and keep the same hologram every other tooltip wears.
+`MaterialIcon` is the one that does.
+```
