@@ -181,6 +181,12 @@ static func smooth(x: int, y: int, sx: int, sy: int, seed_in: int) -> float:
 	return lerpf(a, b, fy)
 
 
+## A 0..1 per pixel that cuts into solid clumps a few pixels across, spread about as evenly as
+## a per-pixel roll, so `clump(...) < t` covers about `t` of an area with ragged solid shapes.
+static func clump(x: int, y: int, seed_in: int) -> float:
+	return clampf(0.5 + (smooth(x, y, 3, 2, seed_in) - 0.5) * 1.9, 0.0, 1.0)
+
+
 static func _opaque(img: Image, x: int, y: int) -> bool:
 	return x >= 0 and y >= 0 and x < img.get_width() and y < img.get_height() \
 		and img.get_pixel(x, y).a > 0.0
@@ -288,8 +294,8 @@ static func _paint(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 						c = r.step(c, 2)
 				1:
 					if r.is_accent(c):
-						var d: int = HullWear.BAYER[y % 4][x % 4]
-						if float(d) / 16.0 < 0.45 * noise(x / 3, y / 3, seed_in + 6) + 0.1:
+						# chips in solid clumps, not a 4x4 checker. Why: docs/why/HullGrade.md#no-dither-fills
+						if clump(x, y, seed_in + 8) < 0.45 * noise(x / 3, y / 3, seed_in + 6) + 0.1:
 							c = r.to_grey(c)
 			img.set_pixel(x, y, c)
 	# (no trim on Solari: its deep orange along the top outline read as a rust streak)
@@ -513,7 +519,7 @@ static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictiona
 				var on := true
 				match grade:
 					0: on = noise(x, y, seed_in + 11) < 0.3
-					1: on = float(HullWear.BAYER[y % 4][x % 4]) / 16.0 < 0.55
+					1: on = clump(x, y, seed_in + 12) < 0.55
 				if not on:
 					continue
 				img.set_pixel(x, y, ink)

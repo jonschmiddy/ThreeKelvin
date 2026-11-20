@@ -1,0 +1,1 @@
+- **Changed** — Korvan's worn hulls lose their checkerboard: soot edges, scorch rings, the band's chips at B and the faded registry number at B are now solid ragged marks, with the same amount of wear per grade.
