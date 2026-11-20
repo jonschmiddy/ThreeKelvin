@@ -3,7 +3,8 @@ extends Node
 ## Every HullScars idea on the same hulls, C to S, lit at rest, for a side-by-side pick sheet.
 ## Why: docs/why/HullScars.md#hull-scars
 
-const HULLS := ["korvan/hull_light_zero", "korvan/hull_medium_zero", "korvan/hull_heavy_zero", "solari/hull_medium_a"]
+const HULLS := ["korvan/hull_light_zero", "korvan/hull_medium_zero", "korvan/hull_heavy_zero",
+	"solari/hull_light_zero", "solari/hull_medium_zero", "solari/hull_heavy_zero"]
 
 
 func _ready() -> void:

@@ -46,6 +46,7 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hul
 	# after the age: the S clean-up wipes lone pixels, and a stencil is made of them
 	if Look.MARKS in looks:
 		_marks(img, r, grade, seed_in, at)
+	_unlit(img, base, at)
 	if Look.LIGHTS in looks:
 		_lights(img, r, grade, at)
 	return img
@@ -72,6 +73,9 @@ class _Ramps extends RefCounted:
 					seen[HullGrade.key(c)] = c
 		for k in seen:
 			var c: Color = seen[k]
+			if mf == "solari":
+				_solari(c)
+				continue
 			# Warm only: a navy grey is saturated too and
 			# was worn as if it were Korvan's amber band.
 			if c.s > 0.28 and c.v > 0.25 and (c.h < 0.17 or c.h > 0.95):
@@ -89,6 +93,16 @@ class _Ramps extends RefCounted:
 			_where[HullGrade.key(grey[i])] = [false, i]
 		for i in accent.size():
 			_where[HullGrade.key(accent[i])] = [true, i]
+
+	## Solari is warm all over: its brass is the grey ramp, only the deep orange paint is
+	## the accent, and the furnace's hot colours are on neither. Why: docs/why/HullGrade.md#solari-ramps
+	func _solari(c: Color) -> void:
+		if c.v > 0.85 or (c.v > 0.78 and c.s > 0.7):
+			return
+		if c.s >= 0.75 and c.v > 0.18 and (c.h <= 0.065 or c.h > 0.95):
+			accent.append(c)
+		else:
+			grey.append(c)
 
 	func is_accent(c: Color) -> bool:
 		var w = _where.get(HullGrade.key(c))
@@ -179,6 +193,9 @@ static func _wear(img: Image, r: _Ramps, age: float, seed_in: int) -> void:
 	var h := img.get_height()
 	var src := img.duplicate() as Image
 	if age <= 0.0:
+		# Solari's S is its art as drawn: the wipe took its one-pixel coil bars for specks
+		if r.mf == "solari":
+			return
 		for y in h:
 			for x in range(1, w - 1):
 				if not _inner(src, x, y):
@@ -268,7 +285,8 @@ static func _paint(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 						if float(d) / 16.0 < 0.45 * noise(x / 3, y / 3, seed_in + 6) + 0.1:
 							c = r.to_grey(c)
 			img.set_pixel(x, y, c)
-	if grade == 3 and not r.accent.is_empty():
+	# (no trim on Solari: its deep orange along the top outline read as a rust streak)
+	if grade == 3 and not r.accent.is_empty() and r.mf != "solari":
 		# the trim: the second row under the top edge, along every column
 		var trim: Color = r.accent[r.accent.size() / 2]
 		for x in w:
@@ -374,6 +392,51 @@ static func places(hull: String) -> Dictionary:
 		if d is Dictionary:
 			_places = d
 	return _places.get(hull, {})
+
+
+## The painted light a hull carries (`lit` in its placements: discs, lines, boxes) as a mask,
+## 1 where it shines. Why: docs/why/HullGrade.md#painted-light
+static func lit_mask(at: Dictionary, w: int, h: int) -> PackedByteArray:
+	var m := PackedByteArray()
+	m.resize(w * h)
+	var lit: Dictionary = at.get("lit", {})
+	for d: Array in lit.get("discs", []):
+		var c := Vector2(float(d[0]), float(d[1]))
+		var rx := float(d[2])
+		var ry := float(d[3])
+		for y in range(maxi(0, int(c.y - ry) - 1), mini(h, int(c.y + ry) + 2)):
+			for x in range(maxi(0, int(c.x - rx) - 1), mini(w, int(c.x + rx) + 2)):
+				var u := (float(x) - c.x) / rx
+				var v := (float(y) - c.y) / ry
+				if u * u + v * v <= 1.0:
+					m[y * w + x] = 1
+	# a line's points are its core's top row; the core and a row either side shine
+	for ln: Array in lit.get("lines", []):
+		for i in range(ln.size() - 1):
+			var a: Array = ln[i]
+			var b: Array = ln[i + 1]
+			for x in range(int(a[0]), int(b[0]) + 1):
+				var t := 0.0 if int(b[0]) == int(a[0]) else float(x - int(a[0])) / float(int(b[0]) - int(a[0]))
+				var yt := int(round(lerpf(float(a[1]), float(b[1]), t)))
+				for y in range(yt - 1, yt + 3):
+					if x >= 0 and y >= 0 and x < w and y < h:
+						m[y * w + x] = 1
+	for bx: Array in lit.get("boxes", []):
+		for y in range(maxi(0, int(bx[1])), mini(h, int(bx[1]) + int(bx[3]))):
+			for x in range(maxi(0, int(bx[0])), mini(w, int(bx[0]) + int(bx[2]))):
+				m[y * w + x] = 1
+	return m
+
+
+## The painted light back as drawn: grime, paint and scars never dim a furnace or a pane.
+static func _unlit(img: Image, base: Image, at: Dictionary) -> void:
+	if not at.has("lit"):
+		return
+	var w := img.get_width()
+	var m := lit_mask(at, w, img.get_height())
+	for i in m.size():
+		if m[i] == 1 and img.get_pixel(i % w, i / w).a > 0.0:
+			img.set_pixel(i % w, i / w, base.get_pixel(i % w, i / w))
 
 
 # -------------------------------------------------------------------- D  marks

@@ -86,7 +86,7 @@ def hull_names(src, manufacturer):
 
 def mounts_table(src):
     """`HULL_MOUNTS` by key, sides included: the rig bench's reader skips `guns` and
-    keys with a folder prefix ("solari/hull_light_a")."""
+    keys with a folder prefix ("solari/hull_light_zero")."""
     i = src.find('const HULL_MOUNTS')
     assert i >= 0, 'HULL_MOUNTS not found'
     blk = src[i:src.index('\n}\n', i)]

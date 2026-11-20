@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bix1ahi645obf"
-path="res://.godot/imported/hull_heavy_a.png-7f644cba57cd2272308fc4312a27e3dc.ctex"
+uid="uid://5apdjtn0tfk8"
+path="res://.godot/imported/hull_heavy_zero.png-5c2c99a141f777792a72fcc290c94e61.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/sprites/hulls/solari/hull_heavy_a.png"
-dest_files=["res://.godot/imported/hull_heavy_a.png-7f644cba57cd2272308fc4312a27e3dc.ctex"]
+source_file="res://art/sprites/hulls/solari/half/hull_heavy_zero.png"
+dest_files=["res://.godot/imported/hull_heavy_zero.png-5c2c99a141f777792a72fcc290c94e61.ctex"]
 
 [params]
 

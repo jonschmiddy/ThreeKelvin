@@ -22,7 +22,7 @@ import pixeltools as pt
 # One folder per manufacturer, the filenames identical inside each. EVERY
 # folder is measured on every run, so the table it writes is always the whole
 # table: Korvan's keys are the bare file name (as they always were) and every
-# other manufacturer's carry its folder, "solari/hull_light_a" -- the key
+# other manufacturer's carry its folder, "solari/hull_light_zero" -- the key
 # `DB.hull_art_key` files a hull's tables under.
 HULLS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                      "..", "sprites", "hulls")

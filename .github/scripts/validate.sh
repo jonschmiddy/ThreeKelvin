@@ -1539,15 +1539,16 @@ step "A graded hull keeps its palette"
 # HullGrade bakes each weight's one hull at C, B, A and S (Jon's AB+DEF) and
 # may only use colours the sprite already has, plus the manufacturer's band
 # ramp; the lights are additive and drawn apart. Each weight on its own base
-# sprite: light c, medium a, heavy a.
-for wb in light:c medium:a heavy:a; do
-	w="${wb%%:*}"; b="${wb##*:}"
-	if run_godot "gradesheet_$w" 180 --headless --path "$PROJECT" -- sheet=GradeSheet weight="$w" base="$b" out="$LOG_DIR/gradesheet_$w"; then
-		if grep -qE '^gradesheet: PASS' "$LOG_DIR/gradesheet_$w.log"; then
-			ok "the $w hull's grades use only its own colours"
+# sprite: light c, medium a, heavy a; and Solari's three Nov 20 hulls (base zero).
+for wb in korvan:light:c korvan:medium:a korvan:heavy:a solari:light:zero solari:medium:zero solari:heavy:zero; do
+	m="${wb%%:*}"; wb="${wb#*:}"; w="${wb%%:*}"; b="${wb##*:}"
+	n="gradesheet_${m}_$w"
+	if run_godot "$n" 180 --headless --path "$PROJECT" -- sheet=GradeSheet manufacturer="$m" weight="$w" base="$b" out="$LOG_DIR/$n"; then
+		if grep -qE '^gradesheet: PASS' "$LOG_DIR/$n.log"; then
+			ok "the $m $w hull's grades use only its own colours"
 		else
-			bad "a graded $w hull drew a colour it does not have"
-			grep -E 'colours not in the base' "$LOG_DIR/gradesheet_$w.log" | grep -v ': 0 colours' | sed 's/^/        /'
+			bad "a graded $m $w hull drew a colour it does not have"
+			grep -E 'colours not in the base' "$LOG_DIR/$n.log" | grep -v ': 0 colours' | sed 's/^/        /'
 		fi
 	fi
 done
@@ -2567,7 +2568,7 @@ gate_weight() {
 		soundmomenttest) echo 114 ;; cutawaytest) echo 112 ;; subjecttest) echo 91 ;;
 		stationdecktest) echo 86 ;; popplacetest) echo 75 ;; attrtest) echo 72 ;;
 		fightlogtest) echo 66 ;; midjointest) echo 61 ;; flighttest_1) echo 59 ;;
-		sidebartest) echo 56 ;; hinttest) echo 52 ;; gradesheet) echo 52 ;;
+		sidebartest) echo 56 ;; hinttest) echo 52 ;; gradesheet) echo 100 ;;
 		flighttest_2) echo 50 ;; badgetest) echo 49 ;; mapperftest) echo 48 ;;
 		lockedpooltest) echo 48 ;; outcometest) echo 48 ;; flighttest_3) echo 47 ;;
 		calmladdertest) echo 47 ;; moontest) echo 46 ;; fightopentest) echo 46 ;;

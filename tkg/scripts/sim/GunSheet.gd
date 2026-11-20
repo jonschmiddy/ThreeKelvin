@@ -2,7 +2,7 @@ extends Node
 
 ## Korvan's three hulls at grades C to S with their guns on, as the game draws them
 ## (`ShipView` and a passive `MountPoints`), one still each, and a fight with a medium.
-## Windowed, through `tools/dev/render.sh`: `-- nolauncher sheet=GunSheet out=<dir> [fight]`;
+## Windowed (`render.sh`): `-- nolauncher sheet=GunSheet out=<dir> [fight] [manufacturer=solari]`;
 ## `ids=beam,slug,torch` instead: each on the medium's top and belly mount, and a Korvan still.
 ## Why: docs/why/Database.md#on-ship-guns
 
@@ -12,12 +12,19 @@ const LOADOUT := {
 	HullData.Weight.MEDIUM: [[&"km4", 0], [&"kh20", 1], [&"kh500", 2]],
 	HullData.Weight.HEAVY: [[&"km4", 0], [&"kh40", 1], [&"widow", 2]],
 }
+## Solari's, on the mounts its hulls carried over from the old set.
+const SOLARI := {
+	HullData.Weight.LIGHT: [[&"emberlance", 0], [&"sparkthrower", 1]],
+	HullData.Weight.MEDIUM: [[&"emberlance", 0], [&"sunspot", 1], [&"plasma", 2]],
+	HullData.Weight.HEAVY: [[&"emberlance", 0], [&"overpressure", 1], [&"heliostat", 2]],
+}
 const NAMES := ["light", "medium", "heavy"]
 ## Room round a ship for the guns that stand past its canvas, in screen px.
 const MARGIN := Vector2(40, 120)
 
 var h := Harness.new()
 var _vp: SubViewport
+var _mf: StringName = &"korvan"
 
 
 func _ready() -> void:
@@ -26,6 +33,7 @@ func _ready() -> void:
 
 func _run() -> void:
 	var out := Harness.arg("out", "user://gunsheet")
+	_mf = StringName(Harness.arg("manufacturer", "korvan"))
 	DirAccess.make_dir_recursive_absolute(out)
 	await Harness.frames(get_tree(), 5)
 	var bg := ColorRect.new()
@@ -47,11 +55,13 @@ func _run() -> void:
 		h.verdict("gunsheet")
 		get_tree().quit(h.code())
 		return
-	for w: HullData.Weight in LOADOUT:
+	var loadout: Dictionary = SOLARI if _mf == &"solari" else LOADOUT
+	for w: HullData.Weight in loadout:
 		for t in 4:
-			await _still(bg, w, t, out, _kit(w, t, LOADOUT[w]))
+			await _still(bg, w, t, out, _kit(w, t, loadout[w]))
 		# the worst case: on every mount of the top grade, the longest gun it takes
-		await _still(bg, w, 3, out, _worst(w), "worst")
+		if _mf == &"korvan":
+			await _still(bg, w, 3, out, _worst(w), "worst")
 	if "fight" in OS.get_cmdline_user_args():
 		layer.queue_free()
 		await _fight(out)
@@ -70,7 +80,7 @@ func _kit(_w: HullData.Weight, _t: int, rows: Array) -> Array[ModuleData]:
 
 ## Korvan's longest gun each mount takes, by its picture's width on that side.
 func _worst(w: HullData.Weight) -> Array[ModuleData]:
-	var hull := DB.at_tier(DB.hull_for(&"korvan", w) as HullData, 3)
+	var hull := DB.at_tier(DB.hull_for(_mf, w) as HullData, 3)
 	var rows: Array = []
 	for i in hull.slots_for(ModuleData.Slot.WEAPON):
 		var best: StringName = &""
@@ -88,7 +98,7 @@ func _worst(w: HullData.Weight) -> Array[ModuleData]:
 
 ## One hull at one grade with its loadout, at 2x, cropped to the ship and its guns.
 func _still(bg: Control, w: HullData.Weight, t: int, out: String, kit: Array[ModuleData], tag: String = "") -> void:
-	var hull := DB.at_tier(DB.hull_for(&"korvan", w) as HullData, t)
+	var hull := DB.at_tier(DB.hull_for(_mf, w) as HullData, t)
 	var v := ShipView.new()
 	v.self_clip = false
 	v.setup_preview(hull, 0, 2)
@@ -103,7 +113,9 @@ func _still(bg: Control, w: HullData.Weight, t: int, out: String, kit: Array[Mod
 		if s.held != null and mp.gun_for(s.held, s.slot) != null:
 			guns += 1
 	var name := "%s_%s" % [NAMES[w], tag if tag != "" else HullData.TIER_NAMES[t]]
-	h._ok("%s: %d guns drawn at full size" % [name, kit.size()], guns == kit.size() and mp.drawn == kit.size())
+	# (a hull without gun sides draws its weapons' hold pictures)
+	var want := kit.size() if not hull.gun_sides.is_empty() else 0
+	h._ok("%s: %d weapons drawn, %d at full size" % [name, kit.size(), want], guns == want and mp.drawn == kit.size())
 	var parts := mp.parts_rect()
 	var ship := Rect2(Vector2.ZERO, Vector2(v.canvas_width(), v.canvas_height()))
 	var all := ship.merge(Rect2(parts.position, parts.size))

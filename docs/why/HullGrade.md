@@ -182,3 +182,26 @@ so bakes of two manufacturers can run at once. `-- sheet=YardPerfTest`
 checks a worker's bake equals the main thread's, byte for byte.
 ```
 
+
+## Painted light
+
+Solari's Nov 20 hulls carry their light painted in: the furnace's glow disc, the line
+of light from the furnace to the brass end cap, the cab windows and the cap's lens
+(tk-scratch/hulls2/solari/zero/final/README.md has the artist's boxes). Every warm,
+saturated colour is on the accent ramp, so wear and the C primer would have stepped the
+furnace's oranges toward grey and the scars would have patched over the line. `lit` in a
+hull's placements (discs, lines as their core's top row, boxes) is put back from the
+source after the paint, wear, scars and marks, so a C's furnace still burns as drawn,
+and `HullScars._Mask` keeps scars off it. The live light over it is a separate design
+(Jon, Nov 20: "the circle grate is a FURNACE").
+
+## Solari ramps
+
+Korvan's ramps split a hull into greys and a warm accent (its amber). Solari's Nov 20
+hulls are warm everywhere: brass, bronze, rust and the orange band are all saturated and
+warm, so Korvan's rule put the whole hull on the accent ramp, and a C's wear stepped the
+brass ring to rust red and its panels into the furnace's near-white. For Solari the brass
+and bronze are the "grey" ramp (grime and panels step along it), only the deep orange
+paint (saturation 0.75 and up, hue at or under 0.065) is the accent, and the furnace's hot
+colours (value over 0.85, or over 0.78 and saturated) are on neither ramp, so nothing
+steps into them or out of them.

@@ -1078,7 +1078,7 @@ func hull_sprite(w: HullData.Weight, cls: int = 0, half: bool = false,
 ## Manufacturers with their own hull art, and each weight's base picture (Jon, Oct 14, 15).
 const HULL_ART := {
 	&"korvan": {"light": "zero", "medium": "zero", "heavy": "zero"},
-	&"solari": {"light": "a", "medium": "a", "heavy": "a"},
+	&"solari": {"light": "zero", "medium": "zero", "heavy": "zero"},
 }
 
 ## What the manufacturers without art (and the unbranded frames) wear: Korvan's old three, kept
@@ -1338,22 +1338,23 @@ const HULL_MOUNTS := {
 		system = [Vector2(120, 75), Vector2(170, 75), Vector2(272, 75)],
 		utility = [Vector2(192, 35)],
 	},
-	# Solari mounts listed in the order grades open them, so a C-grade ship keeps its front pair.
+	# Solari's Nov 20 set: the old set's points carried over by the hulls' bounds, each moved to
+	# the nearest inside pixel, in the order grades open them, until Jon places its hard points.
 	# Why: docs/why/Database.md#hull-mounts
-	"solari/hull_light_a": {
-		weapon = [Vector2(166, 32), Vector2(166, 72), Vector2(251, 50)],
-		system = [Vector2(156, 52), Vector2(209, 52), Vector2(116, 53)],
-		utility = [Vector2(136, 30), Vector2(136, 73)],
+	"solari/hull_light_zero": {
+		weapon = [Vector2(136, 14), Vector2(136, 77), Vector2(241, 46)],
+		system = [Vector2(123, 46), Vector2(191, 46), Vector2(71, 47)],
+		utility = [Vector2(97, 11), Vector2(91, 73)],
 	},
-	"solari/hull_medium_a": {
-		weapon = [Vector2(236, 40), Vector2(236, 88), Vector2(292, 63), Vector2(160, 28)],
-		system = [Vector2(150, 61), Vector2(222, 63), Vector2(102, 61)],
-		utility = [Vector2(252, 63), Vector2(150, 100)],
+	"solari/hull_medium_zero": {
+		weapon = [Vector2(235, 27), Vector2(238, 87), Vector2(293, 54), Vector2(164, 9)],
+		system = [Vector2(155, 51), Vector2(225, 54), Vector2(108, 51)],
+		utility = [Vector2(254, 54), Vector2(162, 95)],
 	},
-	"solari/hull_heavy_a": {
-		weapon = [Vector2(290, 51), Vector2(290, 113), Vector2(340, 80), Vector2(200, 41), Vector2(200, 125)],
-		system = [Vector2(152, 80), Vector2(215, 80), Vector2(112, 80)],
-		utility = [Vector2(256, 80)],
+	"solari/hull_heavy_zero": {
+		weapon = [Vector2(292, 32), Vector2(298, 110), Vector2(344, 65), Vector2(215, 14), Vector2(217, 125)],
+		system = [Vector2(173, 65), Vector2(230, 65), Vector2(136, 65)],
+		utility = [Vector2(267, 65)],
 	},
 }
 
@@ -1421,16 +1422,22 @@ const HULL_EXHAUST := {
 		{id = 22, at = Vector2i(41, 75), back = false},
 		{id = 23, at = Vector2i(48, 87), back = false},
 	],
-	# Solari strips sit behind its bells, so the flame shows where the bell ends.
-	"solari/hull_light_a": [
-		{id = 8, at = Vector2i(39, 32), back = true},
+	# Solari's Nov 20 set: one plume per bell, the frame's right edge on the bell's mouth
+	# (x 38, 77, 107), centred on each bell's rows.
+	"solari/hull_light_zero": [
+		{id = 9, at = Vector2i(10, 27), back = false},
+		{id = 9, at = Vector2i(10, 46), back = false},
 	],
-	"solari/hull_medium_a": [
-		{id = 1, at = Vector2i(17, 39), back = true},
-		{id = 1, at = Vector2i(17, 56), back = true},
+	"solari/hull_medium_zero": [
+		{id = 2, at = Vector2i(25, 28), back = false},
+		{id = 2, at = Vector2i(25, 47), back = false},
+		{id = 2, at = Vector2i(25, 66), back = false},
 	],
-	"solari/hull_heavy_a": [
-		{id = 21, at = Vector2i(37, 60), back = true},
+	"solari/hull_heavy_zero": [
+		{id = 2, at = Vector2i(55, 32), back = false},
+		{id = 2, at = Vector2i(55, 51), back = false},
+		{id = 2, at = Vector2i(55, 70), back = false},
+		{id = 2, at = Vector2i(55, 89), back = false},
 	],
 }
 
@@ -1513,20 +1520,20 @@ const HULL_LINES := {
 		ventral = [Vector2(75, 81), Vector2(105, 91), Vector2(134, 89), Vector2(164, 91), Vector2(194, 91), Vector2(223, 91), Vector2(253, 91), Vector2(282, 90), Vector2(312, 85)],
 		flank = [Vector2(75, 58), Vector2(105, 59), Vector2(134, 59), Vector2(164, 59), Vector2(194, 59), Vector2(223, 59), Vector2(253, 59), Vector2(282, 59), Vector2(312, 62)],
 	},
-	"solari/hull_heavy_a": {
-		dorsal = [Vector2(80, 57), Vector2(115, 52), Vector2(149, 51), Vector2(184, 51), Vector2(218, 51), Vector2(253, 51), Vector2(288, 51), Vector2(322, 56), Vector2(357, 61)],
-		ventral = [Vector2(80, 97), Vector2(115, 107), Vector2(149, 111), Vector2(184, 111), Vector2(218, 111), Vector2(253, 111), Vector2(288, 111), Vector2(322, 108), Vector2(357, 100)],
-		flank = [Vector2(80, 77), Vector2(115, 79), Vector2(149, 81), Vector2(184, 81), Vector2(218, 81), Vector2(253, 81), Vector2(288, 81), Vector2(322, 82), Vector2(357, 80)],
+	"solari/hull_heavy_zero": {
+		dorsal = [Vector2(107, 35), Vector2(138, 31), Vector2(170, 31), Vector2(201, 31), Vector2(232, 31), Vector2(263, 31), Vector2(294, 31), Vector2(326, 37), Vector2(357, 50)],
+		ventral = [Vector2(107, 104), Vector2(138, 112), Vector2(170, 116), Vector2(201, 116), Vector2(232, 116), Vector2(263, 116), Vector2(294, 116), Vector2(326, 116), Vector2(357, 101)],
+		flank = [Vector2(107, 69), Vector2(138, 71), Vector2(170, 73), Vector2(201, 73), Vector2(232, 73), Vector2(263, 73), Vector2(294, 73), Vector2(326, 76), Vector2(357, 75)],
 	},
-	"solari/hull_light_a": {
-		dorsal = [Vector2(91, 38), Vector2(103, 36), Vector2(115, 30), Vector2(127, 30), Vector2(138, 30), Vector2(150, 30), Vector2(162, 30), Vector2(174, 36), Vector2(186, 39)],
-		ventral = [Vector2(91, 61), Vector2(103, 63), Vector2(115, 73), Vector2(127, 73), Vector2(138, 73), Vector2(150, 73), Vector2(162, 73), Vector2(174, 65), Vector2(186, 62)],
-		flank = [Vector2(91, 49), Vector2(103, 49), Vector2(115, 51), Vector2(127, 51), Vector2(138, 51), Vector2(150, 51), Vector2(162, 51), Vector2(174, 50), Vector2(186, 50)],
+	"solari/hull_light_zero": {
+		dorsal = [Vector2(57, 27), Vector2(81, 24), Vector2(105, 24), Vector2(129, 24), Vector2(154, 24), Vector2(178, 24), Vector2(202, 30), Vector2(226, 41), Vector2(250, 48)],
+		ventral = [Vector2(57, 62), Vector2(81, 75), Vector2(105, 73), Vector2(129, 81), Vector2(154, 81), Vector2(178, 81), Vector2(202, 81), Vector2(226, 81), Vector2(250, 81)],
+		flank = [Vector2(57, 44), Vector2(81, 49), Vector2(105, 48), Vector2(129, 52), Vector2(154, 52), Vector2(178, 52), Vector2(202, 55), Vector2(226, 61), Vector2(250, 64)],
 	},
-	"solari/hull_medium_a": {
-		dorsal = [Vector2(70, 45), Vector2(98, 39), Vector2(126, 38), Vector2(153, 38), Vector2(181, 38), Vector2(209, 38), Vector2(236, 40), Vector2(264, 42), Vector2(292, 47)],
-		ventral = [Vector2(70, 78), Vector2(98, 83), Vector2(126, 88), Vector2(153, 88), Vector2(181, 88), Vector2(209, 88), Vector2(236, 88), Vector2(264, 85), Vector2(292, 79)],
-		flank = [Vector2(70, 61), Vector2(98, 61), Vector2(126, 63), Vector2(153, 63), Vector2(181, 63), Vector2(209, 63), Vector2(236, 64), Vector2(264, 63), Vector2(292, 63)],
+	"solari/hull_medium_zero": {
+		dorsal = [Vector2(77, 31), Vector2(106, 26), Vector2(134, 26), Vector2(163, 26), Vector2(192, 26), Vector2(221, 26), Vector2(250, 30), Vector2(278, 42), Vector2(307, 52)],
+		ventral = [Vector2(77, 81), Vector2(106, 87), Vector2(134, 94), Vector2(163, 94), Vector2(192, 94), Vector2(221, 93), Vector2(250, 94), Vector2(278, 93), Vector2(307, 94)],
+		flank = [Vector2(77, 56), Vector2(106, 56), Vector2(134, 60), Vector2(163, 60), Vector2(192, 60), Vector2(221, 59), Vector2(250, 62), Vector2(278, 67), Vector2(307, 73)],
 	},
 }
 

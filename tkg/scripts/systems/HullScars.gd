@@ -85,6 +85,16 @@ class _Mask extends RefCounted:
 			_keep(Rect2i(int(at.registry[0]), int(at.registry[1]), 26, 5).grow(2))
 		if at.has("chevrons"):
 			_keep(Rect2i(int(at.chevrons[0]) - 14, int(at.chevrons[1]) - 5, 15, 11))
+		if at.has("lit"):
+			# the light, and the furnace's whole ring (`rings`), which a swapped panel flattened
+			var lm := HullGrade.lit_mask(at, w, h)
+			var rm := HullGrade.lit_mask({"lit": {"discs": (at.lit as Dictionary).get("rings", [])}}, w, h)
+			for i in rm.size():
+				lm[i] = lm[i] | rm[i]
+			for i in lm.size():
+				if lm[i] == 1 and deep[i] == 1:
+					deep[i] = 0
+					area -= 1
 
 	func _keep(rc: Rect2i) -> void:
 		for y in range(maxi(rc.position.y, 0), mini(rc.end.y, h)):
@@ -399,7 +409,8 @@ static func _panels(img: Image, base: Image, r: HullGrade._Ramps, m: _Mask, amt:
 			match mode:
 				0: c = up(r, c, 0.22)
 				1: c = down(r, c, 0.24)
-				2: c = rust(r, c)
+				# a whole Solari plate in one rust colour read as red paint, so it is a darker plate
+				2: c = down(r, c, 0.14) if r.mf == "solari" else rust(r, c)
 			img.set_pixel(p.x, p.y, c)
 
 
