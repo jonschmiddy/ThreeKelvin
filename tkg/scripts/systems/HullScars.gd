@@ -5,7 +5,7 @@ extends RefCounted
 ## (Jon, Nov 17: "C is not messed up enough"). Three ideas on trial; HullGrade.DRAMA picks.
 ## Why: docs/why/HullScars.md#hull-scars
 
-enum Idea { NONE, GRIME, BATTLE, JUNKER }
+enum Idea { NONE, GRIME, BATTLE, JUNKER, HEAT, PATCHED, PATINA }
 ## How much of the scarring each grade carries: C, B, A, S. B's scars are the first of C's.
 const AMT := [1.0, 0.5, 0.18, 0.0]
 
@@ -24,6 +24,12 @@ static func scar(img: Image, base: Image, r: HullGrade._Ramps, grade: int, idea:
 			_rust(img, base, r, m, amt, hs, 1.0)
 		Idea.BATTLE:
 			_battle(img, r, m, amt, hs)
+		Idea.HEAT:
+			SolariScars.heat(img, base, r, m, amt, hs, at)
+		Idea.PATCHED:
+			SolariScars.patched(img, base, r, m, amt, hs)
+		Idea.PATINA:
+			SolariScars.patina(img, base, r, m, amt, hs)
 		Idea.JUNKER:
 			_panels(img, base, r, m, amt, hs)
 			_soot(img, r, m, amt, hs, 0.55)
@@ -412,6 +418,23 @@ static func _panels(img: Image, base: Image, r: HullGrade._Ramps, m: _Mask, amt:
 				# a whole Solari plate in one rust colour read as red paint, so it is a darker plate
 				2: c = down(r, c, 0.14) if r.mf == "solari" else rust(r, c)
 			img.set_pixel(p.x, p.y, c)
+
+
+## For SolariScars: the plates, a torn plate, a patch, and a count by area.
+static func find_panels(img: Image, m: _Mask) -> Array[Array]:
+	return _find_panels(img, m)
+
+
+static func torn(img: Image, r: HullGrade._Ramps, box: Rect2i, px: Array) -> void:
+	_torn(img, r, box, px)
+
+
+static func patch(img: Image, r: HullGrade._Ramps, m: _Mask, rc: Rect2i, salt: int) -> void:
+	_patch(img, r, m, rc, salt)
+
+
+static func count_on(m: _Mask, per: float) -> int:
+	return _count(m, per, 1.0)
 
 
 ## The hull's plates: runs of panel between the dark seams, [pixels, first pixel, box].

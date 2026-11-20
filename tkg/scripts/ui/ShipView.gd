@@ -55,6 +55,14 @@ class FlameLayer extends Control:
 	func _draw() -> void:
 		view._draw_flame(self)
 
+## Solari's furnace (`SolariFurnace`), over the hull and under the added light.
+var _furnace_layer: Control
+
+class FurnaceLayer extends Control:
+	var view: ShipView
+	func _draw() -> void:
+		view._draw_furnace(self)
+
 ## Arrival is deliberately slow at 4.5 s, mostly unpowered drift, to say you have got somewhere.
 ## Why: docs/why/ShipView.md#arrival
 const ARRIVE_MS := 4500.0
@@ -271,6 +279,7 @@ func _process(_delta: float) -> void:
 	# at 8 a second; the sparks move every frame), never a repaint of the hull.
 	if _hull().has_exhaust() or HullGrade.key_for(_hull()) != "":
 		_flame_layer.queue_redraw()
+		_furnace_layer.queue_redraw()
 	# One repaint per change, so an animated ship costs about twenty redraws a second, not sixty.
 	if dirty:
 		refresh()
@@ -281,6 +290,13 @@ func _init() -> void:
 	# Why: docs/why/ShipView.md#half-pixel-snap
 	stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 	custom_minimum_size = Vector2(_w, _h)
+	_furnace_layer = FurnaceLayer.new()
+	(_furnace_layer as FurnaceLayer).view = self
+	_furnace_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_furnace_layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_furnace_layer.material = SolariFurnace.material()
+	_furnace_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_furnace_layer, false, Node.INTERNAL_MODE_FRONT)
 	_flame_layer = FlameLayer.new()
 	(_flame_layer as FlameLayer).view = self
 	_flame_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1479,5 +1495,32 @@ func _draw_lights(ci: CanvasItem) -> void:
 		return
 	var t := shot_clock if shot_clock >= 0.0 else GameClock.now()
 	ci.draw_set_transform(canvas_to_local(Vector2.ZERO), 0.0, Vector2(float(_k), float(_k)))
-	HullGrade.draw_lights(ci, h, t, 0.5 if _half and h.sprite_half != null else 1.0)
+	var sc := 0.5 if _half and h.sprite_half != null else 1.0
+	HullGrade.draw_lights(ci, h, t, sc)
+	var fu := _furnace()
+	if fu != null:
+		fu.draw_halo(ci, clampi(h.tier, 0, 3), t, sc)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## This hull's furnace, or null: Solari's graded hulls carry one, with the same gates as its lights.
+func _furnace() -> SolariFurnace:
+	var h := _hull()
+	var key := HullGrade.key_for(h)
+	if not key.begins_with("solari/") or _engines_off or h.sprite == null:
+		return null
+	var b := _b()
+	if b != null and b.damage() >= 1.0:
+		return null
+	return SolariFurnace.of(key, h.sprite)
+
+
+func _draw_furnace(ci: CanvasItem) -> void:
+	var fu := _furnace()
+	if fu == null:
+		return
+	var h := _hull()
+	var t := shot_clock if shot_clock >= 0.0 else GameClock.now()
+	ci.draw_set_transform(canvas_to_local(Vector2.ZERO), 0.0, Vector2(float(_k), float(_k)))
+	fu.draw(ci, clampi(h.tier, 0, 3), t, 0.5 if _half and h.sprite_half != null else 1.0)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

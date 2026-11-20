@@ -15,9 +15,16 @@ func _run() -> void:
 	var out := Harness.arg("out", "user://gradedrama")
 	DirAccess.make_dir_recursive_absolute(out)
 	var fails := 0
+	# `ideas=4,5,6` and `only=solari` narrow the sheet
+	var pick := Harness.arg("ideas")
+	var only := Harness.arg("only")
 	for idea in HullScars.Idea.values():
+		if pick != "" and not str(idea) in pick.split(","):
+			continue
 		HullGrade.drama = idea
 		for key: String in HULLS:
+			if only != "" and not key.begins_with(only):
+				continue
 			var src: Image = (load("res://art/sprites/hulls/%s.png" % key) as Texture2D).get_image()
 			src.convert(Image.FORMAT_RGBA8)
 			var pal := HullWear.palette(src)

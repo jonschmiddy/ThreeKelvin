@@ -38,10 +38,13 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hul
 	# then the lights shining through the grime
 	if Look.KIT in looks:
 		_kit(img, r, grade, seed_in, at)
-	if Look.PAINT in looks:
+	# on Solari a chosen idea is the whole of the wear (docs/why/SolariScars.md#solari-wear)
+	var own := r.mf == "solari" and drama >= HullScars.Idea.HEAT
+	if Look.PAINT in looks and not own:
 		_paint(img, r, grade, seed_in)
 	if Look.WEAR in looks:
-		_wear(img, r, AGE[grade], seed_in)
+		if not own:
+			_wear(img, r, AGE[grade], seed_in)
 		HullScars.scar(img, base, r, grade, drama, hull, at)
 	# after the age: the S clean-up wipes lone pixels, and a stencil is made of them
 	if Look.MARKS in looks:
