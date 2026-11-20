@@ -111,7 +111,7 @@ func _play(d: DeskScene, n: MapGen.MapNode, sc: SectorScreen, data0: int, pile0:
 	await _shot("4_result")
 	var gained := OptionResolve.pile_gained(n, pile0)
 	print("minigame %s: score %.2f, tier %s, haul %s (%s)" % [g.id(), d.game.score,
-		ScienceHaul.TIER_NAMES[d.game.tier], d.game.haul, d.game.detail])
+		String(ScienceHaul.tier_key(d.game.tier)).to_upper(), d.game.haul, d.game.detail])
 	_h._ok("the game's end took the reading once (DATA +%d)" % (Run.data - data0), Run.data - data0 == OptionTable.reading(1))
 	_h._ok("and paid its haul, a material in the system (%d)" % gained, gained >= 1 and d.game.haul != "")
 	_h._ok("a %s run scores as it should (%.2f)" % ["given-up" if fail else "clean", d.game.score],
@@ -128,7 +128,7 @@ func _play(d: DeskScene, n: MapGen.MapNode, sc: SectorScreen, data0: int, pile0:
 		_end()
 
 
-## The scripted player through the screen: a gesture (down to up) every 0.45 s for a planned
+## The scripted player through the screen: a gesture (down to up) every 0.45 s (or its own longer wait) for a planned
 ## run, the pilots every frame; `fail` lets Esc go 2 s in. Stills mid-way and, after a plan, a beat on.
 func _drive(d: DeskScene, g: MiniGame, fail: bool) -> void:
 	var sv := MiniSolver.for_game(g)
@@ -149,14 +149,17 @@ func _drive(d: DeskScene, g: MiniGame, fail: bool) -> void:
 		if total > 0:
 			if queue.is_empty():
 				break
+			var hold := 0.45
 			while not queue.is_empty():
 				var e: Dictionary = queue.pop_front()
 				_send(d, e)
 				sent += 1
 				await _tree.process_frame
 				if e.k == "up":
+					# a plan's longer wait holds (Seismic's sweep and drill ignore taps while busy)
+					hold = maxf(hold, float(e.get("wait", 0.0)))
 					break
-			await _wait(d, 0.45)
+			await _wait(d, hold)
 		else:
 			for e in sv.act(g, 1.0 / 60.0):
 				_send(d, e)

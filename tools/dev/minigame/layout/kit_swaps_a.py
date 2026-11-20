@@ -114,7 +114,7 @@ KIT_TUNING = [
     ("const KLY=84,KY=102,KR=8,KW=106; // knob label row, knob centre row, knob radius, the knobs' width\n"
      "const LOCK={x:110,y:112,w:39,h:16};",
      "const KIT=TK.KIT;\n"
-     "const KY=KIT.ROW.CTRL.cy-1,KR=7; // knob centre row (1 above the control row's), knob radius: ticks reach rows 106-127, 4 rows clear of the haul line (Jon, Nov 20)\n"
+     "const KY=KIT.ROW.CTRL.cy-2,KR=7; // knob centre row (2 above the control row's), knob radius: ticks reach rows 105-127 (the lit 180 deg tick too), 4 rows clear of the haul line (Jon, Nov 20)\n"
      "const LOCK={x:KIT.W-KIT.GUT-25,y:KIT.BTN.YS,w:25,h:KIT.BTN.H}; // right edge on GIVE UP's"),
     ("  addKnob('X FREQ','a',", "  addKnob('X','a',"),
     ("  addKnob('Y FREQ','b',", "  addKnob('Y','b',"),

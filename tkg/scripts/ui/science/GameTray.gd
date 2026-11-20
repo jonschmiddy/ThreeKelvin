@@ -3,7 +3,8 @@ extends MiniGame
 
 ## SAMPLE TRAY (Jon loved, Nov 17: "click and draggable"): slide canisters along their length until
 ## the glowing sample leaves by the gap on the right. A port of the approved `tray2.js`; the
-## searches keep their order but hold each state as one integer.
+## searches keep their order but hold each state as one integer. In its approved layout and the UI kit
+## (Nov 20).
 ## Why: docs/why/MiniGame.md#the-round-2-games
 
 ## A 6x6 tray, the exit on the right of row 2.
@@ -17,8 +18,9 @@ const CFG := {
 	4: {lo = 9, hi = 15, nb = [10, 11], lock = 3},
 	5: {lo = 12, hi = 20, nb = [11, 12], lock = 4},
 }
-const W := 144
-const H := 108
+## The game area, as every game draws it (the UI kit, Nov 20).
+const W := MiniKit.W
+const H := MiniKit.H
 ## Deals searched before their mount, by "depth:seed:state"; with `memo_on` (tests) every deal is kept,
 ## so a test's later mounts skip the search.
 static var memo := {}
@@ -27,13 +29,14 @@ static var _pre_task := -1
 static var _pre_key := ""
 static var _pre_got := {}
 
-## 6x6 cells of 15 art px; the exit row's top; the right column; UNDO.
-const C := 15
-const GX := 8
-const GY := 9
+## 6x6 cells of 17 art px (the tray in rows 10-119); a canister's thickness; the exit row's top;
+## UNDO, over GIVE UP.
+const C := 17
+const T := C - 2
+const GX := 6
+const GY := 14
 const EXY := GY + ROW * C
-const RX := 104
-const UB := Rect2i(RX, 88, 37, 12)
+const UB := Rect2i(MiniKit.W - MiniKit.GUT - 33, 106, 33, MiniKit.BTN_H)
 const STEEL: Array[Color] = [MiniPix.ICE, MiniPix.CHILL, MiniPix.CHILL, MiniPix.COLD, MiniPix.COLD, MiniPix.COLD,
 	MiniPix.LINE, MiniPix.LINE, MiniPix.BEVEL_LO]
 
@@ -464,8 +467,8 @@ func _draw_plate() -> Image:
 				col = MiniPix.BEVEL_LO
 			elif cx == 1 or cy == 1:
 				col = MiniPix.LINE
-			if cx >= 6 and cx <= 8 and cy >= 6 and cy <= 8:
-				col = MiniPix.BEVEL_LO if cx == 7 and cy == 7 else plate_lit
+			if absi(cx - (C >> 1)) <= 1 and absi(cy - (C >> 1)) <= 1:
+				col = MiniPix.BEVEL_LO if cx == C >> 1 and cy == C >> 1 else plate_lit
 			b.dot(xx, yy, col)
 	b.rect(GX + S * C - 1, EXY + 1, 6, C - 2, MiniPix.VOID)
 	for x in range(GX + S * C + 5, W - 1):
@@ -474,9 +477,7 @@ func _draw_plate() -> Image:
 		b.dot(x, EXY, MiniPix.BEVEL_HI)
 		for y in range(EXY + 1, EXY + C - 1):
 			b.dot(x, y, MiniPix.LINE if (y - EXY) % 4 == 2 else MiniPix.VOID)
-	b.text("MOVES", RX, GY, MiniPix.COLD)
-	b.text("PAR", RX, GY + 20, MiniPix.COLD)
-	b.text("BAY", RX, EXY + C + 3, MiniPix.COLD)
+	MiniKit.deck(b, false)
 	return b.img
 
 
@@ -484,7 +485,7 @@ func _draw_plate() -> Image:
 ## bands, or the sample, a glass tube with a glowing core between ember caps.
 func _canister(x: float, y: float, ln: int, h: bool, kind: String, is_sel: bool) -> Rect2i:
 	var l := ln * C - 2
-	var tt := C - 2
+	var tt := T
 	var w := l if h else tt
 	var ht := tt if h else l
 	var xx := MiniPix.jr(x) + 1
@@ -508,9 +509,10 @@ func _canister(x: float, y: float, ln: int, h: bool, kind: String, is_sel: bool)
 					col = MiniPix.shade(col, -0.35)
 				if along == 3 or along == alen - 4:
 					col = MiniPix.BEVEL_LO
-				if (along == 1 or along == alen - 2) and a == 6:
+				var mid := (T - 1) >> 1
+				if (along == 1 or along == alen - 2) and a == mid:
 					col = MiniPix.CHILL
-				if kind == "bolt" and a > 4 and a < 8 and along % 6 == 0 and along > 3 and along < alen - 4:
+				if kind == "bolt" and a > mid - 2 and a < mid + 2 and along % 6 == 0 and along > 3 and along < alen - 4:
 					col = MiniPix.WARN
 			px.dot(xx + i, yy + j, col)
 	if is_sel:
@@ -523,12 +525,12 @@ func _canister(x: float, y: float, ln: int, h: bool, kind: String, is_sel: bool)
 
 func _sample_px(a: int, along: int, alen: int) -> Color:
 	if along < 4 or along > alen - 5:
-		return MiniPix.HOT if a < 3 else (MiniPix.FLARE if a < 8 else (MiniPix.EMBER if a < 11 else MiniPix.shade(MiniPix.EMBER, -0.4)))
-	if a == 1 or a == 11:
+		return MiniPix.HOT if a < 3 else (MiniPix.FLARE if a < T - 5 else (MiniPix.EMBER if a < T - 2 else MiniPix.shade(MiniPix.EMBER, -0.4)))
+	if a == 1 or a == T - 2:
 		return MiniPix.shade(MiniPix.TRACTOR, -0.5)
 	if a == 2:
 		return MiniPix.ICE
-	var f := absf(a - 6.5) / 4.5
+	var f := absf(a - T / 2.0) / ((T - 4) / 2.0)
 	var col := MiniPix.MARK if f < 0.35 else (MiniPix.TRACTOR if f < 0.75 else MiniPix.shade(MiniPix.TRACTOR, -0.35))
 	if (along * 7 + a * 3) % 23 == 0:
 		col = MiniPix.MARK
@@ -604,7 +606,7 @@ func _draw() -> void:
 		_leaving()
 	_hud()
 	if not started:
-		px.start_card("GET THE SAMPLE OUT", ["drag"], GX + S * C / 2.0, GY + S * C / 2 - 13, clock, MiniPix.PANEL, MiniPix.BEVEL_HI)
+		MiniKit.tell(px, "GET THE SAMPLE OUT.", controls(), clock)
 	dirty = true
 
 
@@ -622,36 +624,19 @@ func _leaving() -> void:
 
 
 func _hud() -> void:
-	px.text2(str(moves_), RX, GY + 7, MiniPix.HOT)
-	px.text(str(int(P.par)), RX + 14, GY + 20, MiniPix.CHILL)
-	var ok := out_t >= 0.0 and clock - out_t > 1.0
-	var lx := RX + 16
-	var ly := EXY + C + 5
-	px.rect(lx - 1, ly - 1, 7, 7, MiniPix.BEVEL_LO)
-	px.rect(lx, ly, 5, 5, MiniPix.GOOD if ok else MiniPix.LINE)
-	if ok:
-		px.dot(lx + 1, ly + 1, MiniPix.MARK)
-		for y in range(-4, 9):
-			for x in range(-4, 9):
-				var r := Vector2(x - 2, y - 2).length()
-				if r > 3.6 and r < 6.0 and MiniPix.bay(lx + x, ly + y) < (6.0 - r) / 4.0:
-					px.dot(lx + x, ly + y, MiniPix.shade(MiniPix.GOOD, -0.3))
-		px.text("OUT", RX, ly + 9, MiniPix.GOOD)
+	MiniKit.header(px, null, [["MOVES", moves_], ["PAR", int(P.par)]])
+	if out_t >= 0.0 and clock - out_t > 1.0:
+		MiniKit.status(px, "SAMPLE OUT", "good", false)
 	var can := undos > 0 and not hist.is_empty() and not over
-	var pr := 1 if undo_down else 0
-	px.rect(UB.position.x, UB.position.y, UB.size.x, UB.size.y, MiniPix.BEVEL_LO)
-	px.rect(UB.position.x + 1, UB.position.y + 1 + pr, UB.size.x - 2, UB.size.y - 2 - pr, MiniPix.BEVEL_HI if can else MiniPix.LINE)
-	px.rect(UB.position.x + 1, UB.position.y + 1 + pr, UB.size.x - 2, 1, MiniPix.CHILL if can else MiniPix.BEVEL_HI)
-	if not can:
-		px.rect(UB.position.x + 1, UB.position.y + 1, UB.size.x - 2, 1, MiniPix.LINE)
-	px.text("UNDO %d" % undos, UB.position.x + (UB.size.x >> 1), UB.position.y + 4 + pr, MiniPix.ICE if can else MiniPix.COLD, "center")
+	MiniKit.button(px, UB.position.x, UB.position.y, UB.size.x, UB.size.y, "UNDO %d" % undos,
+		"disabled" if not can else ("pressed" if undo_down else "normal"))
 
 
 func _arrow(i: int, cell: int, dir: int) -> void:
 	var bk: Dictionary = B[i]
 	var at := Vector2i(GX + cell * C, GY + int(bk.fix) * C) if bk.h else Vector2i(GX + int(bk.fix) * C, GY + cell * C)
-	var cx := at.x + 7
-	var cy := at.y + 7
+	var cx := at.x + (C >> 1)
+	var cy := at.y + (C >> 1)
 	for k in 4:
 		if bk.h:
 			px.rect(cx + (k - 2 if dir > 0 else 2 - k), cy - 3 + k, 1, 7 - 2 * k, MiniPix.EMBER)

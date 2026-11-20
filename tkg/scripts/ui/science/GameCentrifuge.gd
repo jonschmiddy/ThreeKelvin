@@ -3,7 +3,7 @@ extends MiniGame
 
 ## CENTRIFUGE (Jon, Nov 17: "SO SILLY LMAO I LOVE IT"): load every tube so the rotor's centre of
 ## mass sits on the hub, then spin; a lean shakes it. A port of the approved prototype's
-## `centrifuge2.js`, rule for rule and pixel for pixel.
+## `centrifuge2.js`, rule for rule and pixel for pixel, in its approved layout and the UI kit (Nov 20).
 ## Why: docs/why/MiniGame.md#centrifuge
 
 const CFG := {
@@ -13,20 +13,21 @@ const CFG := {
 	4: {ns = [15], tubes = [5, 7], masses = [1, 2], overlap = true, blocked = 2, uneven = true},
 	5: {ns = [15, 18], tubes = [6, 8], masses = [1, 3], overlap = true, blocked = 3, uneven = true},
 }
-const W := 144
-const H := 118
-## The rotor's hub, and the bowl, rotor, slot ring and hub window radii.
-const CX := 50
-const CY := 58
-const RB := 50
-const RR := 44
-const RS := 32
+## The game area, as every game draws it (the UI kit, Nov 20).
+const W := MiniKit.W
+const H := MiniKit.H
+## The rotor's hub (the bowl in rows 13-117), and the bowl, rotor, slot ring and hub window radii.
+const CX := 53
+const CY := 65
+const RB := 52
+const RR := 46
+const RS := 34
 const HUB := 14
-const RACK := Rect2i(101, 9, 42, 74)
-const SPIN := Rect2i(103, 87, 38, 15)
+const RACK := Rect2i(108, 12, 40, 82)
+## SPIN, centred under the rack.
+const SPIN := Rect2i(111, 98, 33, MiniKit.BTN_HL)
 const WELL := Color("#05070b")
 const HELD := Color("#2a1a0c")
-const SPIN_LIP := Color("#8a4a14")
 const LIQ: Array[Color] = [Color(0, 0, 0, 0), MiniPix.TRACTOR, MiniPix.HOT, MiniPix.FLARE, MiniPix.BAD]
 const LIQD: Array[Color] = [Color(0, 0, 0, 0), Color("#2f8f84"), Color("#b8923f"), Color("#b86a24"), Color("#7f3328")]
 const QUANT: Array[float] = [0.09, 0.065, 0.045, 0.03, 0.015, 0.0]
@@ -378,7 +379,7 @@ func _tube_side(x: int, y: int, m: int, hot: bool) -> void:
 
 
 func cell_rect(j: int) -> Rect2i:
-	return Rect2i(RACK.position.x + 2 + (j % 2) * 20, RACK.position.y + 9 + (j / 2) * 16, 19, 15)
+	return Rect2i(RACK.position.x + 2 + (j % 2) * 19, RACK.position.y + 9 + (j / 2) * 18, 18, 17)
 
 
 ## The rotor as it would be with the tube in your hand dropped where it hovers (a live preview).
@@ -417,29 +418,19 @@ func indicator() -> Dictionary[String, Variant]:
 
 
 func _render() -> void:
-	px.clear(MiniPix.VOID)
-	# the terminal's faint grid
-	for x in range(4, W, 8):
-		px.rect(x, 8, 1, H - 16, MiniPix.PANEL)
-	for y in range(12, H - 8, 8):
-		px.rect(0, y, W, 1, MiniPix.PANEL)
+	px.clear(MiniKit.BORDER)
 	px.blit(_housing, hox, hoy)
 	px.blit(_rotor, ox, oy)
 	_slots()
 	_hub()
-	px.text("ROTOR %d" % N, 2, 1, MiniPix.COLD)
-	px.text("MOVES %d" % moves, W - 2, 1, MiniPix.CHILL, "right")
 	_rack()
 	_spin_button()
+	MiniKit.header(px, {label = "ROTOR", value = N}, [["MOVES", moves]])
+	MiniKit.deck(px, false)
 	if not acted and not over:
-		# the start frame: the goal, and the input as an icon
-		var x0 := MiniPix.jr((W - (22 + 5 + 71)) / 2.0)
-		px.rect(0, H - 15, W, 15, MiniPix.VOID)
-		px.rect(0, H - 15, W, 1, MiniPix.LINE)
-		px.icon("drag", x0, H - 14, t)
-		px.text("BALANCE THE TUBES.", x0 + 27, H - 10, MiniPix.HOT)
+		MiniKit.tell(px, "BALANCE THE TUBES.", ["click", "drag"] as Array[String], t)
 	else:
-		px.text(msg_txt, W / 2, H - 7, msg_col, "center")
+		MiniKit.status(px, msg_txt, "good" if msg_col == MiniPix.GOOD else ("bad" if msg_col == MiniPix.BAD else "neutral"), false)
 	if not drag.is_empty() and drag.moved:
 		_tube_side(int(drag.x) - 3, int(drag.y) - 7, int(drag.m), true)
 	dirty = true
@@ -497,7 +488,7 @@ func _rack() -> void:
 	px.rect(r0.position.x + 1, r0.position.y + 1, 1, r0.size.y - 2, MiniPix.LINE)
 	px.text("RACK", r0.position.x + r0.size.x / 2, r0.position.y + 3, MiniPix.COLD, "center")
 	if tray.is_empty():
-		px.text("EMPTY", r0.position.x + r0.size.x / 2, r0.position.y + 30, MiniPix.LINE, "center")
+		px.text("EMPTY", r0.position.x + r0.size.x / 2, r0.position.y + 38, MiniPix.LINE, "center")
 	# a rotor tube held over the rack, or picked by a tap: the rack lights to take it back
 	var held_over: bool = not drag.is_empty() and drag.moved and drag.src == "slot" and r0.has_point(Vector2i(int(drag.x), int(drag.y)))
 	if held_over or (pick >= 0 and drag.is_empty()):
@@ -514,24 +505,15 @@ func _rack() -> void:
 			px.rect(r.position.x + 1, r.position.y + 1, r.size.x - 2, r.size.y - 2, HELD)
 		if not drag.is_empty() and drag.moved and drag.src == "rack" and int(drag.j) == j:
 			continue
-		_tube_side(r.position.x + 3, r.position.y + 1, tray[j], on)
-		px.text(str(tray[j]), r.position.x + 13, r.position.y + 5, MiniPix.HOT if on else MiniPix.CHILL)
+		_tube_side(r.position.x + 3, r.position.y + 2, tray[j], on)
+		px.text(str(tray[j]), r.position.x + 12, r.position.y + 6, MiniPix.HOT if on else MiniPix.CHILL)
 
 
 func _spin_button() -> void:
 	var ready := not over and not spinning and tray.is_empty()
 	var b := SPIN
-	var pr := 1 if press > 0 else 0
-	px.rect(b.position.x, b.position.y, b.size.x, b.size.y, MiniPix.BEVEL_LO)
-	if ready:
-		px.rect(b.position.x + 1, b.position.y + 1 + pr, b.size.x - 2, b.size.y - 2 - pr, MiniPix.EMBER)
-		if not pr:
-			px.rect(b.position.x + 1, b.position.y + 1, b.size.x - 2, 1, MiniPix.FLARE)
-		px.rect(b.position.x + 1, b.end.y - 2, b.size.x - 2, 1, SPIN_LIP)
-	else:
-		px.rect(b.position.x + 1, b.position.y + 1, b.size.x - 2, b.size.y - 2, MiniPix.PANEL)
-		px.rect(b.position.x + 1, b.position.y + 1, b.size.x - 2, 1, MiniPix.LINE)
-	px.text("SPIN", b.position.x + b.size.x / 2, b.position.y + 5 + pr, MiniPix.VOID if ready else MiniPix.LINE, "center")
+	var state := ("active-pressed" if press > 0 else "active") if ready else ("pressed" if spinning else "disabled")
+	MiniKit.button(px, b.position.x, b.position.y, b.size.x, b.size.y, "SPIN", state, "spin")
 
 
 func _set_msg() -> void:
@@ -653,7 +635,7 @@ func _finish(r: float) -> void:
 	spinning = false
 	var sc := score(r, moves, n_place)
 	var pct := MiniPix.jr(r * 100.0)
-	msg_txt = "BALANCED. NO WOBBLE" if r < 1e-6 else ("ROTOR FAULT" if r > 0.3 else "WOBBLE %d%%" % pct)
+	msg_txt = "BALANCED" if r < 1e-6 else ("ROTOR FAULT" if r > 0.3 else "WOBBLE %d%%" % pct)
 	msg_col = MiniPix.GOOD if r < 1e-6 else (MiniPix.BAD if r > 0.3 else MiniPix.WARN)
 	if r < 1e-6:
 		sfx(&"win")

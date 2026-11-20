@@ -1,8 +1,9 @@
 class_name GameAnomaly
 extends MiniGame
 
-## ANOMALY COUNT (Jon loved, Nov 17; round 3: "bigger than the others?", now the same 144 x 124):
-## a microscope feed; mark every critter the rule up top names. A port of the approved `anomaly2.js`.
+## ANOMALY COUNT (Jon loved, Nov 17; round 3: "bigger than the others?"): a microscope feed; mark
+## every critter the rule names. A port of the approved `anomaly2.js`, in its approved layout and the
+## UI kit (Nov 20): the lens between the header and the deck, the rule on the status line.
 ## Why: docs/why/MiniGame.md#the-round-2-games
 
 const CFG := {
@@ -17,10 +18,10 @@ const MIN_GAP := 23.0
 const SHAPES: Array[String] = ["ROUND", "ROD", "STAR"]
 const ATTRS := {"shape": [0, 1, 2], "spots": [0, 1, 2, 3], "ring": [0, 1], "tail": [0, 1]}
 const KEYS: Array[String] = ["shape", "spots", "ring", "tail"]
-const W := 144
-const H := 124
-const CX := 72
-const CY := 69
+const W := MiniKit.W
+const H := MiniKit.H
+const CX := 75
+const CY := 65
 const LENS := 52
 ## Critter scale, and its sprite box and centre.
 const K := 1.6
@@ -501,20 +502,32 @@ func _pick_hints() -> void:
 		hints.append(int(left[i]))
 
 
+## The deck: the rule to match on the status line (goal blue, blinking for a moment when it changes;
+## an OR rule on one line, "+" closed up only when the spaced rule would pass the gutters).
 func _draw_rule() -> void:
-	var r: Dictionary = pz.rules[phase]
-	var lines := rule_text(r)
-	var fl := clock - rule_flash < 1.2
-	px.rect(0, 0, W, 13, MiniPix.shade(MiniPix.EMBER, -0.6) if fl else MiniPix.PANEL)
-	px.rect(0, 13, W, 1, MiniPix.BEVEL_LO)
-	if lines.size() == 1:
-		px.text(lines[0], W / 2, 4, MiniPix.HOT, "center")
-	else:
-		px.text(lines[0], 2, 1, MiniPix.HOT)
-		px.text("OR", W - 2, 4, MiniPix.COLD, "right")
-		px.text(lines[1], 2, 7, MiniPix.HOT)
-	if (pz.rules as Array).size() > 1:
-		px.text("RULE %d" % (phase + 1), W - 2, 15, MiniPix.EMBER, "right")
+	MiniKit.deck(px, false)
+	if ended:
+		var all := found == total
+		MiniKit.status(px, "ALL LOGGED" if all else "TIME UP", "good" if all else "bad", false)
+		return
+	var lines := rule_text(pz.rules[phase])
+	if _rule_w(lines) > W - 2 * MiniKit.GUT:
+		for i in lines.size():
+			lines[i] = "+".join(lines[i].split(" + "))
+	var fl := clock - rule_flash < 1.2 and int(floorf(clock * 5.0)) % 2 == 0
+	var col := MiniPix.ICE if fl else MiniKit.ink("goal")
+	var y := MiniKit.deck_y(false) + MiniKit.STATUS_TY
+	var x := (W >> 1) - (_rule_w(lines) >> 1)
+	for i in lines.size():
+		if i:
+			px.text("OR", x + 4, y, MiniKit.ink("neutral"))
+			x += 16
+		px.text(lines[i], x, y, col)
+		x += lines[i].length() * 4
+
+
+static func _rule_w(lines: Array[String]) -> int:
+	return " OR ".join(lines).length() * 4 - 1
 
 
 func _draw() -> void:
@@ -534,9 +547,9 @@ func _draw() -> void:
 		px.blit(_sprite(i, int(c.rot), (tph + int(c.ph)) % 4 if int(c.s.tail) else 0), MiniPix.jr(CX + float(c.x)) - SHC, MiniPix.jr(CY + float(c.y)) - SHC)
 	for i: int in marked:
 		var c: Dictionary = crit[i]
-		_ring_px(CX + float(c.x), CY + float(c.y), 12.5, MiniPix.EMBER)
 		_ring_px(CX + float(c.x), CY + float(c.y), 13.5, MiniPix.EMBER)
-		_ring_px(CX + float(c.x), CY + float(c.y), 14.5, MiniPix.shade(MiniPix.EMBER, -0.4), 2)
+		_ring_px(CX + float(c.x), CY + float(c.y), 14.5, MiniPix.EMBER)
+		_ring_px(CX + float(c.x), CY + float(c.y), 15.5, MiniPix.shade(MiniPix.EMBER, -0.4), 2)
 	_effects()
 	px.blit(_over, 0, 0)
 	var fr := time_left / T
@@ -547,17 +560,14 @@ func _draw() -> void:
 	_draw_rule()
 	var need: Array = pz.answers[phase]
 	var got := need.filter(func(i: int) -> bool: return marked.has(i)).size()
-	var two := (pz.rules as Array).size() > 1
-	px.text("FOUND", 2, 17, MiniPix.COLD)
-	px.text("%d/%d" % [got, need.size()], 2, 23, MiniPix.GOOD if got == need.size() else MiniPix.HOT)
-	px.text("TIME", W - 2, 22 if two else 17, MiniPix.COLD, "right")
-	px.text(str(ceili(time_left)), W - 2, 28 if two else 23, MiniPix.BAD if fr < 0.25 else MiniPix.HOT, "right")
-	px.text("WRONG", 2, H - 12, MiniPix.COLD)
-	px.text(str(wrong), 2, H - 6, MiniPix.BAD if wrong else MiniPix.CHILL)
-	if ended:
-		px.text("ALL LOGGED" if found == total else "TIME", W - 2, H - 6, MiniPix.GOOD if found == total else MiniPix.HOT, "right")
+	var right: Array = []
+	if (pz.rules as Array).size() > 1:
+		right.append(["RULE", "%d/%d" % [phase + 1, (pz.rules as Array).size()]])
+	right.append(["WRONG", wrong, "bad" if wrong else ""])
+	right.append(["TIME", ceili(time_left), "bad" if fr < 0.25 else ""])
+	MiniKit.header(px, {label = "FOUND", value = "%d/%d" % [got, need.size()], vkind = "good" if got == need.size() else ""}, right)
 	if not started:
-		px.start_card("FIND EVERY MATCH", ["click"], W / 2.0, CY - 13, clock, MiniPix.PANEL, MiniPix.BEVEL_HI)
+		MiniKit.tell(px, "FIND EVERY MATCH.", ["click"] as Array[String], clock)
 	_loupe()
 	dirty = true
 
@@ -573,7 +583,7 @@ func _effects() -> void:
 		var x := CX + float(c.x)
 		var y := CY + float(c.y)
 		if f.get("bad", false):
-			_ring_px(x, y, 13.5, MiniPix.BAD, 2 if a > 0.6 else 0)
+			_ring_px(x, y, 14.5, MiniPix.BAD, 2 if a > 0.6 else 0)
 			if a < 0.6:
 				for d in range(-5, 6):
 					px.dotf(x + d, y + d, MiniPix.BAD)
@@ -597,7 +607,7 @@ func _loupe() -> void:
 	var fyy := MiniPix.jr(q.y)
 	var lr := 24
 	var lx := maxi(lr + 2, mini(W - lr - 3, fxx))
-	var ly := fyy - lr - 14 if fyy - lr - 14 > lr + 1 else mini(H - lr - 2, fyy + lr + 14)
+	var ly := fyy - lr - 14 if fyy - lr - 14 > lr + 11 else mini(MiniKit.deck_y(false) - lr - 3, fyy + lr + 14)
 	for y in range(-lr, lr):
 		for x in range(-lr, lr):
 			if Vector2(x + 0.5, y + 0.5).length() > lr:
@@ -652,7 +662,7 @@ func _step(dt: float) -> void:
 
 func nearest(q: Vector2) -> int:
 	var best := -1
-	var bd := 13.0
+	var bd := 14.0
 	for i in crit.size():
 		var c: Dictionary = crit[i]
 		var d := Vector2(CX + float(c.x) - q.x, CY + float(c.y) - q.y).length()

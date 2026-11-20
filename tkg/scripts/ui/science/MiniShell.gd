@@ -41,6 +41,10 @@ const SFX := {
 	&"leak": {&"puff": [&"mg_leak_puff", 0.0], &"seal": [&"mg_leak_seal", 0.0], &"win": [&"mg_win", 0.15]},
 	&"sling": {&"hit": [&"mg_sling_hit", 0.0], &"launch": [&"mg_sling_launch", 0.0], &"win": [&"mg_win", 0.3]},
 	&"tuning": {&"detent": [&"mg_tuning_detent", 0.0], &"lock": [&"mg_tuning_lock", 0.0], &"win": [&"mg_win", 0.35]},
+	&"seismic": {&"scan": [&"mg_seismic_scan", 0.0], &"dig": [&"mg_seismic_dig", 0.0], &"ore": [&"mg_seismic_ore", 0.0], &"win": [&"mg_win", 0.0]},
+	&"corescan": {&"fill": [&"mg_tomo_fill", 0.0], &"crack": [&"mg_tomo_crack", -0.06], &"win": [&"mg_win", 0.1]},
+	&"culture": {&"drop": [&"mg_culture_drop", 0.0], &"grow": [&"mg_culture_grow", 0.0], &"win": [&"mg_win", 0.0]},
+	&"dock": {&"dock": [&"mg_dock_dock", 0.0], &"puff": [&"mg_dock_puff", 0.0], &"win": [&"mg_win", 0.15]},
 }
 const SFX_PATH := "res://assets/audio/sfx/%s.wav"
 ## The reward waits for the win (its peak, 1.283 s in) or, with none, 1.1 s after the end.
@@ -271,7 +275,7 @@ func _button(c: MiniPix, label: String) -> void:
 
 ## The haul line, swept in left to right up to the reward's sound (the S1 split's sweep).
 func _line(c: MiniPix) -> void:
-	var key := haul_tier if haul_tier != &"" else ScienceHaul.TIER_KEYS[clampi(tier, 0, ScienceHaul.TIER_KEYS.size() - 1)]
+	var key := haul_tier if haul_tier != &"" else ScienceHaul.tier_key(tier)
 	var col := UITheme.tier_colour(key)
 	var tau := t - _reward_at
 	if tau >= 0.0:

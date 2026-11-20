@@ -11,6 +11,8 @@ const STEPS_MAX := 4000
 
 var _h := Harness.new()
 var _score := -1.0
+## The last mounted game's canvas size, for the fill rule.
+var _size := Vector2i.ZERO
 
 
 func _ready() -> void:
@@ -54,6 +56,7 @@ func _depth(id: StringName, d: int, seeds: int) -> void:
 	var quits := 0
 	var worst := 1.0
 	var slow := 0
+	var sized := 0
 	for s in range(1, seeds + 1):
 		var sens := s % 6
 		var t1 := Time.get_ticks_msec()
@@ -77,6 +80,10 @@ func _depth(id: StringName, d: int, seeds: int) -> void:
 		var q := _quit(id, d, sens, s)
 		if q >= 0.0 and q <= 0.2:
 			quits += 1
+		if _size.y == AREA.y and (_size.x == AREA.x or _size.x == AREA.x + 2):
+			sized += 1
+		else:
+			print("  %s depth %d seed %d draws %dx%d" % [id, d, s, _size.x, _size.y])
 	print("minigame %s depth %d: %d dealt, %d same twice, %d solved (worst %.2f), %d scored about 1, %d give-ups at 0 to 0.2 (%d ms, slowest deal %d ms)"
 		% [id, d, dealt, same, solved, worst, perfect, quits, Time.get_ticks_msec() - t0, slow])
 	_h._ok("%s depth %d: every seed deals a puzzle" % [id, d], dealt == seeds)
@@ -84,6 +91,7 @@ func _depth(id: StringName, d: int, seeds: int) -> void:
 	_h._ok("%s depth %d: the solver solves every puzzle" % [id, d], solved == seeds)
 	_h._ok("%s depth %d: a perfect solve scores about 1" % [id, d], perfect == seeds)
 	_h._ok("%s depth %d: a give-up scores 0 to 0.2" % [id, d], quits == seeds)
+	_h._ok("%s depth %d: every deal fills the game area, exactly 150x130 (152 wide shown 150)" % [id, d], sized == seeds)
 
 
 ## The puzzle as data, for comparing two deals.
@@ -124,16 +132,26 @@ func _deal(id: StringName, d: int, sens: int, s: int) -> Dictionary:
 			return sp
 		&"tuning":
 			return GameTuning.gen(r, d)
+		&"seismic":
+			return GameSeismic.gen(r, d, sens)
+		&"corescan":
+			return GameCoreScan.gen(r, d)
+		&"culture":
+			return GameCulture.gen(r, d)
+		&"dock":
+			return GameDock.gen(d, sens, r)
 	return {}
 
 
 func _mount(id: StringName, d: int, sens: int, s: int) -> MiniGame:
 	var g := MiniGames.make(id)
 	_score = -1.0
+	_size = Vector2i.ZERO
 	g.finished.connect(func(sc: float, _detail: String) -> void: _score = sc)
 	g.seed = s
 	g.drawing = false
 	g.mount(d, sens, MiniGames.stream(s))
+	_size = Vector2i(g.px.w, g.px.h) if g.px != null else Vector2i.ZERO
 	return g
 
 
@@ -216,9 +234,11 @@ func _dump(dir: String) -> void:
 ## that match them: the first frame of most pages is 0.1 s (`last` starts at 0); Leak and Torch draw
 ## on their second.
 const DUMP_RAF := {&"beams": [1100.0], &"spectrum": [1400.0], &"icecore": [1100.0], &"tray": [1100.0], &"anomaly": [1100.0], &"pulsar": [1100.0],
-	&"leak": [1000.0, 1050.0], &"torch": [1000.0, 1050.0], &"fourkelvin": [1000.0], &"tuning": [1100.0], &"sling": [1100.0]}
+	&"leak": [1000.0, 1050.0], &"torch": [1000.0, 1050.0], &"fourkelvin": [1000.0], &"tuning": [1100.0], &"sling": [1100.0], &"seismic": [1600.0], &"corescan": [1100.0],
+	&"culture": [1100.0], &"dock": [1000.0, 1050.0]}
 const DUMP_TICKS := {&"beams": [0.1], &"spectrum": [0.4], &"icecore": [0.1], &"tray": [0.1], &"anomaly": [0.1], &"pulsar": [0.1],
-	&"leak": [0.0, 0.05], &"torch": [0.0, 0.05], &"fourkelvin": [0.0], &"tuning": [0.1], &"sling": [0.1]}
+	&"leak": [0.0, 0.05], &"torch": [0.0, 0.05], &"fourkelvin": [0.0], &"tuning": [0.1], &"sling": [0.1], &"seismic": [0.6], &"corescan": [0.1],
+	&"culture": [0.1], &"dock": [0.0, 0.05]}
 
 
 ## Deals into `r`, leaving it where the game's own deal left its stream.
@@ -250,6 +270,14 @@ func _deal_into(id: StringName, r: RandomNumberGenerator) -> void:
 			GameSling.gen(3, r)
 		&"tuning":
 			GameTuning.gen(r, 3)
+		&"seismic":
+			GameSeismic.gen(r, 3, 1)
+		&"corescan":
+			GameCoreScan.gen(r, 3)
+		&"culture":
+			GameCulture.gen(r, 3)
+		&"dock":
+			GameDock.gen(3, 1, r)
 
 
 ## What a frame of each game costs at sector 5 (printed, never asserted: it is the machine's).
@@ -292,11 +320,23 @@ func _tiers() -> void:
 
 
 func _haul() -> void:
-	var ok := true
-	for t in 5:
-		var row := ScienceHaul.row_for(t, &"mining", MiniGames.stream(7))
-		ok = ok and not row.is_empty() and ScienceHaul.TIER_KEYS.find(StringName(row.tier)) <= t
-	_h._ok("every tier pays a material at or under it", ok)
+	# every site group pays a real row of its own source at every tier, at or under the tier
+	for site: StringName in [&"barren", &"belt", &"comet", &"star", &"giant", &"derelict", &"life", &"pulsar"]:
+		var src := ScienceHaul.source_of(site)
+		var ok := true
+		for t in 5:
+			var row := MaterialTable.pick(src, ScienceHaul.tier_key(t), MiniGames.stream(7 + t))
+			ok = ok and not row.is_empty() and StringName(row.get("source", &"")) == src
+			ok = ok and not MaterialTable.by_id(StringName(row.get("id", &""))).is_empty() and MaterialTable.TIERS.find(StringName(row.get("tier", &""))) <= t
+		_h._ok("a haul at a %s site pays a real %s material at every tier, at or under it" % [site, src], ok)
+	var n: MapGen.MapNode = null
+	for raw in Run.map:
+		if (raw as MapGen.MapNode).type == MapGen.NodeType.SYSTEM:
+			n = raw
+			break
+	if n != null:
+		var h := ScienceHaul.pay(3, &"belt", n)
+		_h._ok("pay grants one material by its catalogue name and tier (%s)" % str(h), not h.is_empty() and String(h.name) != "" and StringName(h.tier) in MaterialTable.TIERS)
 
 
 ## The shell round a game: a scripted run through the glass (offset by where the game sits) ends
@@ -314,12 +354,16 @@ func _shell(id: StringName) -> void:
 	var sv := MiniSolver.for_game(g)
 	var mid := Vector2(MiniShell.BUTTON.get_center())
 	var no_leave_in_play := not sh.leave_hit(mid)
+	var low := _lit_low(g)
 	for k in STEPS_MAX:
 		if sh.revealed:
 			break
 		for e in sv.act(g, STEP):
 			_send_glass(sh, e)
 		sh.tick(STEP)
+		if k % 10 == 0:
+			low = maxi(low, _lit_low(g))
+	low = maxi(low, _lit_low(g))
 	Audio.taping = false
 	var names: Array[String] = []
 	for e: Array in Audio.tape:
@@ -340,11 +384,32 @@ func _shell(id: StringName) -> void:
 	_h._ok("%s: the line is the name in its tier's ink, then [TIER] quiet" % id, ink and quiet)
 	_h._ok("%s: GIVE UP becomes LEAVE once the line is in, and only LEAVE leaves" % id,
 		no_leave_in_play and sh.leave_hit(mid) and not sh.leave_hit(Vector2(40, 60)) and not sh.leave_hit(Vector2(4, 134)))
+	_h._ok("%s: nothing lit within 4 rows of the haul line (lowest lit row %d, start to result)" % [id, low], low <= CLEAR_LAST)
 	_h._ok("%s: the strip is the one border colour" % id, sh.glass.get_pixel(1, MiniShell.GH - 1).is_equal_approx(MiniShell.BORDER))
 	var bp := MiniShell.BUTTON.position
 	_h._ok("%s: LEAVE is the kit's normal button (light top, dark foot)" % id,
 		sh.glass.get_pixel(bp.x + 2, bp.y + 1).is_equal_approx(MiniPix.BEVEL_HI) and sh.glass.get_pixel(bp.x + 2, bp.y + 7).is_equal_approx(MiniKit.OFF)
 		and sh.glass.get_pixel(bp.x + 2, bp.y + 4).is_equal_approx(MiniPix.LINE))
+
+
+## The game area every game fills (Jon, Nov 19: no black bars), and the last row anything may light
+## (the haul line is row 132: 4 rows stay clear, Nov 20).
+const AREA := Vector2i(150, 130)
+const CLEAR_LAST := 127
+
+
+## The lowest row of the canvas holding anything brighter than the kit's border colour (a veil over the
+## deck is darker, not lit); a 152-wide canvas is read as shown, without its outer columns.
+static func _lit_low(g: MiniGame) -> int:
+	var img := g.px.img
+	var x0 := 1 if g.px.w == AREA.x + 2 else 0
+	var b := MiniKit.BORDER.r + MiniKit.BORDER.g + MiniKit.BORDER.b + 0.002
+	for y in range(g.px.h - 1, CLEAR_LAST - 2, -1):
+		for x in range(x0, g.px.w - x0):
+			var c := img.get_pixel(x, y)
+			if c.r + c.g + c.b > b:
+				return y
+	return CLEAR_LAST - 2
 
 
 static func _send_glass(sh: MiniShell, e: Dictionary) -> void:

@@ -2,14 +2,16 @@ class_name GameLeak
 extends MiniGame
 
 ## LEAK HUNT (Jon loved, Nov 17): puff smoke in a dead station room, watch where it gets sucked,
-## and patch the hidden hull leak before the air runs out. A port of the approved `wreck3.js`.
-## Its canvas is 152 wide: the glass shows all but a column each side, the view's frame inside it.
+## and patch the hidden hull leak before the air runs out. A port of the approved `wreck3.js` in its
+## approved layout and UI kit (Nov 20). Its canvas is 152 wide: the glass shows all but a column each side.
 ## Why: docs/why/MiniGame.md#the-round-2-games
 
 const PW := 152
 const VH := 92
-const HUD := 26
+const HUD := 38
 const PH := VH + HUD
+## The room's rows: its floor grating runs on under the deck's top rows (the UI kit, Nov 20).
+const ROOM_H := 98
 ## Where a leak can be: the back wall above the consoles.
 const RX0 := 6.0
 const RX1 := 146.0
@@ -30,13 +32,11 @@ const PLANET := Color("#1a2628")
 const PLANET_DK := Color("#0f1719")
 const CABLE_DK := Color("#3e3016")
 const SMOKE_HI := Color("#e6eef6")
-const AIR_LOW := Color("#e07a62")
-const AIR_LOW_DK := Color("#7a2f24")
-const BTN_ON := Color("#3a2416")
-const BTN_ON_DK := Color("#1c120c")
-const BY := VH + 8
-const BHT := 16
-const BUTTONS: Array[Dictionary] = [{id = "smoke", x = 2, w = 44, lab = "SMOKE"}, {id = "patch", x = 48, w = 44, lab = "PATCH"}]
+## SMOKE and PATCH: the kit's large buttons, PATCH right over GIVE UP; x on the canvas (the kit is
+## drawn 1 px in).
+const KB_W := 33
+const KB: Array[Dictionary] = [{id = "smoke", x = 1 + MiniKit.W - MiniKit.GUT - KB_W - MiniKit.GAP - KB_W, lab = "SMOKE"},
+	{id = "patch", x = 1 + MiniKit.W - MiniKit.GUT - KB_W, lab = "PATCH"}]
 
 var P: Dictionary = {}
 var S: Dictionary = {}
@@ -51,6 +51,8 @@ var junk: Array = []
 var motes: Array = []
 var _room: Image
 var _finish_at := -1.0
+## The kit's 150-wide layer, laid 1 px in.
+var _kit_px: MiniPix
 var _acc := 0.0
 
 
@@ -218,9 +220,9 @@ func _mount() -> void:
 ## The room, drawn once: panels lit by the emergency lamp, the pipe, the dead screen, the porthole,
 ## a hanging cable, consoles, a tipped chair.
 func _draw_room() -> Image:
-	var s := MiniPix.new(PW, VH)
+	var s := MiniPix.new(PW, ROOM_H)
 	var lamp := Vector2(14, 6)
-	for y in VH:
+	for y in ROOM_H:
 		for x in PW:
 			var c := 2
 			if y < 5:
@@ -313,24 +315,9 @@ func _porthole(s: MiniPix, po: Vector2i, r: int) -> void:
 				s.dot(xx, yy, M[0])
 
 
-func _banner(y: int, big: String, ctrls: Array[String], tt: float) -> void:
-	var iw := -3
-	for k in ctrls:
-		iw += (13 if k == "click" else (21 if k == "hold" else 22)) + 3
-	var w := maxi(big.length() * 4 - 1, iw) + 10
-	var x := int(floorf(PW / 2.0 - w / 2.0))
-	px.rect(x, y, w, 27, MiniPix.BEVEL_LO)
-	px.rect(x + 1, y + 1, w - 2, 25, MiniPix.PANEL)
-	px.rect(x + 1, y + 1, w - 2, 1, MiniPix.BEVEL_HI)
-	px.text(big, PW / 2, y + 4, MiniPix.HOT, "center")
-	var ix := int(floorf(PW / 2.0 - iw / 2.0))
-	for k in ctrls:
-		ix += px.icon(k, ix, y + 12, tt) + 3
-
-
 func _draw() -> void:
 	var tt: float = S.t
-	px.img.blit_rect(_room, Rect2i(0, 0, PW, VH), Vector2i.ZERO)
+	px.img.blit_rect(_room, Rect2i(0, 0, PW, ROOM_H), Vector2i.ZERO)
 	if sin(tt * 7.0) + sin(tt * 13.3) > 1.6:
 		for y in range(5, 40):
 			for x in 50:
@@ -363,19 +350,16 @@ func _draw() -> void:
 			var y := MiniPix.jr(float(f.y) + sin(aa) * r)
 			if bt(x, y) < 1.0 - k:
 				px.dot(x, y, MiniPix.GOOD if f.ok else MiniPix.BAD)
-	for c: Vector4i in [Vector4i(1, 1, 1, 1), Vector4i(PW - 2, 1, -1, 1), Vector4i(1, VH - 2, 1, -1), Vector4i(PW - 2, VH - 2, -1, -1)]:
+	for c: Vector4i in [Vector4i(1, 11, 1, 1), Vector4i(PW - 2, 11, -1, 1), Vector4i(1, 96, 1, -1), Vector4i(PW - 2, 96, -1, -1)]:
 		for i in 5:
 			px.dot(c.x + c.z * i, c.y, M[6])
 			px.dot(c.x, c.y + c.w * i, M[6])
-	px.text("DRONE 2", 4, VH - 8, M[6])
-	if not int(S.puffs) and not S.over:
-		_banner(26, "PATCH THE LEAK", ["click"], tt)
 	if mode == "patch" and not S.over:
 		for x in range(2, PW - 2):
 			if bt(x, 0) < 0.5:
-				px.dot(x, 1, MiniPix.EMBER)
-				px.dot(x, VH - 2, MiniPix.EMBER)
-	_draw_strip()
+				px.dot(x, 11, MiniPix.EMBER)
+				px.dot(x, 96, MiniPix.EMBER)
+	_kit(tt)
 	dirty = true
 
 
@@ -460,58 +444,38 @@ func _draw_smoke() -> void:
 			px.dot(x, y, MiniPix.CHILL)
 
 
-## The control strip: SMOKE and PATCH (the patches left), AIR, the status.
-func _draw_strip() -> void:
-	px.rect(0, VH, PW, HUD, MiniPix.PANEL)
-	px.rect(0, VH, PW, 1, MiniPix.BEVEL_HI)
-	px.rect(0, VH + 1, PW, 1, MiniPix.BEVEL_LO)
-	for b in BUTTONS:
-		var on: bool = mode == b.id
-		var bx: int = b.x
-		var bw: int = b.w
-		px.rect(bx, BY, bw, BHT, M[0])
-		px.rect(bx + 1, BY + 1, bw - 2, BHT - 2, BTN_ON if on else M[4])
-		px.rect(bx + 1, BY + 1, bw - 2, 1, MiniPix.EMBER if on else M[6])
-		px.rect(bx + 1, BY + 1, 1, BHT - 2, MiniPix.EMBER if on else M[6])
-		px.rect(bx + 1, BY + BHT - 2, bw - 2, 1, BTN_ON_DK if on else M[2])
-		px.rect(bx + bw - 2, BY + 1, 1, BHT - 2, BTN_ON_DK if on else M[2])
-		var ox := bx + bw / 2
-		var oy := BY + 8
-		if b.id == "smoke":
-			for c: Vector3i in [Vector3i(-5, 1, 3), Vector3i(0, -1, 4), Vector3i(5, 1, 3), Vector3i(2, 2, 3)]:
-				for yy in range(-c.z, c.z + 1):
-					for xx in range(-c.z, c.z + 1):
-						if xx * xx + yy * yy > c.z * c.z:
-							continue
-						px.dot(ox + c.x + xx, oy + c.y + yy, MiniPix.ICE if xx + yy < -1 else MiniPix.CHILL)
-			for k in 4:
-				px.dot(ox - 10 + k, oy + 4 - k % 2, M[6])
-		else:
-			var nn := int(P.patches) - int(S.used)
-			var x0 := ox - 12
-			var y0 := oy - 5
-			for j in 10:
-				for i in 10:
-					var e := i == 0 or j == 0 or i == 9 or j == 9
-					px.dot(x0 + i, y0 + j, (M[7] if i == 0 or j == 0 else M[0]) if e else M[5])
-			for q: Vector2i in [Vector2i(2, 2), Vector2i(7, 2), Vector2i(2, 7), Vector2i(7, 7)]:
-				px.dot(x0 + q.x, y0 + q.y, M[8])
-			for i in nn:
-				px.rect(ox + 2 + i * 4, oy - 2, 3, 5, MiniPix.HOT if on else MiniPix.FLARE)
-	px.text("AIR", 97, VH + 5, MiniPix.CHILL)
-	var aw := 36
-	px.rect(111, VH + 4, aw + 2, 7, MiniPix.BEVEL_LO)
-	px.rect(112, VH + 5, aw, 5, MiniPix.LINE)
-	var air: float = S.air
-	var fw := MiniPix.jr(aw * air)
-	for i in fw:
-		px.dot(112 + i, VH + 5, AIR_LOW if air < 0.25 else MiniPix.ICE)
-		for j in range(1, 5):
-			px.dot(112 + i, VH + 5 + j, (AIR_LOW_DK if air < 0.25 else MiniPix.COLD) if j == 4 else (MiniPix.BAD if air < 0.25 else MiniPix.CHILL))
+## The kit over the room, on a 150-wide layer laid 1 px in: the header (DRONE 2, PUFFS, PATCHES
+## left), the tell card, the deck with the status line, AIR, and SMOKE / PATCH (the mode amber).
+func _kit(tt: float) -> void:
+	if _kit_px == null:
+		_kit_px = MiniPix.new(MiniKit.W, MiniKit.H)
+	var k := _kit_px
+	k.clear(Color(0, 0, 0, 0))
+	var cy := MiniKit.CTRL_CY
+	var left := int(P.patches) - int(S.used)
+	var low: bool = float(S.air) < 0.25
+	MiniKit.header(k, "DRONE 2", [["PUFFS", int(S.puffs)], ["PATCHES", left, null if left else "bad"]])
+	if not int(S.puffs) and not S.over:
+		MiniKit.tell(k, "PATCH THE LEAK.", ["click"] as Array[String], tt)
+	MiniKit.deck(k, true)
+	k.text("AIR", MiniKit.GUT, cy - 6, MiniPix.BAD if low else MiniKit.LABEL)
+	MiniKit.meter(k, MiniKit.GUT, cy, int(KB[0].x) - 1 - MiniKit.GAP - MiniKit.GUT, S.air, "bad" if low else "neutral")
+	for b: Dictionary in KB:
+		var dis: bool = S.over or (b.id == "patch" and not left)
+		var st := "disabled" if dis else ("active" if mode == b.id else "normal")
+		MiniKit.button(k, int(b.x) - 1, MiniKit.BTN_YL, KB_W, MiniKit.BTN_HL, b.lab, st, b.id)
 	if status_t > 0.0 or S.over:
-		px.text(status, PW - 3, VH + 15, status_col, "right")
-	else:
-		px.text("PUFFS %d" % int(S.puffs), PW - 3, VH + 15, M[6], "right")
+		var kind := "good" if status_col == MiniPix.GOOD else ("bad" if status_col == MiniPix.BAD else "neutral")
+		MiniKit.status(k, status, kind, true)
+	px.blit(k.img, 1, 0)
+
+
+## The canvas point at the middle of button `id` (a scripted tap).
+static func btn(bid: String) -> Vector2i:
+	for b: Dictionary in KB:
+		if b.id == bid:
+			return Vector2i(int(b.x) + (KB_W >> 1), MiniKit.BTN_YL + (MiniKit.BTN_HL >> 1))
+	return Vector2i.ZERO
 
 
 func _say(txt: String, c: Color, sec: float = 2.0) -> void:
@@ -602,12 +566,14 @@ func down(_p: Vector2i) -> void:
 		return
 	var x := pf.x
 	var y := pf.y
-	if y >= VH:
-		for b in BUTTONS:
-			if x >= int(b.x) and x < int(b.x) + int(b.w) and y >= BY - 1 and y <= BY + BHT:
+	if y >= MiniKit.deck_y(true):
+		for b: Dictionary in KB:
+			var by := MiniKit.BTN_YL
+			if x >= int(b.x) and x < int(b.x) + KB_W and y >= by and y < by + MiniKit.BTN_HL \
+					and not (b.id == "patch" and int(S.used) >= int(P.patches)):
 				mode = b.id
 		return
-	if y < 5 or y >= 78:
+	if y < MiniKit.PLAY_Y or y >= 78:
 		return
 	if mode == "smoke":
 		sfx(&"puff")

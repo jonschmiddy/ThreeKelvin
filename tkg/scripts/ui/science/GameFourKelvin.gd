@@ -6,9 +6,11 @@ extends MiniGame
 ## A and D turn; touch has the three buttons under the view.
 ## Why: docs/why/MiniGame.md#the-round-2-games
 
-const W := 140
-const H := 112
-## View: HUD rows 0 to 9, the belt 10 to 91, the bar 93 to 95, buttons 96 to 111.
+const W := MiniKit.W
+const H := MiniKit.H
+## The deal's view width: the belt is laid out as the 140 px prototype's (fit4 widened only the view).
+const GENW := 140
+## View: kit header rows 0 to 9, the belt 10 to 91, the progress bar 94 and 95, the kit deck 98 to 129.
 const VY := 10
 const BH := 82
 const SHIPX := 46
@@ -35,11 +37,9 @@ const HULL: Array[Color] = [MiniPix.BEVEL_HI, MiniPix.COLD, MiniPix.CHILL, MiniP
 const TIER_HI: Array[Color] = [Color("#d8dde2"), Color("#b6f0cf"), Color("#c8dcf5"), Color("#d6b8f5"), Color("#ffe0a0")]
 const M4: Array[int] = [0, 2, 3, 1]
 const CRACK: Array[Vector2] = [Vector2(-0.8, -1.5), Vector2(-0.2, -0.5), Vector2(-1, 0.5)]
-const ICON := {
-	"l": ["...###...", "..#...#..", ".#.....#.", "#.......#", "#.......#", "#........", "###......", ".##......", "..#......"],
-	"r": ["...###...", "..#...#..", ".#.....#.", "#.......#", "#.......#", "........#", "......###", "......##.", "......#.."],
-}
-const BTN := {"a": Rect2i(2, 97, 20, 13), "d": Rect2i(25, 97, 20, 13), "w": Rect2i(W - 44, 97, 42, 13)}
+const BTN := {"a": Rect2i(MiniKit.GUT, MiniKit.BTN_YL, 25, MiniKit.BTN_HL), "d": Rect2i(MiniKit.GUT + 25 + MiniKit.GAP, MiniKit.BTN_YL, 25, MiniKit.BTN_HL),
+	"w": Rect2i(W - MiniKit.GUT - 45, MiniKit.BTN_YL, 45, MiniKit.BTN_HL)}
+const BTN_ICON := {"a": "ccw", "d": "cw", "w": "thrust"}
 const SEGW := 7
 const SHIELD_DK := Color("#3f5f8a")
 const HULL_DK := Color("#4f7a63")
@@ -144,7 +144,7 @@ static func cen(nodes: PackedFloat64Array, x: float) -> float:
 static func gen(r: RandomNumberGenerator, d: int) -> Dictionary[String, Variant]:
 	var c: Dictionary = CFG[d]
 	var target: float = c.len
-	var ln := target + W + 40
+	var ln := target + GENW + 40
 	var hw: float = c.hw
 	var nodes := PackedFloat64Array()
 	var y := BH / 2.0
@@ -654,25 +654,6 @@ func _render() -> void:
 	dirty = true
 
 
-func _btn(r: Rect2i, lit: bool, edge: Color, label: String) -> void:
-	px.rect(r.position.x - 1, r.position.y - 1, r.size.x + 2, r.size.y + 2, MiniPix.BEVEL_LO)
-	px.rect(r.position.x, r.position.y, r.size.x, r.size.y, MiniPix.LINE if lit else MiniPix.VOID)
-	px.rect(r.position.x, r.position.y, r.size.x, 1, edge)
-	px.rect(r.position.x, r.end.y - 1, r.size.x, 1, edge)
-	px.rect(r.position.x, r.position.y, 1, r.size.y, edge)
-	px.rect(r.end.x - 1, r.position.y, 1, r.size.y, edge)
-	if ICON.has(label):
-		var m: Array = ICON[label]
-		var ix := r.position.x + (r.size.x - 9) / 2
-		var iy := r.position.y + (r.size.y - 9) / 2
-		for row in 9:
-			for col in 9:
-				if String(m[row])[col] == "#":
-					px.dot(ix + col, iy + row, MiniPix.HOT if lit else edge)
-	else:
-		px.text(label, r.position.x + r.size.x / 2, r.position.y + (r.size.y - 5) / 2, MiniPix.HOT if lit else MiniPix.ICE, "center")
-
-
 func _cell_x(i: int) -> int:
 	return i * (SEGW + 1) + (2 if i >= HULLN else 0)
 
@@ -699,54 +680,36 @@ func _hull_bar(x: int, y: int) -> void:
 
 
 func _hud() -> void:
-	px.rect(0, 0, W, 9, MiniPix.PANEL)
-	px.rect(0, 9, W, 1, MiniPix.BEVEL_HI)
 	var fresh := clock - hit_t < 0.9 and int(floorf((clock - hit_t) * 10.0)) % 2 == 0
-	px.text("HULL", 2, 2, MiniPix.HOT if fresh else MiniPix.COLD)
-	_hull_bar(19, 1)
-	px.text("%04dM" % int(floorf(_dist() * 5.0)), W - 2, 2, MiniPix.HOT, "right")
-	px.rect(0, 92, W, H - 92, MiniPix.PANEL)
-	px.rect(0, 92, W, 1, MiniPix.BEVEL_HI)
+	var sp := MiniKit.header(px, {label = "HULL", kind = "bad" if fresh else ""}, [["DIST", "%04dM" % int(floorf(_dist() * 5.0))]])
+	_hull_bar(sp.x, 1)
+	var dk := MiniKit.deck_y(true)
+	var by := VY + BH + 2
+	px.rect(0, VY + BH, W, dk - VY - BH, MiniPix.PANEL)
 	var f := minf(1.0, _dist() / float(F.target))
-	var bw := W - 4
-	px.rect(2, 94, bw, 1, MiniPix.LINE)
-	px.rect(2, 94, MiniPix.jr(bw * f), 1, MiniPix.CHILL)
-	px.rect(2 + MiniPix.jr(bw * f), 94, 1, 1, MiniPix.HOT)
-	_btn(BTN.a, _want("a"), MiniPix.WARN, "l")
-	_btn(BTN.d, _want("d"), MiniPix.WARN, "r")
-	_btn(BTN.w, _want("w"), MiniPix.ICE, "THRUST")
-	var ex := 50
-	var ew := W - 44 - 6 - ex
-	px.rect(ex, 96, ew, 15, MiniPix.BEVEL_LO)
-	px.rect(ex + 1, 97, ew - 2, 13, MiniPix.VOID)
-	px.text("ENERGY", ex + ew / 2, 98, MiniPix.COLD, "center")
-	for i in 4:
-		px.rect(ex + ew / 2 - 8 + i * 4, 105, 3, 3, MiniPix.EMBER)
+	var bw := W - 2 * MiniKit.GUT
+	px.rect(MiniKit.GUT, by, bw, 2, MiniPix.LINE)
+	px.rect(MiniKit.GUT, by, MiniPix.jr(bw * f), 2, MiniPix.CHILL)
+	px.rect(MiniKit.GUT + MiniPix.jr(bw * f), by, 1, 2, MiniPix.HOT)
+	MiniKit.deck(px, true)
+	for k: String in ["a", "d", "w"]:
+		var r: Rect2i = BTN[k]
+		var st := "disabled" if mode == "end" else ("pressed" if _want(k) else "normal")
+		var ic: String = BTN_ICON[k]
+		MiniKit.button(px, r.position.x, r.position.y, r.size.x, r.size.y, "THRUST" if k == "w" else "", st, ic)
+	# ENERGY: always full, never used
+	var rd: Rect2i = BTN.d
+	var rw: Rect2i = BTN.w
+	var ex := rd.end.x + MiniKit.GAP
+	var ew := rw.position.x - MiniKit.GAP - ex
+	px.text("ENERGY", ex, MiniKit.CTRL_CY - 6, MiniKit.LABEL)
+	MiniKit.meter(px, ex, MiniKit.CTRL_CY, ew, 1.0, "yours")
 	if mode == "ready":
-		var y := _box(["FLY THE SHIP.", "GET THE ORE."], [MiniPix.HOT, MiniPix.HOT], 24, Vector2i(-1, -1))
-		px.icon("keys", (W - 30) / 2, y + 30, clock, "WAD")
+		MiniKit.tell(px, "FLY THE SHIP.", ["keys:WAD"] as Array[String], clock)
 	elif mode == "end":
-		var tag := _intent_tag()
+		_intent_tag()
 		if end_t > (1.0 if crashed else 0.5):
-			_end_box(tag)
-
-
-func _end_box(tag: Dictionary) -> void:
-	var lines: Array[String] = ["IMPACT" if crashed else "BELT CLEAR"]
-	var at := Vector2i(-1, -1)
-	if not tag.is_empty():
-		var w := lines[0].length() * 4 - 1 + 14
-		var h := lines.size() * 8 + 8
-		var tr: Rect2i = tag.box
-		var rock := Rect2i(tag.rx, tag.ry, tag.rw, tag.rw)
-		var mid := VY + (BH - h) / 2
-		for c: Vector2i in [Vector2i((W - w) / 2, mid), Vector2i(W - w - 2, mid), Vector2i(W - w - 2, VY + 3), Vector2i(W - w - 2, VY + BH - h - 2),
-				Vector2i((W - w) / 2, VY + BH - h - 2), Vector2i((W - w) / 2, VY + 3), Vector2i(2, VY + 3), Vector2i(2, VY + BH - h - 2)]:
-			var r := Rect2i(c.x, c.y, w, h)
-			if not r.intersects(tr) and not r.intersects(rock):
-				at = c + Vector2i.ONE
-				break
-	_box(lines, [MiniPix.BAD if crashed else MiniPix.GOOD], 0, at)
+			MiniKit.status(px, "IMPACT" if crashed else "BELT CLEAR", "bad" if crashed else "good", true)
 
 
 ## A WARNING tag over the rock that did it, raised once it is far too late (Jon, Nov 17).
@@ -775,25 +738,6 @@ func _intent_tag() -> Dictionary[String, Variant]:
 	px.rect(tx, y + h + 1 if up_ else y - 3, 1, 2, MiniPix.THEM)
 	out.assign({box = Rect2i(x - 1, y - 1, w + 2, h + 2), rx = sx - r, ry = sy - r, rw = 2 * r + 1})
 	return out
-
-
-func _box(lines: Array, cols: Array, extra: int, at: Vector2i) -> int:
-	var w := 0
-	for l: String in lines:
-		w = maxi(w, l.length() * 4 - 1)
-	w += 12
-	var h: int = lines.size() * 8 + 6 + extra
-	var x := at.x if at.x >= 0 else (W - w) / 2
-	var y := at.y if at.x >= 0 else VY + (BH - h) / 2
-	px.rect(x - 1, y - 1, w + 2, h + 2, MiniPix.BEVEL_LO)
-	px.rect(x, y, w, h, MiniPix.PANEL)
-	px.rect(x, y, w, 1, MiniPix.BEVEL_HI)
-	px.rect(x, y, 1, h, MiniPix.BEVEL_HI)
-	px.rect(x, y + h - 1, w, 1, MiniPix.LINE)
-	px.rect(x + w - 1, y, 1, h, MiniPix.LINE)
-	for i in lines.size():
-		px.text(lines[i], x + w / 2, y + 4 + i * 8, cols[i], "center")
-	return y
 
 
 # ---------------------------------------------------------------- input

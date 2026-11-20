@@ -2,8 +2,8 @@ class_name GameSpectrum
 extends MiniGame
 
 ## STAR LIGHT (Jon, Nov 17: "a delight"): switch gas tubes on until your light matches the star's,
-## line for line. A port of the approved `spectrum2.js` in the layout Jon picked to fit the glass
-## (Nov 19, "fit2"): a tighter header, the meter carrying MATCH!, the tubes' rows kept at 13 px.
+## line for line. A port of the approved `spectrum2.js` as fit4 laid it out (fit2 taken to every tube
+## count: the rows share 85 px) and dressed in the kit (Nov 20): MATCH meter in the header, status in the deck.
 ## Why: docs/why/MiniGame.md#beams-and-spectrum-on-the-glass
 
 const BINS := 21
@@ -14,21 +14,24 @@ const CFG := {
 	4: {tray = 6, pick = 3, lines = [2, 4], overlap = true},
 	5: {tray = 7, pick = 3, lines = [3, 4], overlap = true},
 }
-const W := 150
+const W := MiniKit.W
+const H := MiniKit.H
 const SX := 21
 const BW := 6
 const SW := BINS * BW
-const ROW := 13
-const TY := 40
-const MY := 31
+## The tube rows share rows 36 to 120; a strip is up to 14 tall, centred in its row.
+const ROWS_Y := 36
+const ROWS_H := 85
 const DARK := Color("#151c26")
 const DARK2 := Color("#0b0f15")
 const BROKEN_LINE := Color("#1f2935")
-const INK := Color("#0a0e15")
 
 var P: Dictionary = {}
 var T := 3
-var H := 80
+var ROW := 13
+var TY := 36
+var SH := 8
+var OY := 0
 var on := 0
 var over := false
 var toggles := 0
@@ -195,14 +198,17 @@ func _now() -> float:
 func _mount() -> void:
 	P = gen(rng, depth)
 	if P.is_empty():
-		px = MiniPix.new(W, 80)
+		px = MiniPix.new(W, H)
 		push_error("GameSpectrum: no puzzle at depth %d" % depth)
 		over = true
 		done(0.0, "No puzzle")
 		return
 	var tray: Array = P.tray
 	T = tray.size()
-	H = TY + T * ROW - 1
+	ROW = ROWS_H / T
+	TY = ROWS_Y + ((ROWS_H - T * ROW) >> 1)
+	SH = mini(ROW - 5, 14)
+	OY = (ROW - SH - 5) >> 1
 	px = MiniPix.new(W, H)
 	hues.assign([MiniPix.TIERS[3], MiniPix.TIERS[2], MiniPix.TRACTOR, MiniPix.TIERS[1], MiniPix.HOT, MiniPix.FLARE, MiniPix.BAD])
 	var gas: Array[Color] = [MiniPix.BAD, MiniPix.HOT, MiniPix.FLARE, MiniPix.TIERS[3], MiniPix.TRACTOR, MiniPix.TIERS[4], MiniPix.ICE, MiniPix.TIERS[2]]
@@ -248,14 +254,12 @@ func _strip(b: MiniPix, y: int, h: int) -> void:
 func _draw_bg() -> Image:
 	var b := MiniPix.new(W, H)
 	b.rect(0, 0, W, H, MiniPix.PANEL)
-	_strip(b, 2, 10)
-	_strip(b, 17, 10)
-	b.text("STAR", 2, 5, MiniPix.CHILL)
-	b.text("YOU", 2, 20, MiniPix.CHILL)
+	_strip(b, 12, 8)
+	_strip(b, 25, 8)
+	b.text("STAR", 2, 14, MiniPix.CHILL)
+	b.text("YOU", 2, 27, MiniPix.CHILL)
 	for i in T:
-		_strip(b, TY + i * ROW + 2, 8)
-	b.rect(0, TY - 3, W, 1, MiniPix.BEVEL_LO)
-	b.rect(0, TY - 2, W, 1, MiniPix.BEVEL_HI)
+		_strip(b, TY + i * ROW + OY + 2, SH)
 	return b.img
 
 
@@ -275,48 +279,53 @@ func _draw_line(x: int, y: int, h: int, col: Color, glow: float, bright: bool) -
 	px.rect(x, y, 1, h, Color.WHITE if bright else MiniPix.mix(col, Color.WHITE, 0.3))
 
 
+## A gas tube SH + 1 rows tall: caps, glass, the gas lit or dark, cracked if broken, warn corners if locked.
 func _tube(i: int, x: int, y: int, now: float) -> void:
 	var lit := (on >> i) & 1
 	var gc := gas_of[i]
+	var th := SH + 1
+	var cm := (th - 1) / 2.0
+	var cr := (th - 2) * 1.5 / 7.0
+	var cy := (th - 9) >> 1
 	if lit:
 		var fl := 0.35 + 0.15 * sin(now / 90.0 + i * 2)
 		var gd := MiniPix.mix(gc, Color.BLACK, 0.4)
 		for xx in range(x - 1, x + 18):
 			if MiniPix.bay(xx, y - 1) < fl:
 				px.dot(xx, y - 1, gd)
-			if MiniPix.bay(xx, y + 9) < fl:
-				px.dot(xx, y + 9, gd)
-	px.rect(x, y + 1, 3, 7, Color.BLACK)
-	px.rect(x + 1, y + 2, 2, 5, MiniPix.COLD)
-	px.rect(x + 1, y + 2, 1, 5, MiniPix.CHILL)
-	px.rect(x + 15, y + 1, 3, 7, Color.BLACK)
-	px.rect(x + 15, y + 2, 2, 5, MiniPix.COLD)
+			if MiniPix.bay(xx, y + th) < fl:
+				px.dot(xx, y + th, gd)
+	px.rect(x, y + 1, 3, th - 2, Color.BLACK)
+	px.rect(x + 1, y + 2, 2, th - 4, MiniPix.COLD)
+	px.rect(x + 1, y + 2, 1, th - 4, MiniPix.CHILL)
+	px.rect(x + 15, y + 1, 3, th - 2, Color.BLACK)
+	px.rect(x + 15, y + 2, 2, th - 4, MiniPix.COLD)
 	px.rect(x + 15, y + 2, 1, 1, MiniPix.CHILL)
 	px.rect(x + 3, y, 12, 1, Color.BLACK)
-	px.rect(x + 3, y + 8, 12, 1, Color.BLACK)
+	px.rect(x + 3, y + th - 1, 12, 1, Color.BLACK)
 	if lit:
 		var hi := MiniPix.mix(gc, Color.WHITE, 0.55)
 		var lo := MiniPix.mix(gc, Color.BLACK, 0.3)
 		var sh := int(floorf(now / 70.0))
 		for xx in 12:
-			for j in range(1, 8):
-				var core := j >= 3 and j <= 5
+			for j in range(1, th - 1):
+				var core := absf(j - cm) <= cr
 				var f := MiniPix.bay(x + 3 + xx + sh, y + j)
 				px.dot(x + 3 + xx, y + j, (Color.WHITE if f < 0.5 else hi) if core else (gc if f < 0.6 else lo))
 		px.rect(x + 4, y + 1, 10, 1, MiniPix.mix(gc, Color.WHITE, 0.7))
 	else:
-		px.rect(x + 3, y + 1, 12, 7, DARK)
+		px.rect(x + 3, y + 1, 12, th - 2, DARK)
 		px.rect(x + 4, y + 1, 10, 1, MiniPix.BEVEL_HI)
-		px.rect(x + 4, y + 6, 10, 1, MiniPix.mix(gc, Color.BLACK, 0.7))
-		px.rect(x + 6, y + 4, 6, 1, DARK2)
+		px.rect(x + 4, y + th - 3, 10, 1, MiniPix.mix(gc, Color.BLACK, 0.7))
+		px.rect(x + 6, y + (th >> 1), 6, 1, DARK2)
 	if broken.has(i):
-		px.rect(x + 3, y + 1, 12, 7, DARK2)
-		px.rect(x + 6, y + 1, 1, 2, MiniPix.CHILL)
-		px.rect(x + 7, y + 3, 1, 2, MiniPix.CHILL)
-		px.rect(x + 8, y + 5, 1, 1, MiniPix.CHILL)
-		px.rect(x + 9, y + 6, 2, 1, MiniPix.CHILL)
+		px.rect(x + 3, y + 1, 12, th - 2, DARK2)
+		px.rect(x + 6, y + cy + 1, 1, 2, MiniPix.CHILL)
+		px.rect(x + 7, y + cy + 3, 1, 2, MiniPix.CHILL)
+		px.rect(x + 8, y + cy + 5, 1, 1, MiniPix.CHILL)
+		px.rect(x + 9, y + cy + 6, 2, 1, MiniPix.CHILL)
 	if locked.has(i):
-		for q: Vector2i in [Vector2i(1, 0), Vector2i(16, 0), Vector2i(1, 8), Vector2i(16, 8)]:
+		for q: Vector2i in [Vector2i(1, 0), Vector2i(16, 0), Vector2i(1, th - 1), Vector2i(16, th - 1)]:
 			px.dot(x + q.x, y + q.y, MiniPix.WARN)
 
 
@@ -327,25 +336,27 @@ func _render(now: float) -> void:
 	for bn in BINS:
 		if (target >> bn) & 1:
 			var m := (mine >> bn) & 1
-			_draw_line(line_x(bn), 2, 10, _bin_col(bn), 0.7 if m else 0.35, won != 0.0 or (m and land_t.has(bn) and now - float(land_t[bn]) < 250.0))
+			_draw_line(line_x(bn), 12, 8, _bin_col(bn), 0.7 if m else 0.35, won != 0.0 or (m and land_t.has(bn) and now - float(land_t[bn]) < 250.0))
 	_mine(mine, target, now)
 	_flying(now)
-	_meter(mine, target)
+	var cnt := _counts(mine, target)
+	_header(cnt)
 	var tray: Array = P.tray
 	for i in T:
-		var y := TY + i * ROW
+		var y := TY + i * ROW + OY
 		var lit := (on >> i) & 1
 		_tube(i, 1, y + 1, now)
 		for bn: int in tray[i]:
 			var x := line_x(bn)
 			if broken.has(i):
-				px.rect(x, y + 4, 2, 4, BROKEN_LINE)
+				px.rect(x, y + 2 + (SH >> 2), 2, SH >> 1, BROKEN_LINE)
 				continue
-			_draw_line(x, y + 2, 8, _bin_col(bn), 0.5 if lit else 0.0, false)
+			_draw_line(x, y + 2, SH, _bin_col(bn), 0.5 if lit else 0.0, false)
 			if not lit:
-				px.rect(x, y + 2, 2, 8, MiniPix.mix(_bin_col(bn), Color.BLACK, 0.55))
-	if not toggles and not over and now - 1000.0 < 4500.0:
-		_card(SX - 2, 18, SW + 4, "MATCH THE STAR.", (now - 1000.0) / 1000.0)
+				px.rect(x, y + 2, 2, SH, MiniPix.mix(_bin_col(bn), Color.BLACK, 0.55))
+	_deck(cnt)
+	if not toggles and not over:
+		MiniKit.tell(px, "MATCH THE STAR.", ["click"] as Array[String], (now - 1000.0) / 1000.0)
 	dirty = true
 
 
@@ -357,15 +368,15 @@ func _mine(mine: int, target: int, now: float) -> void:
 		var x := line_x(bn)
 		var age := now - float(land_t[bn]) if land_t.has(bn) else 999.0
 		if (target >> bn) & 1:
-			_draw_line(x, 17, 10, _bin_col(bn), 0.6, won != 0.0 or age < 250.0)
-			px.rect(x, 13, 2, 1, MiniPix.GOOD)
-			px.rect(x, 15, 2, 1, MiniPix.GOOD)
-			px.rect(x, 14, 2, 1, Color.WHITE if age < 300.0 else MiniPix.GOOD)
+			_draw_line(x, 25, 8, _bin_col(bn), 0.6, won != 0.0 or age < 250.0)
+			px.rect(x, 21, 2, 1, MiniPix.GOOD)
+			px.rect(x, 23, 2, 1, MiniPix.GOOD)
+			px.rect(x, 22, 2, 1, Color.WHITE if age < 300.0 else MiniPix.GOOD)
 		else:
 			var wob := MiniPix.jr(sin(age / 40.0)) if age < 400.0 else 0
-			_draw_line(x + wob, 17, 10, _bin_col(bn), 0.0, false)
-			px.rect(x - 1 + wob, 16, 4, 1, MiniPix.BAD)
-			px.rect(x - 1 + wob, 27, 4, 1, MiniPix.BAD)
+			_draw_line(x + wob, 25, 8, _bin_col(bn), 0.0, false)
+			px.rect(x - 1 + wob, 24, 4, 1, MiniPix.BAD)
+			px.rect(x - 1 + wob, 33, 4, 1, MiniPix.BAD)
 
 
 func _flying(now: float) -> void:
@@ -380,52 +391,47 @@ func _flying(now: float) -> void:
 			continue
 		keep.push_front(f)
 		var y0: float = f.y0
-		var y := MiniPix.jr(y0 + (17.0 - y0) * u * u if f.up else 17.0 + (y0 - 17.0) * u)
-		var h := 10 - MiniPix.jr(2.0 * (1.0 - u)) if f.up else maxi(1, 10 - MiniPix.jr(8.0 * u))
+		var y := MiniPix.jr(y0 + (25.0 - y0) * u * u if f.up else 25.0 + (y0 - 25.0) * u)
+		var h := 8 - MiniPix.jr(2.0 * (1.0 - u)) if f.up else maxi(1, 8 - MiniPix.jr(6.0 * u))
 		_draw_line(line_x(f.bin), y, h, _bin_col(f.bin), 0.0, true)
 	fly = keep
 
 
-## The match meter, 5 px: its dividers drop once it is full, so MATCH! on it reads clean.
-func _meter(mine: int, target: int) -> void:
-	var tgt: Array[int] = []
-	for bn in BINS:
-		if (target >> bn) & 1:
-			tgt.append(bn)
-	var matched := tgt.filter(func(bn: int) -> bool: return (mine >> bn) & 1).size()
+## The lines so far: x the star's matched, y extras of yours, z the star's count.
+static func _counts(mine: int, target: int) -> Vector3i:
+	var n := 0
+	var matched := 0
 	var extras := 0
 	for bn in BINS:
-		if (mine >> bn) & 1 and not ((target >> bn) & 1):
+		var a := (mine >> bn) & 1
+		if (target >> bn) & 1:
+			n += 1
+			matched += a
+		elif a:
 			extras += 1
-	var frac := maxf(0.0, matched - extras) / tgt.size()
-	var mx := SX
-	var mw := SW
-	px.rect(mx - 1, MY - 1, mw + 2, 7, Color.BLACK)
-	px.rect(mx, MY, mw, 5, MiniPix.VOID)
-	var fw := MiniPix.jr(mw * frac)
-	var mcol := MiniPix.GOOD if frac == 1.0 and not extras else (MiniPix.FLARE if extras else MiniPix.TIERS[1])
-	var top := MiniPix.mix(mcol, Color.WHITE, 0.5)
-	var bot := MiniPix.mix(mcol, Color.BLACK, 0.35)
-	for y in 5:
-		px.rect(mx, MY + y, fw, 1, top if y == 0 else (bot if y > 3 else mcol))
-	if not (frac == 1.0 and not extras):
-		for k in range(1, tgt.size()):
-			px.rect(mx + MiniPix.jr(mw * float(k) / tgt.size()), MY, 1, 5, Color.BLACK)
-	px.text("%d%%" % MiniPix.jr(frac * 100.0), mx + mw - 2, MY, INK if frac > 0.55 else MiniPix.ICE, "right")
+	return Vector3i(matched, extras, n)
+
+
+## The kit header: the MATCH meter left, the switch count right.
+func _header(cnt: Vector3i) -> void:
+	var frac := maxf(0.0, cnt.x - cnt.y) / cnt.z
+	var full := frac == 1.0 and not cnt.y
+	MiniKit.header(px, {label = "MATCH", meter = {w = 53, frac = frac, kind = "good" if full else "neutral"},
+		value = "%d%%" % MiniPix.jr(frac * 100.0), vkind = "good" if full else ""}, [["SWITCHES", toggles]])
+
+
+## The kit deck: the status line only (the tubes are the controls).
+func _deck(cnt: Vector3i) -> void:
+	MiniKit.deck(px, false)
 	if won != 0.0:
-		px.text("MATCH!", SX + (SW >> 1), MY, INK, "center")
+		MiniKit.status(px, "MATCH!", "good", false)
 	elif over:
-		px.text("NO MATCH", SX + (SW >> 1), MY, MiniPix.BAD, "center")
-
-
-func _card(x: int, y: int, w: int, txt: String, tt: float) -> void:
-	px.rect(x, y, w, 19, MiniPix.BEVEL_LO)
-	px.rect(x, y, w, 1, MiniPix.EMBER)
-	px.rect(x, y + 18, w, 1, MiniPix.EMBER)
-	var tw := txt.length() * 4 - 1
-	var x0 := x + ((w - (16 + tw)) >> 1)
-	px.icon("click", x0, y + 3, tt)
-	px.text(txt, x0 + 16, y + 7, MiniPix.HOT)
+		MiniKit.status(px, "NO MATCH", "bad", false)
+	elif toggles:
+		var parts: Array = [["LINES %d/%d" % [cnt.x, cnt.z], "good" if cnt.x == cnt.z else "neutral"]]
+		if cnt.y:
+			parts.append(["%d EXTRA" % cnt.y, "bad"])
+		MiniKit.status(px, parts, "", false)
 
 
 func _tick(_dt: float) -> void:
@@ -437,8 +443,8 @@ func _tick(_dt: float) -> void:
 
 
 ## The canvas point over tube row `i`, for a scripted tap.
-static func row_at(i: int) -> Vector2i:
-	return Vector2i(60, TY + i * ROW + 6)
+func row_at(i: int) -> Vector2i:
+	return Vector2i(60, TY + i * ROW + (ROW >> 1))
 
 
 func toggle(i: int, now: float) -> void:
@@ -448,7 +454,7 @@ func toggle(i: int, now: float) -> void:
 	toggles += 1
 	sfx(&"tube")
 	var lit := (on >> i) & 1
-	var y := TY + i * ROW + 2
+	var y := TY + i * ROW + OY + 2
 	var tray: Array = P.tray
 	for bn: int in tray[i]:
 		var still := union(tray, on)

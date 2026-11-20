@@ -44,6 +44,10 @@ GAMES = {
     "leak": ("wreck3", "const P=gen(ctx.depth,ctx.sensors,ctx.rng);", "const P=window.__P;"),
     "sling": ("sling2", "const P=gen(ctx.depth,ctx.rng);", "const P=window.__P;"),
     "tuning": ("tuning2", "const g=gen(ctx.rng,ctx.depth),c=g.cfg", "const g=window.__P,c=g.cfg"),
+    "seismic": ("seismic2", "const S=gen(ctx.rng,ctx.depth,ctx.sensors);", "const S=window.__P;"),
+    "corescan": ("tomo2", "const c=CFG[ctx.depth],P=gen(ctx.rng,ctx.depth),n=P.n", "const c=CFG[ctx.depth],P=window.__P,n=P.n"),
+    "culture": ("culture2", "const p=gen(ctx.rng,ctx.depth),c=CFG[ctx.depth]", "const p=window.__P,c=CFG[ctx.depth]"),
+    "dock": ("wreck2", "const P=gen(ctx.depth,ctx.sensors,ctx.rng);", "const P=window.__P;"),
 }
 
 # The layouts (fit2 for Beams and Spectrum, fit3, fit4, the kit) are in layout/: `layout.page_js`.

@@ -10,7 +10,7 @@ static var enabled := true
 ## A developer's pick (`-- minigame coolant depth=3 sensors=1`): any of id, depth, sensors.
 static var force: Dictionary = {}
 ## Every ported game (the dev flag opens any).
-const ORDER: Array[StringName] = [&"coolant", &"centrifuge", &"icecore", &"pulsar", &"tray", &"anomaly", &"beams", &"spectrum", &"fourkelvin", &"torch", &"leak", &"sling", &"tuning"]
+const ORDER: Array[StringName] = [&"coolant", &"centrifuge", &"icecore", &"pulsar", &"tray", &"anomaly", &"beams", &"spectrum", &"fourkelvin", &"torch", &"leak", &"sling", &"tuning", &"seismic", &"corescan", &"culture", &"dock"]
 ## The games by the site they are played at (Jon, Nov 18, page 6pDoF6JJ9CGLB8xiD4ytoQ). LAB games
 ## go with any site; Centrifuge is both LIFE and LAB. Only rock sites exist today (a reading at a
 ## world, a belt or a comet): they deal ROCK and LAB. The rest wait for their sites (the dev flag
@@ -60,6 +60,14 @@ static func make(id: StringName) -> MiniGame:
 			return GameSling.new()
 		&"tuning":
 			return GameTuning.new()
+		&"seismic":
+			return GameSeismic.new()
+		&"corescan":
+			return GameCoreScan.new()
+		&"culture":
+			return GameCulture.new()
+		&"dock":
+			return GameDock.new()
 	return null
 
 

@@ -2,8 +2,8 @@ class_name GameBeams
 extends MiniGame
 
 ## BEAM BENCH (Jon loved, Nov 17): tap a mirror to turn it; light every sensor. A port of the
-## approved `beams2.js` in the layout Jon picked to fit the glass (Nov 19, "fit2"): LIT and TURNS in
-## a column on the left, the table the square beside it, cells as large as it allows.
+## approved `beams2.js` in its approved layout and the UI kit (Nov 20): LIT and TURNS in the header,
+## the table as large as the play rows allow with its emitter, ALL LIT on the deck.
 ## Why: docs/why/MiniGame.md#beams-and-spectrum-on-the-glass
 
 const DX: Array[int] = [0, 1, 0, -1]
@@ -370,10 +370,18 @@ func _mount() -> void:
 	t1 = float(CFG[depth].t1) + (int(sensors >= 2) + int(sensors >= 4)) * 15.0
 	for cell: Variant in P.board:
 		board.append((cell as Dictionary).duplicate() if cell != null else null)
-	cs = 106 / n
+	# the table, its frame and the emitter's housing in the kit's play rows, cells as large as they allow
+	var py0 := MiniKit.PLAY_Y
+	var ph := MiniKit.deck_y(false) - py0
+	var sd: int = P.src.d
+	cs = mini(106 / n, ((ph - 15) if sd == 0 or sd == 2 else (ph - 6)) / n)
 	bw = n * cs
-	bx = 20 + (130 - bw) / 2
-	by = (H - bw) / 2
+	var el := 12 if sd == 1 else 3
+	var er := 12 if sd == 3 else 3
+	var et := 12 if sd == 2 else 3
+	var eb := 12 if sd == 0 else 3
+	bx = el + ((W - el - er - bw) >> 1)
+	by = py0 + et + ((ph - et - eb - bw) >> 1)
 	for i: int in P.mir:
 		var a := 45.0 if int(board[i].o) else -45.0
 		ang[i] = Vector2(a, a)
@@ -439,9 +447,7 @@ static func _ball(c: MiniPix, cx: int, cy: int, r: int, ramp: Array) -> void:
 func _draw_bg() -> Image:
 	var b := MiniPix.new(W, H)
 	b.rect(0, 0, W, H, MiniPix.PANEL)
-	for q: Vector2i in [Vector2i(3, 3), Vector2i(W - 5, 3), Vector2i(3, H - 5), Vector2i(W - 5, H - 5)]:
-		b.rect(q.x, q.y, 2, 2, MiniPix.BEVEL_HI)
-		b.rect(q.x + 1, q.y + 1, 1, 1, MiniPix.BEVEL_LO)
+	MiniKit.deck(b, false)
 	b.rect(bx - 3, by - 3, bw + 6, bw + 6, MiniPix.BEVEL_LO)
 	b.rect(bx - 2, by - 2, bw + 4, bw + 4, Color.BLACK)
 	b.rect(bx - 3, by + bw + 2, bw + 6, 1, MiniPix.BEVEL_HI)
@@ -651,32 +657,19 @@ func _pieces(tr: Dictionary, now: float) -> int:
 	return lit
 
 
-## LIT and its lamps up the left column, TURNS at its foot; ALL LIT in it when every one is lit.
+## The kit's header (LIT and its lamps, TURNS), the tell card, ALL LIT on the deck's status line.
 func _hud(tr: Dictionary, now: float) -> void:
-	px.text("LIT", 4, 4, MiniPix.COLD)
+	var hd := MiniKit.header(px, "LIT", [["TURNS", taps]])
 	var sens: Array = P.sensors
 	for k in sens.size():
 		var i: int = sens[k]
 		var on := is_lit(board[i], (tr.hits as Dictionary).get(i))
-		px.rect(5, 12 + k * 7, 5, 5, Color.BLACK)
-		px.rect(6, 13 + k * 7, 3, 3, scol[board[i].c] if on else OFF_LAMP)
-	px.text("TURNS", 1, H - 20, MiniPix.COLD)
-	px.text(str(taps), 10, H - 13, MiniPix.COLD, "center")
+		px.rect(hd.x + k * 7, 2, 5, 5, Color.BLACK)
+		px.rect(hd.x + 1 + k * 7, 3, 3, 3, scol[board[i].c] if on else OFF_LAMP)
 	if not taps and not over and now - 1000.0 < 4500.0:
-		_card(bx, by + (bw >> 1) - 9, bw, "LIGHT EVERY SENSOR.", (now - 1000.0) / 1000.0)
+		MiniKit.tell(px, "LIGHT EVERY SENSOR.", ["click"] as Array[String], (now - 1000.0) / 1000.0)
 	if won:
-		px.text("ALL", 10, 48, MiniPix.HOT, "center")
-		px.text("LIT", 10, 55, MiniPix.HOT, "center")
-
-
-func _card(x: int, y: int, w: int, txt: String, tt: float) -> void:
-	px.rect(x, y, w, 19, MiniPix.BEVEL_LO)
-	px.rect(x, y, w, 1, MiniPix.EMBER)
-	px.rect(x, y + 18, w, 1, MiniPix.EMBER)
-	var tw := txt.length() * 4 - 1
-	var x0 := x + ((w - (16 + tw)) >> 1)
-	px.icon("click", x0, y + 3, tt)
-	px.text(txt, x0 + 16, y + 7, MiniPix.HOT)
+		MiniKit.status(px, "ALL LIT", "good", false)
 
 
 func _win(now: float) -> void:

@@ -45,8 +45,8 @@ static func plan(g: GameSling) -> Array[Dictionary]:
 	out.append({k = "up", p = _dial_at(float(s.x)), wait = 0.2})
 	var off := 14.0 + (s.y - GameSling.PMIN) * (GameSling.PULLMAX - 14.0) / (GameSling.PMAX - GameSling.PMIN)
 	var y := float(GameSling.RY)
-	out.append({k = "down", p = Vector2(128.0, y), wait = 0.1})
-	out.append({k = "move", p = Vector2(128.0 - off / 2.0, y), wait = 0.15})
-	out.append({k = "move", p = Vector2(128.0 - off, y), wait = 0.3})
-	out.append({k = "up", p = Vector2(128.0 - off, y)})
+	out.append({k = "down", p = Vector2(float(GameSling.PX0), y), wait = 0.1})
+	out.append({k = "move", p = Vector2(GameSling.PX0 - off / 2.0, y), wait = 0.15})
+	out.append({k = "move", p = Vector2(GameSling.PX0 - off, y), wait = 0.3})
+	out.append({k = "up", p = Vector2(GameSling.PX0 - off, y)})
 	return out

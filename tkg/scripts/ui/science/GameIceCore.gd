@@ -2,7 +2,8 @@ class_name GameIceCore
 extends MiniGame
 
 ## ICE CORE (Jon, Nov 17: "brilliant"): short ice cores overlap; stack their layers in the tube in
-## the order they fell, oldest at the bottom, and CHECK. A port of the approved `icecore2.js`.
+## the order they fell, oldest at the bottom, and CHECK. A port of the approved `icecore2.js`, in its
+## approved layout and the UI kit (Nov 20).
 ## Why: docs/why/MiniGame.md#the-round-2-games
 
 const CFG := {
@@ -17,35 +18,38 @@ const TEX: Array[int] = [0, 1, 2, 0, 3, 1, 2, 0, 3, 2]
 const KC: Array[Color] = [MiniPix.ICE, MiniPix.BEVEL_HI, MiniPix.WARN, Color("#6a9ad4"), MiniPix.GOOD, MiniPix.BAD,
 	MiniPix.HOT, Color("#8b4fd4"), Color("#d99b29"), MiniPix.TRACTOR]
 const CHECK_SCORE: Array[float] = [1.0, 0.75, 0.58, 0.48, 0.42]
-const W := 144
-const H := 120
-## Cores, the stack tube, the tray of loose layers, the buttons.
-const CX0 := 16
-const CDX := 16
-const CW := 12
-const LH := 7
+## The game area, as every game draws it (the UI kit, Nov 20).
+const W := MiniKit.W
+const H := MiniKit.H
+## Cores, the stack tube (its slot height is per deal), the tray of loose layers, the buttons.
+const CX0 := 17
+const CDX := 18
+const CW := 14
+const LH := 8
 const GH := 5
-const CB := 62
-const SX := 104
-const SW := 24
-const SH := 8
-const SB := 96
+const CB := 53
+const SX := 113
+const SW := 26
+const SB := 89
 const PX0 := 4
-const PDX := 18
-const PW := 16
+const PDX := 20
+const PW := 18
 const PHH := 10
-const PY0 := 80
+const PY0 := 73
 const PDY := 13
-const BY := 106
-const BH := 12
-const BCL := Vector2i(91, 26)
-const BCK := Vector2i(118, 26)
+const BY := MiniKit.BTN_YS
+const BH := MiniKit.BTN_H
+## CHECK over GIVE UP, CLEAR left of it: (x, width).
+const BCK := Vector2i(MiniKit.W - MiniKit.GUT - 33, 33)
+const BCL := Vector2i(MiniKit.W - MiniKit.GUT - 33 - MiniKit.GAP - 33, 33)
 const ZZ: Array[int] = [2, 1, 3, 1, 2, 3, 1, 2, 3, 2, 1, 3, 2, 1]
 const TICK: Array[String] = ["....#", "...#.", "#.#..", ".#...", "....."]
 const CROSS: Array[String] = ["#...#", ".#.#.", "..#..", ".#.#.", "#...#"]
 
 var p: Dictionary = {}
 var n := 6
+## The tube's slot height: its 70 rows shared by the deal's layers.
+var SH := 8
 var checks := 3
 var given := {}
 var slots: Array[int] = []
@@ -307,6 +311,7 @@ func _mount() -> void:
 		done(0.0, "No puzzle")
 		return
 	n = p.n
+	SH = mini(9, 70 / n)
 	checks = 3 + (1 if sensors >= 2 else 0) + (1 if sensors >= 4 else 0)
 	if sensors >= 1:
 		given[0] = true
@@ -419,22 +424,7 @@ func _glyph(ok: bool, x: int, y: int, col: Color) -> void:
 				px.rect(x + i, y + j, 1, 1, col)
 
 
-func _button(b: Vector2i, label: String, hot: bool, down_: bool) -> void:
-	var x := b.x
-	var w := b.y
-	px.rect(x, BY, w, BH, MiniPix.BEVEL_LO)
-	var face := MiniPix.EMBER if hot else MiniPix.PANEL
-	px.rect(x + 1, BY + 1, w - 2, BH - 2, face)
-	var lit := MiniPix.shade(face, -0.35) if down_ else (MiniPix.FLARE if hot else MiniPix.BEVEL_HI)
-	px.rect(x + 1, BY + 1, w - 2, 1, lit)
-	px.rect(x + 1, BY + 1, 1, BH - 2, lit)
-	var lo := MiniPix.shade(face, 0.2) if down_ else MiniPix.shade(face, -0.4)
-	px.rect(x + 1, BY + BH - 2, w - 2, 1, lo)
-	px.rect(x + w - 2, BY + 1, 1, BH - 2, lo)
-	px.text(label, x + w / 2 + (1 if down_ else 0), BY + 4 + (1 if down_ else 0), MiniPix.VOID if hot else MiniPix.COLD, "center")
-
-
-static func slot_y(i: int) -> int:
+func slot_y(i: int) -> int:
 	return SB - (i + 1) * SH
 
 
@@ -445,44 +435,38 @@ static func pal_xy(j: int) -> Vector2i:
 func _draw(now: float) -> void:
 	var cores: Array = p.cores
 	px.rect(0, 0, W, H, MiniPix.VOID)
-	px.dither(0, H - 6, W, 6, MiniPix.VOID, MiniPix.PANEL, 0.5)
 	var bx := CX0 - 3
 	var bw := CDX * cores.size() + 2
-	px.rect(bx, 18, bw, 49, MiniPix.PANEL)
+	px.rect(bx, 18, bw, CB - 13, MiniPix.PANEL)
 	px.dither(bx, 18, bw, 6, MiniPix.PANEL, MiniPix.LINE, 0.5)
 	px.rect(bx, 18, bw, 1, MiniPix.LINE)
-	px.rect(bx, 18, 1, 49, MiniPix.LINE)
-	if not acted:
-		px.rect(0, 0, W, 8, MiniPix.PANEL)
-		px.rect(0, 8, W, 1, MiniPix.LINE)
-		px.text("STACK THE LAYERS IN ORDER", W / 2, 2, MiniPix.HOT, "center")
-	else:
-		px.text("CHECKS %d" % (checks - used), 2, 2, MiniPix.HOT)
-		px.text("LAYERS %d" % n, 92, 2, MiniPix.COLD, "right")
+	px.rect(bx, 18, 1, CB - 13, MiniPix.LINE)
+	MiniKit.header(px, {label = "CHECKS", value = checks - used, vkind = "bad" if checks - used < 1 else ""}, [["LAYERS", n]])
 	px.rect(CX0 - 4, CB + 3, CDX * cores.size() + 4, 2, MiniPix.BEVEL_HI)
 	px.rect(CX0 - 4, CB + 5, CDX * cores.size() + 4, 1, MiniPix.BEVEL_LO)
 	px.text("NEW", 1, 24, MiniPix.COLD)
-	px.text("OLD", 1, 56, MiniPix.COLD)
-	for y in range(31, 54):
+	px.text("OLD", 1, CB - 6, MiniPix.COLD)
+	for y in range(31, CB - 8):
 		px.rect(6, y, 1, 1, MiniPix.LINE)
 	px.rect(5, 31, 3, 1, MiniPix.LINE)
 	for i in cores.size():
 		_core(cores[i], i)
-	var ny := 68
+	var ny := CB + 7
 	if int(p.flips):
-		px.text("ONE UPSIDE DOWN", CX0 - 4, ny, MiniPix.WARN)
+		px.text("ONE UPSIDE DOWN", CX0 - 4, ny, MiniPix.CHILL)
 		ny += 6
 	if int(p.gaps):
 		px.text("CRACK = 1 LOST", CX0 - 4, ny, MiniPix.CHILL)
 	_tray()
 	_tube(now)
-	_button(BCL, "CLEAR", false, pressed == "clear")
-	_button(BCK, "CHECK", not slots.has(-1) and not ended, pressed == "check")
-	if not acted and msg == "":
-		var w1 := px.icon("click", 2, 106, now / 1000.0)
-		px.icon("drag", 2 + w1 + 4, 106, now / 1000.0)
+	MiniKit.deck(px, true)
+	MiniKit.button(px, BCL.x, BY, BCL.y, BH, "CLEAR", "disabled" if ended else ("pressed" if pressed == "clear" else "normal"))
+	var full := not slots.has(-1)
+	MiniKit.button(px, BCK.x, BY, BCK.y, BH, "CHECK", "disabled" if ended or not full else ("active-pressed" if pressed == "check" else "active"))
 	if msg != "":
-		px.text(msg, 2, 114, MiniPix.GOOD if ended and win_at else MiniPix.HOT)
+		MiniKit.status(px, msg, ("good" if win_at else "bad") if ended else "neutral", true)
+	if not acted and msg == "":
+		MiniKit.tell(px, "STACK THE LAYERS IN ORDER.", ["drag"] as Array[String], now / 1000.0)
 	if not drag.is_empty() and drag.has("kind") and drag.moved:
 		var w := PW if drag.from == "pal" else SW
 		var h := PHH if drag.from == "pal" else SH - 1

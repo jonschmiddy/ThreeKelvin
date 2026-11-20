@@ -3,7 +3,8 @@ extends MiniGame
 
 ## GRAVITY SLING (Jon, Nov 17: "should be a dial, not a click"): turn the AIM dial, pull the sling
 ## back and let go; stars and planets bend the probe's path into the target ring. A port of the
-## approved `sling2.js`: more masses by sector, a moving target from 4, a no-fly zone at 5.
+## approved `sling2.js`: more masses by sector, a moving target from 4, a no-fly zone at 5. In its
+## approved layout and the UI kit (Nov 20): the nav plot in the play rows, its own dial and pull.
 ## Why: docs/why/MiniGame.md#gravity-sling
 
 const CFG := {
@@ -27,16 +28,25 @@ const LOST := 0
 const CRASH := 1
 const HIT := 2
 const ZONE := 3
-const W := 144
-const H := 124
-const FY := 92
-const SC := 144.0 / 1000.0
-const DX := 15
-const DY := 108
+const W := MiniKit.W
+const H := MiniKit.H
+## The deck's rule; the nav plot in rows FT to FY - 1, the 1000 x 640 field at FHP / FH px a unit,
+## FWP wide (`Math.ceil(FW * SC)`), centred at FX (the kit's border colour either side).
+const FY := MiniKit.DECK_C
+const FT := MiniKit.PLAY_Y
+const FHP := FY - FT
+const SC := FHP / FH
+const FWP := 138
+const FX := (W - FWP) >> 1
+## The aim dial (raised 2: its foot on row 127, 4 rows clear of the haul line, Jon, Nov 20).
+const DX := MiniKit.GUT + 13
+const DY := 114
 const DRAD := 13
-const FKX := 136
-const RY := 109
+const FKX := 142
+const RY := FY + 16
 const PULLMAX := 72
+## The pouch's rest x.
+const PX0 := 134
 const SUN := Color("#fff4dc")
 ## Deals made before their mount, by "depth:seed:state" (the scan takes about half a second): the
 ## desk's card starts one on a worker; with `memo_on` (tests) every deal is kept for later mounts.
@@ -75,6 +85,8 @@ var pull: Dictionary = {}
 var _stub_steps := 0
 var _stub := PackedFloat64Array()
 var _bg: Image
+## The nav plot as drawn each frame (FWP x FHP, so it clips as the page's clip does).
+var _field: MiniPix
 var _deck: Image
 ## The deck's dimmer while a probe flies (`globalAlpha` .35 of VOID).
 var _shade: Image
@@ -417,19 +429,19 @@ static func _lcg(hs: int) -> int:
 # ---------------------------------------------------------------- the nav plot, drawn once
 
 func _draw_bg() -> Image:
-	var b := MiniPix.new(W, FY)
-	b.rect(0, 0, W, FY, MiniPix.VOID)
+	var b := MiniPix.new(FWP, FHP)
+	b.rect(0, 0, FWP, FHP, MiniPix.VOID)
 	var hs := int(floorf(float(P.oy) * 977.0 + float(P.ty) * 131.0)) | 1
 	for k in 70:
 		hs = _lcg(hs)
 		var q := float(hs) / 0x7fffffff
 		hs = _lcg(hs)
-		var x := float(hs) / 0x7fffffff * W
+		var x := float(hs) / 0x7fffffff * FWP
 		hs = _lcg(hs)
-		var y := float(hs) / 0x7fffffff * FY
+		var y := float(hs) / 0x7fffffff * FHP
 		b.dotf(x, y, MiniPix.HOT if q > 0.92 else (MiniPix.CHILL if q > 0.6 else MiniPix.COLD))
-	for x in range(0, W, 12):
-		for y in range(0, FY, 12):
+	for x in range(0, FWP, 12):
+		for y in range(0, FHP, 12):
 			b.dot(x, y, MiniPix.LINE)
 	var ms: Array = P.masses
 	var star_i := 0
@@ -545,9 +557,8 @@ func _rings(b: MiniPix, cx: float, cy: float, r: float) -> void:
 ## The control deck's plate: the dial face and its ticks, AIM, the fork, the rest line and scale.
 func _draw_deck() -> Image:
 	var d := MiniPix.new(W, H - FY)
-	d.rect(0, 0, W, H - FY, MiniPix.PANEL)
-	d.rect(0, 0, W, 1, MiniPix.BEVEL_HI)
-	d.rect(0, 1, W, 1, MiniPix.BEVEL_LO)
+	d.rect(0, 0, W, H - FY, MiniKit.BORDER)
+	d.rect(0, 0, W, 1, MiniPix.LINE)
 	for y in range(-DRAD - 1, DRAD + 2):
 		for x in range(-DRAD - 1, DRAD + 2):
 			var r := hyp(x, y)
@@ -561,20 +572,20 @@ func _draw_deck() -> Image:
 	for a in range(AMIN, AMAX + 1, 20):
 		var rad := a * PI / 180.0
 		d.dotf(DX + (DRAD - 3) * cos(rad), DY - FY - (DRAD - 3) * sin(rad), MiniPix.ICE if a == 0 else MiniPix.COLD)
-	d.text("AIM", 33, 4, MiniPix.COLD)
-	line(d, FKX + 3, 30, FKX + 3, 19, MiniPix.BEVEL_LO)
-	line(d, FKX + 4, 30, FKX + 4, 19, MiniPix.COLD)
-	line(d, FKX + 3, 19, FKX, 9, MiniPix.COLD)
-	line(d, FKX + 4, 19, FKX + 1, 9, MiniPix.CHILL)
-	line(d, FKX + 3, 19, FKX, 26, MiniPix.COLD)
-	line(d, FKX + 4, 19, FKX + 1, 26, MiniPix.BEVEL_LO)
-	for x in range(128 - PULLMAX, 124, 3):
+	d.text("AIM", DX + DRAD + 4, DY - FY - 6, MiniKit.LABEL)
+	line(d, FKX + 3, 29, FKX + 3, 18, MiniPix.BEVEL_LO)
+	line(d, FKX + 4, 29, FKX + 4, 18, MiniPix.COLD)
+	line(d, FKX + 3, 18, FKX, 8, MiniPix.COLD)
+	line(d, FKX + 4, 18, FKX + 1, 8, MiniPix.CHILL)
+	line(d, FKX + 3, 18, FKX, 25, MiniPix.COLD)
+	line(d, FKX + 4, 18, FKX + 1, 25, MiniPix.BEVEL_LO)
+	for x in range(PX0 - PULLMAX, PX0 - 4, 3):
 		d.dot(x, RY - FY, MiniPix.LINE)
 	for k in 10:
-		var x := MiniPix.jr(128 - 14 - k * (PULLMAX - 14) / 9.0)
-		d.dot(x, 29, MiniPix.CHILL if k % 5 == 0 else MiniPix.LINE)
+		var x := MiniPix.jr(PX0 - 14 - k * (PULLMAX - 14) / 9.0)
+		d.dot(x, 28, MiniPix.CHILL if k % 5 == 0 else MiniPix.LINE)
 		if k % 5 == 0:
-			d.dot(x, 28, MiniPix.CHILL)
+			d.dot(x, 27, MiniPix.CHILL)
 	return d.img
 
 
@@ -593,6 +604,7 @@ func _mount() -> void:
 	_stub_steps = sensors * 32
 	ang = int(P.a0)
 	_bg = _draw_bg()
+	_field = MiniPix.new(FWP, FHP)
 	_deck = _draw_deck()
 	restub()
 	_draw()
@@ -651,8 +663,10 @@ func restub() -> void:
 
 
 func _draw() -> void:
-	px.img.blit_rect(_bg, Rect2i(0, 0, W, FY), Vector2i.ZERO)
-	_draw_field()
+	px.rect(0, 0, W, FY, MiniKit.BORDER)
+	_field.img.blit_rect(_bg, Rect2i(0, 0, FWP, FHP), Vector2i.ZERO)
+	_draw_field(_field)
+	px.img.blit_rect(_field.img, Rect2i(0, 0, FWP, FHP), Vector2i(FX, FT))
 	_draw_hud()
 	px.img.blit_rect(_deck, Rect2i(0, 0, W, H - FY), Vector2i(0, FY))
 	_draw_controls()
@@ -660,30 +674,30 @@ func _draw() -> void:
 
 
 ## The target, old paths, the stub, the aim line or the probe in flight, and the hit's rings.
-func _draw_field() -> void:
+func _draw_field(f: MiniPix) -> void:
 	var tt := int(flying.k) * 2 * DT if not flying.is_empty() else 0.0
 	var TX := S(float(P.tx))
 	var TY := S(target_y(P, tt))
 	var TR := S(float(P.tr))
-	ring(px, TX, TY, TR, MiniPix.GOOD)
-	ring(px, TX, TY, TR * 0.5, MiniPix.MARK if int(floorf(clock * 2.0)) % 2 else MiniPix.shade(MiniPix.GOOD, -0.4))
-	px.rect(MiniPix.jr(TX) - 1, MiniPix.jr(TY), 3, 1, MiniPix.MARK)
-	px.rect(MiniPix.jr(TX), MiniPix.jr(TY) - 1, 1, 3, MiniPix.MARK)
+	ring(f, TX, TY, TR, MiniPix.GOOD)
+	ring(f, TX, TY, TR * 0.5, MiniPix.MARK if int(floorf(clock * 2.0)) % 2 else MiniPix.shade(MiniPix.GOOD, -0.4))
+	f.rect(MiniPix.jr(TX) - 1, MiniPix.jr(TY), 3, 1, MiniPix.MARK)
+	f.rect(MiniPix.jr(TX), MiniPix.jr(TY) - 1, 1, 3, MiniPix.MARK)
 	if _old_layer != null:
-		px.img.blend_rect(_old_layer, Rect2i(0, 0, W, H), Vector2i.ZERO)
+		f.img.blend_rect(_old_layer, Rect2i(0, 0, FWP, FHP), Vector2i.ZERO)
 	if not _stub.is_empty() and flying.is_empty():
-		poly(px, _stub, MiniPix.EMBER, Vector2i(3, 2))
+		poly(f, _stub, MiniPix.EMBER, Vector2i(3, 2))
 	var a := ang * PI / 180.0
 	var OX := S(float(P.ox))
 	var OY := S(float(P.oy))
 	if flying.is_empty() and not over:
 		var L := 5.0 + pow_now() * 0.12
-		line(px, OX, OY, OX + L * cos(a), OY - L * sin(a), MiniPix.EMBER, Vector2i(2, 1))
-		px.rect(MiniPix.jr(OX) - 1, MiniPix.jr(OY) - 1, 2, 2, MiniPix.ICE)
+		line(f, OX, OY, OX + L * cos(a), OY - L * sin(a), MiniPix.EMBER, Vector2i(2, 1))
+		f.rect(MiniPix.jr(OX) - 1, MiniPix.jr(OY) - 1, 2, 2, MiniPix.ICE)
 	if not flying.is_empty():
 		var pts: PackedFloat64Array = flying.pts
 		var k := int(flying.k)
-		poly(px, pts, MiniPix.HOT, Vector2i.ZERO, maxi(0, k - 400), k)
+		poly(f, pts, MiniPix.HOT, Vector2i.ZERO, maxi(0, k - 400), k)
 		var k0 := maxi(0, k - 3)
 		var qx := pts[2 * k]
 		var qy := pts[2 * k + 1]
@@ -693,29 +707,39 @@ func _draw_field() -> void:
 		if hl == 0.0:
 			hl = 1.0
 		if fmod(clock * 30.0, 2.0) < 1.2:
-			px.dotf(qx - hx / hl * 2.0, qy - hy / hl * 2.0, MiniPix.FLARE)
-		px.rect(MiniPix.jr(qx) - 1, MiniPix.jr(qy) - 1, 2, 2, MiniPix.ICE)
-		px.dotf(qx + hx / hl * 1.5, qy + hy / hl * 1.5, MiniPix.EMBER)
+			f.dotf(qx - hx / hl * 2.0, qy - hy / hl * 2.0, MiniPix.FLARE)
+		f.rect(MiniPix.jr(qx) - 1, MiniPix.jr(qy) - 1, 2, 2, MiniPix.ICE)
+		f.dotf(qx + hx / hl * 1.5, qy + hy / hl * 1.5, MiniPix.EMBER)
 	if not fx.is_empty():
 		var t_ := (clock - float(fx.t0)) / 0.7
 		if t_ >= 1.0:
 			fx = {}
 		else:
-			ring(px, float(fx.x), float(fx.y), 2.0 + t_ * 10.0, fx.c, 2 if t_ > 0.5 else 0)
+			ring(f, float(fx.x), float(fx.y), 2.0 + t_ * 10.0, fx.c, 2 if t_ > 0.5 else 0)
 			if t_ < 0.5:
-				ring(px, float(fx.x), float(fx.y), 1.0 + t_ * 5.0, MiniPix.HOT, 2)
+				ring(f, float(fx.x), float(fx.y), 1.0 + t_ * 5.0, MiniPix.HOT, 2)
 
 
+## The kit's header: launches left; the sling's power right (PWR while pulling, else the last launch's).
 func _draw_hud() -> void:
-	px.text("LAUNCH %d" % (max_shots - used), 2, 2, MiniPix.CHILL)
-	if miss_txt != "":
-		var col := MiniPix.GOOD if miss_txt == "HIT" else (MiniPix.BAD if miss_txt == "IMPACT" or miss_txt == "NO-FLY" else MiniPix.HOT)
-		px.text(miss_txt, W - 2, 2, col, "right")
+	var left := max_shots - used
+	var right: Array = [["PWR", pow_, "yours"]] if pow_ > 0 else ([["LAST", last_pow]] if last_pow > 0 else [["PWR", "-"]])
+	MiniKit.header(px, {label = "LAUNCH", value = left, vkind = "bad" if left <= 1 else ""}, right)
+	if not started:
+		MiniKit.tell(px, "HIT THE TARGET.", controls(), clock)
+
+
+## The status line: the note while it shows, else the last launch's result.
+func _draw_status() -> void:
+	var s := ""
+	var k := ""
 	if note != "" and clock < note_t:
-		px.text(note, W / 2, FY - 7, MiniPix.HOT, "center")
-	elif not started:
-		px.start_card("HIT THE TARGET", controls(), W / 2.0, FY - 30, clock, MiniPix.VOID, MiniPix.BEVEL_HI)
-	px.rect(0, FY - 1, W, 1, MiniPix.BEVEL_LO)
+		s = note
+		k = "bad" if note == "OUT OF PROBES" else "neutral"
+	elif miss_txt != "":
+		s = miss_txt
+		k = "good" if miss_txt == "HIT" else ("bad" if miss_txt == "IMPACT" or miss_txt == "NO-FLY" else "neutral")
+	MiniKit.status(px, s, k, true)
 
 
 ## The dial's knob and needle, the angle, the sling's pouch and bands, the power, the dimmer.
@@ -734,36 +758,34 @@ func _draw_controls() -> void:
 	line(px, DX, DY, nx, ny, MiniPix.COLD if dim else MiniPix.EMBER)
 	line(px, DX + cos(a) * 6.0, DY - sin(a) * 6.0, DX + (DRAD - 1) * cos(a), DY - (DRAD - 1) * sin(a), MiniPix.COLD if dim else MiniPix.FLARE)
 	px.dot(DX, DY, MiniPix.HOT)
-	px.text(("+" if ang > 0 else ("-" if ang < 0 else "")) + str(absi(ang)), 33, FY + 12, MiniPix.HOT)
+	px.text(("+" if ang > 0 else ("-" if ang < 0 else "")) + str(absi(ang)), DX + DRAD + 4, DY + 1, MiniKit.VALUE)
 	var sh := float(twang.wob) if not twang.is_empty() else 0.0
-	var PX := MiniPix.jr(128 - off)
+	var PX := MiniPix.jr(PX0 - off)
 	var PY := MiniPix.jr(RY + sh)
 	var t_ := minf(1.0, off / PULLMAX)
 	var band := MiniPix.THEM if t_ < 0.35 else (MiniPix.EMBER if t_ < 0.75 else MiniPix.BAD)
-	line(px, FKX, FY + 9, PX - 1, PY - 2, band)
-	line(px, FKX, FY + 26, PX - 1, PY + 2, band)
+	line(px, FKX, FY + 8, PX - 1, PY - 2, band)
+	line(px, FKX, FY + 25, PX - 1, PY + 2, band)
 	px.rect(PX - 3, PY - 4, 5, 9, MiniPix.BEVEL_LO)
 	px.rect(PX - 2, PY - 3, 3, 7, MiniPix.shade(MiniPix.THEM, -0.4))
 	px.rect(PX, PY - 1, 2, 2, MiniPix.ICE)
 	px.dot(PX + 2, PY, MiniPix.EMBER)
 	if last_pow > 0:
-		var lx := MiniPix.jr(128 - off_of(last_pow))
-		px.rect(lx - 1, FY + 26, 3, 1, MiniPix.TIERS[2])
-		px.dot(lx, FY + 25, MiniPix.TIERS[2])
-	var shown := pow_ if pow_ > 0 else 0
-	var label := "PWR %d" % shown if shown else ("LAST %d" % last_pow if last_pow > 0 else "PWR")
-	px.text(label, W - 14, FY + 4, MiniPix.HOT if shown else MiniPix.COLD, "right")
+		var lx := MiniPix.jr(PX0 - off_of(last_pow))
+		px.rect(lx - 1, FY + 25, 3, 1, MiniKit.T2)
+		px.dot(lx, FY + 24, MiniKit.T2)
 	if pull.is_empty() and not dim and last_pow < 0 and used == 0 and int(floorf(clock * 1.5)) % 2:
 		px.text("<", PX - 8, PY - 2, MiniPix.EMBER)
 	if dim:
 		if _shade == null:
-			_shade = Image.create(W, H - FY - 2, false, Image.FORMAT_RGBA8)
+			_shade = Image.create(W, H - FY - 1, false, Image.FORMAT_RGBA8)
 			_shade.fill(Color(MiniPix.VOID, 0.35))
-		px.img.blend_rect(_shade, Rect2i(0, 0, W, H - FY - 2), Vector2i(0, FY + 2))
+		px.img.blend_rect(_shade, Rect2i(0, 0, W, H - FY - 1), Vector2i(0, FY + 1))
+	_draw_status()
 
 
 func _draw_old() -> void:
-	var o := MiniPix.new(W, H)
+	var o := MiniPix.new(FWP, FHP)
 	o.clear(Color(0, 0, 0, 0))
 	for i in old.size():
 		poly(o, old[i].pts, MiniPix.GOOD if old[i].hit else (MiniPix.COLD if i == old.size() - 1 else MiniPix.LINE))
@@ -819,7 +841,7 @@ func down(_p: Vector2i) -> void:
 	if q.y < FY:
 		return
 	started = true
-	if q.x < 31:
+	if q.x < DX + DRAD + 3:
 		dial = {last = d_ang(q), acc = float(ang)}
 	elif q.x >= 52:
 		pull = {x0 = float(q.x)}
@@ -873,7 +895,7 @@ func wheel(dir: int) -> void:
 	if over or not flying.is_empty():
 		return
 	var q := pf
-	if q.y < FY or q.x >= 31:
+	if q.y < FY or q.x >= DX + DRAD + 3:
 		return
 	ang = clampi(ang + (1 if dir > 0 else -1), AMIN, AMAX)
 	restub()

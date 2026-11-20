@@ -65,6 +65,14 @@ static func puzzle(g: MiniGame) -> Dictionary:
 			p = js((g as GameSling).P)
 		&"tuning":
 			p = js((g as GameTuning).g0)
+		&"seismic":
+			p = js((g as GameSeismic).P)
+		&"corescan":
+			p = js((g as GameCoreScan).P)
+		&"culture":
+			p = _culture(g as GameCulture)
+		&"dock":
+			p = js((g as GameDock).P)
 	return p
 
 
@@ -76,4 +84,13 @@ static func _pulsar(g: GamePulsar) -> Dictionary:
 	for u: int in g.g0.S:
 		pairs.append([u, g.g0.S[u]])
 	p.S = pairs
+	return p
+
+
+## The dish's board as the page builds it: cells {q, r} and each cell's neighbours.
+static func _culture(g: GameCulture) -> Dictionary[String, Variant]:
+	var p: Dictionary[String, Variant] = {}
+	p.assign(js(g.p))
+	var b: Dictionary = g.p.B
+	p.B = {R = b.R, cells = (b.cells as Array).map(func(c: Vector2i) -> Dictionary: return {q = c.x, r = c.y}), nb = js(b.nb)}
 	return p

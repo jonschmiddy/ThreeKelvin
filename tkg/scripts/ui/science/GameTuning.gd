@@ -3,7 +3,7 @@ extends MiniGame
 
 ## SIGNAL TUNING: turn the dials until your curve matches the beacon's, then LOCK. A port of the
 ## approved `tuning2.js` (round 3: nothing of the target is drawn in YOURS; the stretches of your
-## curve already on the target's shape turn green).
+## curve already on the target's shape turn green), in its approved layout and the UI kit (Nov 20).
 ## Why: docs/why/MiniGame.md#signal-tuning
 
 const CFG := {
@@ -18,16 +18,21 @@ const BASE_PH := 1
 const BASE_AMP := 4
 const M := 1200
 const MATCH := 0.012
-const W := 144
-const H := 108
-const SCX: Array[int] = [1, 61]
+## The game area, as every game draws it (the UI kit, Nov 20).
+const W := MiniKit.W
+const H := MiniKit.H
+## The scope frames, SS square at SY; HS is the glass centre's offset in a frame.
+const SCX: Array[int] = [0, 76]
 const SCL: Array[String] = ["TARGET", "YOURS"]
-const SY := 7
-const SS := 58
-const R := 24
-const KY := 85
-const KR := 8
-const LOCK := Rect2i(118, 74, 25, 22)
+const SY := 20
+const SS := 74
+const R := 32
+const HS := SS >> 1
+## The knobs' centre row (2 above the control row's) and radius: ticks reach rows 105-127, even the lit
+## 180 deg tick, clear of the haul line (Jon, Nov 20). LOCK's right edge is GIVE UP's.
+const KY := MiniKit.CTRL_CY - 2
+const KR := 7
+const LOCK := Rect2i(MiniKit.W - MiniKit.GUT - 25, MiniKit.BTN_YS, 25, MiniKit.BTN_H)
 const NEAR := 1.1 / R
 ## The page's clock at the mount, in ms (the prototype diff holds it there): the slow wander of
 ## your curve reads the clock itself, so any start draws the same game.
@@ -47,8 +52,6 @@ const STEEL := Color("#4a5a70")
 const NOTCH_HI := Color("#56677d")
 const NOTCH_LO := Color("#2b3849")
 const COLLAR := Color("#3f6a52")
-const SHADOW := Color("#8a4a16")
-const SEG_MID := Color("#5f9a7c")
 
 
 ## A point set sorted into the grid's cells, so a nearest-point search asks a few cells, not all
@@ -382,19 +385,32 @@ func _jitter() -> void:
 func _knobs() -> void:
 	knobs.clear()
 	var fmax: int = c.fmax
-	knobs.append({lab = "X FREQ", key = "a", lo = 1, hi = fmax, wrap = false})
-	knobs.append({lab = "Y FREQ", key = "b", lo = 1, hi = fmax, wrap = false})
+	knobs.append({lab = "X", key = "a", lo = 1, hi = fmax, wrap = false})
+	knobs.append({lab = "Y", key = "b", lo = 1, hi = fmax, wrap = false})
 	if c.phase:
-		knobs.append({lab = "PHASE", key = "ph", lo = 0, hi = 7, wrap = true})
+		knobs.append({lab = "PH", key = "ph", lo = 0, hi = 7, wrap = true})
 	if c.amp:
-		knobs.append({lab = "X SIZE", key = "amp", lo = 0, hi = 4, wrap = false})
-	var slot := 116.0 / knobs.size()
-	for i in knobs.size():
-		var k := knobs[i]
-		k.cx = MiniPix.jr(slot * i + slot / 2.0)
+		knobs.append({lab = "SIZE", key = "amp", lo = 0, hi = 4, wrap = false})
+	# across the control row left of LOCK: each knob (ticks out to 11), its label at its lower right
+	var n := knobs.size()
+	var need := 11 + maxi(11, 9 + MiniKit.tw(knobs[n - 1].lab))
+	for i in n - 1:
+		need += _pitch(knobs[i])
+	var room := LOCK.position.x - MiniKit.GAP - MiniKit.GUT
+	var gap := mini(14, floori(float(room - need) / (n - 1))) if n > 1 else 0
+	need += gap * (n - 1)
+	var x := MiniKit.GUT + 11 + ((room - need) >> 1)
+	for k in knobs:
+		k.cx = x
 		k.cy = KY
 		k.n = 8 if k.wrap else int(k.hi) - int(k.lo) + 1
 		k.click = -1.0
+		x += _pitch(k) + gap
+
+
+## A knob's share of the control row: the knob, then its label at its lower right.
+static func _pitch(k: Dictionary) -> int:
+	return maxi(23, 19 + MiniKit.tw(k.lab))
 
 
 func _fmt(k: Dictionary, v: int) -> String:
@@ -484,9 +500,7 @@ func _tick(_dt: float) -> void:
 
 func _draw_plate() -> Image:
 	var b := MiniPix.new(W, H)
-	b.clear(MiniPix.PANEL)
-	for at: Vector2i in [Vector2i(1, 1), Vector2i(142, 1), Vector2i(1, 106), Vector2i(142, 106)]:
-		b.dot(at.x, at.y, MiniPix.BEVEL_HI)
+	b.clear(MiniKit.BORDER)
 	for i in 2:
 		var x := SCX[i]
 		b.rect(x, SY, SS, SS, MiniPix.BEVEL_LO)
@@ -501,15 +515,15 @@ func _draw_plate() -> Image:
 		b.rect(gx, gy, gs, gs, GLASS)
 		for at: Vector2i in [Vector2i(gx, gy), Vector2i(gx + gs - 1, gy), Vector2i(gx, gy + gs - 1), Vector2i(gx + gs - 1, gy + gs - 1)]:
 			b.dot(at.x, at.y, MiniPix.LINE)
-		var cx := x + 29
-		var cy := SY + 29
+		var cx := x + HS
+		var cy := SY + HS
 		for k in range(-2, 3):
 			for t_ in range(-R, R + 1, 2):
 				b.dot(cx + k * R / 2, cy + t_, GRAT if k else GRAT0)
 				b.dot(cx + t_, cy + k * R / 2, GRAT if k else GRAT0)
 		b.dither(gx + 2, gy + 2, 10, 2, GLASS, GLARE, 0.5)
 		b.dither(gx + 2, gy + 4, 2, 8, GLASS, GLARE, 0.5)
-		b.text(SCL[i], x + 29, 1, MiniPix.FLARE if i else MiniPix.TIERS[2], "center")
+		b.text(SCL[i], x + HS, SY - 6, MiniPix.FLARE if i else MiniPix.TIERS[2], "center")
 	return b.img
 
 
@@ -524,8 +538,8 @@ func _pos(cx: int, cy: int, P: PackedFloat64Array, jt: PackedFloat64Array, wob: 
 ## One scope's curve: the whole figure dim, a fading tail to the head, the head with a glow ring.
 ## `nr` greens the stretches already on the target (YOURS only); `wob` is its slow wander.
 func _trace(x: int, P: PackedFloat64Array, ramp: Array[Color], head: int, jt: PackedFloat64Array, wob: float, now: float, nr: PackedByteArray) -> void:
-	var cx := x + 29
-	var cy := SY + 29
+	var cx := x + HS
+	var cy := SY + HS
 	var has_nr := nr.size() > 0
 	for i in range(0, M, 2):
 		var q := _pos(cx, cy, P, jt, wob, now, i)
@@ -553,58 +567,31 @@ func _draw(now: float) -> void:
 			wrong += 1
 	var green := (over or wrong == 0) and d < MATCH
 	_trace(SCX[1], cur_p, RAMP_G if green else RAMP_Y, head, PackedFloat64Array(), 0.0 if over else float(wrong) / knobs.size() * 1.6, now, near)
-	if over:
-		var ok := d < MATCH
-		var s := "MATCH" if ok else "OFF"
-		var wpx := s.length() * 4 - 1
-		var bx := SCX[1] + 29 - int(floorf(wpx / 2.0)) - 2
-		px.rect(bx, SY + 44, wpx + 4, 9, MiniPix.BEVEL_LO)
-		px.text(s, SCX[1] + 29, SY + 46, MiniPix.MARK if ok else MiniPix.BAD, "center")
-	var rx := 131
-	px.text("PAR", rx, 9, MiniPix.COLD, "center")
-	px.text(str(par_now), rx, 16, MiniPix.HOT, "center")
-	px.text("STEP", rx, 25, MiniPix.COLD, "center")
-	px.text(str(taps), rx, 32, MiniPix.FLARE if taps > par_now + 2 + free else MiniPix.HOT, "center")
-	_meter(rx)
+	_hud()
+	MiniKit.deck(px, true)
 	for k in knobs.size():
 		_knob(k, _drag_on and _drag_k == k, now)
-	if not acted and not over:
-		_card(now)
 	_lock_btn()
+	if over:
+		MiniKit.status(px, "MATCH!" if d < MATCH else "NO MATCH", "good" if d < MATCH else "bad", true)
+	else:
+		var parts: Array = []
+		for k in knobs.size():
+			parts.append([String(knobs[k].lab) + " " + _fmt(knobs[k], int(cur[knobs[k].key])), "good" if is_right(k) else "neutral"])
+		MiniKit.status(px, parts, "", true)
+	if not acted and not over:
+		MiniKit.tell(px, "MATCH THE WAVE.", controls(), (now - T0) / 1000.0)
 	dirty = true
 
 
-## MATCH: a segmented meter that climbs as you tune in, eased a quarter of the way each frame.
-func _meter(rx: int) -> void:
-	var mx := 125
-	var my := 40
-	var mh := 24
+## MATCH: the header's meter (11 segments) climbs as you tune in, eased a quarter of the way each
+## frame; STEP and PAR on the right.
+func _hud() -> void:
 	var f := closeness(c, cur, g0.eq)
 	meter_v += (f - meter_v) * 0.25
-	var segs := 11
-	var n := MiniPix.jr(meter_v * segs)
-	px.rect(mx, my, 13, mh, MiniPix.BEVEL_LO)
-	px.rect(mx + 1, my + 1, 11, mh - 2, GLASS)
 	var top := f >= 0.999
-	for j in segs:
-		var col := GRAT if j >= n else (MiniPix.MARK if top else (MiniPix.GOOD if j >= segs - 3 else (SEG_MID if j >= segs - 6 else COLLAR)))
-		px.rect(mx + 2, my + mh - 3 - j * 2, 9, 1, col)
-	px.text("MATCH", rx, my + mh + 2, MiniPix.MARK if top else MiniPix.COLD, "center")
-
-
-func _card(now: float) -> void:
-	var s := "MATCH THE WAVE."
-	var tw := s.length() * 4 - 1
-	var iw := 13 + 3 + 13
-	var w := tw + 4 + iw
-	var bx := 72 - int(floorf(w / 2.0))
-	px.rect(bx - 3, 45, w + 6, 17, MiniPix.BEVEL_LO)
-	px.rect(bx - 2, 46, w + 4, 15, MiniPix.PANEL)
-	px.text(s, bx, 51, MiniPix.HOT)
-	var ts := (now - T0) / 1000.0
-	var ix := bx + tw + 4
-	ix += px.icon("dial", ix, 47, ts) + 3
-	px.icon("click", ix, 47, ts)
+	MiniKit.header(px, {label = "MATCH", kind = "good" if top else "", meter = {w = 45, frac = meter_v, kind = "good" if top else "neutral"}},
+		[["STEP", taps, "bad" if taps > par_now + 2 + free else ""], ["PAR", par_now]])
 
 
 ## A selector switch: the detent click's fading ring, a right dial's green collar, the ticks, the
@@ -617,11 +604,11 @@ func _knob(k: int, active: bool, now: float) -> void:
 	var clk: float = kb.click
 	if clk >= 0.0 and now - clk < 500.0:
 		var a := 1.0 - (now - clk) / 500.0
-		for y in range(-KR - 6, KR + 7):
-			for x in range(-KR - 6, KR + 7):
-				var r := sqrt(float(x * x + y * y))
-				if r > KR + 4.5 and r < KR + 6.5 and ((x + y) & 1) == 0 and ((x * 7 + y * 13) & 3) < a * 4:
-					px.dot(cx + x, cy + y, MiniPix.GOOD)
+		for y in range(-KR - 2, KR + 3):
+			for x in range(-KR - 2, KR + 3):
+				var r2 := x * x + y * y
+				if r2 > (KR + 1) * (KR + 1) and r2 <= (KR + 2) * (KR + 2) and ((x * 7 + y * 13) & 3) < a * 4:
+					px.dot(cx + x, cy + y, MiniPix.MARK)
 	if ok:
 		for y in range(-KR - 2, KR + 3):
 			for x in range(-KR - 2, KR + 3):
@@ -639,8 +626,7 @@ func _knob(k: int, active: bool, now: float) -> void:
 	var pa := det_a(kb, v_now) * PI / 180.0
 	for t_ in range(2, KR):
 		px.dot(MiniPix.jr(cx + sin(pa) * t_), MiniPix.jr(cy - cos(pa) * t_), MiniPix.HOT if active else MiniPix.EMBER)
-	px.text(kb.lab, cx, 66, MiniPix.COLD, "center")
-	px.text(_fmt(kb, v_now), cx, KY + KR + 5, MiniPix.MARK if ok else MiniPix.HOT, "center")
+	px.text(kb.lab, cx + 10, cy + 1, MiniPix.COLD)
 
 
 ## Stepped metal lit from the top left, a 1 px dark outline, grip notches on the rim, and the cap.
@@ -668,24 +654,13 @@ func _knob_body(cx: int, cy: int) -> void:
 
 
 func _lock_btn() -> void:
-	var x := LOCK.position.x
-	var y := LOCK.position.y
-	var w := LOCK.size.x
-	var h := LOCK.size.y
-	var pressed := lock_down or over
-	px.rect(x, y, w, h, MiniPix.BEVEL_LO)
-	var f := ((MiniPix.GOOD if d < MATCH else MiniPix.COLD) if over else MiniPix.EMBER)
-	px.rect(x + 1, y + 1, w - 2, h - 2, f)
-	if not pressed:
-		px.rect(x + 1, y + 1, w - 2, 1, f if over else MiniPix.HOT)
-		px.rect(x + 1, y + 1, 1, h - 2, f if over else MiniPix.FLARE)
-		px.rect(x + 1, y + h - 2, w - 2, 1, SHADOW)
-		px.rect(x + w - 2, y + 1, 1, h - 2, SHADOW)
-	else:
-		px.rect(x + 1, y + 1, w - 2, 1, SHADOW)
-		px.rect(x + 1, y + 1, 1, h - 2, SHADOW)
-	var o := 1 if pressed else 0
-	px.text("LOCK", MiniPix.jr(x + w / 2.0) + o, MiniPix.jr(y + h / 2.0 - 2) + o, MiniPix.VOID, "center")
+	var state := "disabled"
+	if not over:
+		if d < MATCH:
+			state = "active-pressed" if lock_down else "active"
+		else:
+			state = "pressed" if lock_down else "normal"
+	MiniKit.button(px, LOCK.position.x, LOCK.position.y, LOCK.size.x, LOCK.size.y, "LOCK", state)
 
 
 # ---------------------------------------------------------------- input

@@ -3,21 +3,16 @@ extends MiniGame
 
 ## CUTTING TORCH (Jon loved, Nov 17; the torch starts on the loop, so every tap is a cut): cut a
 ## loop round a cargo crate in a wreck's hull without slicing the live lines. A port of the
-## approved `wreck1.js`; the rules are `TorchSim`. Its canvas is 152 wide, a column off each side.
+## approved `wreck1.js` in its approved layout and UI kit (Nov 20); the rules are `TorchSim`. Its
+## canvas is 152 wide, a column off each side; the kit's header and deck are drawn 1 px in.
 ## Why: docs/why/MiniGame.md#the-round-2-games
 
 const PW := 152
 const PH := 100
-const HUD := 16
+const HUD := 30
 const MSG := {zap = "ZAP! LIVE LINE", fuel = "FUEL LINE!", burn = "CRATE BURNT", piece = "EMPTY PIECE", free = "CUT FREE", gas = "OUT OF GAS", fire = "TORCH OUT"}
-## The HUD strip in art pixels: GAS and its bar, HITS and its boxes, the status right-aligned.
-const GAS_X := 3
-const BAR_X := 17
-const BAR_W := 32
-const HITS_X := 55
-const BOX_X := 73
-const BOX_P := 5
-const STATUS_R := 149
+## The kit's HITS meter width, right-aligned on the control row; GAS takes the rest.
+const HITS_W := 25
 const METAL: Array[Color] = [Color("#080b11"), Color("#111823"), Color("#182230"), Color("#22303f"), Color("#2d3c4e"), Color("#3d4d61"), Color("#6b7d94"), Color("#8fa3ba")]
 const CABLE: Array[Color] = [Color("#1c1609"), Color("#3e3016"), Color("#6e5626"), MiniPix.WARN, Color("#e0bd6a")]
 const PIPE: Array[Color] = [Color("#2a0f0b"), Color("#4a1c16"), Color("#7a2f24"), MiniPix.BAD, Color("#e07a62")]
@@ -28,8 +23,6 @@ const HOSE: Array[Color] = [Color("#2f4a3c"), Color("#4f7a62"), MiniPix.GOOD]
 const BRASS := Color("#e0bd6a")
 const KNOB_DK := Color("#7a2f24")
 const BURN_RED := Color("#5a2018")
-const GAS_LOW := Color("#e07a62")
-const GAS_LOW_DK := Color("#7a2f24")
 const WHITE_HOT := Color("#fff4dc")
 const N4: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 const N8: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]
@@ -58,6 +51,8 @@ var cut_list: Array[int] = []
 var _plate: Image
 var _faint: Image
 var _finish_at := -1.0
+## The kit's 150-wide layer, laid 1 px in.
+var _kit_px: MiniPix
 var _acc := 0.0
 
 
@@ -404,18 +399,11 @@ func _draw() -> void:
 			var v := sqrt(dx * dx + dy * dy)
 			if v > 0.0 and MiniPix.bay(x, y) < v * 0.45:
 				_put(x, y, MiniPix.BEVEL_LO)
-	for c: Vector4i in [Vector4i(1, 1, 1, 1), Vector4i(PW - 2, 1, -1, 1), Vector4i(1, PH - 2, 1, -1), Vector4i(PW - 2, PH - 2, -1, -1)]:
+	for c: Vector4i in [Vector4i(1, 11, 1, 1), Vector4i(PW - 2, 11, -1, 1), Vector4i(1, 96, 1, -1), Vector4i(PW - 2, 96, -1, -1)]:
 		for i in 5:
 			_put(c.x + c.z * i, c.y, METAL[6])
 			_put(c.x, c.y + c.w * i, METAL[6])
-	px.rect(3, 3, 36, 7, MiniPix.BEVEL_LO)
-	px.text("ARM CAM", 4, 4, METAL[6])
-	if int(floorf(t_ * 2.0)) % 2:
-		_put(33, 5, MiniPix.BAD)
-	var r: Rect2 = P.R
-	if not S.over and (S.pts as Array).size() <= 1 and path.is_empty():
-		_banner(PH - 31 if (r.position.y + r.end.y) / 4.0 < PH / 2.0 else 3, "CUT OUT THE CRATE", t_)
-	_hud()
+	_hud(t_)
 	dirty = true
 
 
@@ -678,44 +666,31 @@ func _plan() -> void:
 		_put(x, y, MiniPix.HOT if lit else MiniPix.FLARE)
 
 
-func _banner(y: int, big: String, tt: float) -> void:
-	var iw := 13
-	var w := maxi(big.length() * 4 - 1, iw) + 10
-	var x := int(floorf(PW / 2.0 - w / 2.0))
-	px.rect(x, y, w, 27, MiniPix.BEVEL_LO)
-	px.rect(x + 1, y + 1, w - 2, 25, MiniPix.PANEL)
-	px.rect(x + 1, y + 1, w - 2, 1, MiniPix.BEVEL_HI)
-	px.text(big, PW / 2, y + 4, MiniPix.HOT, "center")
-	px.icon("click", int(floorf(PW / 2.0 - iw / 2.0)), y + 12, tt)
-
-
-func _hud() -> void:
-	px.rect(0, PH, PW, HUD, MiniPix.PANEL)
-	px.rect(0, PH, PW, 1, MiniPix.BEVEL_HI)
-	px.rect(0, PH + 1, PW, 1, MiniPix.BEVEL_LO)
-	px.text("GAS", GAS_X, PH + 6, MiniPix.CHILL)
+## The kit over the camera: the header (ARM CAM and its REC lamp), the tell card, the deck with the
+## status line and the GAS and HITS meters. Drawn on a 150-wide layer laid 1 px in.
+func _hud(t_: float) -> void:
+	if _kit_px == null:
+		_kit_px = MiniPix.new(MiniKit.W, MiniKit.H)
+	var k := _kit_px
+	k.clear(Color(0, 0, 0, 0))
+	var hd := MiniKit.header(k, "ARM CAM", null)
+	if int(floorf(t_ * 2.0)) % 2:
+		k.dot(hd.x, 4, MiniPix.BAD)
+	if not S.over and (S.pts as Array).size() <= 1 and path.is_empty():
+		MiniKit.tell(k, "CUT OUT THE CRATE.", ["click"] as Array[String], t_)
+	MiniKit.deck(k, true)
 	var gl := clampf(1.0 - float(S.used) / float(P.gas), 0.0, 1.0)
-	px.rect(BAR_X, PH + 5, BAR_W + 2, 7, MiniPix.BEVEL_LO)
-	px.rect(BAR_X + 1, PH + 6, BAR_W, 5, MiniPix.LINE)
-	var fillw := MiniPix.jr(BAR_W * gl)
-	var gc := MiniPix.BAD if gl < 0.2 else MiniPix.FLARE
-	for i in fillw:
-		_put(BAR_X + 1 + i, PH + 6, GAS_LOW if gl < 0.2 else MiniPix.HOT)
-		for j in range(1, 5):
-			_put(BAR_X + 1 + i, PH + 6 + j, (GAS_LOW_DK if gl < 0.2 else MiniPix.EMBER) if j == 4 else gc)
-	px.text("HITS", HITS_X, PH + 6, MiniPix.CHILL)
-	for i in TorchSim.HITS_MAX:
-		var x := BOX_X + i * BOX_P
-		var y := PH + 6
-		var on := i < int(S.hits)
-		px.rect(x, y, 4, 5, MiniPix.BEVEL_LO)
-		px.rect(x + 1, y + 1, 2, 3, MiniPix.BAD if on else MiniPix.LINE)
-		if on:
-			_put(x + 1, y + 1, GAS_LOW)
-	var status_l := BOX_X + TorchSim.HITS_MAX * BOX_P - 1 + 5
-	var max_chars := int(floorf((STATUS_R - status_l + 2) / 4.0))
+	var low := gl < 0.2
+	var hx := MiniKit.W - MiniKit.GUT - HITS_W
+	var cy := MiniKit.CTRL_CY
+	k.text("GAS", MiniKit.GUT, cy - 6, MiniPix.BAD if low else MiniKit.LABEL)
+	MiniKit.meter(k, MiniKit.GUT, cy, hx - 4 - MiniKit.GUT, gl, "bad" if low else "neutral")
+	k.text("HITS", hx, cy - 6, MiniPix.BAD if int(S.hits) else MiniKit.LABEL)
+	MiniKit.meter(k, hx, cy, HITS_W, float(S.hits) / TorchSim.HITS_MAX, "bad")
 	if (status_t > 0.0 or S.over) and status != "":
-		px.text(status.substr(0, max_chars), STATUS_R, PH + 6, status_col, "right")
+		var kind := "bad" if status_col == MiniPix.BAD else ("good" if status_col == MiniPix.GOOD else "neutral")
+		MiniKit.status(k, status, kind, true)
+	px.blit(k.img, 1, 0)
 
 
 func _dot(x: float, y: float, c: Color) -> void:
@@ -966,7 +941,8 @@ func down(_p: Vector2i) -> void:
 	if S.over:
 		return
 	var p := _world()
-	if p.y > TorchSim.H:
+	# taps on the kit's header or deck do not cut
+	if p.y >= 2 * MiniKit.deck_y(true) or p.y < 2 * MiniKit.PLAY_Y:
 		return
 	held = true
 	drag = false

@@ -3,7 +3,8 @@ extends MiniGame
 
 ## PULSAR FOLD (Jon, Nov 17: "so sick"; round 3: "Could be harder. Much harder."): turn the tuning
 ## dial until the pulses stack into a straight line, then LOCK, before the signal fades. A port of
-## the approved `pulsar2.js`: noise, a drifting period, a fainter decoy from sector 3.
+## the approved `pulsar2.js`: noise, a drifting period, a fainter decoy from sector 3. In its approved
+## layout and the UI kit (Nov 20), keeping its own dial (Jon: "can keep their individual dials").
 ## Why: docs/why/MiniGame.md#the-round-2-games
 
 const CFG := {
@@ -21,28 +22,29 @@ const DRIFT_MAX := 3.0
 const ACCEPT := 0.5
 const FADE := {1: 28.0, 2: 26.0, 3: 30.0, 4: 40.0, 5: 30.0}
 const MISS := 0.3
-const W := 144
-const H := 124
-const GX := 12
+const W := MiniKit.W
+const H := MiniKit.H
+const GX := 15
 const GW := 120
-const RAWY := 12
+const RAWY := 14
 const RAWH := 13
-const WFY := 27
-const WFH := 40
-const PRY := 69
+const WFY := 29
+const WFH := 45
+const PRY := 75
 const PRH := 16
-const DX := 18
-const DY := 106
-const DR := 15
-const SX := 40
-const SW := 100
-const SY := 101
-const LB := Rect2i(98, 113, 43, 10)
+## The deck's rule: 3 rows above the kit's 98, to hold Pulsar's own 29 px dial.
+const DECK := 95
+## The dial (r 14, its foot on row 127, 4 rows clear of the haul line, Jon, Nov 20).
+const DX := MiniKit.GUT + 15
+const DY := 112
+const DR := 14
+const SX := DX + DR + 7
+const SW := 104
+const SY := 120
+## LOCK, over GIVE UP.
+const LB := Rect2i(MiniKit.W - MiniKit.GUT - 33, 104, 33, MiniKit.BTN_H)
 const GLASS := Color("#06110b")
 const GRAT := Color("#0d2116")
-const SEG_OFF := Color("#0d1a14")
-const LOCK_INK := Color("#0d1a12")
-const STRIP := Color("#0b120e")
 const WHITE_G := Color("#effff7")
 
 var g0: Dictionary = {}
@@ -405,11 +407,13 @@ func _ramp(v: float, x: int, y: int, r: Array[Color]) -> Color:
 func _draw_plate() -> Image:
 	var b := MiniPix.new(W, H)
 	b.rect(0, 0, W, H, MiniPix.PANEL)
-	b.rect(1, 1, W - 2, 1, MiniPix.BEVEL_HI)
-	b.rect(1, 1, 1, 86, MiniPix.BEVEL_HI)
-	b.rect(1, 87, W - 2, 1, MiniPix.BEVEL_LO)
-	b.rect(W - 2, 1, 1, 87, MiniPix.BEVEL_LO)
-	b.rect(3, 3, W - 6, 83, GLASS)
+	b.rect(1, 11, W - 2, 1, MiniPix.BEVEL_HI)
+	b.rect(1, 11, 1, 82, MiniPix.BEVEL_HI)
+	b.rect(1, 93, W - 2, 1, MiniPix.BEVEL_LO)
+	b.rect(W - 2, 11, 1, 83, MiniPix.BEVEL_LO)
+	b.rect(3, 13, W - 6, 79, GLASS)
+	b.rect(0, DECK, W, H - DECK, MiniKit.BORDER)
+	b.rect(0, DECK, W, 1, MiniPix.LINE)
 	for x in range(GX, GX + GW + 1, 15):
 		for y in range(WFY, WFY + WFH, 2):
 			b.dot(x, y, GRAT)
@@ -419,23 +423,18 @@ func _draw_plate() -> Image:
 	for x in range(4, W - 4, 2):
 		b.dot(x, RAWY + RAWH - 4, GRAT)
 		b.dot(x, PRY + PRH - 1, GRAT)
-	for at: Vector2i in [Vector2i(4, 90), Vector2i(W - 5, 90), Vector2i(4, H - 4), Vector2i(W - 5, H - 4)]:
-		b.dot(at.x, at.y, MiniPix.COLD)
-		b.dot(at.x + 1, at.y + 1, MiniPix.BEVEL_LO)
 	for y in range(-DR - 2, DR + 3):
 		for x in range(-DR - 2, DR + 3):
 			var r := Vector2(x, y).length()
 			if r > DR + 1.5:
 				continue
 			b.dot(DX + x, DY + y, MiniPix.BEVEL_LO if r > DR + 0.5 else MiniPix.VOID)
-	b.text("PERIOD", SX, 92, MiniPix.COLD)
 	b.rect(SX - 1, SY - 1, SW + 2, 8, MiniPix.BEVEL_LO)
-	b.rect(SX, SY, SW, 6, STRIP)
+	b.rect(SX, SY, SW, 6, MiniPix.VOID)
 	for v in range(int(PMIN), int(PMAX) + 1, 2):
 		var x := _sx_of(v)
 		b.rect(x, SY + (0 if v % 10 == 0 else 3), 1, 6 if v % 10 == 0 else 3, MiniPix.COLD if v % 10 == 0 else MiniPix.LINE)
-	b.text(str(int(PMIN)), SX, SY + 8, MiniPix.LINE)
-	b.text(str(int(PMAX)), SX + SW, SY + 8, MiniPix.LINE, "right")
+	b.text("%d-%d" % [int(PMIN), int(PMAX)], LB.position.x - 5, LB.position.y + 4, MiniPix.LINE, "right")
 	return b.img
 
 
@@ -500,7 +499,7 @@ func _draw_screen() -> void:
 	var on := lit >= 0.9
 	var rp: Array[Color] = RAMPON if on else RAMP
 	var s: PackedFloat64Array = g0.sig
-	var nn := mini(s.size(), 272)
+	var nn := mini(s.size(), 284)
 	var py := -999
 	for i in range(0, nn, 2):
 		var x := 4 + (i >> 1)
@@ -555,10 +554,9 @@ func _draw() -> void:
 	px.img.blit_rect(_plate, Rect2i(0, 0, W, H), Vector2i.ZERO)
 	_draw_screen()
 	var on := lit >= 0.9
-	_draw_signal()
-	px.text("LOCK", W - 14, 5, MiniPix.MARK if on else MiniPix.shade(MiniPix.GOOD, -0.45), "right")
-	var lx := W - 9
-	var ly := 7
+	_draw_signal(on)
+	var lx := W - 8
+	var ly := 4
 	var a := lit * lit
 	for y in range(-4, 5):
 		for x in range(-4, 5):
@@ -573,32 +571,24 @@ func _draw() -> void:
 			elif r <= 4.2 and on and MiniPix.bay(lx + x, ly + y) < (4.2 - r) / 2.6:
 				px.dot(lx + x, ly + y, MiniPix.GOOD)
 	if stamp_txt != "" and clock < stamp_t:
-		var w := stamp_txt.length() * 8
-		px.rect(W / 2 - w / 2 - 3, WFY + 13, w + 5, 14, GLASS)
-		var col := MiniPix.MARK if stamp_txt.begins_with("LOCKED") else (MiniPix.BAD if stamp_txt == "NO LOCK" or stamp_txt == "LOST" else MiniPix.HOT)
-		px.text2(stamp_txt, W / 2 - w / 2, WFY + 15, col)
+		# the kit's status line, on this deck's row (DECK + 2, not the kit's 100)
+		var k := "good" if stamp_txt == "LOCKED" else ("bad" if stamp_txt == "NO LOCK" or stamp_txt == "LOST" else "neutral")
+		px.text(stamp_txt, (W >> 1) - (MiniKit.tw(stamp_txt) >> 1), DECK + MiniKit.STATUS_TY, MiniKit.ink(k))
 	_apply_glitch()
 	if msg != "":
 		px.text(msg, W / 2, RAWY + RAWH - 2, MiniPix.HOT, "center")
 	elif not started:
-		px.start_card("TUNE IN THE PULSAR", ["dial"], W / 2.0, WFY + 6, clock, GLASS, MiniPix.GOOD)
+		MiniKit.tell(px, "TUNE IN THE PULSAR.", ["dial"] as Array[String], clock)
 	_draw_dial(on)
 
 
-func _draw_signal() -> void:
-	px.text("SIG", 5, 5, MiniPix.FLARE if sig < 0.5 else MiniPix.CHILL)
-	var x0 := 19
-	var segs := 19 if n_t > 1 else 22
-	var lit_ := ceili(sig * segs - 1e-9)
-	px.rect(x0 - 1, 4, segs * 4 + 1, 7, MiniPix.BEVEL_LO)
-	for k in segs:
-		var o := k < lit_
-		var col := SEG_OFF if not o else (MiniPix.BAD if sig < 0.15 else (MiniPix.EMBER if sig < 0.5 else (MiniPix.COLD if sig < 0.8 else MiniPix.CHILL)))
-		var top := SEG_OFF if not o else (MiniPix.FLARE if sig < 0.5 else (MiniPix.CHILL if sig < 0.8 else MiniPix.ICE))
-		px.rect(x0 + k * 4, 5, 3, 5, col)
-		px.rect(x0 + k * 4, 5, 3, 1, top)
-	if n_t > 1:
-		px.text("%d/%d" % [mini(locks.size() + 1, n_t), n_t], x0 + segs * 4 + 3, 5, MiniPix.GOOD)
+## The kit's header: SIG as a draining meter (+ which pulsar of two), LOCK lit when a lock would hold.
+func _draw_signal(on: bool) -> void:
+	var low := sig < 0.25
+	var two := "%d/%d" % [mini(locks.size() + 1, n_t), n_t] if n_t > 1 else ""
+	MiniKit.header(px, {label = "SIG", kind = "bad" if low else "", value = two,
+		meter = {w = 77 if n_t > 1 else 89, frac = sig, kind = "bad" if low else "neutral"}},
+		[["LOCK", null, null, "good" if on else ""]], 10)
 
 
 ## The knurled dial turning with the period, the readout, the strip's needle and locks, LOCK.
@@ -624,7 +614,7 @@ func _draw_dial(on: bool) -> void:
 			if r <= 6:
 				px.dot(DX + x, DY + y, MiniPix.BEVEL_LO if r > 5 else (MiniPix.COLD if (-x - y) > 3 else MiniPix.LINE))
 	px.rect(MiniPix.jr(DX + sin(rot) * 9.0) - 1, MiniPix.jr(DY - cos(rot) * 9.0) - 1, 2, 2, MiniPix.EMBER)
-	px.text2(_fmt(pf_), SX + 28, 90, MiniPix.MARK if on else MiniPix.GOOD)
+	MiniKit.pair(px, SX, LB.position.y + 4, "PERIOD", _fmt(pf_), "", "good" if on else "")
 	if band.x >= 0.0:
 		var shf := MiniPix.shade(MiniPix.GOOD, -0.3)
 		for x in range(_sx_of(band.x + _drift()), _sx_of(band.y + _drift()) + 1):
@@ -638,15 +628,8 @@ func _draw_dial(on: bool) -> void:
 	px.dot(nx - 1, SY - 2, MiniPix.EMBER)
 	px.dot(nx + 1, SY - 2, MiniPix.EMBER)
 	var hot := on and not ended
-	var pr := 1 if lock_down else 0
-	px.rect(LB.position.x, LB.position.y, LB.size.x, LB.size.y, MiniPix.BEVEL_LO)
-	px.rect(LB.position.x + 1, LB.position.y + 1 + pr, LB.size.x - 2, LB.size.y - 2 - pr, MiniPix.GOOD if hot else MiniPix.LINE)
-	px.rect(LB.position.x + 1, LB.position.y + 1 + pr, LB.size.x - 2, 1, MiniPix.MARK if hot else MiniPix.BEVEL_HI)
-	px.text("LOCK", LB.position.x + (LB.size.x >> 1), LB.position.y + 3 + pr, LOCK_INK if hot else (MiniPix.COLD if ended else MiniPix.ICE), "center")
-	if hot and int(floorf(clock * 2.0)) % 2:
-		for x in range(LB.position.x - 1, LB.end.x + 1, 2):
-			px.dot(x, LB.position.y - 2, MiniPix.GOOD)
-			px.dot(x + 1, LB.end.y + 1, MiniPix.GOOD)
+	var st := "disabled" if ended else (("active-pressed" if lock_down else "active") if hot else ("pressed" if lock_down else "normal"))
+	MiniKit.button(px, LB.position.x, LB.position.y, LB.size.x, LB.size.y, "LOCK", st)
 	dirty = true
 
 
@@ -697,10 +680,10 @@ func down(_p: Vector2i) -> void:
 	if ended:
 		return
 	var q := pf
-	if q.y < 88:
+	if q.y < DECK:
 		return
 	started = true
-	if q.x < 37:
+	if q.x < SX - 2:
 		dial = {last = _d_ang(q), acc = pf_}
 	elif _in_lock(q):
 		lock_down = true
@@ -734,7 +717,7 @@ func up(_p: Vector2i, cancel := false) -> void:
 
 
 func wheel(dir: int) -> void:
-	if ended or pf.y < 88:
+	if ended or pf.y < DECK:
 		return
 	set_p(pf_ + dir * float(g0.step))
 

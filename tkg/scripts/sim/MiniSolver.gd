@@ -37,7 +37,13 @@ static func for_game(g: MiniGame) -> MiniSolver:
 			s.plan = SlingSolver.plan(g as GameSling)
 		&"tuning":
 			s.plan = _tuning(g as GameTuning)
-		&"fourkelvin", &"torch":
+		&"seismic":
+			s.plan = _seismic(g as GameSeismic)
+		&"corescan":
+			s.plan = _corescan(g as GameCoreScan)
+		&"culture":
+			s.plan = _culture(g as GameCulture)
+		&"fourkelvin", &"torch", &"dock":
 			s._dyn = String(g.id())
 	return s
 
@@ -48,6 +54,8 @@ func act(g: MiniGame, dt: float) -> Array[Dictionary]:
 		return KelvinPilot.act(g as GameFourKelvin)
 	if _dyn == "torch":
 		return TorchPilot.act(g as GameTorch)
+	if _dyn == "dock":
+		return DockPilot.act(g as GameDock)
 	var out: Array[Dictionary] = []
 	_wait -= dt
 	while _i < plan.size() and _wait <= 0.0:
@@ -126,7 +134,7 @@ static func _pulsar(g: GamePulsar) -> Array[Dictionary]:
 static func _leak(g: GameLeak) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for l: Dictionary in g.P.leaks:
-		_tap(out, Vector2(48 + 22, GameLeak.BY + 8))
+		_tap(out, Vector2(GameLeak.btn("patch")))
 		_tap(out, Vector2(l.x, l.y))
 	return out
 
@@ -153,7 +161,7 @@ static func _spectrum(g: GameSpectrum) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for i in g.T:
 		if (int(g.P.set) >> i) & 1 and not ((g.on >> i) & 1):
-			_tap(out, Vector2(GameSpectrum.row_at(i)) + Vector2(0.5, 0.5))
+			_tap(out, Vector2(g.row_at(i)) + Vector2(0.5, 0.5))
 	return out
 
 
@@ -166,4 +174,64 @@ static func _tuning(g: GameTuning) -> Array[Dictionary]:
 		if int(g.cur[key]) != int(e[key]):
 			_tap(out, g.tick_at(k, int(e[key])))
 	_tap(out, Vector2(GameTuning.LOCK.get_center()) + Vector2(0.5, 0.5))
+	return out
+
+
+## Seismic Scan: two scans off the finds (one near the middle, one by the find farthest from it), the
+## DIG tool, then a dig on each find, each once the last sweep or drill is done.
+static func _seismic(g: GameSeismic) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var deps: Array = g.P.deps
+	var on_find := {}
+	for q: Dictionary in deps:
+		on_find[Vector2i(q.x, q.y)] = true
+	var mid := Vector2((g.G - 1) / 2.0, (g.G - 1) / 2.0)
+	var first := _seismic_spot(g, on_find, mid)
+	var far := Vector2(int(deps[0].x), int(deps[0].y))
+	for q: Dictionary in deps:
+		if Vector2(q.x, q.y).distance_to(Vector2(first)) > far.distance_to(Vector2(first)):
+			far = Vector2(q.x, q.y)
+	on_find[first] = true
+	var second := _seismic_spot(g, on_find, far + Vector2(0.5, 0.5))
+	for c: Vector2i in [first, second]:
+		_tap(out, Vector2(g.ccx(c.x), g.ccy(c.y)) + Vector2(0.5, 0.5), 2.0)
+	_tap(out, Vector2(GameSeismic.CXL + GameSeismic.CW / 2, GameSeismic.TB_Y[1] + 6) + Vector2(0.5, 0.5), 0.1)
+	for q: Dictionary in deps:
+		_tap(out, Vector2(g.ccx(q.x), g.ccy(q.y)) + Vector2(0.5, 0.5), 0.9)
+	return out
+
+
+## The cell nearest `to` with no find under it (so a dig there never lands on a beacon).
+static func _seismic_spot(g: GameSeismic, on_find: Dictionary, to: Vector2) -> Vector2i:
+	var best := Vector2i.ZERO
+	var bd := INF
+	for y in g.G:
+		for x in g.G:
+			var d := Vector2(x, y).distance_to(to)
+			if not on_find.has(Vector2i(x, y)) and d < bd:
+				bd = d
+				best = Vector2i(x, y)
+	return best
+
+
+## Core Scan: every solid cell not yet filled, row by row.
+static func _corescan(g: GameCoreScan) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for i in g.n:
+		for j in g.n:
+			if g.grid[i][j] and g.st[i][j] != 1:
+				_tap(out, Vector2(g.cell_xy(i, j)) + Vector2(0.5, 0.5), 0.12)
+	return out
+
+
+## Culture Dish: each seed of the deal's own answer dropped (a press and a lift), then GROW twice a
+## ring: a press while the last ring still grows is not taken (the windowed run taps every 0.45 s,
+## the ring takes 0.47), so two make sure of one; one past the last ring does nothing.
+static func _culture(g: GameCulture) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for i: int in g.p.solution:
+		_tap(out, Vector2(g.pos[i]) + Vector2(0.5, 0.5))
+	out.back().wait = 0.1
+	for k in int(g.p.steps) * 2:
+		_tap(out, GameCulture.grow_at(), 0.6)
 	return out

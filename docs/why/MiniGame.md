@@ -211,13 +211,13 @@ LEGENDARY; only a near-perfect run reaches the top. The prototype's rare roll (E
 sites, ARTIFACT deep at wrecks) is not ported: today's science sites are worlds, belts and comets,
 rock sites that stop at legendary.
 
-`ScienceHaul.pay` is the one seam for the materials work. On main, materials exist
-(`MaterialTable`, by `drops` table and tier) but not by science source, so it pays one material
-of the tier won: from the site's table (mining for a world, a belt or a comet) when it has one at
-that tier, else from any rolled table at that tier, else the nearest lower tier
-(`row_for`). Into the system as every grant goes (`MaterialTable.grant`). The catalogue has no
-uncommon row today, so an uncommon pays a common, and mining holds two rows, so most hauls come
-from the other tables. The draft's twenty materials per source replace `row_for`.
+`ScienceHaul.pay` pays one material from the material list (Nov 19): the site's group picks the
+source (rock: mining; sky and pulsar: cosmic; life: fauna; wreck: wreck; today's readings are all
+rock), `MaterialTable.pick` takes a row of the tier won or the nearest lower one that source has,
+and `MaterialTable.grant` puts it in the system as every grant goes. The line reads the row's own
+name and tier (NAME [TIER]). Nothing of the table is kept in `ScienceHaul`: the tier keys are
+`MaterialTable.TIERS`. MiniGameTest holds every site group to a real row of its own source at every
+tier.
 
 It is paid inside the reading's take (`OptionResolve.take`'s `also`), so LOCAL's result page lists
 it with the reading's own outcome. The reading's rule is unchanged: its fuel and its DATA are paid
@@ -238,6 +238,50 @@ stream.
 
 The slow wander of your curve reads the page's clock itself (`performance.now()`), not the time
 since the mount; the game's clock starts at 1000 ms, where the prototype diff holds the page's.
+
+## Seismic Scan
+
+`seismic2.js` in its approved page (`layout.page_js("seismic")`: fit3, rings "B", the kit; Nov 20),
+rule for rule: the finds placed off each other and the rare ones off the middle, a field kept only
+when the page's own screen-only `solver` digs out every find (the first that fails is the fallback),
+sensors as extra scans, reach and a dig, the score from the finds' value and the charges left. The
+solver's distances are all between whole cells, so `GameSeismic.Field` takes them from a table
+(V8's `Math.hypot`, as Sling's, so a tie breaks where the page's does), and a scan's echoes are
+sorted stably, as V8 sorts. The sweep and its echoes move on the page's 30 frames a second whether
+or not the frame is drawn. The page's touch path (press to preview, lift to act) is not ported: the
+desk is a mouse, so a press acts, as the page's mouse path does.
+
+## Core Scan
+
+`tomo2.js` in its approved page (`layout.page_js("corescan")`: fit3, the kit; Nov 20), rule for rule:
+a picture of the sector's size (and its mirror) dealt from those a line-by-line solver can finish,
+the rows sensors fill in drawn from the stream after the deal (`TK.shuffle`), cracks and the ones
+forgiven, the score from cracks and time over par.
+
+## Culture Dish
+
+`culture2.js` in its approved page (`layout.page_js("culture")`: fit3, the kit; Nov 20), rule for
+rule: seeds placed off each other, stains just past the reach, food near its far edge, a deal kept
+only when every seed matters and few other spots win; GROW one ring at a time, the faint rings
+ahead, extra tries from sensors, the score from the food fed, the try and the time. The page's
+clock is in milliseconds from 1000 at the mount, and it works out the growth (food fed, cells killed)
+only on the frames it draws, at most every 32 ms, so the game does the same whether or not the frame
+is drawn; its buttons are the ones its last frame drew. A press works as the page's touch path:
+press to preview the rings, lift to drop the seed (the diff's pointer is not a mouse); a hover
+previews too. JS `sort` is stable and GDScript's is not, so the food's sort breaks ties by place.
+The look's own hash (`hr`) multiplies past 2^53 in doubles, as the page does.
+
+## Tumble Dock
+
+`wreck2.js` in its approved page (`layout.page_js("dock")`: fit3, the kit; Nov 20), rule for rule:
+the spin and the drift built up through the lag, the latch, the clamp's sway at sector 5, the score
+from gas over par, time and how slowly it docked. 152 wide like the torch; the kit is drawn on a
+150-wide layer laid 1 px in (the page's `translate(1,0)`). The cargo shift is never dealt (`shift`
+is 0), so its debris is not ported. The page's own test bot goes over par at sectors 4 and 5 (a
+third to a half of deals score 0.84 to 0.95), so `DockPilot` flies it better: it settles the drift first,
+stops it as its rest point enters the bracket, then tapers the spin a turn ahead and stops it as
+the port's rest point reaches the bracket's near edge, so it latches slowly. On the page's own
+sim, 300 deals at each sector score 0.95 to 0.99.
 
 ## Tests
 
