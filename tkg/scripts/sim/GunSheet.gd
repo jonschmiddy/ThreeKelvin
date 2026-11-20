@@ -12,11 +12,11 @@ const LOADOUT := {
 	HullData.Weight.MEDIUM: [[&"km4", 0], [&"kh20", 1], [&"kh500", 2]],
 	HullData.Weight.HEAVY: [[&"km4", 0], [&"kh40", 1], [&"widow", 2]],
 }
-## Solari's, on the mounts its hulls carried over from the old set.
+## Solari's, a weapon on every mount the S grade opens.
 const SOLARI := {
-	HullData.Weight.LIGHT: [[&"emberlance", 0], [&"sparkthrower", 1]],
-	HullData.Weight.MEDIUM: [[&"emberlance", 0], [&"sunspot", 1], [&"plasma", 2]],
-	HullData.Weight.HEAVY: [[&"emberlance", 0], [&"overpressure", 1], [&"heliostat", 2]],
+	HullData.Weight.LIGHT: [[&"emberlance", 0], [&"sparkthrower", 1], [&"sunspot", 2]],
+	HullData.Weight.MEDIUM: [[&"emberlance", 0], [&"sunspot", 1], [&"plasma", 2], [&"sparkthrower", 3]],
+	HullData.Weight.HEAVY: [[&"emberlance", 0], [&"overpressure", 1], [&"heliostat", 2], [&"sunspot", 3], [&"plasma", 4]],
 }
 const NAMES := ["light", "medium", "heavy"]
 ## Room round a ship for the guns that stand past its canvas, in screen px.
@@ -114,8 +114,11 @@ func _still(bg: Control, w: HullData.Weight, t: int, out: String, kit: Array[Mod
 			guns += 1
 	var name := "%s_%s" % [NAMES[w], tag if tag != "" else HullData.TIER_NAMES[t]]
 	# (a hull without gun sides draws its weapons' hold pictures)
-	var want := kit.size() if not hull.gun_sides.is_empty() else 0
-	h._ok("%s: %d weapons drawn, %d at full size" % [name, kit.size(), want], guns == want and mp.drawn == kit.size())
+	var want := 0
+	for m in kit:
+		if not hull.gun_sides.is_empty() and ShipGun.of(m.id, hull.gun_sides[m.mount]) != null:
+			want += 1
+	h._ok("%s: %d weapons drawn, %d with an on-ship picture" % [name, kit.size(), want], guns == want and mp.drawn == kit.size())
 	var parts := mp.parts_rect()
 	var ship := Rect2(Vector2.ZERO, Vector2(v.canvas_width(), v.canvas_height()))
 	var all := ship.merge(Rect2(parts.position, parts.size))

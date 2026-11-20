@@ -578,10 +578,6 @@
  },
  "solari/hull_light_zero": {
   "band": false,
-  "chevrons": [
-   255,
-   72
-  ],
   "windows": [],
   "nav": [],
   "markers": [],
@@ -760,14 +756,16 @@
     47,
     61
    ]
+  ],
+  "band_box": [
+   188,
+   42,
+   202,
+   78
   ]
  },
  "solari/hull_medium_zero": {
   "band": false,
-  "chevrons": [
-   312,
-   82
-  ],
   "windows": [],
   "nav": [],
   "markers": [],
@@ -915,14 +913,16 @@
     68,
     82
    ]
+  ],
+  "band_box": [
+   244,
+   44,
+   258,
+   89
   ]
  },
  "solari/hull_heavy_zero": {
   "band": false,
-  "chevrons": [
-   378,
-   90
-  ],
   "windows": [],
   "nav": [],
   "markers": [],
@@ -1095,6 +1095,12 @@
     91,
     105
    ]
+  ],
+  "band_box": [
+   312,
+   49,
+   325,
+   98
   ]
  }
 }

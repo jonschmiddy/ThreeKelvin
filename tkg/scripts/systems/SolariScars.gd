@@ -340,7 +340,7 @@ static func tone(r: HullGrade._Ramps, c: Color, dl: float, warm: bool) -> Color:
 ## Patina gathered in the seams and on the lower plates, rust bled from the rivets, the
 ## band faded and chipped to the brass. With `busy`, only where nothing else has worn.
 static func patina(img: Image, base: Image, r: HullGrade._Ramps, m: HullScars._Mask, amt: float, hs: int,
-		busy: PackedByteArray = PackedByteArray()) -> void:
+		busy: PackedByteArray = PackedByteArray(), at: Dictionary = {}) -> void:
 	var src := img.duplicate() as Image
 	var sm := seams(base, m)
 	# the seams fill and widen: the plate under and after each seam darkens, solid
@@ -380,6 +380,7 @@ static func patina(img: Image, base: Image, r: HullGrade._Ramps, m: HullScars._M
 			var c := src.get_pixel(x, y)
 			img.set_pixel(x, y, HullScars.rust(r, c) if k < run * 2 / 3 + 1 else HullScars.rust(r, HullScars.up(r, c, 0.08)))
 	_band_chips(img, src, r, m, amt, hs)
+	_band_scratches(img, src, r, amt, hs, at)
 
 
 ## The orange band faded a step, chipped to the brass in solid flakes and scratched.
@@ -399,6 +400,39 @@ static func _band_chips(img: Image, src: Image, r: HullGrade._Ramps, m: HullScar
 			img.set_pixel(x, y, out)
 
 
+## The band scratched and scuffed below S (Jon, Nov 20: "more scratches / scuffs on that
+## paint strip"): solid lines to the brass, and patches rubbed thin, more as the grade drops.
+static func _band_scratches(img: Image, src: Image, r: HullGrade._Ramps, amt: float, hs: int, at: Dictionary) -> void:
+	if amt <= 0.0 or not at.has("band_box"):
+		return
+	var bb: Array = at.band_box
+	var box := Rect2i(int(bb[0]), int(bb[1]), int(bb[2]) - int(bb[0]) + 1, int(bb[3]) - int(bb[1]) + 1)
+	var paint := func(x: int, y: int) -> bool:
+		return box.has_point(Vector2i(x, y)) and r.is_accent(src.get_pixel(x, y))
+	# scuffs, B and C: small patches where the paint is rubbed thin, a lighter orange
+	for i in int(amt * 14.0) if amt >= 0.3 else 0:
+		var cx := box.position.x + int(_hs(i, 1, hs + 101) * float(box.size.x))
+		var cy := box.position.y + int(_hs(i, 2, hs + 101) * float(box.size.y))
+		var w := 2 + int(_hs(i, 3, hs + 101) * 3.0)
+		var h := 1 + int(_hs(i, 4, hs + 101) * 2.0)
+		for y in range(cy, cy + h):
+			for x in range(cx - (y - cy), cx + w - (y - cy)):
+				if paint.call(x, y):
+					img.set_pixel(x, y, r.step(img.get_pixel(x, y), 2) if r.is_accent(img.get_pixel(x, y)) else img.get_pixel(x, y))
+	# scratches: thin lines, diagonal or across, through to the brass
+	var dirs: Array[Vector2i] = [Vector2i(2, 1), Vector2i(1, 0), Vector2i(2, -1), Vector2i(1, 1)]
+	for i in int(amt * 40.0):
+		var x0 := box.position.x + int(_hs(i, 5, hs + 103) * float(box.size.x))
+		var y0 := box.position.y + int(_hs(i, 6, hs + 103) * float(box.size.y))
+		var d := dirs[int(_hs(i, 7, hs + 103) * 4.0) % 4]
+		var ln := 3 + int(_hs(i, 8, hs + 103) * 6.0)
+		for k in ln:
+			var x := x0 + (k * d.x) / maxi(1, absi(d.y) + (1 if d.x == 2 else 0))
+			var y := y0 + (k * d.y) / 2 if d.x == 2 else y0 + k * d.y
+			if paint.call(x, y):
+				img.set_pixel(x, y, r.to_grey(r.step(src.get_pixel(x, y), 1)))
+
+
 # ------------------------------------------------------------------ all three
 
 ## The three together, each in its place (Jon, Nov 20: "Can you do all three?"): the heat
@@ -412,4 +446,4 @@ static func mixed(img: Image, base: Image, r: HullGrade._Ramps, m: HullScars._Ma
 	heat(img.duplicate() as Image, base, r, m, 0.8, hs, at, foot)
 	heat(img, base, r, m, amt * 0.8, hs, at, busy)
 	patched(img, base, r, m, amt, hs, busy, foot)
-	patina(img, base, r, m, amt * 0.85, hs, busy)
+	patina(img, base, r, m, amt * 0.85, hs, busy, at)

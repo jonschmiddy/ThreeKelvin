@@ -1338,23 +1338,25 @@ const HULL_MOUNTS := {
 		system = [Vector2(120, 75), Vector2(170, 75), Vector2(272, 75)],
 		utility = [Vector2(192, 35)],
 	},
-	# Solari's Nov 20 set: the old set's points carried over by the hulls' bounds, each moved to
-	# the nearest inside pixel, in the order grades open them, until Jon places its hard points.
-	# Why: docs/why/Database.md#hull-mounts
+	# Solari's Nov 20 set: Jon's Mount Placer points (Nov 20), in the order grades open them;
+	# a weapon point is where its gun's anchor goes, as Korvan's zero set. Why: docs/why/Database.md#hull-mounts
 	"solari/hull_light_zero": {
-		weapon = [Vector2(136, 14), Vector2(136, 77), Vector2(241, 46)],
-		system = [Vector2(123, 46), Vector2(191, 46), Vector2(71, 47)],
-		utility = [Vector2(97, 11), Vector2(91, 73)],
+		weapon = [Vector2(207, 44), Vector2(207, 76), Vector2(85, 15)],
+		guns = [&"top", &"belly", &"top"],
+		system = [Vector2(134, 47), Vector2(76, 32), Vector2(76, 58)],
+		utility = [Vector2(121, 19), Vector2(144, 19)],
 	},
 	"solari/hull_medium_zero": {
-		weapon = [Vector2(235, 27), Vector2(238, 87), Vector2(293, 54), Vector2(164, 9)],
-		system = [Vector2(155, 51), Vector2(225, 54), Vector2(108, 51)],
-		utility = [Vector2(254, 54), Vector2(162, 95)],
+		weapon = [Vector2(256, 45), Vector2(247, 89), Vector2(131, 16), Vector2(130, 93)],
+		guns = [&"top", &"belly", &"top", &"belly"],
+		system = [Vector2(191, 60), Vector2(116, 38), Vector2(116, 75)],
+		utility = [Vector2(186, 20), Vector2(162, 95)],
 	},
 	"solari/hull_heavy_zero": {
-		weapon = [Vector2(292, 32), Vector2(298, 110), Vector2(344, 65), Vector2(215, 14), Vector2(217, 125)],
-		system = [Vector2(173, 65), Vector2(230, 65), Vector2(136, 65)],
-		utility = [Vector2(267, 65)],
+		weapon = [Vector2(314, 51), Vector2(301, 97), Vector2(165, 21), Vector2(145, 110), Vector2(239, 120)],
+		guns = [&"top", &"belly", &"top", &"belly", &"belly"],
+		system = [Vector2(239, 70), Vector2(147, 43), Vector2(147, 91)],
+		utility = [Vector2(239, 25)],
 	},
 }
 
