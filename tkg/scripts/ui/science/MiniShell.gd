@@ -23,7 +23,17 @@ const BUTTON := Rect2i(GW - 3 - 33, STRIP_Y - 1, 33, 9)
 const SFX := {
 	&"coolant": {&"turn": [&"mg_coolant_turn", 0.0], &"flow": [&"mg_coolant_flow", 0.0], &"win": [&"mg_win", 1.3]},
 	&"centrifuge": {&"seat": [&"mg_centrifuge_seat", 0.0], &"spin": [&"mg_centrifuge_spin", -0.06], &"win": [&"mg_win", 0.0]},
+	&"icecore": {&"place": [&"mg_icecore_place", 0.0], &"confirm": [&"mg_icecore_confirm", 0.0], &"win": [&"mg_win", 0.4]},
+	&"pulsar": {&"tick": [&"mg_pulsar_tick", 0.0], &"lock": [&"mg_pulsar_lock", 0.0], &"win": [&"mg_win", 0.3]},
+	&"tray": {&"slide": [&"mg_tray_slide", 0.0], &"out": [&"mg_tray_out", 0.0], &"win": [&"mg_win", 0.3]},
+	&"anomaly": {&"mark": [&"mg_anomaly_mark", 0.0], &"clear": [&"mg_anomaly_clear", 0.0], &"win": [&"mg_win", 0.3]},
+	&"beams": {&"turn": [&"mg_beams_turn", 0.0], &"lit": [&"mg_beams_lit", 0.0], &"win": [&"mg_win", 0.3]},
+	&"spectrum": {&"tube": [&"mg_spectrum_tube", 0.0], &"match": [&"mg_spectrum_match", 0.0], &"win": [&"mg_win", 0.35]},
+	&"fourkelvin": {&"bump": [&"mg_fourk_bump", 0.0], &"thrust": [&"mg_fourk_thrust", 0.0], &"win": [&"mg_win", 0.0]},
+	&"torch": {&"free": [&"mg_torch_free", 0.0], &"torch": [&"mg_torch_torch", 0.0], &"win": [&"mg_win", 0.35]},
+	&"leak": {&"puff": [&"mg_leak_puff", 0.0], &"seal": [&"mg_leak_seal", 0.0], &"win": [&"mg_win", 0.15]},
 }
+const SFX_PATH := "res://assets/audio/sfx/%s.wav"
 ## The reward waits for the win (its peak, 1.283 s in) or, with none, 1.1 s after the end.
 const WIN_PEAK := 1.283
 const REWARD_MIN := 1.1
@@ -51,15 +61,20 @@ var _reward_at := -1.0
 var _rewarded := false
 var _queued: Array = []
 var _dirty := true
+## Where looping sounds play (the desk); none headless, where nothing sounds.
+var host: Node = null
+var _loops: Dictionary = {}
 
 
-## The game `g`, dealt now from `r` at `d` and `s`.
-func start(g: MiniGame, d: int, s: int, r: RandomNumberGenerator) -> void:
+## The game `g`, dealt now from `r` (seeded with `sd`) at `d` and `s`.
+func start(g: MiniGame, d: int, s: int, r: RandomNumberGenerator, sd := 0) -> void:
 	game = g
+	game.seed = sd
 	depth = clampi(d, 1, 5)
 	glass = Image.create(GW, GH, false, Image.FORMAT_RGBA8)
 	game.finished.connect(_on_finished)
 	game.mount(depth, s, r)
+	# a canvas two wider than the glass (152) loses a column each side, its own frame inside it
 	at = Vector2i((GW - game.px.w) / 2, maxi(0, (AREA_H - game.px.h) / 2))
 	_compose()
 
@@ -74,6 +89,7 @@ func tick(dt: float) -> bool:
 	game.tick(dt)
 	_take_asked()
 	_play_due()
+	_sync_loops()
 	if _reward_at >= 0.0:
 		if not _rewarded and t >= _reward_at:
 			_rewarded = true
@@ -101,23 +117,75 @@ func set_haul(name: String, of_tier: StringName) -> void:
 	_dirty = true
 
 
-func press(g: Vector2i) -> void:
+## The pointer at glass point `gf` (fractional glass pixels).
+func press(gf: Vector2) -> void:
+	var g := Vector2i(gf.floor())
 	if playing() and BUTTON.has_point(g):
 		give_up()
 		return
 	if playing():
+		game.pf = gf - Vector2(at)
 		game.down(g - at)
 		_take_asked()
 
 
-func motion(g: Vector2i) -> void:
+func motion(gf: Vector2) -> void:
 	if playing():
-		game.move(g - at)
+		game.pf = gf - Vector2(at)
+		game.move(Vector2i(gf.floor()) - at)
 
 
-func release(g: Vector2i) -> void:
+func release(gf: Vector2) -> void:
 	if playing():
-		game.up(g - at)
+		game.pf = gf - Vector2(at)
+		game.up(Vector2i(gf.floor()) - at)
+		_take_asked()
+
+
+func key(k: StringName, pressed: bool) -> void:
+	if playing():
+		game.key(k, pressed)
+		_take_asked()
+
+
+func wheel(dir: int) -> void:
+	if playing():
+		game.wheel(dir)
+		_take_asked()
+
+
+## Every looping sound off (the game ended, or the desk is left).
+func stop_sounds() -> void:
+	for p: AudioStreamPlayer in _loops.values():
+		p.stop()
+		p.queue_free()
+	_loops.clear()
+
+
+## The game's looping sounds as it wants them now (Four Kelvin's thrust, the torch's flame).
+func _sync_loops() -> void:
+	if host == null:
+		return
+	var want: Dictionary = game.loops if playing() else {}
+	for name: StringName in _loops.keys():
+		if not want.has(name):
+			(_loops[name] as AudioStreamPlayer).stop()
+			(_loops[name] as AudioStreamPlayer).queue_free()
+			_loops.erase(name)
+	for name: StringName in want:
+		if _loops.has(name):
+			continue
+		var row: Array = (SFX.get(game.id(), {}) as Dictionary).get(name, [])
+		if row.is_empty():
+			continue
+		var w := (load(SFX_PATH % row[0]) as AudioStreamWAV).duplicate() as AudioStreamWAV
+		Audio.loop_whole(w)
+		var p := AudioStreamPlayer.new()
+		p.stream = w
+		p.bus = &"SFX"
+		host.add_child(p)
+		p.play()
+		_loops[name] = p
 
 
 func _take_asked() -> void:
@@ -165,7 +233,9 @@ func _play_due() -> void:
 ## The glass: the inset, the game, the strip.
 func _compose() -> void:
 	glass.fill(INSET)
-	glass.blit_rect(game.px.img, Rect2i(Vector2i.ZERO, game.px.img.get_size()), at)
+	var src := Rect2i(Vector2i(maxi(0, -at.x), maxi(0, -at.y)), game.px.img.get_size())
+	src.size -= src.position
+	glass.blit_rect(game.px.img, src, at + src.position)
 	game.dirty = false
 	_dirty = false
 	var strip := MiniPix.new(GW, GH, glass)

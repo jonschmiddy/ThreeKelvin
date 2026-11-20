@@ -83,6 +83,41 @@ pixel (`DeskRoom.glass_at`), so a click lands on the pixel drawn under it, corne
 While a game plays, every mouse event on the desk goes to it; Esc gives up instead of leaving, and
 the desk cannot be left between the game's end and its take.
 
+## The round 2 games
+
+The nine more Jon loved (Nov 17) are ported the same way, each from its final file on the phone page
+(`phone/src/games/`, the review page's `*2.js` plus the sound hooks): Ice Core (`icecore2.js`),
+Pulsar (`pulsar2.js`), Tray (`tray2.js`), Anomaly (`anomaly2.js`), Beams (`beams2.js`), Spectrum
+(`spectrum2.js`), Four Kelvin (`fourkelvin.js`), Cutting Torch (`wreck1.js`) and Leak Hunt
+(`wreck3.js`). The prototypes' WebAudio tones were muted on that page (`TK_MUTE_TONES`), so they
+are not ported; the picked takes play instead.
+
+## Beams and Spectrum on the glass
+
+The two prototypes were taller than the glass's game area (Beams 150 x 150; Spectrum up to 153 at
+sector 5, a 13-px row a tube). Jon, Nov 19, shown three ways to fit them (shrink, the whole glass,
+fewer tubes): "can't you make it the same aspect ratio and size as the other games?" So both were
+re-laid out to the 150 x 130 area every game gets, the GIVE UP strip kept, rules and puzzle sizes
+unchanged (his yes to the "fit2" sheet):
+- Beams: LIT and its lamps, and TURNS, move into a 20-px column on the left; the table is the
+  square beside it, cells `106 / n` (21 px at 5x5, was 23; 15 at 7x7, was 16); ALL LIT shows in the
+  column.
+- Spectrum: the tube rows keep 13 px; STAR and YOU sit closer, the meter is 5 px, the header is 37
+  rows (was 46) and the empty bottom margin is gone; MATCH! prints on the meter, whose segment
+  dividers drop once it is full so the word reads clean.
+
+The prototype diff holds each against the prototype's own file with the same layout swaps
+(`tools/dev/minigame/diff.py`, `LAYOUT`).
+
+## Which game a site deals
+
+The phone page grouped the games by the site they are played at (Jon, Nov 18): WRECKS (torch,
+dock, leak), LIFE (culture, centrifuge), ROCK (seismic, core scan, ice core, four kelvin), SKY
+(pulsar, star light, sling, tuning, anomaly), LAB (coolant, tray, beams: any site). Today's science
+sites are readings at a barren world, a belt or a comet, all rock, so a site deals one of the rock
+and lab games ported so far (`MiniGames.ROCK`); the sky, life and wreck games are reached by the
+dev flag until their sites exist.
+
 ## Coolant
 
 `coolant2.js`, rule for rule: the walk, the second chamber's branch, the decoys, cracks beside the
@@ -95,6 +130,18 @@ the score from heat and turns over par. Drawing order and every colour are the p
 `centrifuge2.js`, rule for rule: the balanced load from rotationally symmetric sets, the per-sector
 shape checks, blocked slots, the heaviest tube placed at sensors 3+, the dot's blur by sensors,
 drag and tap both, the 2.2 s spin with the shake, the score from the imbalance and extra moves.
+
+## The tray's search
+
+Tray deals as `tray2.js` does: up to 400 random layouts, each one's every reachable state walked
+(given up past 15,000) for its farthest start, then at sectors 4 and 5 every block tried as the
+bolted one. In the page that takes a blink; in GDScript a sector 5 deal took several seconds. The walk
+now holds each state as one integer and the tray as a 36-bit mask, and the bolted-block searches
+reuse the walk's moves (`solve_in`), in the page's order, so ties break alike and the deal is the
+page's (the diff at sector 3, and a check that the old and new walks agree, Nov 19). A deal can still
+take 2 to 5 s at sectors 4 and 5, so the desk starts it on a worker as the card goes up
+(`MiniGames.prefetch`) and the mount takes it, waiting out what is left. The test keeps each deal
+so the scripted solve and the give-up skip a third and fourth search (`GameTray.memo_on`).
 
 ## The haul
 
@@ -118,10 +165,13 @@ as before, by the one rule the sim flies. Only the haul is new.
 ## Tests
 
 `-- sheet=MiniGameTest` (headless, gated): every game, 50 seeds at every depth, sensors 0 to 5 in
-turn; deals, deals the same twice, a scripted solve (`CoolantSolver`, `CentrifugeSolver`: every
-move through the game's own input, no wasted move) scores about 1, a give-up 0 to 0.2; the tier
+turn; deals, deals the same twice, a scripted solve (`MiniSolver`: a plan of moves read from the
+deal, or a pilot that flies Four Kelvin and the torch frame by frame, every move through the game's
+own input) scores about 1, a give-up 0 to 0.2; the tier
 ladder; every tier pays; a solve through the shell's glass at sector 5 pays legendary once, the
 win then the reward sound. It counts work done, never time, so it holds on a busy machine.
+`dump=<dir>` writes each game's deal and canvases for `tools/dev/minigame/diff.py`, which draws the
+same deal in the prototype's own file in Chrome and counts the pixels that differ (0 for all eleven).
 
 `-- minigame <id> auto=1` (windowed) plays the same solver through the screen in a real run (the
 clicks found through the tube's curve), and with `--write-movie` it is the film.

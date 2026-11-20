@@ -20,6 +20,15 @@ var t := 0.0
 var asked: Array[StringName] = []
 ## Whether the canvas changed since the shell last copied it.
 var dirty := true
+## The pointer in canvas pixels before flooring (the prototypes that read `clientX` as a fraction).
+var pf := Vector2.ZERO
+## The looping sounds wanted on now (name -> true); the shell starts and stops them to match.
+var loops: Dictionary = {}
+## The seed the puzzle was dealt from (Pulsar's video glitch is drawn from it).
+var seed := 0
+## Whether frames are drawn as the game runs (a scripted run in the headless test plays thousands of
+## steps without looking).
+var drawing := true
 var _fired := false
 ## setTimeout's queue: [due seconds, Callable].
 var _later: Array = []
@@ -72,6 +81,16 @@ func up(_p: Vector2i, _cancel := false) -> void:
 	pass
 
 
+## A key the game listens to (W, A, D and the arrows, as `&"w"`, `&"a"`, `&"d"`), pressed or let go.
+func key(_k: StringName, _pressed: bool) -> void:
+	pass
+
+
+## The mouse wheel over the canvas: +1 up, -1 down.
+func wheel(_dir: int) -> void:
+	pass
+
+
 ## `giveUp()`: the partial score earned so far (often 0), unless done already fired.
 func give_up() -> void:
 	pass
@@ -102,3 +121,10 @@ func after(secs: float, f: Callable) -> void:
 
 func sfx(name: StringName) -> void:
 	asked.append(name)
+
+
+func sfx_loop(name: StringName, on: bool) -> void:
+	if on:
+		loops[name] = true
+	else:
+		loops.erase(name)

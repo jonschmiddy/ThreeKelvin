@@ -9,7 +9,13 @@ extends RefCounted
 static var enabled := true
 ## A developer's pick (`-- minigame coolant depth=3 sensors=1`): any of id, depth, sensors.
 static var force: Dictionary = {}
-const ORDER: Array[StringName] = [&"coolant", &"centrifuge"]
+## Every ported game (the dev flag opens any).
+const ORDER: Array[StringName] = [&"coolant", &"centrifuge", &"icecore", &"pulsar", &"tray", &"anomaly", &"beams", &"spectrum", &"fourkelvin", &"torch", &"leak"]
+## What a site deals, by the phone page's grouping (Jon, Nov 18): a reading at a world, a belt or a
+## comet is rock, which deals the rock games and the lab games. Sky, life and wreck games wait for
+## their own sites.
+## Why: docs/why/MiniGame.md#which-game-a-site-deals
+const ROCK: Array[StringName] = [&"coolant", &"centrifuge", &"tray", &"icecore", &"fourkelvin"]
 
 
 static func make(id: StringName) -> MiniGame:
@@ -18,6 +24,24 @@ static func make(id: StringName) -> MiniGame:
 			return GameCoolant.new()
 		&"centrifuge":
 			return GameCentrifuge.new()
+		&"icecore":
+			return GameIceCore.new()
+		&"pulsar":
+			return GamePulsar.new()
+		&"tray":
+			return GameTray.new()
+		&"anomaly":
+			return GameAnomaly.new()
+		&"beams":
+			return GameBeams.new()
+		&"spectrum":
+			return GameSpectrum.new()
+		&"fourkelvin":
+			return GameFourKelvin.new()
+		&"torch":
+			return GameTorch.new()
+		&"leak":
+			return GameLeak.new()
 	return null
 
 
@@ -31,7 +55,7 @@ static func deal(n: MapGen.MapNode) -> Dictionary[String, Variant]:
 	var r := Rng.derive(&"minigame", n.index if n != null else 0)
 	var out: Dictionary[String, Variant] = {}
 	out.assign({
-		id = ORDER[r.randi() % ORDER.size()],
+		id = ROCK[r.randi() % ROCK.size()],
 		depth = MapGen.tier(n.danger) if n != null else 1,
 		sensors = sensors_of(Run.attr_sensors()),
 		seed = r.randi(),
@@ -48,3 +72,14 @@ static func stream(seed: int) -> RandomNumberGenerator:
 	var r := RandomNumberGenerator.new()
 	r.seed = seed
 	return r
+
+
+## Starts the dealt game's slow search on a worker as its card goes up (only the tray needs it).
+static func prefetch(d: Dictionary) -> void:
+	if StringName(d.get("id", &"")) == &"tray":
+		GameTray.prefetch(int(d.depth), stream(int(d.seed)))
+
+
+## Waits for any search still out (the desk calls it on leaving).
+static func settle() -> void:
+	GameTray.settle()

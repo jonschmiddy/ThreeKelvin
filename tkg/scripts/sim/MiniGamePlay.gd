@@ -99,25 +99,8 @@ func _play(d: DeskScene, n: MapGen.MapNode, sc: SectorScreen, data0: int, pile0:
 	await _wait(d, 1.6)
 	await _shot("2_start")
 	var g := d.game.game
-	var taps := CoolantSolver.taps(g as GameCoolant) if g is GameCoolant else CentrifugeSolver.taps(g as GameCentrifuge)
 	var fail := Harness.arg("fail") != ""
-	for k in taps.size():
-		if fail and k == taps.size() / 2:
-			# Esc pressed and let go: an action left held reads as held to everything after
-			for down: bool in [true, false]:
-				var esc := InputEventAction.new()
-				esc.action = &"ui_cancel"
-				esc.pressed = down
-				Input.parse_input_event(esc)
-				await Harness.frames(_tree, 2)
-			break
-		_click(d, taps[k] + d.game.at)
-		await _wait(d, 0.45)
-		if k == taps.size() / 2:
-			await _shot("3_mid")
-	if g is GameCentrifuge and not fail:
-		await _wait(d, 1.0)
-		await _shot("3b_spin")
+	await _drive(d, g, fail)
 	await _until(func() -> bool: return d.game.revealed)
 	await _wait(d, 1.0)
 	await _shot("4_result")
@@ -137,21 +120,73 @@ func _play(d: DeskScene, n: MapGen.MapNode, sc: SectorScreen, data0: int, pile0:
 		_end()
 
 
-## A click at glass point `gp`: found on the screen through the tube's curve, sent as the mouse.
-func _click(d: DeskScene, gp: Vector2i) -> void:
-	var c := Vector2(DeskRoom.GLASS_C.position) + Vector2(gp) * 5.0 + Vector2(2.5, 2.5)
+## The scripted player through the screen: a gesture (down to up) every 0.45 s for a planned
+## run, the pilots every frame; `fail` lets Esc go 2 s in. Stills mid-way and, after a plan, a beat on.
+func _drive(d: DeskScene, g: MiniGame, fail: bool) -> void:
+	var sv := MiniSolver.for_game(g)
+	var total := sv.plan.size()
+	var queue: Array[Dictionary] = sv.plan.duplicate()
+	var sent := 0
+	var t0 := d.real
+	var mid := false
+	while not g.is_done() and d.real - t0 < 150.0:
+		if fail and d.real - t0 > 2.0:
+			for down: bool in [true, false]:
+				var esc := InputEventAction.new()
+				esc.action = &"ui_cancel"
+				esc.pressed = down
+				Input.parse_input_event(esc)
+				await Harness.frames(_tree, 2)
+			return
+		if total > 0:
+			if queue.is_empty():
+				break
+			while not queue.is_empty():
+				var e: Dictionary = queue.pop_front()
+				_send(d, e)
+				sent += 1
+				await _tree.process_frame
+				if e.k == "up":
+					break
+			await _wait(d, 0.45)
+		else:
+			for e in sv.act(g, 1.0 / 60.0):
+				_send(d, e)
+			await _tree.process_frame
+		if not mid and ((total > 0 and sent >= total / 2) or (total == 0 and d.real - t0 > 6.0)):
+			mid = true
+			await _shot("3_mid")
+	if total > 0 and not g.is_done():
+		await _wait(d, 1.0)
+		await _shot("3b_after")
+
+
+## One scripted event onto the screen: a canvas point through the glass and the tube's curve.
+func _send(d: DeskScene, e: Dictionary) -> void:
+	if e.k == "key" or e.k == "keyup":
+		var ev := InputEventKey.new()
+		ev.physical_keycode = {&"w": KEY_W, &"a": KEY_A, &"d": KEY_D}[e.key]
+		ev.pressed = e.k == "key"
+		d._input(ev)
+		return
+	var gp: Vector2 = (e.p as Vector2) + Vector2(d.game.at)
+	var c := Vector2(DeskRoom.GLASS_C.position) + gp * 5.0
 	for k in 8:
-		var got := d.room.glass_at(c)
-		if got == gp:
+		var got := d.room.glass_at_f(c)
+		if (got - gp).length() < 0.05:
 			break
-		c += Vector2(gp - got) * 5.0
+		c += (gp - got) * 5.0
 	var at := c * d.size / DeskRoom.CANVAS
-	for pressed: bool in [true, false]:
-		var ev := InputEventMouseButton.new()
-		ev.button_index = MOUSE_BUTTON_LEFT
-		ev.pressed = pressed
-		ev.position = at
-		d._gui_input(ev)
+	if e.k == "move":
+		var mv := InputEventMouseMotion.new()
+		mv.position = at
+		d._gui_input(mv)
+		return
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = e.k == "down"
+	ev.position = at
+	d._gui_input(ev)
 
 
 func _system() -> MapGen.MapNode:

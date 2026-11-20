@@ -89,6 +89,10 @@ static func visit(host: Node, title: String, ship_at: Vector2, take: Callable, d
 	return out
 
 
+func _exit_tree() -> void:
+	MiniGames.settle()
+
+
 func open(room_id: String, title: String, ship_at: Vector2, take: Callable, deal: Dictionary = {}) -> bool:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	site = title
@@ -114,6 +118,7 @@ func open(room_id: String, title: String, ship_at: Vector2, take: Callable, deal
 	var g := MiniGames.make(StringName(_deal.get("id", &""))) if not _deal.is_empty() else null
 	if g != null:
 		tell = {text = g.hint(), controls = g.controls()}
+		MiniGames.prefetch(_deal)
 	else:
 		_deal = {}
 	room.set_card(site, tell)
@@ -173,8 +178,9 @@ func tap() -> void:
 ## The tap on the card: the dealt game mounts on the glass, and the card wipes into it.
 func _play() -> void:
 	game = MiniShell.new()
+	game.host = self
 	game.scored.connect(_on_scored)
-	game.start(MiniGames.make(StringName(_deal.id)), int(_deal.depth), int(_deal.sensors), MiniGames.stream(int(_deal.seed)))
+	game.start(MiniGames.make(StringName(_deal.id)), int(_deal.depth), int(_deal.sensors), MiniGames.stream(int(_deal.seed)), int(_deal.seed))
 	room.show_screen(game.glass, true)
 
 
@@ -204,18 +210,30 @@ func _to_game(e: InputEvent) -> void:
 	var me := e as InputEventMouse
 	if me == null:
 		return
-	var g := room.glass_at(me.position * DeskRoom.CANVAS / size)
+	var g := room.glass_at_f(me.position * DeskRoom.CANVAS / size)
 	var mb := e as InputEventMouseButton
 	if mb != null and mb.button_index == MOUSE_BUTTON_LEFT:
 		if mb.pressed:
 			game.press(g)
 		else:
 			game.release(g)
+	elif mb != null and mb.pressed and (mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+		game.wheel(1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1)
 	elif e is InputEventMouseMotion:
 		game.motion(g)
 
 
+## The keys a game reads (Four Kelvin: W thrust, A and D turn, the arrows the same), as the
+## prototype took them: by the key itself, the icon on its start frame names them.
+const GAME_KEYS := {KEY_W: &"w", KEY_UP: &"w", KEY_A: &"a", KEY_LEFT: &"a", KEY_D: &"d", KEY_RIGHT: &"d"}
+
+
 func _input(e: InputEvent) -> void:
+	var ke := e as InputEventKey
+	if ke != null and game != null and game.playing() and GAME_KEYS.has(ke.physical_keycode) and not ke.echo:
+		game.key(GAME_KEYS[ke.physical_keycode], ke.pressed)
+		get_viewport().set_input_as_handled()
+		return
 	if e.is_action_pressed(&"ui_cancel"):
 		# Esc during a game gives up (it still pays); after it, or before one, it leaves
 		if game != null and game.playing():
@@ -249,6 +267,8 @@ func _process(dt: float) -> void:
 		_done = true
 		_show_canvas(false)
 		audio.stop()
+		if game != null:
+			game.stop_sounds()
 		left.emit(result)
 
 

@@ -788,10 +788,18 @@ unit_minigametest() {
 step "The science mini games deal, solve and score as their prototypes"
 # Per game, 50 seeds at every depth: the same puzzle twice, a scripted solve about 1, a give-up
 # 0 to 0.2; a solve through the shell's glass pays its tier with the win then the reward sound.
-ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametest 300 \
-	"the mini games deal, solve and score" \
-	"a mini game dealt no puzzle, an unsolvable one, a different one twice, or scored wrong" \
-	--headless --path "$PROJECT" -- sheet=MiniGameTest
+# Three units so none runs long: the flown games (Four Kelvin, the torch) and the tray's search apart.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametest 480 	"the mini games deal, solve and score" 	"a mini game dealt no puzzle, an unsolvable one, a different one twice, or scored wrong" 	--headless --path "$PROJECT" -- sheet=MiniGameTest games=coolant,centrifuge,icecore,pulsar,anomaly,beams,spectrum,leak
+}
+
+unit_minigameflown() {
+step "Four Kelvin and the cutting torch deal, fly and score as their prototypes"
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigameflown 480 	"Four Kelvin and the torch deal, fly and score" 	"Four Kelvin or the torch dealt no puzzle, an unflyable one, a different one twice, or scored wrong" 	--headless --path "$PROJECT" -- sheet=MiniGameTest games=fourkelvin,torch
+}
+
+unit_minigametray() {
+step "The sample tray deals, solves and scores as its prototype"
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametray 600 	"the tray deals, solves and scores" 	"the tray dealt no puzzle, an unsolvable one, a different one twice, or scored wrong" 	--headless --path "$PROJECT" -- sheet=MiniGameTest games=tray
 }
 
 unit_twinsitetest() {
@@ -2595,7 +2603,7 @@ gate_weight() {
 		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;; arrivesidetest) echo 60 ;;
 		sciencesimtest) echo 51 ;; routinetest) echo 28 ;; jumpshadertest) echo 90 ;;
 		meterfittest) echo 76 ;; convoyslidetest) echo 30 ;; stationaheadtest) echo 40 ;;
-		minigametest) echo 70 ;;
+		minigametest) echo 240 ;; minigameflown) echo 300 ;; minigametray) echo 300 ;;
 		*) echo 15 ;;
 	esac
 }

@@ -406,7 +406,8 @@ func _tick(_dt: float) -> void:
 	var ph := int(floorf(t * 30.0))
 	if ph != phase:
 		phase = ph
-		_render()
+		if drawing:
+			_render()
 
 
 func tap(i: int) -> void:

@@ -29,6 +29,10 @@ const TIERS: Array[Color] = [Color("#98a0a8"), Color("#4fbf82"), Color("#6a9ad4"
 	Color("#d99b29"), Color("#e05fa8"), Color("#e0402e")]
 ## The 2x2 ordered dither the prototypes share.
 const BAYER: Array[int] = [0, 2, 3, 1]
+## The 4x4 one most of the round 2 games shade with (`bay`).
+const BAY16: Array[int] = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+## The control icons' widths, as the prototypes' start cards lay them out (`ICW`).
+const ICW := {"click": 13, "hold": 21, "drag": 22, "drag-h": 22, "drag-v": 22, "dial": 13}
 ## `TK.text`'s 3x5 font, 4 px advance (rows of three, top to bottom).
 const FONT := {
 	"A": ".#.#.#####.##.#", "B": "##.#.###.#.###.", "C": ".###..#..#...##", "D": "##.#.##.##.###.",
@@ -185,8 +189,9 @@ func _dial(x: int, y: int, on: bool) -> int:
 		for c in 9:
 			if DIAL[r][c] == "#":
 				dot(x + c, y + r + 2, EMBER if r >= 1 and r <= 4 and c == 4 else ICE)
-	var a: Array[Vector2i] = [Vector2i(10, 2), Vector2i(11, 3), Vector2i(11, 4), Vector2i(10, 5)] if on \
-		else [Vector2i(10, 6), Vector2i(11, 7), Vector2i(11, 8), Vector2i(10, 9)]
+	var a: Array[Vector2i] = [Vector2i(10, 2), Vector2i(11, 3), Vector2i(11, 4), Vector2i(10, 5)]
+	if not on:
+		a.assign([Vector2i(10, 6), Vector2i(11, 7), Vector2i(11, 8), Vector2i(10, 9)])
 	for p in a:
 		dot(x + p.x, y + p.y, HOT)
 	dot(x + 9, y + (2 if on else 9), HOT)
@@ -223,3 +228,99 @@ func _key(x: int, y: int, on: bool, label: String) -> int:
 	rect(x + 1, y + 10, kw - 2, 1, BEVEL_LO)
 	text(lab, x + 3, y + (4 if on else 5), HOT if on else ICE)
 	return kw
+
+
+# ---------------------------------------------------------------- shared by the round 2 games
+
+static var _tones: Dictionary = {}
+
+
+## The 4x4 Bayer threshold at (x, y), in 0..1.
+static func bay(x: int, y: int) -> float:
+	return (BAY16[(y & 3) * 4 + (x & 3)] + 0.5) / 16.0
+
+
+## A colour's 8-bit channels.
+static func c8(c: Color) -> Vector3i:
+	return Vector3i(roundi(c.r * 255.0), roundi(c.g * 255.0), roundi(c.b * 255.0))
+
+
+static func _byte(v: float) -> int:
+	return clampi(jr(v), 0, 255)
+
+
+## The prototypes' `shade`: a lighter step toward white (f > 0) or a darker one (f < 0), in bytes.
+static func shade(c: Color, f: float) -> Color:
+	var k := Vector4(c.r, c.g, c.b, f)
+	if _tones.has(k):
+		return _tones[k]
+	var v := c8(c)
+	var o := Color8(_byte(v.x + (255 - v.x) * f), _byte(v.y + (255 - v.y) * f), _byte(v.z + (255 - v.z) * f)) if f >= 0.0 		else Color8(_byte(v.x * (1.0 + f)), _byte(v.y * (1.0 + f)), _byte(v.z * (1.0 + f)))
+	_tones[k] = o
+	return o
+
+
+## The prototypes' `mix`: a of b by t, rounded to bytes.
+static func mix(a: Color, b: Color, t: float) -> Color:
+	var x := c8(a)
+	var y := c8(b)
+	return Color8(_byte(x.x + (y.x - x.x) * t), _byte(x.y + (y.y - x.y) * t), _byte(x.z + (y.z - x.z) * t))
+
+
+## A pixel at a fractional point, rounded as `fillRect(Math.round(x), ...)`.
+func dotf(x: float, y: float, c: Color) -> void:
+	dot(jr(x), jr(y), c)
+
+
+## Bresenham between rounded ends.
+func line(x0: float, y0: float, x1: float, y1: float, c: Color) -> void:
+	var ax := jr(x0)
+	var ay := jr(y0)
+	var bx := jr(x1)
+	var by := jr(y1)
+	var dx := absi(bx - ax)
+	var dy := -absi(by - ay)
+	var sx := 1 if ax < bx else -1
+	var sy := 1 if ay < by else -1
+	var e := dx + dy
+	while true:
+		dot(ax, ay, c)
+		if ax == bx and ay == by:
+			break
+		var e2 := 2 * e
+		if e2 >= dy:
+			e += dy
+			ax += sx
+		if e2 <= dx:
+			e += dx
+			ay += sy
+
+
+## Text at twice the size (the prototypes draw it small, then blow it up). Returns the width.
+func text2(s: String, x: int, y: int, c: Color) -> int:
+	var small := MiniPix.new(maxi(1, s.length() * 4), 5)
+	small.clear(Color(0, 0, 0, 0))
+	var w := small.text(s, 0, 0, c)
+	for j in 5:
+		for i in w:
+			var p := small.img.get_pixel(i, j)
+			if p.a > 0.0:
+				rect(x + i * 2, y + j * 2, 2, 2, p)
+	return w * 2
+
+
+## The start frame's card: the goal in words, the inputs as icons under it (`startCard`).
+func start_card(hint: String, ctl: Array, cx: float, y: int, t: float, bg: Color, edge: Color) -> void:
+	var tw := hint.length() * 4 - 1
+	var iw := -4
+	for k: String in ctl:
+		iw += int(ICW[k]) + 4
+	var w := maxi(tw, iw) + 10
+	var x := jr(cx - w / 2.0)
+	rect(x - 1, y - 1, w + 2, 28, edge)
+	rect(x, y, w, 26, bg)
+	text(hint, int(cx), y + 3, HOT, "center")
+	var ix := jr(cx - iw / 2.0)
+	for k: String in ctl:
+		icon(k, ix, y + 11, t)
+		ix += int(ICW[k]) + 4

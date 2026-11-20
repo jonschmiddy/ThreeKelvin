@@ -164,12 +164,17 @@ func show_screen(img: Image, light: bool) -> void:
 ## The glass pixel shown at canvas point `c`, through the tube's curve (as `desk_tube` samples it).
 ## Why: docs/why/MiniGame.md#input-on-the-glass
 func glass_at(c: Vector2) -> Vector2i:
+	return Vector2i(glass_at_f(c).floor())
+
+
+## The same point in fractional glass pixels (the prototypes that read a pointer between pixels).
+func glass_at_f(c: Vector2) -> Vector2:
 	var hw := (GLASS_C.size.x - 1) / 2.0
 	var hh := (GLASS_C.size.y - 1) / 2.0
 	var u := (floorf(c.x) - GLASS_C.position.x - hw) / hw
 	var v := (floorf(c.y) - GLASS_C.position.y - hh) / hh
 	var f := (1.0 + TUBE_K * (u * u + v * v)) / float(meta.get("tubeScale", 1.0))
-	return Vector2i(floori(floorf(u * f * hw + hw + 0.5) / 5.0), floori(floorf(v * f * hh + hh + 0.5) / 5.0))
+	return Vector2((u * f * hw + hw + 0.5) / 5.0, (v * f * hh + hh + 0.5) / 5.0)
 
 
 ## Draw the room at scene time `ts` (backwards while leaving) on the free clock `real`.
