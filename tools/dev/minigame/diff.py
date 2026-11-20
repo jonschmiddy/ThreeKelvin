@@ -38,6 +38,8 @@ GAMES = {
     "fourkelvin": ("fourkelvin", "const F=gen(ctx.rng,ctx.depth)", "const F=window.__P"),
     "torch": ("wreck1", "const P=gen(ctx.depth,ctx.sensors,ctx.rng);", "const P=window.__P;"),
     "leak": ("wreck3", "const P=gen(ctx.depth,ctx.sensors,ctx.rng);", "const P=window.__P;"),
+    "sling": ("sling2", "const P=gen(ctx.depth,ctx.rng);", "const P=window.__P;"),
+    "tuning": ("tuning2", "const g=gen(ctx.rng,ctx.depth),c=g.cfg", "const g=window.__P,c=g.cfg"),
 }
 
 # The layouts Jon picked to fit the glass (Nov 19, "fit2"): the prototype's own file with these swaps
@@ -106,7 +108,7 @@ DRIVER = """
   const stage=document.createElement('div');document.body.appendChild(stage);
   window.__reg.mount(stage,{depth:3,sensors:1,seed:data.seed,rng,done(){}});
   const cv=stage.querySelector('canvas');
-  if(gid==='fourkelvin'&&window.__raf){window.__now=1000;window.__raf(1000)}
+  if((gid==='fourkelvin'||gid==='tuning')&&window.__raf){window.__now=1000;window.__raf(1000)}
   const start=cv.toDataURL();
   const r=cv.getBoundingClientRect();
   const codes={w:'KeyW',a:'KeyA',d:'KeyD'};

@@ -61,6 +61,10 @@ static func puzzle(g: MiniGame) -> Dictionary:
 			p.parPuffs = p.par_puffs
 			if (p.wind as Dictionary).is_empty():
 				p.wind = null
+		&"sling":
+			p = js((g as GameSling).P)
+		&"tuning":
+			p = js((g as GameTuning).g0)
 	return p
 
 

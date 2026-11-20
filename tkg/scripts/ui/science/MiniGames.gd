@@ -10,12 +10,26 @@ static var enabled := true
 ## A developer's pick (`-- minigame coolant depth=3 sensors=1`): any of id, depth, sensors.
 static var force: Dictionary = {}
 ## Every ported game (the dev flag opens any).
-const ORDER: Array[StringName] = [&"coolant", &"centrifuge", &"icecore", &"pulsar", &"tray", &"anomaly", &"beams", &"spectrum", &"fourkelvin", &"torch", &"leak"]
-## What a site deals, by the phone page's grouping (Jon, Nov 18): a reading at a world, a belt or a
-## comet is rock, which deals the rock games and the lab games. Sky, life and wreck games wait for
-## their own sites.
+const ORDER: Array[StringName] = [&"coolant", &"centrifuge", &"icecore", &"pulsar", &"tray", &"anomaly", &"beams", &"spectrum", &"fourkelvin", &"torch", &"leak", &"sling", &"tuning"]
+## The games by the site they are played at (Jon, Nov 18, page 6pDoF6JJ9CGLB8xiD4ytoQ). LAB games
+## go with any site; Centrifuge is both LIFE and LAB. Only rock sites exist today (a reading at a
+## world, a belt or a comet): they deal ROCK and LAB. The rest wait for their sites (the dev flag
+## opens any). A game not yet ported is skipped.
 ## Why: docs/why/MiniGame.md#which-game-a-site-deals
-const ROCK: Array[StringName] = [&"coolant", &"centrifuge", &"tray", &"icecore", &"fourkelvin"]
+const WRECKS: Array[StringName] = [&"torch", &"dock", &"leak"]
+const LIFE: Array[StringName] = [&"culture", &"centrifuge", &"anomaly"]
+const ROCK: Array[StringName] = [&"seismic", &"corescan", &"icecore", &"fourkelvin"]
+const SKY: Array[StringName] = [&"pulsar", &"spectrum", &"sling", &"tuning", &"beams"]
+const LAB: Array[StringName] = [&"coolant", &"tray", &"centrifuge"]
+
+
+## The games a site of `group` deals: its own and the lab's, ported ones only, each once.
+static func pool(group: Array[StringName]) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for id in group + LAB:
+		if ORDER.has(id) and not out.has(id):
+			out.append(id)
+	return out
 
 
 static func make(id: StringName) -> MiniGame:
@@ -42,6 +56,10 @@ static func make(id: StringName) -> MiniGame:
 			return GameTorch.new()
 		&"leak":
 			return GameLeak.new()
+		&"sling":
+			return GameSling.new()
+		&"tuning":
+			return GameTuning.new()
 	return null
 
 
@@ -53,9 +71,10 @@ static func sensors_of(attr: int) -> int:
 ## What system `n`'s science site deals: {id, depth, sensors, seed}.
 static func deal(n: MapGen.MapNode) -> Dictionary[String, Variant]:
 	var r := Rng.derive(&"minigame", n.index if n != null else 0)
+	var ids := pool(ROCK)
 	var out: Dictionary[String, Variant] = {}
 	out.assign({
-		id = ROCK[r.randi() % ROCK.size()],
+		id = ids[r.randi() % ids.size()],
 		depth = MapGen.tier(n.danger) if n != null else 1,
 		sensors = sensors_of(Run.attr_sensors()),
 		seed = r.randi(),
@@ -74,12 +93,15 @@ static func stream(seed: int) -> RandomNumberGenerator:
 	return r
 
 
-## Starts the dealt game's slow search on a worker as its card goes up (only the tray needs it).
+## Starts the dealt game's slow search on a worker as its card goes up (the tray and the sling).
 static func prefetch(d: Dictionary) -> void:
 	if StringName(d.get("id", &"")) == &"tray":
 		GameTray.prefetch(int(d.depth), stream(int(d.seed)))
+	if StringName(d.get("id", &"")) == &"sling":
+		GameSling.prefetch(int(d.depth), stream(int(d.seed)))
 
 
 ## Waits for any search still out (the desk calls it on leaving).
 static func settle() -> void:
 	GameTray.settle()
+	GameSling.settle()

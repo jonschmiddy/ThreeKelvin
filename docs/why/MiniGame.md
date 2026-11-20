@@ -111,12 +111,18 @@ The prototype diff holds each against the prototype's own file with the same lay
 
 ## Which game a site deals
 
-The phone page grouped the games by the site they are played at (Jon, Nov 18): WRECKS (torch,
-dock, leak), LIFE (culture, centrifuge), ROCK (seismic, core scan, ice core, four kelvin), SKY
-(pulsar, star light, sling, tuning, anomaly), LAB (coolant, tray, beams: any site). Today's science
-sites are readings at a barren world, a belt or a comet, all rock, so a site deals one of the rock
-and lab games ported so far (`MiniGames.ROCK`); the sky, life and wreck games are reached by the
-dev flag until their sites exist.
+Jon grouped the games by the site they are played at (Nov 18, page 6pDoF6JJ9CGLB8xiD4ytoQ):
+- WRECKS, at derelicts and wreck fields: Cutting Torch, Tumble Dock, Leak Hunt.
+- LIFE, at systems with fauna: Culture Dish, Centrifuge, Anomaly Count.
+- ROCK, at barren worlds, moons, ice worlds and belts: Seismic Scan, Core Scan, Ice Core, Four Kelvin.
+- SKY, at pulsars, red and blue stars, giants: Pulsar Fold, Star Light (Spectrum), Gravity Sling,
+  Signal Tuning, Beam Bench.
+- LAB, at any site: Coolant Routing, Sample Tray, Centrifuge.
+
+`MiniGames.pool` is a group's games and the lab's, ported ones only. Today's science readings are
+at barren worlds, belts and comets, all rock, so a reading deals `pool(ROCK)`. Science sites of
+their own, with the sky, life and wreck kinds, are a separate feature (Jon, Nov 18: sites fully
+apart from encounters); until then those games open by the dev flag.
 
 ## Coolant
 
@@ -130,6 +136,25 @@ the score from heat and turns over par. Drawing order and every colour are the p
 `centrifuge2.js`, rule for rule: the balanced load from rotationally symmetric sets, the per-sector
 shape checks, blocked slots, the heaviest tube placed at sensors 3+, the dot's blur by sensors,
 drag and tap both, the 2.2 s spin with the shake, the score from the imbalance and extra moves.
+
+## Gravity Sling
+
+`sling2.js`, rule for rule: the AIM dial and the pulled sling (Jon's "should be a dial, not a
+click", which the final file already answers), masses placed off the launcher and the target with
+one near the straight line, the control space scanned so a deal has at least two clean shots and
+no more than 6% of shots hit, the moving target from sector 4, the no-fly zone at 5, the sensors'
+predicted stub and extra launches. JS `Math.hypot` is V8's (scaled by the larger value), so
+`GameSling.hyp` computes it that way and a pixel on a disc's edge lands where the page put it.
+
+The scan flies 2,387 shots of up to 1,600 steps each, a blink in the page and far slower in
+GDScript, so it stops at the 144th hit (the deal is dropped then either way) and the straight aim
+is tried before it; neither touches the stream, so the deal is the page's (checked against the
+page's own `gen` on the same draws: 20 deals, every field equal). The flight loop always pulls
+three masses, a missing one far off with no pull, which adds exactly nothing. A deal still takes
+about half a second, so the desk starts it on a worker as the card goes up, as it does the tray's
+(`MiniGames.prefetch`), and the test keeps each deal for the scripted solve and the give-up
+(`GameSling.memo_on`). The solver searches round the deal's good shot for one that lands near the
+ring's centre, since a perfect score asks for a first-launch hit within about a fifth of the ring.
 
 ## The tray's search
 
@@ -161,6 +186,22 @@ from the other tables. The draft's twenty materials per source replace `row_for`
 It is paid inside the reading's take (`OptionResolve.take`'s `also`), so LOCAL's result page lists
 it with the reading's own outcome. The reading's rule is unchanged: its fuel and its DATA are paid
 as before, by the one rule the sim flies. Only the haul is new.
+
+## Signal Tuning
+
+The prototype's curves are 1200-point Lissajous figures, and its match test (`dist`) takes, for
+every fourth point of one curve, the nearest point of the other by a full scan: 720,000 distances
+a call. The deal calls it for every setting that might draw the target (40 at sector 5), and a turn
+of a dial calls it again with the green-stretch map (`nearMap`). In GDScript that is seconds.
+`GameTuning` sorts each curve into a 40 x 40 grid of cells and searches outward ring by ring; the
+nearest distance it finds is the same number the full scan finds, summed in the same order, so the
+deal and the score are the prototype's. Where the deal only asks "under the cap?", the sum stops
+once it can only end over it, and a start under par 3 of the target itself is skipped before the
+matching settings are listed (the best match can only be closer). None of these draws from the
+stream.
+
+The slow wander of your curve reads the page's clock itself (`performance.now()`), not the time
+since the mount; the game's clock starts at 1000 ms, where the prototype diff holds the page's.
 
 ## Tests
 

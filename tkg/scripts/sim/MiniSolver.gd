@@ -33,6 +33,10 @@ static func for_game(g: MiniGame) -> MiniSolver:
 			s.plan = _beams(g as GameBeams)
 		&"spectrum":
 			s.plan = _spectrum(g as GameSpectrum)
+		&"sling":
+			s.plan = SlingSolver.plan(g as GameSling)
+		&"tuning":
+			s.plan = _tuning(g as GameTuning)
 		&"fourkelvin", &"torch":
 			s._dyn = String(g.id())
 	return s
@@ -150,4 +154,16 @@ static func _spectrum(g: GameSpectrum) -> Array[Dictionary]:
 	for i in g.T:
 		if (int(g.P.set) >> i) & 1 and not ((g.on >> i) & 1):
 			_tap(out, Vector2(GameSpectrum.row_at(i)) + Vector2(0.5, 0.5))
+	return out
+
+
+## Tuning: each dial off the nearest matching setting tapped once on that setting's tick, then LOCK.
+static func _tuning(g: GameTuning) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var e := g.best_eq()
+	for k in g.knobs.size():
+		var key: String = g.knobs[k].key
+		if int(g.cur[key]) != int(e[key]):
+			_tap(out, g.tick_at(k, int(e[key])))
+	_tap(out, Vector2(GameTuning.LOCK.get_center()) + Vector2(0.5, 0.5))
 	return out

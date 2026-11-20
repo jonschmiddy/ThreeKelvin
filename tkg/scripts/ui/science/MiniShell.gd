@@ -32,6 +32,8 @@ const SFX := {
 	&"fourkelvin": {&"bump": [&"mg_fourk_bump", 0.0], &"thrust": [&"mg_fourk_thrust", 0.0], &"win": [&"mg_win", 0.0]},
 	&"torch": {&"free": [&"mg_torch_free", 0.0], &"torch": [&"mg_torch_torch", 0.0], &"win": [&"mg_win", 0.35]},
 	&"leak": {&"puff": [&"mg_leak_puff", 0.0], &"seal": [&"mg_leak_seal", 0.0], &"win": [&"mg_win", 0.15]},
+	&"sling": {&"hit": [&"mg_sling_hit", 0.0], &"launch": [&"mg_sling_launch", 0.0], &"win": [&"mg_win", 0.3]},
+	&"tuning": {&"detent": [&"mg_tuning_detent", 0.0], &"lock": [&"mg_tuning_lock", 0.0], &"win": [&"mg_win", 0.35]},
 }
 const SFX_PATH := "res://assets/audio/sfx/%s.wav"
 ## The reward waits for the win (its peak, 1.283 s in) or, with none, 1.1 s after the end.

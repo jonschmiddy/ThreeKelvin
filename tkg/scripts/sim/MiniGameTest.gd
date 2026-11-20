@@ -26,6 +26,7 @@ func _games() -> Array[StringName]:
 
 func _run() -> void:
 	GameTray.memo_on = true
+	GameSling.memo_on = true
 	var seeds := int(Harness.arg("seeds", "50"))
 	if Harness.arg("dump") != "":
 		_dump(Harness.arg("dump"))
@@ -115,6 +116,14 @@ func _deal(id: StringName, d: int, sens: int, s: int) -> Dictionary:
 			return TorchSim.gen(d, sens, r)
 		&"leak":
 			return GameLeak.gen(d, sens, r)
+		&"sling":
+			# kept, as the tray's: the scripted solve and the give-up mount it without scanning again
+			var sk := "%d:%d:%d" % [d, r.seed, r.state]
+			var sp := GameSling.gen(d, r)
+			GameSling.memo[sk] = {P = sp.duplicate(true), end = r.state}
+			return sp
+		&"tuning":
+			return GameTuning.gen(r, d)
 	return {}
 
 
@@ -207,9 +216,9 @@ func _dump(dir: String) -> void:
 ## that match them: the first frame of most pages is 0.1 s (`last` starts at 0); Leak and Torch draw
 ## on their second.
 const DUMP_RAF := {&"beams": [1100.0], &"spectrum": [1400.0], &"icecore": [1100.0], &"tray": [1100.0], &"anomaly": [1100.0], &"pulsar": [1100.0],
-	&"leak": [1000.0, 1050.0], &"torch": [1000.0, 1050.0], &"fourkelvin": [1000.0]}
+	&"leak": [1000.0, 1050.0], &"torch": [1000.0, 1050.0], &"fourkelvin": [1000.0], &"tuning": [1100.0], &"sling": [1100.0]}
 const DUMP_TICKS := {&"beams": [0.1], &"spectrum": [0.4], &"icecore": [0.1], &"tray": [0.1], &"anomaly": [0.1], &"pulsar": [0.1],
-	&"leak": [0.0, 0.05], &"torch": [0.0, 0.05], &"fourkelvin": [0.0]}
+	&"leak": [0.0, 0.05], &"torch": [0.0, 0.05], &"fourkelvin": [0.0], &"tuning": [0.1], &"sling": [0.1]}
 
 
 ## Deals into `r`, leaving it where the game's own deal left its stream.
@@ -237,6 +246,10 @@ func _deal_into(id: StringName, r: RandomNumberGenerator) -> void:
 			TorchSim.gen(3, 1, r)
 		&"leak":
 			GameLeak.gen(3, 1, r)
+		&"sling":
+			GameSling.gen(3, r)
+		&"tuning":
+			GameTuning.gen(r, 3)
 
 
 ## What a frame of each game costs at sector 5 (printed, never asserted: it is the machine's).

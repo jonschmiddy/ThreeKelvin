@@ -788,8 +788,18 @@ unit_minigametest() {
 step "The science mini games deal, solve and score as their prototypes"
 # Per game, 50 seeds at every depth: the same puzzle twice, a scripted solve about 1, a give-up
 # 0 to 0.2; a solve through the shell's glass pays its tier with the win then the reward sound.
-# Three units so none runs long: the flown games (Four Kelvin, the torch) and the tray's search apart.
-ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametest 480 	"the mini games deal, solve and score" 	"a mini game dealt no puzzle, an unsolvable one, a different one twice, or scored wrong" 	--headless --path "$PROJECT" -- sheet=MiniGameTest games=coolant,centrifuge,icecore,pulsar,anomaly,beams,spectrum,leak
+# Five units so none runs long: the dial games, the flown games, the tray's and the sling's searches apart.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametest 480 	"the mini games deal, solve and score" 	"a mini game dealt no puzzle, an unsolvable one, a different one twice, or scored wrong" 	--headless --path "$PROJECT" -- sheet=MiniGameTest games=coolant,centrifuge,icecore,anomaly,beams,spectrum,leak
+}
+
+unit_minigamedials() {
+step "Pulsar and Signal Tuning deal, solve and score as their prototypes"
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigamedials 480 	"Pulsar and Tuning deal, solve and score" 	"Pulsar or Tuning dealt no puzzle, an unsolvable one, a different one twice, or scored wrong" 	--headless --path "$PROJECT" -- sheet=MiniGameTest games=pulsar,tuning
+}
+
+unit_minigamesling() {
+step "Gravity Sling deals, solves and scores as its prototype"
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigamesling 600 	"the sling deals, solves and scores" 	"the sling dealt no puzzle, an unsolvable one, a different one twice, or scored wrong" 	--headless --path "$PROJECT" -- sheet=MiniGameTest games=sling
 }
 
 unit_minigameflown() {
@@ -2603,7 +2613,7 @@ gate_weight() {
 		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;; arrivesidetest) echo 60 ;;
 		sciencesimtest) echo 51 ;; routinetest) echo 28 ;; jumpshadertest) echo 90 ;;
 		meterfittest) echo 76 ;; convoyslidetest) echo 30 ;; stationaheadtest) echo 40 ;;
-		minigametest) echo 240 ;; minigameflown) echo 300 ;; minigametray) echo 300 ;;
+		minigametest) echo 150 ;; minigamedials) echo 220 ;; minigameflown) echo 300 ;; minigametray) echo 300 ;; minigamesling) echo 270 ;;
 		*) echo 15 ;;
 	esac
 }
