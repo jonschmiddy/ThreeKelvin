@@ -16,6 +16,9 @@ const AGE := [1.0, 0.55, 0.2, 0.0]
 ## a HullScars.Idea; `drama` is the one in use, set apart only by a sheet comparing them.
 const DRAMA := HullScars.Idea.JUNKER
 static var drama: int = DRAMA
+## Solari's own (Jon, Nov 20: "Can you do all three?"): heat, patches and old bronze together.
+const SOLARI_DRAMA := HullScars.Idea.MIXED
+static var solari_drama: int = SOLARI_DRAMA
 
 
 ## The graded copy. `grade` 0..3 is C..S. The source is never touched.
@@ -39,13 +42,14 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hul
 	if Look.KIT in looks:
 		_kit(img, r, grade, seed_in, at)
 	# on Solari a chosen idea is the whole of the wear (docs/why/SolariScars.md#solari-wear)
-	var own := r.mf == "solari" and drama >= HullScars.Idea.HEAT
+	var dr := solari_drama if r.mf == "solari" else drama
+	var own := r.mf == "solari" and dr >= HullScars.Idea.HEAT
 	if Look.PAINT in looks and not own:
 		_paint(img, r, grade, seed_in)
 	if Look.WEAR in looks:
 		if not own:
 			_wear(img, r, AGE[grade], seed_in)
-		HullScars.scar(img, base, r, grade, drama, hull, at)
+		HullScars.scar(img, base, r, grade, dr, hull, at)
 	# after the age: the S clean-up wipes lone pixels, and a stencil is made of them
 	if Look.MARKS in looks:
 		_marks(img, r, grade, seed_in, at)

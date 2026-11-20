@@ -29,6 +29,13 @@ ways from the furnace at one speed, to the cap (whose lens flashes when it arriv
 the stern clamp. The flares come from slots fixed by the hull and the time, never rolled
 per frame, so a film and the game agree. `chaos` runs from 1 at C to 0 at S: at C the slots
 jitter, some are skipped, some misfire weakly and die partway (each side on its own), some
-cough twice, and the fall is quicker; at S they come every 1.4 s. The cab's glass dips and
-stutters at C, dips at B, and holds steady at A and S. The halo round the rim and the lens
+cough twice, and the fall is quicker; at S they come every 1.4 s. The cab's glass is steady
+but for a rare short, shallow dip: about one every 2 to 4 s at C, one every 8 s or so at B,
+none at A and S.
+
+Jon, Nov 20, on the first in-game film: "At the C tier, let's have the lights flicker a
+biiiit less lol" and, of the cab, "looks like a rave going on there". `chaos` was 1, 0.6,
+0.25, 0 for C to S and is now 0.65, 0.4, 0.18, 0: a C's flares jitter, misfire and cough
+about a third less and fall a little slower, still clearly unlike S. The glass lost its
+stutter (half a second of on-off at 12 a second) and its jitter outright. The halo round the rim and the lens
 is added with the other hull lights.

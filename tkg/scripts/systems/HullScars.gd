@@ -5,7 +5,7 @@ extends RefCounted
 ## (Jon, Nov 17: "C is not messed up enough"). Three ideas on trial; HullGrade.DRAMA picks.
 ## Why: docs/why/HullScars.md#hull-scars
 
-enum Idea { NONE, GRIME, BATTLE, JUNKER, HEAT, PATCHED, PATINA }
+enum Idea { NONE, GRIME, BATTLE, JUNKER, HEAT, PATCHED, PATINA, MIXED }
 ## How much of the scarring each grade carries: C, B, A, S. B's scars are the first of C's.
 const AMT := [1.0, 0.5, 0.18, 0.0]
 
@@ -30,6 +30,8 @@ static func scar(img: Image, base: Image, r: HullGrade._Ramps, grade: int, idea:
 			SolariScars.patched(img, base, r, m, amt, hs)
 		Idea.PATINA:
 			SolariScars.patina(img, base, r, m, amt, hs)
+		Idea.MIXED:
+			SolariScars.mixed(img, base, r, m, amt, hs, at)
 		Idea.JUNKER:
 			_panels(img, base, r, m, amt, hs)
 			_soot(img, r, m, amt, hs, 0.55)

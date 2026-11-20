@@ -22,6 +22,7 @@ func _run() -> void:
 		if pick != "" and not str(idea) in pick.split(","):
 			continue
 		HullGrade.drama = idea
+		HullGrade.solari_drama = idea
 		for key: String in HULLS:
 			if only != "" and not key.begins_with(only):
 				continue
@@ -41,5 +42,6 @@ func _run() -> void:
 				print("  idea %d %s %s: %d off-palette" % [idea, key, "CBAS"[g], extra])
 				HullGrade.lit(img, g, key).save_png("%s/i%d_%s_%d.png" % [out, idea, key.replace("/", "_"), g])
 	HullGrade.drama = HullGrade.DRAMA
+	HullGrade.solari_drama = HullGrade.SOLARI_DRAMA
 	print("gradedrama: %s" % ("PASS" if fails == 0 else "%d off-palette" % fails))
 	get_tree().quit(0 if fails == 0 else 1)

@@ -23,7 +23,7 @@ var lens_s := 1.0
 var centre := Vector2.ZERO
 var radii := Vector2.ONE
 var seed := 0
-## Halo pixels round the furnace's rim and the lens, two rings, dithered once.
+## Halo pixels round the furnace's rim and the lens: two solid rings and the lens's one.
 var halo_rim: PackedVector2Array = []
 var halo_rim2: PackedVector2Array = []
 var halo_lens: PackedVector2Array = []
@@ -173,15 +173,14 @@ func _halos(map: Image) -> void:
 	for p: Vector2i in r1:
 		both[p] = true
 	var r2 := _grow(both, lit)
+	# solid rings: a dithered halo read as a screen pattern (Jon, Nov 20)
 	for p: Vector2i in r1:
-		if _on(p):
-			halo_rim.append(Vector2(p))
+		halo_rim.append(Vector2(p))
 	for p: Vector2i in r2:
-		if not r1.has(p) and _on(p):
+		if not r1.has(p):
 			halo_rim2.append(Vector2(p))
 	for p: Vector2i in _grow(lensp, lit):
-		if _on(p):
-			halo_lens.append(Vector2(p))
+		halo_lens.append(Vector2(p))
 
 
 func _grow(s: Dictionary, lit: Callable) -> Dictionary[Vector2i, bool]:
@@ -194,16 +193,12 @@ func _grow(s: Dictionary, lit: Callable) -> Dictionary[Vector2i, bool]:
 	return out
 
 
-## The halo's dither: three of every four pixels, fixed.
-static func _on(p: Vector2i) -> bool:
-	return float(HullWear.BAYER[p.y % 4][p.x % 4]) / 16.0 < 0.75
-
-
 # --------------------------------------------------------------- the behaviour
 
 ## 0 at S, 1 at C: how far from controlled the furnace is.
 static func chaos(grade: int) -> float:
-	return [1.0, 0.6, 0.25, 0.0][clampi(grade, 0, 3)]
+	# C a third calmer than first filmed (Jon, Nov 20: "flicker a biiiit less"), B a step under it
+	return [0.65, 0.4, 0.18, 0.0][clampi(grade, 0, 3)]
 
 
 func _h(a: int, b: int, c: int = 0) -> float:
@@ -271,23 +266,18 @@ func speed(grade: int) -> float:
 	return lerpf(240.0, 160.0, chaos(grade))
 
 
-## The cab's glass: steady on a good hull; on a worn one, dips and now and then a stutter.
+## The cab's glass: steady, but for a rare short shallow dip on a worn hull (Jon, Nov 20:
+## "looks like a rave going on there"): about one every 2-4 s at C, every ~8 s at B.
 func glass_level(grade: int, t: float) -> float:
 	if grade >= 2:
 		return 1.0
-	var k := floori(t / 1.3)
-	var at := _h(k, 41) * 1.0
-	var u := t - float(k) * 1.3
+	var per := 3.0 if grade == 0 else 8.0
+	var k := floori(t / per)
+	var at := _h(k, 41) * (per - 0.3)
+	var u := t - float(k) * per
 	if u > at and u < at + 0.12:
-		return 0.5
-	if grade == 1:
-		return 1.0
-	var k2 := floori(t / 3.1)
-	var at2 := _h(k2, 43) * 2.4
-	var u2 := t - float(k2) * 3.1
-	if u2 > at2 and u2 < at2 + 0.45:
-		return 0.25 if int((u2 - at2) * 12.0) % 2 == 0 else 1.0
-	return 0.9 + 0.1 * _h(floori(t * 10.0), 47)
+		return 0.72 if grade == 0 else 0.82
+	return 1.0
 
 
 ## Sparks rising in the furnace, in the art's pixels.

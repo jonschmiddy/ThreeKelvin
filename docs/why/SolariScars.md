@@ -27,3 +27,20 @@ the idea is the whole of the wear. The ladder is HullScars.AMT: C all of it, B h
 little, S none. Every colour is one the hull has, so `-- sheet=GradeSheet`'s palette check
 holds, and the furnace, the line and the glass are put back as drawn after every pass
 (`HullGrade._unlit`).
+
+## All three, and no dither
+
+Jon, Nov 20, on the three-way sheet: "Can you do all three? There is some weird dithering
+happening that's kinda weird." MIXED layers them so each has its place and none piles on
+another's pixels: the heat first (round the furnace, along the line, at the bells and
+trailing aft), then patches on the big plain plates it left clear (off the band, at most a
+twentieth of a plate already worn, fewer swaps, one torn plate at C only), then the bronze
+ageing in the seams, the belly's tide line and the band where neither has been. A shared
+mask (`busy`) carries who wore what. It is Solari's wear in the game
+(`HullGrade.SOLARI_DRAMA`); `drama` stays Korvan's.
+
+Every fill is solid. The ordered 2x2 dither (`HullScars.dith`) that edged the heat tint,
+the line scorch, the bell soot, the aft streaks, the weld's scorch and the tide line read as
+a checkerboard across the plates; each is now a solid step with a ragged edge cut from
+soft noise or a per-row length. The band's flakes are solid blobs, not 4x3 cells. The
+furnace's halo rings are solid too.
