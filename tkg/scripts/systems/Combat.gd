@@ -1131,6 +1131,10 @@ const HELLBENDER_PARTS := 3
 ## Cygnet 5 keeps this many attack drones into the next fight (`Run.hive_drones`).
 const HIVE_KEEP := 3
 const FAUNA_EXOTIC := 2
+## A beaten ship's fight materials per part it can hold (Jon, Nov 19: "fights can win materials"):
+## a cutter about one in two, a sentinel two in three, the Hellbender one or two.
+## Why: docs/why/Combat.md#fight-materials
+const WRECK_FIGHT_MATERIALS := 0.5
 
 ## A ship's purse before the chance and the spread: its reward at this danger.
 static func wreck_purse(t: EnemyTemplate, danger: int, probate: bool = false) -> float:
@@ -1179,6 +1183,15 @@ static func roll_wreck(node: MapGen.MapNode, t: EnemyTemplate, index: int,
 		n += 1
 	for i in n:
 		out.append(LootGen.roll_module(node.danger, force, deep, r))
+	# After the parts, on the same stream, so a wreck's money and parts are what they were.
+	var mats := per * WRECK_FIGHT_MATERIALS
+	var m := int(mats)
+	if r.randf() < mats - m:
+		m += 1
+	for i in m:
+		var row := MaterialTable.roll(&"fight", node.danger, r)
+		if not row.is_empty():
+			out.append(MaterialData.of(row))
 	if t.fauna:
 		var row := MaterialTable.by_id(&"exotic")
 		if not row.is_empty():
@@ -1244,7 +1257,7 @@ func _victory() -> void:
 			wrecks_before += 1
 	var credits := 0
 	var parts := 0
-	var exotic := 0
+	var mats := 0
 	var empty := 0
 	for i in enemies.size():
 		var e: EnemyState = enemies[i]
@@ -1259,21 +1272,22 @@ func _victory() -> void:
 			elif m is ModuleData:
 				parts += 1
 			elif m is MaterialData:
-				exotic += 1
-	var bits: PackedStringArray = [wreck_line(credits, parts, exotic, enemies.size(), empty)]
+				mats += 1
+	var bits: PackedStringArray = [wreck_line(credits, parts, mats, enemies.size(), empty)]
 	if new_dross > 0:
 		bits.append("%d Dross" % new_dross)
 	_finish(&"victory", " · ".join(bits))
 
 ## The money is in the wrecks, not yet in your account, so the line says where it is.
-static func wreck_line(credits: int, parts: int, exotic: int, wrecks: int, empty: int) -> String:
+## `mats` counts every material: a creature's EXOTIC TISSUE and, since Nov 19, a ship's fight materials.
+static func wreck_line(credits: int, parts: int, mats: int, wrecks: int, empty: int) -> String:
 	var held := PackedStringArray()
 	if credits > 0:
 		held.append("%d credits" % credits)
 	if parts > 0:
 		held.append("%d part%s" % [parts, "" if parts == 1 else "s"])
-	if exotic > 0:
-		held.append("%d exotic" % exotic)
+	if mats > 0:
+		held.append("%d material%s" % [mats, "" if mats == 1 else "s"])
 	if held.is_empty():
 		return "The wreck is empty" if wrecks <= 1 else "The wrecks are empty"
 	var listed := held[0]

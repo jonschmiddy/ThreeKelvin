@@ -373,6 +373,42 @@ func _list() -> void:
 		print("       %s" % line)
 	_matrix(doc)
 	_cut_and_pick(doc)
+	_deep_wrecks()
+
+
+## Deep wrecks pay more, rising with depth, and turn up the precursor pieces (Jon, Nov 19):
+## 3000 positional rolls a tier, their mean value and grades printed, the rule held.
+func _deep_wrecks() -> void:
+	print("=== deep wrecks ===")
+	var mean: Dictionary = {}
+	var found: Dictionary = {}
+	var stray := 0
+	for d in range(1, MapGen.DANGER_MAX + 1):
+		var t := MapGen.tier(d)
+		if mean.has(t):
+			continue
+		var r := Rng.derive(&"materialtest_deep", t)
+		var sum := 0
+		var by: Dictionary = {}
+		for i in 3000:
+			var row := MaterialTable.roll(&"wreck", d, r)
+			sum += int(row.value)
+			by[row.tier] = int(by.get(row.tier, 0)) + 1
+			if row.source != &"wreck":
+				found[row.id] = t
+				if t < MaterialTable.WRECK_PRECURSOR_TIER or not row.get("precursor", false):
+					stray += 1
+		mean[t] = sum / 3000.0
+		var line := "  tier %d: %5.1f a roll ·" % [t, mean[t]]
+		for g in MaterialTable.TIERS:
+			if by.has(g):
+				line += " %s %d%%" % [g, roundi(100.0 * by[g] / 3000.0)]
+		print(line)
+	_ok("a wreck roll is worth more the deeper it is (%s)" % str(mean),
+		mean[3] > mean[2] and mean[4] > mean[3] and mean[5] > mean[4] and mean[4] >= 95.0)
+	_ok("deep wrecks turn up the other lists' precursor pieces (%s)" % ", ".join(found.keys()),
+		found.has(&"singing_tine") and found.has(&"caged_sphere") and found.has(&"closed_bay_key"))
+	_ok("and nothing else from another list, at any depth (%d)" % stray, stray == 0)
 
 
 ## Each source has exactly the list's count at every tier, so every grade it should have is there.
@@ -416,7 +452,8 @@ func _cut_and_pick(doc: Dictionary) -> void:
 				bad.append("%s %s -> %s" % [src, tier, row.get("id", "nothing")])
 		for d in [1, MapGen.DANGER_MAX]:
 			var rolled := MaterialTable.roll(src, d, r)
-			if rolled.is_empty() or rolled.source != src or rolled.get("named", false):
+			var own: bool = not rolled.is_empty() and (rolled.source == src or rolled.get("precursor", false))
+			if not own or rolled.get("named", false):
 				bad.append("%s rolled at danger %d -> %s" % [src, d, rolled.get("id", "nothing")])
 	_ok("pick and roll stay in their source, at or under the grade%s" % ("" if bad.is_empty() else ": " + "; ".join(bad)),
 		bad.is_empty())

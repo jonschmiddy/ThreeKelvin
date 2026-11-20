@@ -93,10 +93,9 @@ stars, nebulae and gas giants. Two encounter outcomes at a star moved from minin
 because their own lines are cosmic: scooping a red star's dust cloud, and riding a
 comet's tail.
 
-FIGHT HAS NO ROLLER YET. Before draft 2 nothing paid `material = &"fight"` either; a won
-fight's wreck pays credits, parts and (a creature) EXOTIC TISSUE. Its list is real and the
-science haul can draw on it; whether a ship's wreck should also drop one is a balance
-call, not part of putting the list in.
+FIGHT is paid by a beaten ship's wreck (Jon, Nov 19: "Yeah, fights can win materials"):
+`Combat.WRECK_FIGHT_MATERIALS`, `docs/why/Combat.md#fight-materials`. Nothing paid it
+before draft 2's first commit either.
 ```
 
 ## Retired ids
@@ -196,4 +195,35 @@ whether to keep four cells clear for is the better job for them.
 
 2x2 at artifact value is the whole point: four cells is a quarter of a
 small hold, so carrying one out is a decision rather than a pickup.
+```
+
+## Deep wrecks
+
+Above `const WRECK_SHARES`:
+
+```text
+Draft 2 gave every source the same shape (6 common, 5 uncommon, 4 rare, 2 epic, 1
+legendary, 1 top, 1 contraband), and `roll` drew every open row alike. Deep, that cut what
+a WRECK roll was worth: at tier 4 and 5 the old wreck table held five artifacts and paid
+about 110 a roll; draft 2's paid 61, mostly uncommons and rares. Jon, Nov 19: "Bump it I
+think. but they can also get artifacts, too."
+
+So the wreck source, and only it, has shares by depth (`WRECK_SHARES`): a grade's rows
+count that many times in the roll, 0 closes the grade, anything unlisted is 1. And from
+the Legendary tier (`WRECK_PRECURSOR_TIER`) a wreck also turns up the precursor pieces the
+list put in other sources' top slots (SINGING TINE, CAGED SPHERE, CLOSED-BAY KEY), beside
+its own PRECURSOR RELIC and WRONG MASS: the list's own notes say precursor pieces come off
+deep wrecks. Such a piece still says its own source on the tooltip.
+
+Expected value of a wreck roll and its odds, from the list (tier: before -> after):
+  tier 3   44 -> 52    epic 17% -> 29%
+  tier 4   61 -> 103   uncommon 36% -> 0, rare 29 -> 42, epic 14 -> 21, legendary 7 -> 11,
+                       artifact 7 -> 21 (relic, tine, sphere, key), contraband 7 -> 5
+  tier 5   61 -> 122   rare 30, epic 22, legendary 15, artifact 30, contraband 4
+Tiers 1-2 are unchanged, draw for draw. Mining, event, fight, fauna and cosmic stay at
+every row alike (63, 65, 64, 55, 60 deep): Jon's call was about wrecks.
+
+Measured against two other tables: closing uncommons at tier 4 with epic and up doubled
+paid 103 at both deep tiers, flat rather than rising; doubling every deep grade with
+uncommons kept paid 87.
 ```

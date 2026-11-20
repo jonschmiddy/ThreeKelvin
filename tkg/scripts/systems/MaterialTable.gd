@@ -36,6 +36,17 @@ const TIER_MIN: Dictionary = {
 	&"artifact": LootGen.LEGENDARY_TIER,
 }
 
+## Deep wrecks pay more, rising with depth (Jon, Nov 19: "Bump it I think. but they can also
+## get artifacts, too."): a WRECK roll's shares per grade at each tier; unlisted 1, 0 closed.
+## Why: docs/why/MaterialTable.md#deep-wrecks
+const WRECK_SHARES: Dictionary = {
+	3: {&"epic": 2},
+	4: {&"uncommon": 0, &"rare": 2, &"epic": 2, &"legendary": 2},
+	5: {&"uncommon": 0, &"rare": 2, &"epic": 3, &"legendary": 4, &"artifact": 2},
+}
+## From this tier a wreck also turns up the precursor pieces (`precursor = true`) of other lists.
+const WRECK_PRECURSOR_TIER := LootGen.LEGENDARY_TIER
+
 ## Whether a system of this danger rolls this grade: its gate is open, and it is
 ## not a common from halfway in (`LootGen.NO_COMMON_TIER`, the module rule).
 static func admits(tier: StringName, danger: int) -> bool:
@@ -51,28 +62,55 @@ static func _opens(tier: StringName, t: int) -> bool:
 	return t >= int(TIER_MIN.get(tier, 1))
 
 
-## One row from `source`'s own list, every open grade alike, as `LootGen.roll_module` does.
-## A table with only commons open pays a common, never nothing.
+## A row's shares in a `source` roll at tier `t`: 1, except a wreck's (`WRECK_SHARES`).
+static func shares(source: StringName, tier: StringName, t: int) -> int:
+	if source != &"wreck":
+		return 1
+	return int((WRECK_SHARES.get(t, {}) as Dictionary).get(tier, 1))
+
+
+## Whether `row` is in a `source` roll at tier `t`: its own list, and a deep wreck's precursors.
+static func rolls_in(row: Dictionary, source: StringName, t: int) -> bool:
+	if row.get("named", false):
+		return false
+	if row.source == source:
+		return true
+	return source == &"wreck" and t >= WRECK_PRECURSOR_TIER and row.get("precursor", false)
+
+
+## One row from `source`'s list by its grade's shares (all 1 but a wreck's, so every row alike,
+## as `LootGen.roll_module` does). Only closed grades left pays one of them, never nothing.
 static func roll(source: StringName, danger: int,
 		r: RandomNumberGenerator) -> Dictionary:
 	var t := MapGen.tier(danger)
 	var pool: Array[Dictionary] = []
-	var commons: Array[Dictionary] = []
+	var weights: Array[int] = []
+	var closed: Array[Dictionary] = []
 	for row in all():
-		if row.source != source or row.get("named", false):
-			continue
 		var tier: StringName = row.tier
-		if not _opens(tier, t):
+		if not rolls_in(row, source, t) or not _opens(tier, t):
 			continue
-		if admits(tier, danger):
+		var w := shares(source, tier, t)
+		if admits(tier, danger) and w > 0:
 			pool.append(row)
+			weights.append(w)
 		else:
-			commons.append(row)
+			closed.append(row)
 	if pool.is_empty():
-		pool = commons
+		pool = closed
+		weights.assign(closed.map(func(_x: Dictionary) -> int: return 1))
 	if pool.is_empty():
 		return {}
-	return pool[r.randi() % pool.size()]
+	var total := 0
+	for w in weights:
+		total += w
+	# With every share 1 this is the old `pool[randi() % size]`, draw for draw.
+	var k := r.randi() % total
+	for i in pool.size():
+		k -= weights[i]
+		if k < 0:
+			return pool[i]
+	return pool[-1]
 
 
 ## One row of `tier` from `source`, else of the nearest grade under it the source has: a
@@ -177,11 +215,11 @@ const ROWS := [
 	{id = &"korvan_cold_iron", name = "KORVAN COLD IRON", tier = &"epic", cells = "2x1", value = 85,
 		source = &"wreck", text = "Vacuum-cooled iron made to Korvan's navy spec."},
 	{id = &"wrong_mass", name = "WRONG MASS", tier = &"epic", cells = "1x1", value = 110,
-		source = &"wreck", text = "A precursor lump far heavier than its size."},
+		source = &"wreck", precursor = true, text = "A precursor lump far heavier than its size."},
 	{id = &"first_keel", name = "FIRST-POUR KEEL SECTION", tier = &"legendary", cells = "4x1", value = 240,
 		source = &"wreck", text = "A keel section from a manufacturer's first hull."},
 	{id = &"relic", name = "PRECURSOR RELIC", tier = &"artifact", cells = "1x1", value = 90,
-		source = &"wreck", text = "A precursor fragment from a deep wreck."},
+		source = &"wreck", precursor = true, text = "A precursor fragment from a deep wreck."},
 	{id = &"orphan_charts", name = "ORPHAN CHARTS", tier = &"contraband", cells = "1x1", value = 88,
 		source = &"wreck", text = "Stolen survey charts of unclaimed shells."},
 	# MINING: cut, cored or dug from rock and ice.
@@ -224,7 +262,7 @@ const ROWS := [
 	# First pictured non-1x1 artifacts: four cells at artifact value makes carrying a decision.
 	# Why: docs/why/MaterialTable.md#pictured-materials
 	{id = &"singing_tine", name = "SINGING TINE", tier = &"artifact", cells = "2x2", value = 210,
-		source = &"mining", text = "A ringing precursor tine in a cradle."},
+		source = &"mining", precursor = true, text = "A ringing precursor tine in a cradle."},
 	{id = &"jumped_ore", name = "JUMPED ORE", tier = &"contraband", cells = "2x1", value = 72,
 		source = &"mining", text = "Ore taken from someone else's claim."},
 	# EVENT: cargo and stores an encounter hands over.
@@ -265,7 +303,7 @@ const ROWS := [
 	{id = &"closed_auction_lot", name = "SEALED LOT, UNCLAIMED", tier = &"legendary", cells = "2x2", value = 180,
 		source = &"event", text = "A sealed Probate auction lot."},
 	{id = &"caged_sphere", name = "CAGED SPHERE", tier = &"artifact", cells = "2x2", value = 240,
-		source = &"event", text = "A precursor sphere held in a cage."},
+		source = &"event", precursor = true, text = "A precursor sphere held in a cage."},
 	{id = &"void_labels", name = "VOID LABELS", tier = &"contraband", cells = "1x1", value = 64,
 		source = &"event", text = "Blank cargo labels stamped as cleared."},
 	# FIGHT: off a ship you beat, or out of your own plating.
@@ -306,7 +344,7 @@ const ROWS := [
 	{id = &"one_true_metre", name = "THE ONE TRUE METER", tier = &"legendary", cells = "1x1", value = 210,
 		source = &"fight", text = "The bar three shells measure length by."},
 	{id = &"closed_bay_key", name = "CLOSED-BAY KEY", tier = &"artifact", cells = "1x1", value = 140,
-		source = &"fight", text = "A precursor key for the closed bays."},
+		source = &"fight", precursor = true, text = "A precursor key for the closed bays."},
 	{id = &"unmarked_cells", name = "UNMARKED CELLS", tier = &"contraband", cells = "1x1", value = 95,
 		source = &"fight", text = "Power cells with the serials ground off."},
 	# FAUNA: shed by or cut from a leviathan.

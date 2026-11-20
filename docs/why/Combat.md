@@ -743,3 +743,23 @@ The enemy is left at party scale. Finishing a frigate sized for four on your
 own is bad; being unable to finish it at all is worse, and FLEE is still on
 the panel.
 ```
+
+## Fight materials
+
+Above `const WRECK_FIGHT_MATERIALS`:
+
+```text
+Jon, Nov 19: "Yeah, fights can win materials." Materials draft 2 gave FIGHT its own list
+(spent casings to the Hellbender's painted plate), and before this nothing paid from it.
+
+A beaten ship's wreck now holds fight materials at half its parts rate: the expected count
+is `wreck_parts(t, region) * loot * WRECK_FIGHT_MATERIALS`, the whole part always, the rest
+a chance. So a cutter (0.95 parts) holds one about half the time, a sentinel (1.3) about
+two times in three, a lawless wreck twice that, the Hellbender (3 parts) one or two, and a
+party's wreck scales by `PartyScale.loot` as its parts do. A creature's wreck has no parts
+and keeps its EXOTIC TISSUE instead.
+
+Rolled with `MaterialTable.roll(&"fight", danger, r)` on the wreck's own positional stream,
+after the parts, so the money and parts of every wreck are the draws they were. They go in
+the wreck like any other material, so the container's reveal shows them with its tier sound.
+```
