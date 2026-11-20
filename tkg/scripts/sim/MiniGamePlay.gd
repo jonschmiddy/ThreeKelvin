@@ -66,6 +66,8 @@ func _run() -> void:
 	for k: String in ["depth", "sensors"]:
 		if Harness.arg(k) != "":
 			force[k] = int(Harness.arg(k))
+	if Harness.arg("site") != "":
+		force.site = StringName(Harness.arg("site"))
 	MiniGames.force = force
 	var wt := {"light": HullData.Weight.LIGHT, "heavy": HullData.Weight.HEAVY}.get(Harness.arg("weight"), HullData.Weight.MEDIUM) as int
 	Run.start_new_run(&"korvan", wt)

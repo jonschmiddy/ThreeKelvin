@@ -600,7 +600,8 @@ func _at_desk(o: Dictionary, j: int) -> Dictionary[String, Variant]:
 		at = sv.get_global_transform() * r.get_center()
 	var n := node
 	var i := opt
-	var site := StringName(o.get("site", &""))
+	# the reading's site picks the haul's source; the dev flag may stand in another (`-- minigame site=`)
+	var site := StringName(MiniGames.force.get("site", o.get("site", &"")))
 	# a mini game's tier pays its haul inside the take; -1, none (Why: docs/why/MiniGame.md#the-haul)
 	var take := func(tier: int) -> Dictionary:
 		var haul := Callable() if tier < 0 else func() -> Dictionary: return ScienceHaul.pay(tier, site, n)

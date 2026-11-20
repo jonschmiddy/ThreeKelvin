@@ -7,7 +7,8 @@ extends RefCounted
 
 ## Behind a switch, as the desk is: on, a reading at the desk plays a game.
 static var enabled := true
-## A developer's pick (`-- minigame coolant depth=3 sensors=1`): any of id, depth, sensors.
+## A developer's pick (`-- minigame coolant depth=3 sensors=1 site=star`): any of id, depth, sensors, and
+## the site whose source pays the haul.
 static var force: Dictionary = {}
 ## Every ported game (the dev flag opens any).
 const ORDER: Array[StringName] = [&"coolant", &"centrifuge", &"icecore", &"pulsar", &"tray", &"anomaly", &"beams", &"spectrum", &"fourkelvin", &"torch", &"leak", &"sling", &"tuning", &"seismic", &"corescan", &"culture", &"dock"]
