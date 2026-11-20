@@ -128,6 +128,10 @@ Jon grouped the games by the site they are played at (Nov 18, page 6pDoF6JJ9CGLB
   Signal Tuning, Beam Bench.
 - LAB, at any site: Coolant Routing, Sample Tray, Centrifuge.
 
+Where the two places with no kind today go (Jon, Nov 19, for the science-sites feature): LIFE sites
+are on living worlds, planets with a biosphere; PULSAR sites are at the pulsar itself, in pulsar
+systems ("I couldn't imagine it any other way! Yes.").
+
 `MiniGames.pool` is a group's games and the lab's, ported ones only. Today's science readings are
 at barren worlds, belts and comets, all rock, so a reading deals `pool(ROCK)`. Science sites of
 their own, with the sky, life and wreck kinds, are a separate feature (Jon, Nov 18: sites fully
