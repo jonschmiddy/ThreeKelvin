@@ -1,3 +1,4 @@
+class_name MiniGamePlay
 extends Node
 
 ## A science mini game opened from the command line, on the desk in a real run: `-- minigame
@@ -86,6 +87,10 @@ func _run() -> void:
 	if not _h._ok("the reading opens the desk with %s" % id, d != null and String(d._deal.get("id", "")) == String(id)):
 		_end()
 		return
+	# the boot screen's last line, typed just before the title card: the site being read
+	await _until(func() -> bool: return d.ts >= DeskTimeline.A + d.room.life.title_u - 0.04)
+	await _shot("0_boot")
+	print("minigame: the boot screen types the site, %s" % LocalEventDrawer.place_name(n, 0))
 	if Harness.arg("auto") == "":
 		return
 	await _play(d, n, sc, data0, pile0)
@@ -112,7 +117,10 @@ func _play(d: DeskScene, n: MapGen.MapNode, sc: SectorScreen, data0: int, pile0:
 	_h._ok("a %s run scores as it should (%.2f)" % ["given-up" if fail else "clean", d.game.score],
 		d.game.score <= 0.2 if fail else d.game.score >= 0.95)
 	if Harness.arg("quit") != "":
-		d.tap()
+		click_glass(d, Vector2(40, 60))
+		_h._ok("a click on the game after its end does not leave", not d.leaving)
+		click_glass(d, Vector2(MiniShell.BUTTON.get_center()))
+		_h._ok("LEAVE leaves", d.leaving)
 		await _until(func() -> bool: return _desk() == null, 1200)
 		await Harness.frames(_tree, 90)
 		await _shot("5_local")
@@ -169,14 +177,7 @@ func _send(d: DeskScene, e: Dictionary) -> void:
 		ev.pressed = e.k == "key"
 		d._input(ev)
 		return
-	var gp: Vector2 = (e.p as Vector2) + Vector2(d.game.at)
-	var c := Vector2(DeskRoom.GLASS_C.position) + gp * 5.0
-	for k in 8:
-		var got := d.room.glass_at_f(c)
-		if (got - gp).length() < 0.05:
-			break
-		c += (gp - got) * 5.0
-	var at := c * d.size / DeskRoom.CANVAS
+	var at := screen_of(d, (e.p as Vector2) + Vector2(d.game.at))
 	if e.k == "move":
 		var mv := InputEventMouseMotion.new()
 		mv.position = at
@@ -187,6 +188,27 @@ func _send(d: DeskScene, e: Dictionary) -> void:
 	ev.pressed = e.k == "down"
 	ev.position = at
 	d._gui_input(ev)
+
+
+## The screen point over glass point `gp`: found through the tube's curve (`DeskRoom.glass_at_f`).
+static func screen_of(d: DeskScene, gp: Vector2) -> Vector2:
+	var c := Vector2(DeskRoom.GLASS_C.position) + gp * 5.0
+	for k in 8:
+		var got := d.room.glass_at_f(c)
+		if (got - gp).length() < 0.05:
+			break
+		c += (gp - got) * 5.0
+	return c * d.size / DeskRoom.CANVAS
+
+
+## A left click at glass point `gp`, through the desk's own input.
+static func click_glass(d: DeskScene, gp: Vector2) -> void:
+	for down: bool in [true, false]:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = down
+		ev.position = screen_of(d, gp)
+		d._gui_input(ev)
 
 
 func _system() -> MapGen.MapNode:
@@ -200,7 +222,7 @@ func _system() -> MapGen.MapNode:
 
 func _local_with_reading(n: MapGen.MapNode) -> SectorScreen:
 	n.options.clear()
-	n.options.append(SITE)
+	n.options.append(StringName(Harness.arg("event", String(SITE))))
 	n.taken.clear()
 	n.results.clear()
 	n.left.clear()

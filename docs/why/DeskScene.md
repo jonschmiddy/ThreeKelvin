@@ -260,3 +260,14 @@ edge between two steps, so a pixel now keeps its dither only when a pixel within
 and portholes aside) is on another step undithered; otherwise it takes its nearest step. The page
 (`roomfx.js` `compose`, now two passes) and `desk_room.gdshaderinc` (`on_seam`, reading the
 neighbours' light through `room_ly`) apply the same test, and every room stays within its old diff.
+
+## The boot screen types the site
+
+The bakes' last boot line was the page's "> CULTURE" (DESK 1 and 2), "BOOT OK" (the BUNK) and
+"READY" (the NOOK), drawn into each room's glass plane: per glyph pixel, when it types (DESK 1, a
+time) or its place in the typing order (the others). Jon, Nov 19, wanted the site being read, so
+`DeskRoom.glass_image` clears that line and stamps "> " and the site's name as LOCAL shows it
+(`LocalEventDrawer.place_name`) in the room's own font, in the same typing order; a long name types
+faster in DESK 1 and the BUNK, and drops its system's words first where it would run past the title
+card (DESK 2 types at its own pace: 15 characters), so the body's numeral stays.
+

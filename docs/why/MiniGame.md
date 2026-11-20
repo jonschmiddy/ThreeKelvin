@@ -55,6 +55,15 @@ The rooms whose screen light follows the picture (DESK 2, BUNK, NOOK) read it on
 21,000 pixels in GDScript, so that light follows the game twice a second (`LIGHT_EVERY`), not every
 frame.
 
+## The strip: one border colour, and LEAVE
+
+Jon, Nov 19: "every game have the same color border if they need it. The give up bar should also
+be that color." `MiniShell.BORDER` is the terminal's panel (#111823): the strip and any room a game
+leaves are drawn in it. And "How do you leave once you get the reward?": once the haul line is in,
+GIVE UP becomes LEAVE in the same place, the one way out besides Esc. A click anywhere else on the
+glass does nothing (only pressable things look pressable). The haul line sits left of LEAVE from
+x 3; a name too long for both drops its [TIER] (its ink still says the tier).
+
 ## Sounds
 
 Jon's picks, copied from the phone page's `src/sfx/` (`sfx.json`, wired Nov 18) as

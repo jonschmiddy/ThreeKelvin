@@ -312,6 +312,8 @@ func _shell(id: StringName) -> void:
 	var g := MiniGames.make(id)
 	sh.start(g, 5, 0, MiniGames.stream(11), 11)
 	var sv := MiniSolver.for_game(g)
+	var mid := Vector2(MiniShell.BUTTON.get_center())
+	var no_leave_in_play := not sh.leave_hit(mid)
 	for k in STEPS_MAX:
 		if sh.revealed:
 			break
@@ -336,6 +338,9 @@ func _shell(id: StringName) -> void:
 			ink = ink or c.is_equal_approx(UITheme.tier_colour(&"legendary"))
 			quiet = quiet or c.is_equal_approx(MiniPix.COLD)
 	_h._ok("%s: the line is the name in its tier's ink, then [TIER] quiet" % id, ink and quiet)
+	_h._ok("%s: GIVE UP becomes LEAVE once the line is in, and only LEAVE leaves" % id,
+		no_leave_in_play and sh.leave_hit(mid) and not sh.leave_hit(Vector2(40, 60)) and not sh.leave_hit(Vector2(4, 134)))
+	_h._ok("%s: the strip is the one border colour" % id, sh.glass.get_pixel(1, MiniShell.GH - 1).is_equal_approx(MiniShell.BORDER))
 
 
 static func _send_glass(sh: MiniShell, e: Dictionary) -> void:

@@ -72,7 +72,7 @@ static func wants(c: Dictionary) -> bool:
 ## The whole visit over `host` (LOCAL): returns what the reading's take said, or {} when the
 ## player left before taking it. `take(tier)` is the one call that resolves the reading (tier -1:
 ## no game); with `deal`, the tap plays that mini game and its end takes the reading with its haul.
-static func visit(host: Node, title: String, ship_at: Vector2, take: Callable, deal: Dictionary = {}) -> Dictionary[String, Variant]:
+static func visit(host: Node, title: String, ship_at: Vector2, take: Callable, deal: Dictionary = {}, place: String = "") -> Dictionary[String, Variant]:
 	var out: Dictionary[String, Variant] = {}
 	var layer := CanvasLayer.new()
 	layer.layer = 120
@@ -80,7 +80,7 @@ static func visit(host: Node, title: String, ship_at: Vector2, take: Callable, d
 	var d := DeskScene.new()
 	d.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	layer.add_child(d)
-	if not d.open(room_for(Run.hull), title, ship_at, take, deal):
+	if not d.open(room_for(Run.hull), title, ship_at, take, deal, place):
 		layer.queue_free()
 		return out
 	var r: Dictionary = await d.left
@@ -93,7 +93,8 @@ func _exit_tree() -> void:
 	MiniGames.settle()
 
 
-func open(room_id: String, title: String, ship_at: Vector2, take: Callable, deal: Dictionary = {}) -> bool:
+## `place`: the site being read, as LOCAL names it, typed as the boot screen's last line.
+func open(room_id: String, title: String, ship_at: Vector2, take: Callable, deal: Dictionary = {}, place: String = "") -> bool:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	site = title
 	_take = take
@@ -112,7 +113,10 @@ func open(room_id: String, title: String, ship_at: Vector2, take: Callable, deal
 	room = DeskRoom.new()
 	room.size = DeskRoom.CANVAS
 	canvas.add_child(room)
-	if not room.setup(room_id):
+	DeskRoom.boot_site = place
+	var built := room.setup(room_id)
+	DeskRoom.boot_site = ""
+	if not built:
 		return false
 	var tell := {}
 	var g := MiniGames.make(StringName(_deal.get("id", &""))) if not _deal.is_empty() else null
@@ -153,7 +157,8 @@ func leave() -> void:
 	_leave_from = minf(ts, room.life.done_at)
 
 
-## The tap: takes the reading once the card is up; once its outcome is up, leaves.
+## The tap: takes the reading once the card is up; once its outcome is up, leaves (after a game,
+## its LEAVE does).
 func tap() -> void:
 	if leaving or room == null:
 		return
@@ -171,7 +176,7 @@ func tap() -> void:
 		var said := String((res as Dictionary).get("text", "")) if res is Dictionary else ""
 		room.set_screen(DeskCard.outcome(said if said != "" else String(result.get("text", ""))))
 		_shown_at = ts
-	elif _shown_at >= 0.0 and ts - _shown_at > room.life.title_wipe:
+	elif game == null and _shown_at >= 0.0 and ts - _shown_at > room.life.title_wipe:
 		leave()
 
 
@@ -200,7 +205,12 @@ func _gui_input(e: InputEvent) -> void:
 		accept_event()
 		return
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
-		tap()
+		# after a game only its LEAVE leaves (only pressable things look pressable); else a tap
+		if game != null:
+			if game.leave_hit(room.glass_at_f(mb.position * DeskRoom.CANVAS / size)):
+				leave()
+		else:
+			tap()
 		accept_event()
 
 

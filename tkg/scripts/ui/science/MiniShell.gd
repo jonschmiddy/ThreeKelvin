@@ -15,8 +15,13 @@ const GH := 140
 ## The game sits centred above the strip; the strip holds GIVE UP, then the haul line.
 const AREA_H := 130
 const STRIP_Y := 131
-const INSET := Color("#05080d")
+## THE ONE BORDER COLOUR (Jon, Nov 19: "every game have the same color border if they need it. The
+## give up bar should also be that color"): the terminal's panel. The strip and any room a game
+## leaves are drawn in it.
+const BORDER := MiniPix.PANEL
 const GIVE_UP := "GIVE UP"
+## At the end the button says LEAVE, the one way out (Esc too); nothing else on the glass leaves.
+const LEAVE := "LEAVE"
 const BUTTON := Rect2i(GW - 3 - 33, STRIP_Y - 1, 33, 9)
 ## Each game's sounds (the phone page's sfx.json, Jon's picks Nov 17 to 18): [file, offset s].
 ## A positive offset starts it that much later, a negative one starts that far into the file.
@@ -234,25 +239,34 @@ func _play_due() -> void:
 
 ## The glass: the inset, the game, the strip.
 func _compose() -> void:
-	glass.fill(INSET)
+	glass.fill(BORDER)
 	var src := Rect2i(Vector2i(maxi(0, -at.x), maxi(0, -at.y)), game.px.img.get_size())
 	src.size -= src.position
 	glass.blit_rect(game.px.img, src, at + src.position)
 	game.dirty = false
 	_dirty = false
 	var strip := MiniPix.new(GW, GH, glass)
+	strip.rect(0, AREA_H, GW, GH - AREA_H, BORDER)
 	if playing():
-		_button(strip)
-	elif _reward_at >= 0.0 and t >= _reward_at - REVEAL_PRE:
+		_button(strip, GIVE_UP)
+		return
+	if _reward_at >= 0.0 and t >= _reward_at - REVEAL_PRE:
 		_line(strip)
+	if revealed:
+		_button(strip, LEAVE)
 
 
-func _button(c: MiniPix) -> void:
+## Whether a press at glass point `gf` is on LEAVE (shown once the haul line is in).
+func leave_hit(gf: Vector2) -> bool:
+	return revealed and not playing() and BUTTON.has_point(Vector2i(gf.floor()))
+
+
+func _button(c: MiniPix, label: String) -> void:
 	var b := BUTTON
 	c.rect(b.position.x, b.position.y, b.size.x, b.size.y, MiniPix.BEVEL_LO)
-	c.rect(b.position.x + 1, b.position.y + 1, b.size.x - 2, b.size.y - 2, MiniPix.PANEL)
+	c.rect(b.position.x + 1, b.position.y + 1, b.size.x - 2, b.size.y - 2, BORDER)
 	c.rect(b.position.x + 1, b.position.y + 1, b.size.x - 2, 1, MiniPix.LINE)
-	c.text(GIVE_UP, b.position.x + 3, b.position.y + 2, MiniPix.CHILL)
+	c.text(label, b.position.x + (b.size.x - (label.length() * 4 - 1)) / 2, b.position.y + 2, MiniPix.CHILL)
 
 
 ## The haul line, swept in left to right up to the reward's sound (the S1 split's sweep).
@@ -279,9 +293,11 @@ func _line(c: MiniPix) -> void:
 ## (`UITheme.tier_colour`), the tier quiet in COLD, as the hold's tooltips set it.
 func _words(c: MiniPix, key: StringName, col: Color) -> void:
 	var tag := "[%s]" % String(key).to_upper()
-	var words := tag if haul == "" else "%s %s" % [haul, tag]
-	var x := GW / 2 - int(floorf((words.length() * 4 - 1) / 2.0))
+	var x := 3
 	if haul != "":
 		c.text(haul, x, STRIP_Y, col)
 		x += (haul.length() + 1) * 4
+		# left of LEAVE; a long name drops [TIER] (its ink still says the tier)
+		if x + tag.length() * 4 - 1 > BUTTON.position.x - 3:
+			return
 	c.text(tag, x, STRIP_Y, MiniPix.COLD if haul != "" else col)

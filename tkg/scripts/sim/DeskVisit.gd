@@ -136,8 +136,15 @@ func _run() -> void:
 	await _until(func() -> bool: return d.ts >= d._shown_at + 1.5)
 	await _shot("5_outcome")
 	_h._ok("the tap took the reading once (DATA +%d, now +%d)" % [pays, Run.data - data0], Run.data - data0 == pays)
-	d.tap()
-	_h._ok("a tap after the outcome leaves", d.leaving)
+	if d.game != null:
+		# after a game only its LEAVE leaves; a click anywhere else on the screen does nothing
+		MiniGamePlay.click_glass(d, Vector2(40, 60))
+		_h._ok("a click beside LEAVE does not leave", not d.leaving)
+		MiniGamePlay.click_glass(d, Vector2(MiniShell.BUTTON.get_center()))
+		_h._ok("LEAVE after the game leaves", d.leaving)
+	else:
+		d.tap()
+		_h._ok("a tap after the outcome leaves", d.leaving)
 	await _until(func() -> bool: return d.leaving and d.ts <= 4.0)
 	await _shot("6_leaving")
 	await _until(func() -> bool: return d.ts <= 1.4)

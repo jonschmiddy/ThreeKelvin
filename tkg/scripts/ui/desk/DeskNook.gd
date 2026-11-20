@@ -43,10 +43,13 @@ var _pic := PackedFloat32Array()
 var _card := PackedFloat32Array()
 var _blink := PackedByteArray()
 var _boot := PackedInt32Array()
+## The second boot line's length ("READY", or the site being read).
+var _line2 := 5
 
 
 func _init(m: Dictionary) -> void:
 	meta = m
+	_line2 = DeskRoom.boot_line("nook_1").length()
 	lamp_at = T.bulb
 	crt_at = T.crt
 	done_at = 12.3
@@ -74,7 +77,7 @@ func _init(m: Dictionary) -> void:
 	for t: Array in m.tints:
 		_tints.append(Vector4(float(t[0]), float(t[1]), float(t[2]), 0.0))
 	_tints.resize(32)
-	var gl := DeskRoom.plane(String(m.id), "glass", DeskRoom.GLASS, Image.FORMAT_RGBAF).get_image()
+	var gl := DeskRoom.glass_image(String(m.id))
 	_boot.resize(GW * GH)
 	for y in GH:
 		for x in GW:
@@ -390,7 +393,7 @@ func _crt(t: float) -> Dictionary[StringName, Variant]:
 	elif u < CW.b1:
 		var ub := u - float(CW.o1)
 		var n1 := mini(11, int(floorf((ub - 0.075) * 10.7)))
-		var cur := Vector2(9 + maxi(0, n1) * 4, 9) if ub < 1.275 else Vector2(29, 17)
+		var cur := Vector2(9 + maxi(0, n1) * 4, 9) if ub < 1.275 else Vector2(9 + 4 * _line2, 17)
 		var on := int(floorf(ub * 2.2)) % 2 == 0
 		o.merge({g_ph = Ph.BOOT, g_boot = Vector4(n1, 1.0 if ub >= 1.275 else 0.0, cur.x + (1000.0 if on else 0.0), cur.y)}, true)
 	elif u < roll:
