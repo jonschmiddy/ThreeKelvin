@@ -1406,9 +1406,10 @@ const HULL_EXHAUST := {
 		{id = 24, at = Vector2i(44, 64), back = false},
 	],
 	# Korvan's Nov 16 set: one plume per nozzle, centred on it, the frame's right edge on its mouth.
+	# The light: Nov 19 bell stern, exits at x 56 over rows 23-39 and 51-67.
 	"hull_light_zero": [
-		{id = 2, at = Vector2i(12, 23), back = false},
-		{id = 2, at = Vector2i(12, 47), back = false},
+		{id = 2, at = Vector2i(4, 22), back = false},
+		{id = 2, at = Vector2i(4, 50), back = false},
 	],
 	"hull_medium_zero": [
 		{id = 2, at = Vector2i(22, 35), back = false},
@@ -1483,9 +1484,9 @@ const HULL_LINES := {
 		flank = [Vector2(85, 53), Vector2(103, 54), Vector2(120, 54), Vector2(138, 54), Vector2(156, 54), Vector2(174, 54), Vector2(192, 54), Vector2(209, 54), Vector2(227, 54)],
 	},
 	"hull_light_zero": {
-		dorsal = [Vector2(64, 27), Vector2(86, 19), Vector2(109, 19), Vector2(131, 19), Vector2(154, 19), Vector2(176, 19), Vector2(198, 19), Vector2(221, 21), Vector2(243, 24)],
-		ventral = [Vector2(64, 62), Vector2(86, 69), Vector2(109, 69), Vector2(131, 69), Vector2(154, 69), Vector2(176, 69), Vector2(198, 64), Vector2(221, 56), Vector2(243, 50)],
-		flank = [Vector2(64, 44), Vector2(86, 44), Vector2(109, 44), Vector2(131, 44), Vector2(154, 44), Vector2(176, 44), Vector2(198, 41), Vector2(221, 38), Vector2(243, 37)],
+		dorsal = [Vector2(56, 23), Vector2(79, 19), Vector2(103, 19), Vector2(126, 19), Vector2(150, 19), Vector2(173, 20), Vector2(196, 19), Vector2(220, 21), Vector2(243, 24)],
+		ventral = [Vector2(56, 67), Vector2(79, 69), Vector2(103, 69), Vector2(126, 69), Vector2(150, 69), Vector2(173, 69), Vector2(196, 65), Vector2(220, 56), Vector2(243, 50)],
+		flank = [Vector2(56, 45), Vector2(79, 44), Vector2(103, 44), Vector2(126, 44), Vector2(150, 44), Vector2(173, 44), Vector2(196, 42), Vector2(220, 38), Vector2(243, 37)],
 	},
 	"hull_medium_a": {
 		dorsal = [Vector2(128, 43), Vector2(144, 40), Vector2(160, 40), Vector2(176, 40), Vector2(192, 40), Vector2(207, 43), Vector2(223, 50), Vector2(239, 50), Vector2(255, 47)],
