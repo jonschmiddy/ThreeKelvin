@@ -80,7 +80,8 @@ static func wrap_words(words: String, cols: int) -> Array[String]:
 
 
 ## The title card (RGBAF, 0..255 a channel; alpha 1 on the prompt, which blinks). `name` empty: the page's.
-static func title(name: String) -> Image:
+## `tell`: a mini game's one line and control icons ({text, controls}), under the name.
+static func title(name: String, tell: Dictionary = {}) -> Image:
 	var img := Image.create(W, H, false, Image.FORMAT_RGBAF)
 	img.fill(Color(7, 13, 11, 0))
 	_text(img, "SCI-TERM 03", 5, 5, 1, GD)
@@ -110,8 +111,30 @@ static func title(name: String) -> Image:
 	if name == "":
 		for n in PAGE_BLURB.size():
 			_ctr(img, PAGE_BLURB[n], 98 + n * 7, 1, GD)
+	elif not tell.is_empty():
+		_tell(img, String(tell.get("text", "")).to_upper(), tell.get("controls", []))
 	_ctr(img, PROMPT, 127, 1, G, 1.0)
 	return img
+
+
+## The game's one line with its control icons before it (Jon, Nov 17: no action words), in the
+## card's phosphor: the icons' light parts bright, their mid tones the card's green.
+## Why: docs/why/MiniGame.md#the-shell
+static func _tell(img: Image, words: String, kinds: Array) -> void:
+	var icons := MiniPix.new(64, 24)
+	icons.clear(Color(0, 0, 0, 0))
+	var iw := 0
+	for k: String in kinds:
+		var bits := k.split(":")
+		iw += icons.icon(bits[0], iw, 10, 0.0, bits[1] if bits.size() > 1 else "") + 4
+	var x0 := int(round((W - (iw + 1 + _wide(words, 1))) / 2.0))
+	for y in 24:
+		for x in iw:
+			var c := icons.img.get_pixel(x, y)
+			var l := 0.3 * c.r + 0.59 * c.g + 0.11 * c.b
+			if c.a > 0.0 and l > 0.25:
+				_put(img, x0 + x, 90 + y, GB if l > 0.6 else G)
+	_text(img, words, x0 + iw + 1, 104, 1, GB)
 
 
 ## The card as a still picture for the glass's picture phase (RGBA8): what squeezes away if you

@@ -23,6 +23,8 @@ const ZOOM_MAX := 8.0
 const SHIP_DEFAULT := Vector2(198, 276)
 ## A frame longer than this (the room's first frame compiles its shaders) moves the clock this much.
 const DT_MAX := 0.1
+## A mini game's picture feeds the room's screen light this often (s): it is read on the CPU.
+const LIGHT_EVERY := 0.5
 
 var room: DeskRoom
 var audio: DeskAudio
@@ -42,6 +44,11 @@ var _leave_from := 0.0
 var _shown_at := -1.0
 var _fallback: TextureRect = null
 var _done := false
+## The reading played as a mini game (`MiniGames.deal`: id, depth, sensors, seed); empty, a tap takes it.
+var _deal: Dictionary = {}
+var game: MiniShell = null
+var _paying := false
+var _light_t := 0.0
 
 
 static func room_for(h: HullData) -> String:
@@ -63,8 +70,9 @@ static func wants(c: Dictionary) -> bool:
 
 
 ## The whole visit over `host` (LOCAL): returns what the reading's take said, or {} when the
-## player left before taking it. `take` is the one call that resolves the reading.
-static func visit(host: Node, title: String, ship_at: Vector2, take: Callable) -> Dictionary[String, Variant]:
+## player left before taking it. `take(tier)` is the one call that resolves the reading (tier -1:
+## no game); with `deal`, the tap plays that mini game and its end takes the reading with its haul.
+static func visit(host: Node, title: String, ship_at: Vector2, take: Callable, deal: Dictionary = {}, place: String = "") -> Dictionary[String, Variant]:
 	var out: Dictionary[String, Variant] = {}
 	var layer := CanvasLayer.new()
 	layer.layer = 120
@@ -72,7 +80,7 @@ static func visit(host: Node, title: String, ship_at: Vector2, take: Callable) -
 	var d := DeskScene.new()
 	d.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	layer.add_child(d)
-	if not d.open(room_for(Run.hull), title, ship_at, take):
+	if not d.open(room_for(Run.hull), title, ship_at, take, deal, place):
 		layer.queue_free()
 		return out
 	var r: Dictionary = await d.left
@@ -81,10 +89,16 @@ static func visit(host: Node, title: String, ship_at: Vector2, take: Callable) -
 	return out
 
 
-func open(room_id: String, title: String, ship_at: Vector2, take: Callable) -> bool:
+func _exit_tree() -> void:
+	MiniGames.settle()
+
+
+## `place`: the site being read, as LOCAL names it, typed as the boot screen's last line.
+func open(room_id: String, title: String, ship_at: Vector2, take: Callable, deal: Dictionary = {}, place: String = "") -> bool:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	site = title
 	_take = take
+	_deal = deal
 	if ship_at.x >= 0.0:
 		_ship = ship_at
 	# LOCAL as it stands, for the push in (the page's act 1 zooms a still too)
@@ -99,10 +113,20 @@ func open(room_id: String, title: String, ship_at: Vector2, take: Callable) -> b
 	room = DeskRoom.new()
 	room.size = DeskRoom.CANVAS
 	canvas.add_child(room)
-	if not room.setup(room_id):
+	DeskRoom.boot_site = place
+	var built := room.setup(room_id)
+	DeskRoom.boot_site = ""
+	if not built:
 		return false
-	room.set_card(site)
-	room.set_screen(DeskCard.still(DeskCard.title(site)))
+	var tell := {}
+	var g := MiniGames.make(StringName(_deal.get("id", &""))) if not _deal.is_empty() else null
+	if g != null:
+		tell = {text = g.hint(), controls = g.controls()}
+		MiniGames.prefetch(_deal)
+	else:
+		_deal = {}
+	room.set_card(site, tell)
+	room.set_screen(DeskCard.still(DeskCard.title(site, tell)))
 	room.life.hold_title()
 	# drawn once now, while LOCAL still holds: the shaders compile behind the still picture
 	room.show_at(DeskTimeline.A, DeskTimeline.A, false)
@@ -125,14 +149,16 @@ func open(room_id: String, title: String, ship_at: Vector2, take: Callable) -> b
 
 ## Run back to LOCAL from wherever the visit stands.
 func leave() -> void:
-	if leaving:
+	# a game's reading is taken at its end: never leave between the end and the take
+	if leaving or (game != null and (game.playing() or _paying)):
 		return
 	leaving = true
 	_leave_t0 = _clock
 	_leave_from = minf(ts, room.life.done_at)
 
 
-## The tap: takes the reading once the card is up; once its outcome is up, leaves.
+## The tap: takes the reading once the card is up; once its outcome is up, leaves (after a game,
+## a click on its result card does).
 func tap() -> void:
 	if leaving or room == null:
 		return
@@ -142,25 +168,89 @@ func tap() -> void:
 			return
 		taken = true
 		room.life.release(u)
-		result = await _take.call()
+		if not _deal.is_empty():
+			_play()
+			return
+		result = await _take.call(-1)
 		var res: Variant = result.get("res", {})
 		var said := String((res as Dictionary).get("text", "")) if res is Dictionary else ""
 		room.set_screen(DeskCard.outcome(said if said != "" else String(result.get("text", ""))))
 		_shown_at = ts
-	elif _shown_at >= 0.0 and ts - _shown_at > room.life.title_wipe:
+	elif game == null and _shown_at >= 0.0 and ts - _shown_at > room.life.title_wipe:
 		leave()
+
+
+## The tap on the card: the dealt game mounts on the glass, and the card wipes into it.
+func _play() -> void:
+	game = MiniShell.new()
+	game.host = self
+	game.scored.connect(_on_scored)
+	game.start(MiniGames.make(StringName(_deal.id)), int(_deal.depth), int(_deal.sensors), MiniGames.stream(int(_deal.seed)), int(_deal.seed))
+	room.show_screen(game.glass, true)
+
+
+## The game is over: the reading is taken now, its haul paid by the tier, once.
+func _on_scored(tier: int) -> void:
+	_paying = true
+	result = await _take.call(tier)
+	_paying = false
+	var h: Dictionary = result.get("haul", {})
+	game.set_haul(String(h.get("name", "")), StringName(h.get("tier", &"")))
 
 
 func _gui_input(e: InputEvent) -> void:
 	var mb := e as InputEventMouseButton
+	if game != null and game.playing():
+		_to_game(e)
+		accept_event()
+		return
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
-		tap()
+		# after a game a click anywhere leaves once its result card is up (A, Nov 20); else a tap
+		if game != null:
+			if game.leave_hit(room.glass_at_f(mb.position * DeskRoom.CANVAS / size)):
+				leave()
+		else:
+			tap()
 		accept_event()
 
 
+## The pointer, onto the glass's pixels through the tube's curve, for the game.
+## Why: docs/why/MiniGame.md#input-on-the-glass
+func _to_game(e: InputEvent) -> void:
+	var me := e as InputEventMouse
+	if me == null:
+		return
+	var g := room.glass_at_f(me.position * DeskRoom.CANVAS / size)
+	var mb := e as InputEventMouseButton
+	if mb != null and mb.button_index == MOUSE_BUTTON_LEFT:
+		if mb.pressed:
+			game.press(g)
+		else:
+			game.release(g)
+	elif mb != null and mb.pressed and (mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+		game.wheel(1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1)
+	elif e is InputEventMouseMotion:
+		game.motion(g)
+
+
+## The keys a game reads (Four Kelvin: W thrust, A and D turn, the arrows the same), as the
+## prototype took them: by the key itself, the icon on its start frame names them.
+const GAME_KEYS := {KEY_W: &"w", KEY_UP: &"w", KEY_A: &"a", KEY_LEFT: &"a", KEY_D: &"d", KEY_RIGHT: &"d"}
+
+
 func _input(e: InputEvent) -> void:
+	var ke := e as InputEventKey
+	if ke != null and game != null and game.playing() and GAME_KEYS.has(ke.physical_keycode) and not ke.echo:
+		game.key(GAME_KEYS[ke.physical_keycode], ke.pressed)
+		get_viewport().set_input_as_handled()
+		return
 	if e.is_action_pressed(&"ui_cancel"):
-		leave()
+		# Esc during a game gives up (it still pays); after it, once the result card is up, or
+		# before a game, it leaves
+		if game != null and game.playing():
+			game.give_up()
+		elif game == null or game.card_up():
+			leave()
 		get_viewport().set_input_as_handled()
 
 
@@ -177,6 +267,8 @@ func _process(dt: float) -> void:
 	if DisplaySettings.reduced_motion:
 		free = minf(real, DeskTimeline.ZOOM_S + (DeskTimeline.KNEE - DeskTimeline.A) / DeskTimeline.SPEED)
 	var in_room := ts >= DeskTimeline.A
+	if game != null:
+		_tick_game(minf(dt, DT_MAX))
 	if in_room:
 		room.show_at(ts, free, leaving)
 	_show_canvas(in_room)
@@ -186,7 +278,20 @@ func _process(dt: float) -> void:
 		_done = true
 		_show_canvas(false)
 		audio.stop()
+		if game != null:
+			game.stop_sounds()
 		left.emit(result)
+
+
+func _tick_game(step: float) -> void:
+	_light_t += step
+	var light := _light_t >= LIGHT_EVERY
+	if game.tick(step):
+		room.show_screen(game.glass, light)
+		if light:
+			_light_t = 0.0
+	if game.revealed and _shown_at < 0.0 and not _paying:
+		_shown_at = ts
 
 
 func _show_canvas(on: bool) -> void:

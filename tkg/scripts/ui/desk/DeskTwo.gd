@@ -89,7 +89,7 @@ func _init(m: Dictionary) -> void:
 		_cream.append(1.0 if bool(s.cream) else 0.0)
 	_tints.resize(64)
 	_boot_lines = m.boot
-	var gl := DeskRoom.plane(String(m.id), "glass", DeskRoom.GLASS, Image.FORMAT_RGBAF).get_image()
+	var gl := DeskRoom.glass_image(String(m.id))
 	_boot.resize(GW * GH)
 	for y in GH:
 		for x in GW:

@@ -600,8 +600,27 @@ func _at_desk(o: Dictionary, j: int) -> Dictionary[String, Variant]:
 		at = sv.get_global_transform() * r.get_center()
 	var n := node
 	var i := opt
-	var take := func() -> Dictionary: return await OptionResolve.take(n, i, j)
-	return await DeskScene.visit(screen if screen != null else self, String(o.get("title", "")).to_upper(), at, take)
+	# the reading's site picks the haul's source; the dev flag may stand in another (`-- minigame site=`)
+	var site := StringName(MiniGames.force.get("site", o.get("site", &"")))
+	# a mini game's tier pays its haul inside the take; -1, none (Why: docs/why/MiniGame.md#the-haul)
+	var take := func(tier: int) -> Dictionary:
+		var haul := Callable() if tier < 0 else func() -> Dictionary: return ScienceHaul.pay(tier, site, n)
+		return await OptionResolve.take(n, i, j, haul)
+	var deal: Dictionary = MiniGames.deal(n) if MiniGames.enabled else {}
+	return await DeskScene.visit(screen if screen != null else self, String(o.get("title", "")).to_upper(), at, take, deal, place_name(n, i))
+
+
+## The place event i sits at, as LOCAL names it: the body's own name, else its kind; the star's
+## system; a comet.
+static func place_name(n: MapGen.MapNode, i: int) -> String:
+	var L := SystemLayout.of(n)
+	var p := L.place_of(i)
+	if p >= 0 and p < L.bodies.size():
+		var b: SystemLayout.Body = L.bodies[p]
+		return b.name if b.name != "" else String(b.kind).to_upper()
+	if p == -1:
+		return MapGen.star_name(n)
+	return "COMET" if p == SystemLayout.COMET else ""
 
 
 # --------------------------------------------------------------- on your ship

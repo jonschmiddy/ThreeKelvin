@@ -439,7 +439,8 @@ func _glass(u: float, crt: Dictionary, o: Dictionary[StringName, Variant]) -> vo
 		var q := floorf(float(gl[&"a"]) * 16.0)
 		jit_dx = [1, -1, 2, -2, 1][int(floorf(DeskFx.rnd(q * 3.3 + float(gl[&"si"])) * 5.0))]
 	var last: Dictionary = meta.boot[meta.boot.size() - 1]
-	var cursor := phase == 4 and u > float(last.t) + String(last.s).length() * 0.05 and int(floorf(c * 2.2)) % 2 == 0
+	var nl := String(last.s).length()
+	var cursor := phase == 4 and u > float(last.t) + DeskRoom.boot_step(DeskRoom.BOOT_LINE.desk_1, nl) * nl and int(floorf(c * 2.2)) % 2 == 0
 	o.g_phase = phase
 	o.g_u = u
 	o.g_p = Vector4(p_dot, p_line, p_sq, DeskFx.ease_s((u - T.open) / (T.boot - T.open)))

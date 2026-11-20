@@ -30,6 +30,8 @@ const JIT := [1, -2, 2, -1, 1]
 ## CRT phases (the shader's g_ph).
 enum Ph { OFF, DOT, LINE, OPEN, BOOT, COLLAPSE, TITLE, PIC }
 
+## The second boot line's length ("BOOT OK", or the site being read).
+var _line2 := 7
 var bulbs: Array = []
 var leds: Array = []
 var pillow: Array = []
@@ -54,6 +56,7 @@ var _ref := 1.0
 
 func _init(m: Dictionary) -> void:
 	meta = m
+	_line2 = DeskRoom.boot_line("bunk_1").length()
 	lamp_at = T_LAMP
 	crt_at = T_CRT
 	done_at = 12.1
@@ -518,8 +521,9 @@ func _boot(p: float, ph: int) -> Vector4:
 	var cy := 7
 	var n2 := 0
 	if a > 0.75:
-		n2 = int(floorf((a - 0.75) / 0.07)) + 1
-		cx = 6 + 4 * clampi(n2, 0, 7)
+		# the line types in the boot's last 0.26 (a long site name faster than BOOT OK did)
+		n2 = int(floorf((a - 0.75) / minf(0.07, 0.26 / _line2))) + 1
+		cx = 6 + 4 * clampi(n2, 0, _line2)
 		cy = 15
 	var cur := int(floorf(p * 3.0)) % 2 == 0 and a > -0.3
 	return Vector4(n1, n2 if a > 0.75 else -1, cx + (1000 if cur else 0), cy)

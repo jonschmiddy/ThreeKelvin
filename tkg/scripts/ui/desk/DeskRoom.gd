@@ -12,6 +12,9 @@ const ART := Vector2i(384, 216)
 const GLASS := Vector2i(150, 140)
 ## The page's canvas: what the tube's numbers are in.
 const CANVAS := Vector2(1920.0, 1080.0)
+## The glass on that canvas and the tube's curve (`desk_canvas.gdshaderinc` GLASS_C, `desk_tube` K).
+const GLASS_C := Rect2i(585, 110, 750, 700)
+const TUBE_K := 0.028
 const SHADERS := {"desk_1": preload("res://shaders/desk_1.gdshader"), "desk_2": preload("res://shaders/desk_2.gdshader"),
 	"bunk_1": preload("res://shaders/bunk_1.gdshader"),
 	"nook_1": preload("res://shaders/nook_1.gdshader")}
@@ -35,6 +38,7 @@ var _steam_tex: ImageTexture
 var _sky_tex: ImageTexture
 var _dust_tex: ImageTexture
 var _noise_tex: ImageTexture
+var _live: ImageTexture = null
 
 
 ## The room's bake: meta.json and its planes. Empty when it is missing.
@@ -44,7 +48,89 @@ static func load_meta(room: String) -> Dictionary[String, Variant]:
 	var m: Variant = JSON.parse_string(txt) if txt != "" else null
 	if m is Dictionary:
 		out.assign(m)
+	# the typed site replaces the bake's last boot line where the room reads it (DESK 1 and 2)
+	var boot: Array = out.get("boot", [])
+	if boot_site != "" and not boot.is_empty():
+		var last: Variant = boot[boot.size() - 1]
+		if last is Dictionary:
+			(last as Dictionary).s = boot_line(room)
+		else:
+			boot[boot.size() - 1] = boot_line(room)
 	return out
+
+
+## THE SITE ON THE BOOT SCREEN (Jon, Nov 19: the site being read, not "> CULTURE"): the place's name
+## as LOCAL shows it, set by `DeskScene.open` for the room it builds. Empty: the bake's own line.
+## Why: docs/why/DeskScene.md#the-boot-screen-types-the-site
+static var boot_site := ""
+## The last boot line in each room's bake: where it starts, its glyphs' first typing value and step
+## (DESK 1 stores a time in s, the others a place in the typing order), the bake's own line.
+const BOOT_LINE := {
+	"desk_1": {x = 12, y = 86, first = 5.18, step = 0.05, span = 0.6, was = "> CULTURE"},
+	"desk_2": {x = 6, y = 30, first = 43.0, step = 1.0, most = 15, was = "> CULTURE"},
+	"bunk_1": {x = 6, y = 15, first = 100.0, step = 1.0, was = "BOOT OK"},
+	"nook_1": {x = 9, y = 17, first = 100.0, step = 1.0, was = "READY"},
+}
+## The longest site line that types before the title card (DESK 2 types at its own pace: `most`).
+const BOOT_MAX := 18
+
+
+## The room's last boot line: "> " and the site, or the bake's own.
+static func boot_line(room: String) -> String:
+	if boot_site == "" or not BOOT_LINE.has(room):
+		return String((BOOT_LINE.get(room, {}) as Dictionary).get("was", ""))
+	var most := int((BOOT_LINE[room] as Dictionary).get("most", BOOT_MAX))
+	# too long: the system's words go first, so the body's numeral stays ("IOTA CINDER-2 IV" -> "CINDER-2 IV")
+	var words := boot_site.to_upper().split(" ", false)
+	while words.size() > 1 and ("> " + " ".join(words)).length() > most:
+		words.remove_at(0)
+	return ("> " + " ".join(words)).left(most).strip_edges()
+
+
+## The glass plane with the last boot line typed as the site: the bake's glyphs cleared (each pixel
+## keeps the recess of the row above the line), the new ones stamped in the same font and order.
+static func glass_image(room: String) -> Image:
+	var img := plane(room, "glass", GLASS, Image.FORMAT_RGBAF).get_image()
+	if boot_site == "" or not BOOT_LINE.has(room):
+		return img
+	var b: Dictionary = BOOT_LINE[room]
+	var y0: int = b.y
+	for y in range(y0, y0 + 5):
+		for x in GLASS.x:
+			var c := img.get_pixel(x, y)
+			if c.g >= float(b.first) - 0.001:
+				img.set_pixel(x, y, Color(img.get_pixel(x, y0 - 2).r, -1.0, c.b, c.a))
+	var line := boot_line(room)
+	for k in line.length():
+		var gl: String = _boot_glyph(room, line[k])
+		for i in gl.length():
+			if gl[i] != "1":
+				continue
+			var px := int(b.x) + k * 4 + i % 3
+			var py := y0 + i / 3
+			if px < GLASS.x:
+				var c := img.get_pixel(px, py)
+				img.set_pixel(px, py, Color(1.0, float(b.first) + boot_step(b, line.length()) * k, c.b, c.a))
+	return img
+
+
+## The BUNK's and the NOOK's pages type in a blockier 3x5 than DESK 1 and 2 (the card's `F35`);
+## the letters they never drew come from `F35`, which shares the rest.
+const BLOCK := {"S": "111100111001111", "C": "111100100100111", "0": "111101101101111", "3": "111001011001111",
+	"Y": "101101010010010"}
+
+
+## DESK 1 types by the clock: a long line types faster, done before the title card as "> CULTURE" was.
+static func boot_step(b: Dictionary, n: int) -> float:
+	if b.has("span"):
+		return minf(float(b.step), float(b.span) / maxf(1.0, n - 1))
+	return float(b.step)
+
+
+static func _boot_glyph(room: String, ch: String) -> String:
+	if (room == "bunk_1" or room == "nook_1") and BLOCK.has(ch):
+		return BLOCK[ch]
+	return DeskCard.F35.get(ch, DeskCard.F35[" "])
 
 
 static func plane(room: String, name: String, size: Vector2i, fmt: Image.Format) -> ImageTexture:
@@ -70,7 +156,7 @@ func setup(room: String) -> bool:
 	_room_mat.set_shader_parameter(&"role_tex", plane(room, "role", ART, Image.FORMAT_RF))
 	if FileAccess.file_exists((BAKE_DIR % room) + "pick.bin.gz"):
 		_room_mat.set_shader_parameter(&"pick_tex", plane(room, "pick", ART, Image.FORMAT_RF))
-	_room_mat.set_shader_parameter(&"glass_tex", plane(room, "glass", GLASS, f))
+	_room_mat.set_shader_parameter(&"glass_tex", ImageTexture.create_from_image(glass_image(room)))
 	set_card("")
 	_room_mat.set_shader_parameter(&"screen_tex", SCREEN)
 	life.set_screen(SCREEN.get_image())
@@ -129,9 +215,9 @@ func _viewport(size: Vector2i, mat: ShaderMaterial) -> SubViewport:
 	return vp
 
 
-## The title card naming the site ("": the page's own).
-func set_card(site: String) -> void:
-	var card := DeskCard.title(site)
+## The title card naming the site ("": the page's own), with a mini game's tell under it.
+func set_card(site: String, tell: Dictionary = {}) -> void:
+	var card := DeskCard.title(site, tell)
 	_room_mat.set_shader_parameter(&"title_tex", ImageTexture.create_from_image(card))
 	if life != null:
 		life.set_card(card)
@@ -139,8 +225,38 @@ func set_card(site: String) -> void:
 
 ## What the picture phase shows on the glass (150 x 140).
 func set_screen(img: Image) -> void:
+	_live = null
 	_room_mat.set_shader_parameter(&"screen_tex", ImageTexture.create_from_image(img))
 	life.set_screen(img)
+
+
+## A live picture on the glass (a mini game, every frame it changes): its texture updated in place.
+## `light`: the room's screen light follows it too (read on the CPU, so not every frame).
+## Why: docs/why/MiniGame.md#the-shell
+func show_screen(img: Image, light: bool) -> void:
+	if _live == null:
+		_live = ImageTexture.create_from_image(img)
+		_room_mat.set_shader_parameter(&"screen_tex", _live)
+	else:
+		_live.update(img)
+	if light:
+		life.set_screen(img)
+
+
+## The glass pixel shown at canvas point `c`, through the tube's curve (as `desk_tube` samples it).
+## Why: docs/why/MiniGame.md#input-on-the-glass
+func glass_at(c: Vector2) -> Vector2i:
+	return Vector2i(glass_at_f(c).floor())
+
+
+## The same point in fractional glass pixels (the prototypes that read a pointer between pixels).
+func glass_at_f(c: Vector2) -> Vector2:
+	var hw := (GLASS_C.size.x - 1) / 2.0
+	var hh := (GLASS_C.size.y - 1) / 2.0
+	var u := (floorf(c.x) - GLASS_C.position.x - hw) / hw
+	var v := (floorf(c.y) - GLASS_C.position.y - hh) / hh
+	var f := (1.0 + TUBE_K * (u * u + v * v)) / float(meta.get("tubeScale", 1.0))
+	return Vector2((u * f * hw + hw + 0.5) / 5.0, (v * f * hh + hh + 0.5) / 5.0)
 
 
 ## Draw the room at scene time `ts` (backwards while leaving) on the free clock `real`.

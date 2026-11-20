@@ -784,6 +784,59 @@ gate_sheet desktest 120 \
 	--headless --path "$PROJECT" -- desktest
 }
 
+unit_minigametest() {
+step "The science mini games deal, solve and score as their prototypes"
+# Per game, 50 seeds at every depth: the same puzzle twice, a scripted solve about 1, a give-up
+# 0 to 0.2; a solve through the shell's glass pays its tier with the win then the reward sound.
+# Six units so none runs long: the dial games, the flown games, the torch, the tray's and the sling's
+# searches apart. Limits are 1.6x or more each unit's time in the 12-job gate (Nov 20).
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametest 480 \
+	"the mini games deal, solve and score" \
+	"a mini game dealt no puzzle, an unsolvable one, a different one twice, or scored wrong" \
+	--headless --path "$PROJECT" -- sheet=MiniGameTest games=coolant,centrifuge,icecore,anomaly,beams,spectrum,leak,seismic,corescan,culture
+}
+
+unit_minigamedials() {
+step "Pulsar and Signal Tuning deal, solve and score as their prototypes"
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigamedials 600 \
+	"Pulsar and Tuning deal, solve and score" \
+	"Pulsar or Tuning dealt no puzzle, an unsolvable one, a different one twice, or scored wrong" \
+	--headless --path "$PROJECT" -- sheet=MiniGameTest games=pulsar,tuning
+}
+
+unit_minigamesling() {
+step "Gravity Sling deals, solves and scores as its prototype"
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigamesling 780 \
+	"the sling deals, solves and scores" \
+	"the sling dealt no puzzle, an unsolvable one, a different one twice, or scored wrong" \
+	--headless --path "$PROJECT" -- sheet=MiniGameTest games=sling
+}
+
+unit_minigameflown() {
+step "Four Kelvin and the tumble dock deal, fly and score as their prototypes"
+# Split from the torch (Nov 20): the three flown games ran past 480 s under the gate's 12 jobs.
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigameflown 540 \
+	"Four Kelvin and the dock deal, fly and score" \
+	"Four Kelvin or the dock dealt no puzzle, an unflyable one, a different one twice, or scored wrong" \
+	--headless --path "$PROJECT" -- sheet=MiniGameTest games=fourkelvin,dock
+}
+
+unit_minigametorch() {
+step "The cutting torch deals, flies and scores as its prototype"
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametorch 780 \
+	"the torch deals, flies and scores" \
+	"the torch dealt no puzzle, an unflyable one, a different one twice, or scored wrong" \
+	--headless --path "$PROJECT" -- sheet=MiniGameTest games=torch
+}
+
+unit_minigametray() {
+step "The sample tray deals, solves and scores as its prototype"
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametray 800 \
+	"the tray deals, solves and scores" \
+	"the tray dealt no puzzle, an unsolvable one, a different one twice, or scored wrong" \
+	--headless --path "$PROJECT" -- sheet=MiniGameTest games=tray
+}
+
 unit_twinsitetest() {
 step "Star B is a place, as the one star is"
 # Star B is a place wherever the one star is (rulings 20 and 23). Long: 289 s on the CI runner.
@@ -2586,6 +2639,7 @@ gate_weight() {
 		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;; arrivesidetest) echo 60 ;;
 		sciencesimtest) echo 51 ;; routinetest) echo 28 ;; jumpshadertest) echo 90 ;;
 		meterfittest) echo 76 ;; convoyslidetest) echo 30 ;; stationaheadtest) echo 40 ;;
+		minigametest) echo 300 ;; minigamedials) echo 355 ;; minigameflown) echo 280 ;; minigametorch) echo 440 ;; minigametray) echo 500 ;; minigamesling) echo 470 ;;
 		*) echo 15 ;;
 	esac
 }
