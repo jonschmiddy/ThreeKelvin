@@ -114,11 +114,16 @@ func _still(bg: Control, w: HullData.Weight, t: int, out: String, kit: Array[Mod
 			guns += 1
 	var name := "%s_%s" % [NAMES[w], tag if tag != "" else HullData.TIER_NAMES[t]]
 	# (a hull without gun sides draws its weapons' hold pictures)
+	# (a grade below S opens fewer mounts: a weapon on a closed one is not drawn)
 	var want := 0
+	var fits := 0
 	for m in kit:
+		if m.mount >= hull.slots_for(ModuleData.Slot.WEAPON):
+			continue
+		fits += 1
 		if not hull.gun_sides.is_empty() and ShipGun.of(m.id, hull.gun_sides[m.mount]) != null:
 			want += 1
-	h._ok("%s: %d weapons drawn, %d with an on-ship picture" % [name, kit.size(), want], guns == want and mp.drawn == kit.size())
+	h._ok("%s: %d weapons drawn, %d with an on-ship picture" % [name, kit.size(), want], guns == want and mp.drawn == fits)
 	var parts := mp.parts_rect()
 	var ship := Rect2(Vector2.ZERO, Vector2(v.canvas_width(), v.canvas_height()))
 	var all := ship.merge(Rect2(parts.position, parts.size))
