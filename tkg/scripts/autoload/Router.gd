@@ -285,9 +285,7 @@ func _star_room() -> StringName:
 		return &""
 	if n.type == MapGen.NodeType.PULSAR:
 		return &"amb_pulsar"
-	match n.star:
-		MapGen.Star.RED: return &"amb_red"
-		MapGen.Star.BLUE: return &"amb_blue"
+	# The hypergiants play the reactor hum too: Jon cut their beds as grating (Nov 20).
 	return &"amb_space"
 
 

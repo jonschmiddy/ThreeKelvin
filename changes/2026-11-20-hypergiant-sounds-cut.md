@@ -1,0 +1,1 @@
+- **Changed** — The red and blue hypergiants no longer play their own background sound; their systems play the ship's reactor hum like any other star. Pulsars keep theirs.
