@@ -592,6 +592,7 @@ func _star_head() -> void:
 		sv.position = Vector2(TEXT_W / 2, 42)
 		holder.add_child(sv)
 		sv.call("setup", v.kind, v.node.index, 22.0)
+		sv.call("set_fade", 22.0 + LIGHT_HELD, SUN_LIGHT)
 		_portrait = sv
 	_name(v.star_name())
 	_class(v.star_class())
@@ -627,6 +628,7 @@ func _twin_head() -> void:
 		# (painted as the map paints star p: `SystemView.sun_setup`, star B
 		# from its own roll, smaller and warmer)
 		v.sun_setup(sv, s, sr)
+		sv.call("set_fade", sr + LIGHT_HELD, TWIN_LIGHT)
 		if _portrait == null:
 			_portrait = sv
 		else:
@@ -647,6 +649,13 @@ func _twin_head() -> void:
 		_way_there(s)
 	_rule()
 
+
+## How far a sun's light reaches in its 84 px picture (half sizes), so no box shows.
+## Why: docs/why/SystemPanel.md#sun-portrait-fade
+const SUN_LIGHT := Vector2(50, 41)
+const TWIN_LIGHT := Vector2(44, 41)
+## How far past the limb its light is whole before it starts to fade (px).
+const LIGHT_HELD := 7.0
 
 ## How far either sun of a pair stands off the picture's middle (px).
 const TWIN_SUN_DX_A := 46
@@ -758,6 +767,7 @@ func _place_head(i: int) -> void:
 		sv.position = Vector2(TEXT_W / 2, 42)
 		holder2.add_child(sv)
 		sv.call("setup", v.kind, v.node.index, 22.0)
+		sv.call("set_fade", 22.0 + LIGHT_HELD, SUN_LIGHT)
 		_portrait = sv
 	_name(_place_name(i))
 	_class(_place_kind(i))
