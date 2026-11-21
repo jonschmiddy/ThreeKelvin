@@ -144,12 +144,8 @@ func _forms() -> void:
 	Run.hull = null
 
 
-## TIER 0 IS SPIRALS (Jon's G2, Nov 10; his Nov 21 report "at tier 0, the
-## galaxy is not always a spiral"; his A: no irregulars): every name on
-## `Ladder.TIER0_KINDS` is a kind, of the spiral form, and no irregular; over 300
-## seeds the kind rolled is on the list; a seed whose first draw was already on it
-## keeps that kind (the redraw moves only the seeds that drew an irregular). Then
-## on three seeds the chart itself names the kind the run rolled.
+## TIER 0 IS SPIRALS (Jon's A, Nov 21): `Ladder.TIER0_KINDS` checked, 300 seeds
+## roll only listed kinds, a listed first draw is kept, the chart names the kind.
 ## Why: docs/why/Ladder.md#tier-0-spirals
 func _tier0_sweep() -> void:
 	var names: Array[String] = []

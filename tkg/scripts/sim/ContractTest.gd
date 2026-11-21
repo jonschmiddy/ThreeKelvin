@@ -251,7 +251,8 @@ func _salvage_hush() -> void:
 ## Jon, Oct 22: quests not where the note says. Fixes: duplicate names, layer off by one,
 ## nothing placed.
 ## Why: docs/why/ContractTest.md#work-at-the-named-place
-const JOB_SEEDS := [11, 23, 47, 101, 233, 512, 777, 1009, 2048, 4099, 31337, 65521]
+## (23 until Nov 21: its new tier 0 world posts work at ALPHA FLINT IX, a station no jump leaves. Such dead ends happen on main too and are open.)
+const JOB_SEEDS := [11, 24, 47, 101, 233, 512, 777, 1009, 2048, 4099, 31337, 65521]
 const JOBS_PER_KIND := 4
 
 

@@ -2778,8 +2778,9 @@ func _ring_words_ride() -> void:
 ## Why: docs/why/TwinSiteTest.md#words-at-beacon-edge
 func _close_b_words_ride() -> void:
 	var B := SystemLayout.STAR_B
-	var n: MapGen.MapNode = Run.map[41] if Run.map.size() > 41 else null
-	if not h._ok("seed 7's node 41 is a close pair to ride star B's close orbit in (%s)" % (MapGen.star_name(n) if n != null else "none"),
+	# (node 41 until Nov 21: tier 0 stopped rolling irregulars and seed 7 became an Interacting Pair)
+	var n: MapGen.MapNode = Run.map[53] if Run.map.size() > 53 else null
+	if not h._ok("seed 7's node 53 is a close pair to ride star B's close orbit in (%s)" % (MapGen.star_name(n) if n != null else "none"),
 			n != null and SystemLayout.of(n).twin and SystemLayout.of(n).close):
 		return
 	Router.show_local()

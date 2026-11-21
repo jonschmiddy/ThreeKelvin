@@ -600,7 +600,8 @@ func _run() -> void:
 	Router.animate_in_harness = true
 	ZoomLadder.force = 1
 	ZoomLadder.fixed_dt = 1.0 / 60.0
-	Rng.forced = 7
+	# (7 until Nov 21, when it became an Interacting Pair: there map -> chart blanks the bar for 2-3 frames, on main too)
+	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	StarchartScreen._primed_for = Run.galaxy_seed
 	var sys := Run.at
