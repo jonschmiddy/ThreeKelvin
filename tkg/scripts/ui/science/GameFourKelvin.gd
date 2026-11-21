@@ -708,7 +708,7 @@ func _hud() -> void:
 	var ew := rw.position.x - MiniKit.GAP - ex
 	px.text("ENERGY", ex, MiniKit.CTRL_CY - 6, MiniKit.LABEL)
 	MiniKit.meter(px, ex, MiniKit.CTRL_CY, ew, 1.0, "yours")
-	if mode == "ready":
+	if mode == "ready" and not told:
 		# the top spot: the ship starts on row 60, under the middle
 		MiniKit.tell(px, "FLY THE SHIP.", ["keys:WAD"] as Array[String], clock, MiniKit.TELL_TOP)
 	elif mode == "end":

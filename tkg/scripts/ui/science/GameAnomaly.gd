@@ -569,7 +569,7 @@ func _draw() -> void:
 	right.append(["WRONG", wrong, "bad" if wrong else ""])
 	right.append(["TIME", ceili(time_left), "bad" if fr < 0.25 else ""])
 	MiniKit.header(px, {label = "FOUND", value = "%d/%d" % [got, need.size()], vkind = "good" if got == need.size() else ""}, right)
-	if not started:
+	if not started and not told:
 		MiniKit.tell(px, "FIND EVERY MATCH.", ["click"] as Array[String], clock)
 	_loupe()
 	draw_toast()

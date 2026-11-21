@@ -205,3 +205,15 @@ and bronze are the "grey" ramp (grime and panels step along it), only the deep o
 paint (saturation 0.75 and up, hue at or under 0.065) is the accent, and the furnace's hot
 colours (value over 0.85, or over 0.78 and saturated) are on neither ramp, so nothing
 steps into them or out of them.
+
+## No dither fills
+
+Jon, Nov 20, on Solari's wear sheet: "There is some weird dithering happening that's kinda
+weird." An ordered dither used as a fill reads as a screen pattern, not as wear. Solari's
+wear dropped it (`docs/why/SolariScars.md#all-three-and-no-dither`), and Korvan's four
+followed: the soot's band edges (`HullScars._soot`), the scorch's outer ring
+(`HullScars._scorch`), the band's chipping at B (`_paint`) and the registry's fade at B
+(`_marks`). Each now cuts a smooth noise (`clump`) at the same threshold the dither did: the
+same share of the area is worn, in solid clumps a few pixels across with ragged edges.
+`clump` stretches the soft noise towards an even spread, so a threshold covers about the
+area a per-pixel roll would. Solari's bakes are pixel-identical (none of the four runs there).

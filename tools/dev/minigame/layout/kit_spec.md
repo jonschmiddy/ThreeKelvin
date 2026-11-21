@@ -81,7 +81,11 @@ Jon, Nov 20: "Maybe. CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE UP".
 - Where the middle hides what a player needs to start, the game passes `{y}`: `ROW.TELL.top` (rows 12-40:
   Sample Tray, the sample's row; Four Kelvin, the ship on row 60) or `ROW.TELL.high` (rows 33-61, the result
   card's top: Tumble Dock, the spin arc's arrowheads). Godot: `MiniKit.tell(px, text, icons, t, MiniKit.TELL_TOP)`.
-- Shown until the first input, then gone. Max width 144 px: 26 characters with one drag icon.
+- Shown until the first input, then gone. Any press on the glass is input (Jon, Nov 20: Ice Core's card hid
+  ONE UPSIDE DOWN until the first drag): kit.js marks the card put away on any `pointerdown` (a capture
+  listener, before the game's own handler, which still does its thing) and `KIT.tell` then draws nothing.
+  A key game's first key still hides it as before. Godot: `MiniGame.told`, set by `MiniGame.glass_down`.
+  Max width 144 px: 26 characters with one drag icon.
 
 ## Buttons: `KIT.button(g, x, y, w, h, label, state, icon)`
 - Heights: 13 (label, or 9x9 icon + label in a line) at y 122; 19 (icon over label) at y 119.
