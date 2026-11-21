@@ -148,6 +148,11 @@ func _zoom_box() -> void:
 	_mat.set_shader_parameter("box_h", h)
 
 
+## Its light faded out from r0 px off its centre to an oval of half size `reach`: a portrait has no box.
+func set_fade(r0: float, reach: Vector2) -> void:
+	_mat.set_shader_parameter("frame_fade", Vector3(r0, reach.x, reach.y))
+
+
 ## The map's clock, in seconds.
 func step(t: float) -> void:
 	if P.is_empty() or (_last > t - 0.03 and _last <= t):

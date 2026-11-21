@@ -102,6 +102,10 @@ uniform float zoom = 1.0;
 // rest, on LOCAL, in the panel).
 uniform float limb_k = 1.0;
 uniform vec2 box_h = vec2(210.0, 150.0);
+// A PORTRAIT WITH NO BOX (Jon, Nov 21): the light off the face fades out from
+// x px off the star's centre to an oval y wide and z tall (game px, half sizes),
+// so a picture held in a small frame is never cut by it. 0: none (map, LOCAL).
+uniform vec3 frame_fade = vec3(0.0);
 // a mass ejection's bubble: (x, y, radius, on), (cos, sin, g, u), its fade
 uniform vec4 cme_a = vec4(0.0);
 uniform vec4 cme_b = vec4(0.0);
@@ -684,6 +688,7 @@ vec4 sun(float x, float y, vec2 pz) {
 	if (wave.w > 0.0 && d <= R * 0.98) { float k = exp(-sq((length(vec2(x - wave.x, y - wave.y)) - wave.z) / 2.0)) * wave.w * 0.6; if (k > 0.02) L += HOT * k; }
 	if (spikes > 0.0) L += spike_light(pz);
 	if (rays > 0.0) L += ray_light(dx, dy, d, t);
+	if (frame_fade.z > 0.0 && !face) { float fo = 1.0 - smo(frame_fade.x, frame_fade.z, length((pz + 0.5 - box_h) / frame_fade.yz) * frame_fade.z); L *= fo * fo; }
 	if (painted) return sun_painted(L, face, d, Rr, dx, dy, t, pz);
 	// tone mapped, dithered, and put to the palette; no light is empty space
 	if (L.r + L.g + L.b < 0.09) return vec4(0.0);
