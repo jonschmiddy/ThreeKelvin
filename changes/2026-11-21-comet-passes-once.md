@@ -1,1 +1,2 @@
 - **Fixed** — Once you take a comet's reading, the comet goes by once and is gone. It used to come back past your ship every few seconds for as long as you stayed. The science desk's boot screen now names the comet you are reading.
+- **Changed** — Comet science now always plays Ice Core, not a game picked from the rock and lab set (one comet dealt the Centrifuge).

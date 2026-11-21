@@ -210,20 +210,18 @@ apart from encounters); until then those games open by the dev flag.
 
 ## A site's own deal
 
-`MiniGames.OWN` maps a site to the games a reading there deals in place of its group's and
-the lab's. It is empty: every reading deals `pool(ROCK)` wherever it is, which is how a comet
-dealt Centrifuge (Jon, Nov 21: "When I tried to do the comet science, I got the centrifuge
-game, which was weird"). The comet's options wait for Jon:
-- A: Ice Core alone (`COMET_A`). Ice Core is ice cores, and its tell is STACK THE LAYERS IN ORDER.
-- B: Ice Core and Core Scan (`COMET_B`), so a run's second comet may differ.
-- C: the comet's own game, "catch the ice trail" (being prototyped), once it is ported; Ice
-  Core stands in until then (`COMET_C`). Porting it is its id in `ORDER` and `make`, and
-  `COMET_C` naming it.
+`MiniGames.OWN` maps a site to the games a reading there deals in place of its group's and the
+lab's. Before it every reading dealt `pool(ROCK)` wherever it was, which is how a comet dealt
+Centrifuge (Jon, Nov 21: "When I tried to do the comet science, I got the centrifuge game, which
+was weird").
 
-Picking one is one line, `&"comet": COMET_A` in `OWN`. A pick still draws from the same
-`Rng.derive(&"minigame", index)` in the same order, so no other site's deal moves.
-`MiniGameTest._site_deals` prints what each site deals and checks each option deals its games
-and only at a comet.
+Jon ruled C on Nov 21: "only the new comet game once you've picked it, with another, and also
+Ice Core." So a comet deals Ice Core alone (ice cores; its tell is STACK THE LAYERS IN ORDER)
+until the comet games he picks from the prototypes ("catch the ice trail" among them) are
+ported; then their ids join the comet's list beside Ice Core. Every other site deals as before.
+The deal still draws from `Rng.derive(&"minigame", index)` in the same order, so no other site's
+deal moves. The comet's haul stays mining: its readings are of ice and rock, the rock group's.
+`MiniGameTest._site_deals` prints what each site deals and checks a comet deals Ice Core only.
 
 ## Coolant
 

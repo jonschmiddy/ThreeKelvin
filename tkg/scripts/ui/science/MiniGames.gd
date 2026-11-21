@@ -24,14 +24,10 @@ const SKY: Array[StringName] = [&"pulsar", &"spectrum", &"sling", &"tuning", &"b
 const LAB: Array[StringName] = [&"coolant", &"tray", &"centrifuge"]
 
 
-## A SITE'S OWN DEAL, in place of its group's and the lab's: empty until Jon picks. The comet's
-## three options (Nov 21): A, Ice Core alone; B, Ice Core and Core Scan; C, the comet game
-## ("catch the ice trail") once it is ported, Ice Core standing in. Picking one is one line here,
-## `&"comet": COMET_A`. Why: docs/why/MiniGame.md#a-sites-own-deal
-const OWN: Dictionary[StringName, Array] = {}
-const COMET_A: Array[StringName] = [&"icecore"]
-const COMET_B: Array[StringName] = [&"icecore", &"corescan"]
-const COMET_C: Array[StringName] = [&"icecore"]
+## A SITE'S OWN DEAL, in place of its group's and the lab's. A comet deals Ice Core (Jon, Nov 21,
+## "C"); the comet games he picks from the prototypes join this list when they are ported.
+## Why: docs/why/MiniGame.md#a-sites-own-deal
+const OWN: Dictionary[StringName, Array] = {&"comet": [&"icecore"]}
 
 
 ## The games a reading at `site` deals: the site's own deal when it has one, else `pool(ROCK)`

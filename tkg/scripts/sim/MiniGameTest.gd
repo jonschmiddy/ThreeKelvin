@@ -343,26 +343,25 @@ func _haul() -> void:
 		_h._ok("pay grants one material by its catalogue name and tier (%s)" % str(h), not h.is_empty() and String(h.name) != "" and StringName(h.tier) in MaterialTable.TIERS)
 
 
-## WHICH GAMES EACH SITE DEALS, printed: with no own deal every site deals `pool(ROCK)`, today's
-## deal, and each comet option deals just its own games (Nov 21). Why: docs/why/MiniGame.md#a-sites-own-deal
+## WHICH GAMES EACH SITE DEALS, printed: a comet deals Ice Core alone (Jon, Nov 21, "C"), every other
+## site `pool(ROCK)`, as before. Why: docs/why/MiniGame.md#a-sites-own-deal
 func _site_deals() -> void:
 	var rock := MiniGames.pool(MiniGames.ROCK)
 	var same := true
-	for site: StringName in [&"barren", &"belt", &"comet", &"star", &"giant", &"derelict", &"life", &"pulsar", &"lab"]:
+	for site: StringName in [&"barren", &"belt", &"star", &"giant", &"derelict", &"life", &"pulsar", &"lab"]:
 		var ids := MiniGames.pool_at(site)
 		print("deal at %s: %s (haul %s)" % [site, ", ".join(ids), ScienceHaul.source_of(site)])
 		same = same and ids == rock
-	_h._ok("no own deal picked: every site deals the rock and lab games (%s)" % ", ".join(rock), same and MiniGames.OWN.is_empty())
-	var opts := {&"A": MiniGames.COMET_A, &"B": MiniGames.COMET_B, &"C": MiniGames.COMET_C}
-	for k: StringName in opts:
-		var own := {&"comet": opts[k]}
-		var ids := MiniGames.pool_at(&"comet", own)
-		var dealt := {}
-		for i in 64:
-			var r := Rng.derive(&"minigame", i)
-			dealt[ids[r.randi() % ids.size()]] = true
-		_h._ok("comet option %s deals %s, and only there (a belt still deals %d games)" % [k, ", ".join(ids), MiniGames.pool_at(&"belt", own).size()],
-			ids == Array(opts[k]) and dealt.size() == ids.size() and MiniGames.pool_at(&"belt", own) == rock)
+	_h._ok("every site but a comet deals the rock and lab games (%s)" % ", ".join(rock), same)
+	var comet := MiniGames.pool_at(&"comet")
+	print("deal at comet: %s (haul %s)" % [", ".join(comet), ScienceHaul.source_of(&"comet")])
+	var dealt := {}
+	for i in 64:
+		var n := MapGen.MapNode.new()
+		n.index = i
+		dealt[MiniGames.deal(n, &"comet").id] = true
+	_h._ok("a comet deals Ice Core and nothing else (%s; dealt %s over 64 systems)" % [", ".join(comet), ", ".join(dealt.keys())],
+		comet == [&"icecore"] and dealt.keys() == [&"icecore"])
 
 
 ## The start card at every depth (Jon, Nov 20: "CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE UP"): the
