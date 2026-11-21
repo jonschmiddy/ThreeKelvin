@@ -36,6 +36,7 @@ func _run() -> void:
 		Ladder.best_won() == -1 and Ladder.can_pick(0) and not Ladder.can_pick(1))
 	await _box_case()
 	await _forms()
+	await _tier0_sweep()
 	await _record()
 	await _fresh()
 	_finish()
@@ -140,6 +141,45 @@ func _forms() -> void:
 		_ok("a tier %d run flies a %s: %s" % [int(pair[0]), Ladder.FORM_NAME[int(pair[1])], GalaxyGen.type_name(Run.galaxy_kind)],
 			Run.ascension == int(pair[0]) and Ladder.form_of_kind(Run.galaxy_kind) == pair[1])
 	Run.forced_ascension = -1
+	Run.hull = null
+
+
+## TIER 0 IS SPIRALS (Jon's G2, Nov 10; his Nov 21 report "at tier 0, the
+## galaxy is not always a spiral"): over 300 seeds the kind rolled is of the
+## spiral form, drawn with arms and never named an irregular on the chart. Then
+## on three seeds the chart itself names the kind the run rolled.
+## Why: docs/why/Ladder.md#tier-0-spirals
+func _tier0_sweep() -> void:
+	Run.forced_ascension = 0
+	var seen := {}
+	var bad: Array[String] = []
+	for sd in range(1, 301):
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		Rng.forced = 0
+		var k := Run.galaxy_kind
+		var nm := GalaxyGen.type_name(k)
+		seen[nm] = int(seen.get(nm, 0)) + 1
+		if Run.ascension != 0 or Ladder.form_of_kind(k) != Ladder.Form.SPIRAL \
+				or ChartSky.form_of(k) != 0 or nm.contains("Irregular"):
+			if bad.size() < 6:
+				bad.append("seed %d %s" % [sd, nm])
+	print("    tier 0 kinds over 300 seeds: %s" % [seen])
+	_ok("tier 0 over 300 seeds flies a spiral, never an irregular%s"
+		% ("" if bad.is_empty() else ": " + ", ".join(bad)), bad.is_empty())
+	for sd: int in [4242, 7, 9300]:
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		Rng.forced = 0
+		var want := GalaxyGen.type_name(Run.galaxy_kind).to_upper()
+		Router.show_starchart()
+		await Harness.frames(_tree, 4)
+		_ok("seed %d: the chart names the galaxy the run rolled, %s" % [sd, want],
+			Router.current is StarchartScreen and _says(Router.current, want))
+	Run.forced_ascension = -1
+	# off the chart before the hull goes: it reads the hull every frame
+	Router.show_launcher()
+	await Harness.frames(_tree, 2)
 	Run.hull = null
 
 
