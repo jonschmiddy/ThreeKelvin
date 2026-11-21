@@ -411,14 +411,36 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 		view._weather.screen = self
 		if arrived:
 			view._weather.arrive(flight.warp_t)
-	# LOCATION held: one glide onto the ship from the whole sector
-	if _location_on:
-		_glide_to("loc", -9, ZOOM_LOCATION)
+	_open_camera(n)
 	panel.show_system()
 	# (nothing is being taken on a ship just made: a GO carried on takes again)
 	_taking = false
 	if not going.is_empty():
 		_carry_on(going, taking)
+
+
+## LOCATION held: one glide onto the ship. Else a system's first map this run opens
+## on the whole system, as far out as the wheel goes (Jon, Nov 21).
+## Why: docs/why/SystemMapScreen.md#first-arrival
+func _open_camera(n: MapGen.MapNode) -> void:
+	var first := first_arrival(n)
+	opened_jump = Run.jumps
+	if _location_on:
+		_glide_to("loc", -9, ZOOM_LOCATION)
+	elif first:
+		view.zoom = zoom_min
+		view.pan = Vector2.ZERO
+		_zoom_to = zoom_min
+
+
+## `Run.jumps` when a map last opened: the first map after a jump into a new system is the arrival's.
+## -1 for a new run; a restored run's own count, as resuming is not arriving.
+static var opened_jump := -1
+
+
+## The ship's first visit here (once in the trail) and no map opened since it came.
+static func first_arrival(n: MapGen.MapNode) -> bool:
+	return n != null and n.index == Run.at and Run.trail.count(n.index) == 1 and opened_jump != Run.jumps
 
 
 ## A redrawn map finishes the flight's errand once, so clicking never loses anything.

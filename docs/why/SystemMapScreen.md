@@ -392,3 +392,25 @@ round to its departure to its spin-down onto the ring after
 chord between spots; and let go of (W off it, or another place picked on the
 way) before it lands, said too.
 ```
+
+## First arrival
+
+Above `func _open_camera(n: MapGen.MapNode) -> void:`:
+
+```text
+A SYSTEM'S FIRST MAP THIS RUN OPENS ALL THE WAY OUT (Jon, Nov 21: "When you
+enter a sector for the first time, you should be maximum zoomed out"):
+`zoom_min`, the whole system on star A, the furthest the wheel goes. Every
+other showing opens as it always did, on `open_zoom` and `home_at`; no zoom
+was ever remembered per system or per run. Before this, one sun and a close
+pair already opened at `zoom_min`; only a wide pair (framed on its own part,
+Nov 1, "gap:A") opened nearer, 1.5 times or more. Home (a second right-click,
+LOCATION let go) still glides to the opening framing.
+"First" is the system once in `Run.trail` (the save keeps it) and no map
+opened since the jump (`opened_jump`), not the jump's `arrived` flag: an
+ambush or the Hellbender lands on LOCAL, which takes that flag, and the map
+after them is still the first look. Nothing new is saved: a restored run
+counts its map as opened (`Router._on_run_started`), as resuming is not
+arriving. LOCATION held wins: it is the player's own "every arrival zooms
+onto your ship".
+```

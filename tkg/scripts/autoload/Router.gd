@@ -325,6 +325,8 @@ func _on_run_started() -> void:
 	# (and where the map flew it, which LOCAL arrived at and which station is
 	# lit: the last run's, by the same numbers)
 	SectorScreen.forget_places()
+	# (a new run's first map opens all the way out; a restored run is not arriving)
+	SystemMapScreen.opened_jump = Run.jumps if SaveGame.restoring else -1
 
 ## Dropping a fight must leave the party, or the partners sit on WAIT <name> (review, Nov 5).
 ## Why: docs/why/Router.md#dropping-a-fight

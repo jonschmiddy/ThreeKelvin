@@ -1,0 +1,1 @@
+- **Changed** — A system's map opens all the way out, on the whole system, the first time you arrive there in a run; later looks open as before (Jon, Nov 21). Only wide binaries opened nearer, so they are the ones that change.
