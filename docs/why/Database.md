@@ -1467,3 +1467,18 @@ and the refit page's window (at 1x) no longer clip, the yard's photograph pad is
 140 px, and the ship-loss picture grows round the guns. `-- sheet=GunClipTest`
 walks every view and checks each gun against every clipping ancestor.
 ```
+
+## Manufacturer colour options
+
+Above `var manufacturer_override` and in `BoardScreen.branded`:
+
+```text
+Jon, Nov 20: Korvan's and Solari's mark and field (#d97b2e on #8a4517, #ef9f27 on #f2eee6) are
+nearly the same orange, and Solari's off-white field was picked for the old white capsules, not
+the fire-blackened bronze of the Nov 20 hulls. A decision sheet shows options in the game's own
+drawing: `mfcolours=korvan:#mark:#field,solari:...` replaces those manufacturers' colours for one
+run (a render, never play), and their adverts on the board (`BoardScreen` entries with a
+`manufacturer`) follow: a poster on the field in the mark, a strip on the mark in the field. Without
+the arg every colour is today's. When Jon picks, the table above takes the new colours and the
+adverts follow them always.
+```

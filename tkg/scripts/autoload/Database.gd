@@ -111,6 +111,7 @@ func _seed_manufacturers() -> void:
 		m.set5_text = r[9]
 		m.backstory = BACKSTORY.get(m.id, "")
 		manufacturers[m.id] = m
+	_colour_arg()
 
 ## Kept out of the table above: paragraphs in positional array indices are unmergeable.
 ## Keyed by id so a missing entry is blank, not a shifted column.
@@ -174,6 +175,24 @@ func malfunction(id: StringName) -> CardData:
 func roll_malfunction(danger: int, r: RandomNumberGenerator = Rng.foe) -> StringName:
 	var reach := clampi(4 + danger, 4, MALFUNCTIONS.size())
 	return MALFUNCTIONS[r.randi() % reach][0]
+
+## Manufacturers whose colours a `mfcolours=id:#mark:#field,...` arg replaced: a decision sheet's
+## renders only, never in play. Why: docs/why/Database.md#manufacturer-colour-options
+var manufacturer_override: Dictionary[StringName, bool] = {}
+
+
+func _colour_arg() -> void:
+	for a in OS.get_cmdline_user_args():
+		if not a.begins_with("mfcolours="):
+			continue
+		for e in a.substr(10).split(","):
+			var p := e.split(":")
+			if p.size() == 3 and manufacturers.has(StringName(p[0])):
+				var m: ManufacturerData = manufacturers[StringName(p[0])]
+				m.colour = Color(p[1])
+				m.field = Color(p[2])
+				manufacturer_override[StringName(p[0])] = true
+
 
 func manufacturer_colour(id: StringName) -> Color:
 	if id == &"" or not manufacturers.has(id):

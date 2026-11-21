@@ -9,7 +9,7 @@ const ADS := [
 	{"bg": Color("#c83a7a"), "ink": Color("#fff0f6"), "lines": [["LONELY", 16], ["IN THE", 8], ["VOID?", 16], ["PEN PALS", 8], ["4 CR", 16]]},
 	{"bg": Color("#14161c"), "ink": Color("#f0e040"), "lines": [["HOT", 16], ["PODS", 16], ["IN YOUR", 8], ["AREA", 16], ["", 8], ["ESCAPE PODS", 8], ["FOR SALE", 8]]},
 	{"bg": Color("#3ec8e0"), "ink": Color("#061426"), "lines": [["COLD", 16], ["SLEEP", 16], ["PODS", 16], ["WAKE UP", 8], ["RICHER*", 8], ["", 8], ["*NOT A", 8], ["PROMISE", 8]]},
-	{"bg": Color("#c8282a"), "ink": Color("#fff4d0"), "lines": [["KORVAN", 16], ["SURPLUS", 8], ["IT FIRES.", 8], ["MOSTLY.", 8], ["-40%", 16]]},
+	{"manufacturer": &"korvan", "bg": Color("#c8282a"), "ink": Color("#fff4d0"), "lines": [["KORVAN", 16], ["SURPLUS", 8], ["IT FIRES.", 8], ["MOSTLY.", 8], ["-40%", 16]]},
 	{"bg": Color("#a8f0d0"), "ink": Color("#0a3a2a"), "lines": [["DRONE", 16], ["SPA", 16], ["THEY", 8], ["DESERVE", 8], ["IT TOO", 8], ["9 CR", 16]]},
 	{"bg": Color("#5a3ac8"), "ink": Color("#f4f0ff"), "lines": [["NEW!", 16], ["HULL", 16], ["SCENT", 16], ["SMELLS", 8], ["LIKE", 8], ["NOTHING", 8]]},
 	{"bg": Color("#ff8a6a"), "ink": Color("#2a0a08"), "lines": [["GOT", 16], ["SCRAP?", 16], ["WE PAY", 8], ["CASH FOR", 8], ["ANY OLD", 8], ["JUNK", 16]]},
@@ -18,7 +18,7 @@ const ADS := [
 	{"bg": Color("#2a0a4a"), "ink": Color("#ff60c0"), "lines": [["TIRED", 16], ["OF", 8], ["JUMPS?", 16], ["TRY", 8], ["SITTING", 8], ["STILL", 16]]},
 	{"bg": Color("#a8e040"), "ink": Color("#142008"), "lines": [["LUCKY", 16], ["CORE", 16], ["FOUND IN", 8], ["A WRECK", 8], ["NOT", 8], ["CURSED", 16]]},
 	{"bg": Color("#0a1e4a"), "ink": Color("#ff9a3a"), "lines": [["RENT", 16], ["A", 8], ["CREW", 16], ["BY THE", 8], ["HOUR", 16], ["NO", 8], ["SINGING", 8]]},
-	{"bg": Color("#f4f0e8"), "ink": Color("#c82a2a"), "lines": [["RUNNING", 8], ["HOT?", 16], ["SOLARI", 16], ["SAYS", 8], ["THAT IS", 8], ["FINE", 16]]},
+	{"manufacturer": &"solari", "bg": Color("#f4f0e8"), "ink": Color("#c82a2a"), "lines": [["RUNNING", 8], ["HOT?", 16], ["SOLARI", 16], ["SAYS", 8], ["THAT IS", 8], ["FINE", 16]]},
 	{"bg": Color("#16202e"), "ink": Color("#58c8d8"), "lines": [["NEVER", 16], ["ALONE", 16], ["CYGNET", 8], ["DRONES", 8], ["WATCH YOU", 8], ["SLEEP", 16]]},
 	{"bg": Color("#e040c0"), "ink": Color("#1a0618"), "lines": [["WILLS", 16], ["FOR", 8], ["PILOTS", 16], ["LEAVE", 8], ["YOUR SHIP", 8], ["TO US", 8], ["", 8], ["PROBATE", 8], ["COMBINE", 8]]},
 	{"bg": Color("#6a3a1a"), "ink": Color("#ffd890"), "lines": [["SUIT", 16], ["PATCH", 16], ["ONE SIZE", 8], ["FITS MOST", 8], ["HOLES", 8], ["2 CR", 16]]},
@@ -46,7 +46,7 @@ const ADS := [
 	{"bg": Color("#a82020"), "ink": Color("#fff0b0"), "lines": [["TIME", 16], ["SHARE", 16], ["ON A", 8], ["MOON", 16], ["", 8], ["NEVER", 8], ["VISIT IT", 8]]},
 	{"bg": Color("#8ac8ff"), "ink": Color("#3a0a2a"), "lines": [["MOVING", 16], ["DECKS?", 16], ["WE CARRY", 8], ["THE BOXES", 8], ["UP STAIRS", 8]]},
 	{"bg": Color("#0e6a6a"), "ink": Color("#ffe040"), "lines": [["EYE", 16], ["DROPS", 16], ["FOR", 8], ["STAR GLARE", 8], ["2 CR", 16]]},
-	{"bg": Color("#f2eee6"), "ink": Color("#c8661a"), "lines": [["HEAT", 16], ["LAMPS", 16], ["FOR", 8], ["COLD BUNKS", 8], ["", 8], ["BY SOLARI", 8], ["FORGE", 8]]},
+	{"manufacturer": &"solari", "bg": Color("#f2eee6"), "ink": Color("#c8661a"), "lines": [["HEAT", 16], ["LAMPS", 16], ["FOR", 8], ["COLD BUNKS", 8], ["", 8], ["BY SOLARI", 8], ["FORGE", 8]]},
 	{"bg": Color("#ff8a6a"), "ink": Color("#14161c"), "lines": [["YARD", 16], ["SALE", 16], ["DOCK 9", 8], ["HULLS", 8], ["HALF", 8], ["BUILT", 8]]},
 	{"bg": Color("#2a0a4a"), "ink": Color("#ffe040"), "lines": [["NAME", 16], ["A", 8], ["STAR", 16], ["AFTER", 8], ["SOMEONE", 8], ["YOU LOVE", 8], ["1 CR", 16]]},
 	{"bg": Color("#e2ece6"), "ink": Color("#1e5a3a"), "lines": [["CALYX", 16], ["HOME", 16], ["MOSS", 16], ["MAKES AIR", 8], ["MAKES", 8], ["FRIENDS", 8]]},
@@ -67,16 +67,30 @@ const ADS := [
 	{"bg": Color("#b81e1e"), "ink": Color("#f0e040"), "lines": [["TOW", 16], ["AND", 8], ["GO", 16], ["WE BRING", 8], ["IT BACK", 8], ["IN SOME", 8], ["FORM", 8]]},
 ]
 
+## A manufacturer's own advert in its colours when a sheet's arg set them (`DB.manufacturer_override`):
+## a poster on its field in its mark, a strip on its mark in its field.
+static func branded(ad: Dictionary, strip: bool) -> Dictionary[String, Variant]:
+	var out: Dictionary[String, Variant] = {}
+	out.assign(ad)
+	var mk: StringName = ad.get("manufacturer", &"")
+	if mk == &"" or not DB.manufacturer_override.has(mk):
+		return out
+	var m: ManufacturerData = DB.manufacturers[mk]
+	out["bg"] = m.colour if strip else m.field
+	out["ink"] = m.field if strip else m.colour
+	return out
+
+
 const STRIPS := [
 	{"bg": Color("#2a9a5a"), "ink": Color("#f0fff0"), "t": "JUMP INSURANCE", "s": "NOBODY HAS EVER CLAIMED"},
 	{"bg": Color("#e0702a"), "ink": Color("#fff4e8"), "t": "SPARE PARTS DEPOT", "s": "DECK 4, NEXT TO THE NOODLES"},
 	{"bg": Color("#5a3ac8"), "ink": Color("#f4f0ff"), "t": "LEARN TO JUMP", "s": "FIRST LESSON FREE*"},
 	{"bg": Color("#14161c"), "ink": Color("#f0e040"), "t": "DOCK PARKING", "s": "FIRST HOUR FREE, NEXT HOUR 90 CR"},
 	{"bg": Color("#8ac8ff"), "ink": Color("#0a1a3a"), "t": "COLD SLEEP CLINIC", "s": "WE WAKE YOU UP. MOST TIMES."},
-	{"bg": Color("#5a2a0a"), "ink": Color("#ffe8c0"), "t": "KORVAN SURPLUS", "s": "IT FIRES. EVERY TIME. LOUDLY."},
+	{"manufacturer": &"korvan", "bg": Color("#5a2a0a"), "ink": Color("#ffe8c0"), "t": "KORVAN SURPLUS", "s": "IT FIRES. EVERY TIME. LOUDLY."},
 	{"bg": Color("#f0c040"), "ink": Color("#2a1a08"), "t": "LOST IN THE LAYERS?", "s": "MAPS 3 CR, WRONG ONES 1 CR"},
 	{"bg": Color("#16202e"), "ink": Color("#58c8d8"), "t": "CYGNET DRONE CARE", "s": "YOU ARE NEVER ALONE. EVEN IN THE BATH"},
-	{"bg": Color("#ef9f27"), "ink": Color("#2a1404"), "t": "SOLARI HEAT PLATES", "s": "RUN HOT. STAY HOT. KEEP RUNNING."},
+	{"manufacturer": &"solari", "bg": Color("#ef9f27"), "ink": Color("#2a1404"), "t": "SOLARI HEAT PLATES", "s": "RUN HOT. STAY HOT. KEEP RUNNING."},
 	{"bg": Color("#0a3a1a"), "ink": Color("#a8ff60"), "t": "THE PROBATE COMBINE", "s": "WE BUY WRECKS. AND WE WAIT."},
 	{"bg": Color("#901414"), "ink": Color("#ffffff"), "t": "SEEN THE HELLBENDER?", "s": "DO NOT TELL US. TELL SOMEONE ARMED"},
 	{"bg": Color("#e8e0cc"), "ink": Color("#4a3a10"), "t": "VERITY ATELIERS", "s": "ONE HULL A YEAR. WAIT LIST: 40 YEARS"},
