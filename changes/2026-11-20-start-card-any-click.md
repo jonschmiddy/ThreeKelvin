@@ -1,0 +1,1 @@
+- **Changed** — In the science mini games, a click anywhere on the screen now puts away the start card that says what to do, so it no longer hides the puzzle until your first real move. A click on something you can use still does that too.

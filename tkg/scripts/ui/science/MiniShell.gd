@@ -145,7 +145,7 @@ func press(gf: Vector2) -> void:
 	var g := Vector2i(gf.floor())
 	if playing():
 		game.pf = gf - Vector2(at)
-		game.down(g - at)
+		game.glass_down(g - at)
 		_take_asked()
 
 

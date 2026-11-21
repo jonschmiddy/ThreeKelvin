@@ -173,7 +173,11 @@ function drawIcon(g,k,x,y,t){
 function tellRect(text,icons,o){icons=icons||[];o=o||{};const iw=icons.reduce((a,k)=>a+iconW(k)+3,0),
     w=Math.max(iw+tw(text),iconW(ESC)+3+tw(GIVE))+12;
   return{x:ROW.TELL.cx-(w>>1),y:o.y!=null?o.y:ROW.TELL.y,w,h:ROW.TELL.h,iw}}
-function tell(g,text,icons,t,o){icons=icons||[];const b=tellRect(text,icons,o);
+// Any press on the glass puts the card away for good (Jon, Nov 20: Ice Core's card hid ONE UPSIDE DOWN until
+// the first drag): a capture listener marks it before the game's own handler runs, which still does its thing.
+let told=false;
+if(typeof window!=='undefined')window.addEventListener('pointerdown',()=>{told=true},true);
+function tell(g,text,icons,t,o){if(told)return null;icons=icons||[];const b=tellRect(text,icons,o);
   box(g,b.x,b.y,b.w,b.h);
   // each line centred in the card (Jon, Nov 20: "can we center the text?")
   let x=b.x+((b.w-b.iw-tw(text))>>1);for(const k of icons){drawIcon(g,k,x,b.y+2,t||0);x+=iconW(k)+3}

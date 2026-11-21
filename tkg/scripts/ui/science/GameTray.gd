@@ -604,7 +604,7 @@ func _draw() -> void:
 	if out_t >= 0.0:
 		_leaving()
 	_hud()
-	if not started:
+	if not started and not told:
 		# the top spot: the middle hides the sample's row
 		MiniKit.tell(px, "GET THE SAMPLE OUT.", controls(), clock, MiniKit.TELL_TOP)
 	draw_toast()

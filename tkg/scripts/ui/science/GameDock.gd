@@ -705,7 +705,7 @@ func _hud(now: float) -> void:
 	if tl < 10:
 		tm[2] = "bad"
 	MiniKit.header(k, lhs, [tm])
-	if float(S.t) < 6.0 and int(S.used) == 0:
+	if float(S.t) < 6.0 and int(S.used) == 0 and not told:
 		# the high spot: the middle hides the spin arc's arrowheads
 		MiniKit.tell(k, "STOP IT UNDER THE CLAMP.", ["click"] as Array[String], now, MiniKit.TELL_HIGH)
 	MiniKit.deck(k, true)

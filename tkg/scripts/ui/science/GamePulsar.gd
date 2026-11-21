@@ -574,7 +574,7 @@ func _draw() -> void:
 	_apply_glitch()
 	if msg != "":
 		px.text(msg, W / 2, RAWY + RAWH - 2, MiniPix.HOT, "center")
-	elif not started:
+	elif not started and not told:
 		MiniKit.tell(px, "TUNE IN THE PULSAR.", ["dial"] as Array[String], clock)
 	_draw_dial(on)
 	draw_toast()
