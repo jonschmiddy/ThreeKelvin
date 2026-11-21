@@ -1470,7 +1470,7 @@ walks every view and checks each gun against every clipping ancestor.
 
 ## Manufacturer colour options
 
-Above `var manufacturer_override` and in `BoardScreen.branded`:
+Above `_colour_arg` and in `BoardScreen.branded`:
 
 ```text
 Jon, Nov 20: Korvan's and Solari's mark and field (#d97b2e on #8a4517, #ef9f27 on #f2eee6) are
@@ -1482,3 +1482,7 @@ run (a render, never play), and their adverts on the board (`BoardScreen` entrie
 the arg every colour is today's. When Jon picks, the table above takes the new colours and the
 adverts follow them always.
 ```
+
+Jon picked A for both (Nov 20): Korvan steel #c3cad2 on gunmetal #2e333a, Solari furnace
+#ef9f27 on soot #201404, and the tagged adverts follow the table always since then
+(`BoardScreen.branded`). The `mfcolours=` arg stays for the next sheet.

@@ -2,7 +2,7 @@ extends Node
 
 ## Korvan's and Solari's colours where the game shows them, for a decision sheet: a card of each,
 ## their adverts and sponsored posts on the board, drawn by the game's own code. Windowed, through
-## `render.sh`: `-- sheet=ManufacturerColourShot out=<png> [mfcolours=korvan:#mark:#field,solari:...]`.
+## `render.sh`: `-- sheet=ManufacturerColourShot out=<png> [tips] [mfcolours=korvan:#mark:#field,solari:...]`.
 ## Why: docs/why/Database.md#manufacturer-colour-options
 
 const POSTER := Vector2(104, 150)
@@ -44,6 +44,9 @@ func _run() -> void:
 	bg.color = UITheme.VOID
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
+	if "tips" in OS.get_cmdline_user_args():
+		await _tips(bg, out)
+		return
 	var x := 8.0
 	for mf: StringName in [&"korvan", &"solari"]:
 		var card := _card(mf)
@@ -91,3 +94,22 @@ func _piece(parent: Control, kind: String, k: int, mid: StringName, at: Vector2,
 	p.position = at
 	p.size = sz
 	parent.add_child(p)
+
+
+## `tips`: a Korvan and a Solari part's hold tooltip (`ModuleIcon.tip_for`) in the tooltip's own panel.
+func _tips(bg: Control, out: String) -> void:
+	var y := 8.0
+	for id: StringName in [&"kh20", &"emberlance"]:
+		var panel := PanelContainer.new()
+		panel.add_theme_stylebox_override("panel", bg.get_theme_stylebox("panel", "TooltipPanel"))
+		panel.add_child(ModuleIcon.tip_for(DB.modules[id] as ModuleData))
+		panel.position = Vector2(8, y)
+		bg.add_child(panel)
+		await Harness.frames(get_tree(), 3)
+		y += panel.size.y + 10.0
+	await Harness.frames(get_tree(), 6)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(out)
+	h._ok("shot written", FileAccess.file_exists(out))
+	h.verdict("manufacturercolourshot")
+	get_tree().quit(h.code())

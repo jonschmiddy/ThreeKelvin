@@ -67,12 +67,13 @@ func _ready() -> void:
 
 func _seed_manufacturers() -> void:
 	var raw := [
-		[&"korvan", "Korvan Heavy Works", "It fires. Every time.", "#d97b2e", "#8a4517",
+		# Steel on gunmetal and furnace on soot (Jon, Nov 20, his picks A and A): the two were one orange.
+		# Why: docs/why/Database.md#manufacturer-colour-options
+		[&"korvan", "Korvan Heavy Works", "It fires. Every time.", "#c3cad2", "#2e333a",
 			"Ex-military surplus parts. Ballistics run cold; ordnance and plate run hot.",
 			"Stockpile", "After a turn where you fire nothing, you start with 1 more energy.",
 			"Payday", "When a charge shot fires, you get 2 more energy that turn."],
-		# Field is a white heat-shield to match the hulls' pale ceramic tile (Jon, Oct 15).
-		[&"solari", "Solari Forge", "The line between reactor and weapon is philosophy.", "#ef9f27", "#f2eee6",
+		[&"solari", "Solari Forge", "The line between reactor and weapon is philosophy.", "#ef9f27", "#201404",
 			"Weapons that hit harder the hotter you run.",
 			"Heat Blast", "When you vent heat, the enemy takes half of it as damage.",
 			"Ignition", "Overheat damage halved."],
@@ -176,11 +177,8 @@ func roll_malfunction(danger: int, r: RandomNumberGenerator = Rng.foe) -> String
 	var reach := clampi(4 + danger, 4, MALFUNCTIONS.size())
 	return MALFUNCTIONS[r.randi() % reach][0]
 
-## Manufacturers whose colours a `mfcolours=id:#mark:#field,...` arg replaced: a decision sheet's
-## renders only, never in play. Why: docs/why/Database.md#manufacturer-colour-options
-var manufacturer_override: Dictionary[StringName, bool] = {}
-
-
+## `mfcolours=id:#mark:#field,...` replaces a manufacturer's colours for one run: a decision
+## sheet's renders, never play. Why: docs/why/Database.md#manufacturer-colour-options
 func _colour_arg() -> void:
 	for a in OS.get_cmdline_user_args():
 		if not a.begins_with("mfcolours="):
@@ -191,7 +189,6 @@ func _colour_arg() -> void:
 				var m: ManufacturerData = manufacturers[StringName(p[0])]
 				m.colour = Color(p[1])
 				m.field = Color(p[2])
-				manufacturer_override[StringName(p[0])] = true
 
 
 func manufacturer_colour(id: StringName) -> Color:

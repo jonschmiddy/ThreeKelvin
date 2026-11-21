@@ -67,13 +67,13 @@ const ADS := [
 	{"bg": Color("#b81e1e"), "ink": Color("#f0e040"), "lines": [["TOW", 16], ["AND", 8], ["GO", 16], ["WE BRING", 8], ["IT BACK", 8], ["IN SOME", 8], ["FORM", 8]]},
 ]
 
-## A manufacturer's own advert in its colours when a sheet's arg set them (`DB.manufacturer_override`):
-## a poster on its field in its mark, a strip on its mark in its field.
+## A manufacturer's own advert in its colours (Jon, Nov 20): a poster on its field in its mark,
+## a strip on its mark in its field.
 static func branded(ad: Dictionary, strip: bool) -> Dictionary[String, Variant]:
 	var out: Dictionary[String, Variant] = {}
 	out.assign(ad)
 	var mk: StringName = ad.get("manufacturer", &"")
-	if mk == &"" or not DB.manufacturer_override.has(mk):
+	if mk == &"" or not DB.manufacturers.has(mk):
 		return out
 	var m: ManufacturerData = DB.manufacturers[mk]
 	out["bg"] = m.colour if strip else m.field
