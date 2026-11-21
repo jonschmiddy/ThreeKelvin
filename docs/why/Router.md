@@ -248,6 +248,8 @@ keep that place's room -- the same rule `music_state` applies to the score.
 
 ## Star room
 
+Nov 20, 2026: Jon cut the red and blue hypergiant rooms ("the sound of the blue hypergiant is kinda grating... get rid of the blue hypergiant and red hypergiant sounds"). Only a pulsar keeps a room of its own; every star system, hypergiants included, plays the reactor hum. `amb_red` stays in the game as the Hellbender heating bed.
+
 Above `func _star_room() -> StringName:`:
 
 ```text
