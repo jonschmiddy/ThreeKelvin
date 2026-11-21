@@ -75,19 +75,21 @@ seed field behaves as it did. A fresh profile still skips the box
 ## Tier 0 spirals
 
 Jon, Nov 21: "When launching into a game at tier 0, the galaxy is not always a
-spiral?" The roll was right by its own rule and the rule was wrong. `kinds_of(0)`
-takes every kind `ChartSky.form_of` draws with arms, and two of those nine are not
-spirals: the Magellanic Irregular (one arm off a bar, `arms` 1) and the Irregular
-(`arms` 3, `twist` 1.6, `chaos` 0.42). Two in nine tier 0 runs flew one, and the
-chart's FIRST SURVEY card and panel say IRREGULAR to the player. The co-op join, a
-save, a typed seed and the fresh-profile launch all reach the same roll; the title's
-galaxy is its own any-kind roll and is replaced by the run's at NEW RUN.
+spiral?" The roll kept its rule and the rule was loose: tier 0 took every kind
+`ChartSky.form_of` draws with arms, and two of those nine are irregulars, the
+Magellanic Irregular (one arm off a bar) and the Irregular (no clear shape). About
+one tier 0 run in four flew one, with IRREGULAR on the chart's card. The co-op join,
+a save, a typed seed and the fresh-profile launch all reach the same roll; the
+title's galaxy is its own any-kind roll and is replaced by the run's at NEW RUN.
 
-`LaunchTierTest`'s sweep rolls 300 seeds at tier 0 and wants a kind of the spiral
-form, drawn with arms and never an irregular, and on three seeds the chart naming the
-kind the run rolled.
+Jon picked A (sheet in `tk-scratch/spiral-tier0/`): tier 0 flies `TIER0_KINDS`, the
+spiral form without the two irregulars, named so the list is read, not inferred. He
+did not rule on the Flocculent Spiral (named a spiral, no arms at the chart's opening
+zoom) or the Interacting Pair (two arms, not named one); both stay as they were, on
+the list. Tiers 1 to 3 still fly all nine.
 
-The sweep fails until Jon picks which kinds tier 0 flies (the sheet is in
-`tk-scratch/spiral-tier0/`). The Flocculent Spiral and the Interacting Pair are
-his calls too: the first is named a spiral and shows no arms at the chart's
-opening zoom, the second shows two arms and is not named one.
+`roll_kind` keeps its one draw among the form's kinds and draws again only when it
+lands off the list, so every seed whose first draw was already a listed kind keeps
+its world; only the seeds that drew an irregular move. `LaunchTierTest`'s sweep
+checks the list (real kinds, spiral form, no irregular), 300 seeds rolling only
+listed kinds, the kept first draws, and the chart naming the kind rolled.

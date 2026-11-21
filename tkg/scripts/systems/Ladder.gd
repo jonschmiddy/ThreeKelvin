@@ -27,6 +27,11 @@ const FORM_NAME := ["SPIRAL GALAXY", "LENTICULAR GALAXY", "ELLIPTICAL GALAXY", "
 const FORM_COLOUR := [Color8(150, 215, 205), Color8(240, 160, 67), Color8(238, 96, 58), Color8(255, 70, 90)]
 ## The galaxy kinds that are dwarfs: the torn one is one of these.
 const DWARF_KINDS := ["Blue Compact Dwarf", "Dwarf Spheroidal"]
+## THE KINDS TIER 0 FLIES, by name (Jon's A, Nov 21): the spiral form without the
+## two irregulars, which have arms to the chart and none to the eye.
+## Why: docs/why/Ladder.md#tier-0-spirals
+const TIER0_KINDS := ["Grand-Design Spiral", "Barred Spiral", "Multi-Arm Spiral",
+	"Flocculent Spiral", "Anemic Spiral", "Interacting Pair", "Starburst Spiral"]
 
 
 static func count() -> int:
@@ -63,10 +68,18 @@ static func form_of_kind(kind: int) -> Form:
 	return Form.BALL
 
 
-## The kinds a tier flies: a spiral at the spiral rungs, and so on.
+## The kinds a tier flies: a spiral at the spiral rungs, and so on; tier 0
+## only `TIER0_KINDS`.
 static func kinds_of(tier: int) -> Array[int]:
 	var out: Array[int] = []
-	var f := form(tier)
+	for k in _form_kinds(form(tier)):
+		if tier > 0 or GalaxyGen.type_name(k) in TIER0_KINDS:
+			out.append(k)
+	return out
+
+
+static func _form_kinds(f: Form) -> Array[int]:
+	var out: Array[int] = []
 	for k in GalaxyGen.count():
 		if form_of_kind(k) == f:
 			out.append(k)
@@ -77,10 +90,17 @@ static func kinds_of(tier: int) -> Array[int]:
 
 
 ## One draw from `rng` (the world stream, in the seed's order), a kind of the
-## tier's form: tier 0 is spirals only (Jon's G2, Nov 10).
+## tier's form: tier 0 is spirals only (Jon's G2, Nov 10). A draw that lands on a
+## kind the tier leaves out draws again, so a seed whose first draw was already
+## one of `TIER0_KINDS` keeps its world.
+## Why: docs/why/Ladder.md#tier-0-spirals
 static func roll_kind(tier: int, rng: RandomNumberGenerator) -> int:
-	var ks := kinds_of(tier)
-	return ks[rng.randi() % ks.size()]
+	var ks := _form_kinds(form(tier))
+	var allowed := kinds_of(tier)
+	var k: int = ks[rng.randi() % ks.size()]
+	while not k in allowed:
+		k = ks[rng.randi() % ks.size()]
+	return k
 
 
 ## The highest tier won on the flight record, or -1 with no win; a win from

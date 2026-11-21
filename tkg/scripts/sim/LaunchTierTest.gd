@@ -145,11 +145,40 @@ func _forms() -> void:
 
 
 ## TIER 0 IS SPIRALS (Jon's G2, Nov 10; his Nov 21 report "at tier 0, the
-## galaxy is not always a spiral"): over 300 seeds the kind rolled is of the
-## spiral form, drawn with arms and never named an irregular on the chart. Then
+## galaxy is not always a spiral"; his A: no irregulars): every name on
+## `Ladder.TIER0_KINDS` is a kind, of the spiral form, and no irregular; over 300
+## seeds the kind rolled is on the list; a seed whose first draw was already on it
+## keeps that kind (the redraw moves only the seeds that drew an irregular). Then
 ## on three seeds the chart itself names the kind the run rolled.
 ## Why: docs/why/Ladder.md#tier-0-spirals
 func _tier0_sweep() -> void:
+	var names: Array[String] = []
+	for k in GalaxyGen.count():
+		names.append(GalaxyGen.type_name(k))
+	var listed := true
+	for nm: String in Ladder.TIER0_KINDS:
+		var k := names.find(nm)
+		if k < 0 or Ladder.form_of_kind(k) != Ladder.Form.SPIRAL or nm.contains("Irregular"):
+			listed = false
+	_ok("tier 0's list is %d spiral kinds, no irregular" % Ladder.TIER0_KINDS.size(),
+		listed and Ladder.kinds_of(0).size() == Ladder.TIER0_KINDS.size())
+	# the one draw as it was before the list: among every spiral-form kind
+	var all_spiral := Ladder.kinds_of(1)
+	var kept := 0
+	var moved: Array[int] = []
+	for sd in range(1, 301):
+		var r := RandomNumberGenerator.new()
+		r.seed = sd
+		var was: int = all_spiral[r.randi() % all_spiral.size()]
+		r.seed = sd
+		var now := Ladder.roll_kind(0, r)
+		if GalaxyGen.type_name(was) in Ladder.TIER0_KINDS:
+			if now == was:
+				kept += 1
+			else:
+				moved.append(sd)
+	_ok("a first draw already on the list is kept (%d kept%s)" % [kept,
+		"" if moved.is_empty() else ", moved: %s" % [moved]], moved.is_empty() and kept > 0)
 	Run.forced_ascension = 0
 	var seen := {}
 	var bad: Array[String] = []
@@ -161,11 +190,11 @@ func _tier0_sweep() -> void:
 		var nm := GalaxyGen.type_name(k)
 		seen[nm] = int(seen.get(nm, 0)) + 1
 		if Run.ascension != 0 or Ladder.form_of_kind(k) != Ladder.Form.SPIRAL \
-				or ChartSky.form_of(k) != 0 or nm.contains("Irregular"):
+				or ChartSky.form_of(k) != 0 or not nm in Ladder.TIER0_KINDS:
 			if bad.size() < 6:
 				bad.append("seed %d %s" % [sd, nm])
 	print("    tier 0 kinds over 300 seeds: %s" % [seen])
-	_ok("tier 0 over 300 seeds flies a spiral, never an irregular%s"
+	_ok("tier 0 over 300 seeds flies a kind on the tier 0 list%s"
 		% ("" if bad.is_empty() else ": " + ", ".join(bad)), bad.is_empty())
 	for sd: int in [4242, 7, 9300]:
 		Rng.forced = sd
