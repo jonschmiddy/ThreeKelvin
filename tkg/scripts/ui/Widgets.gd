@@ -476,6 +476,13 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 		# The manufacturer line is the widest, not the name, so wrap it or the column is ragged.
 		mk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(mk)
+	# The part's one line, under the manufacturer (Jon, Nov 20: back, in the materials' plain style).
+	# Why: docs/why/Widgets.md#module-readout
+	if m.flavour != "":
+		var fl := UITheme.body(m.flavour, UITheme.COLD, UITheme.FS_SMALL)
+		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		fl.custom_minimum_size = Vector2(w - 14, 0)
+		box.add_child(fl)
 	box.add_child(UITheme.body("%dx%d \u00b7 %d %s" % [f.x, f.y, m.cells(),
 		"cell" if m.cells() == 1 else "cells"], UITheme.CHILL, UITheme.FS_SMALL))
 
@@ -511,7 +518,6 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 		box.add_child(al)
 	if m.augmented:
 		box.add_child(augmented_label(CardView.CARD_W - 14, UITheme.FS_SMALL))
-	# no flavour line (Jon, Nov 9); the field stays on the data
 	return panel
 
 ## One tooltip, perks grouped by source: manufacturer ones persist, grade ones are the upgrade.

@@ -194,7 +194,7 @@ func _box() -> void:
 	await _frames(2)
 
 
-## A PART'S READOUT (Jon, Nov 9): no flavour line anywhere a part is read out, and the cards in
+## A PART'S READOUT (Jon, Nov 9; its line back Nov 20): its one flavour line under the manufacturer, and the cards in
 ## the hover readout bob a pixel each on its own beat while the plate and the words stay put.
 func _readout() -> void:
 	print("\n--- a part's readout")
@@ -212,10 +212,7 @@ func _readout() -> void:
 	var texts: Array[String] = []
 	for l in tip.find_children("*", "Label", true, false):
 		texts.append((l as Label).text)
-	var shows_flavour := false
-	for t in texts:
-		shows_flavour = shows_flavour or t.contains(m.flavour)
-	_ok("the readout says its name and not its flavour", not shows_flavour
+	_ok("the readout says its name and its flavour line, once", texts.count(m.flavour) == 1
 		and (texts.has(m.name.to_upper()) or texts.has(m.name)))
 	var bobs := tip.find_children("*", "", true, false).filter(func(n: Node) -> bool: return n is ModuleIcon.BobCard)
 	if not _ok("each card sits in its own bob holder (%d)" % bobs.size(), bobs.size() == m.resolved_cards().size()):
@@ -271,10 +268,13 @@ func _readout() -> void:
 	var shelf_texts: Array[String] = []
 	for l in shelf.find_children("*", "Label", true, false):
 		shelf_texts.append((l as Label).text)
-	var shelf_flavour := false
-	for t in shelf_texts:
-		shelf_flavour = shelf_flavour or t.contains(m.flavour)
-	_ok("the module readout alone has no flavour line either", not shelf_flavour)
+	_ok("the module readout alone carries the line too, right under the manufacturer",
+		shelf_texts.count(m.flavour) == 1
+		and shelf_texts.find(m.flavour) == shelf_texts.find(DB.manufacturer_name(m.manufacturer)) + 1)
+	var every := true
+	for id in DB.modules:
+		every = every and (DB.modules[id] as ModuleData).flavour != ""
+	_ok("every part has a line", every)
 	shelf.free()
 	tip.queue_free()
 	await _frames(2)

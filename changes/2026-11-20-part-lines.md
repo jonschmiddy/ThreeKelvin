@@ -1,0 +1,1 @@
+- **Changed** — A part's readout in the hold shows one short line again, under the manufacturer, saying what the part is or where it came from. All 95 lines are new and plain, in the same style as the material lines.

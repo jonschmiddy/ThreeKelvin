@@ -287,8 +287,16 @@ The cap was already sitting eight lines below, on the flavour. This is the
 same number for the same reason.
 ```
 
-Jon, Nov 9: the flavour line at the foot of this panel is gone too (the
-same ruling), so the panel ends on the affixes, or the augmented mark. The
+Jon, Nov 9: the flavour line at the foot of this panel went with the same
+ruling. Jon, Nov 20, it came back: "I want the flavor text, but it reads so
+corny and AI." The old lines were quips and statement-then-punchline pairs.
+All 95 were rewritten in the material lines' style (his pick "d" of four
+voices): one plain sentence of about 4 to 8 words, what the part is or where
+it comes from, no word of the part's own name, no jokes, plain everyday
+verbs (his bar: "A mirror once aimed at a dead star."). It sits right under
+the manufacturer line, not at the foot: it says what the part is, so it belongs
+with the name, and the panel still ends on the affixes, or the augmented
+mark. It wraps at the panel's width less its margin, like the affixes. The
 hover readout's cards beside it bob a pixel each (`ModuleIcon.BobCard`).
 
 ## Perk tooltip

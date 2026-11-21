@@ -457,8 +457,8 @@ screen pixel at the normal window, finer on a bigger one, with no blur
 (the default filter is nearest). The cards take no mouse (IGNORE, as
 before: a tooltip that eats the mouse counts as leaving the thing), so
 nothing that bobs can be clicked. The holder is freed with the readout,
-which stops the bob. The same readout shows no flavour line (Widgets.md,
-Card readout).
+which stops the bob. The part's panel carries its one flavour line under
+the manufacturer again (Nov 20; Widgets.md, Module readout).
 ```
 
 ## Hold art
