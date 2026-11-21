@@ -188,18 +188,13 @@ static func rust(r: HullGrade._Ramps, c: Color) -> Color:
 	return best
 
 
-## A 2x2-celled ordered dither, so a soft edge steps in clumps, never single pixels.
-static func dith(x: int, y: int) -> float:
-	return (float(HullWear.BAYER[(y / 2) % 4][(x / 2) % 4]) + 0.5) / 16.0
-
-
 static func _count(m: _Mask, per: float, amt: float) -> int:
 	return int(round(float(m.area) / per * amt))
 
 
 # ------------------------------------------------------------------ 1  grime
 
-## Soot from the engines forward and grime pooled along the belly, in soft dithered clumps.
+## Soot from the engines forward and grime pooled along the belly, in soft solid clumps.
 static func _soot(img: Image, r: HullGrade._Ramps, m: _Mask, amt: float, hs: int, k: float) -> void:
 	var src := img.duplicate() as Image
 	for y in m.h:
@@ -210,7 +205,8 @@ static func _soot(img: Image, r: HullGrade._Ramps, m: _Mask, amt: float, hs: int
 			var span := maxf(1.0, float(m.bottom[x] - m.top[x]))
 			var low := clampf((float(y - m.top[x]) / span - 0.45) / 0.55, 0.0, 1.0)
 			var d := 0.8 * HullGrade.smooth(x, y, 13, 8, hs + 21) + 0.42 * pow(aft, 1.3) + 0.28 * low * low
-			d = d * amt * k + (dith(x, y) - 0.5) * 0.16
+			# a ragged solid edge, not a checker. Why: docs/why/HullGrade.md#no-dither-fills
+			d = d * amt * k + (HullGrade.clump(x, y, hs + 22) - 0.5) * 0.16
 			var c := src.get_pixel(x, y)
 			if d > 0.86:
 				img.set_pixel(x, y, down(r, c, 0.2))
@@ -300,7 +296,7 @@ static func _scorch(img: Image, r: HullGrade._Ramps, m: _Mask, at: Vector2i, rad
 				img.set_pixel(x, y, down(r, c, 0.28))
 			elif d < 1.0:
 				img.set_pixel(x, y, down(r, c, 0.16))
-			elif d < 1.5 and dith(x, y) < (1.5 - d) * 1.6:
+			elif d < 1.5 and HullGrade.clump(x, y, salt + 7) < (1.5 - d) * 1.6:
 				img.set_pixel(x, y, down(r, c, 0.08))
 	# streaks thrown out, aft-ward (the ship flew on)
 	for s in 3:
