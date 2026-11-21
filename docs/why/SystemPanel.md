@@ -135,3 +135,22 @@ What the button's other states told the player is kept, never as a greyed button
 
 Where none of these hold (the ship can fly there now) the row is not built at all.
 A world with an open event keeps its GO (63a09f26), which flies there and opens the event.
+
+## Sun portrait fade
+
+Above `const SUN_LIGHT := Vector2(50, 41)`:
+
+```text
+NO BOX ROUND THE STAR (Jon, Nov 21: "stars have a box that they fill, can we
+make it so there isn't a box"). The sun's shader paints the mockup's 420x300
+box round the star, and its glow, corona, dust and a blue giant's lobes reach
+far past the panel's 84 px picture, whose `clip_contents` cut them at its top
+and bottom (and a blue giant's at the column's sides): a dithered field with
+hard edges. Now the light off the face fades out over an oval (`set_fade`,
+the shader's `frame_fade`, squared so the bright glow tapers instead of
+stopping) that ends a pixel inside the picture, so nothing reaches the clip
+and the panel shows round it. A mild oval, not the picture's full width: a
+96 px wide one read as an eye, and faded from the limb the glow was gone
+(`LIGHT_HELD` keeps it whole 7 px past the limb first).
+The clip stays as a guard for the text.
+```
