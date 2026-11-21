@@ -1,0 +1,1 @@
+- **Changed** — Korvan's colours are steel on gunmetal and Solari's are furnace orange on soot, so the two no longer share one orange. Cards, the job board, the party and the lab follow, and both companies' adverts on the board are now drawn in their own colours.

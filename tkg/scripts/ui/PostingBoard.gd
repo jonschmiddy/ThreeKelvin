@@ -339,7 +339,7 @@ func _gallery_draw(w: float, h: float) -> void:
 				if j < na:
 					_ad(sz, j)
 				elif j < na + ns:
-					var S: Dictionary = BoardScreen.STRIPS[j - na]
+					var S: Dictionary = BoardScreen.branded(BoardScreen.STRIPS[j - na], true)
 					var strip := Rect2(Vector2.ZERO, sz)
 					draw_rect(strip, S["bg"])
 					centre_text_at(String(S["t"]), 0.0, 13.0, sz.x, UITheme.FS_SMALL, S["ink"])
@@ -773,7 +773,7 @@ func _side(col: Rect2) -> void:
 	# a strip ad along the foot of the side, turning over on its own clock
 	var strip := Rect2(x + 4.0, sy + 116.0, col.size.x - 8.0, 30.0)
 	if strip.end.y <= col.end.y:
-		var S: Dictionary = BoardScreen.STRIPS[_nth(BoardScreen.STRIPS.size(), 2, int(_t() / 4.0))]
+		var S: Dictionary = BoardScreen.branded(BoardScreen.STRIPS[_nth(BoardScreen.STRIPS.size(), 2, int(_t() / 4.0))], true)
 		draw_rect(strip, S["bg"])
 		centre_text_at(String(S["t"]), strip.position.x, strip.position.y + 13.0, strip.size.x, UITheme.FS_SMALL, S["ink"])
 		centre_text_at(String(S["s"]), strip.position.x, strip.position.y + 25.0, strip.size.x, UITheme.FS_SMALL, Color(S["ink"]).darkened(0.25))
@@ -869,7 +869,7 @@ func _tag(s: String, at: Vector2, col: Color) -> void:
 
 ## One ad, in its colours, its lines centred down it, an AD mark in its corner.
 func _ad(sz: Vector2, k: int) -> void:
-	var A: Dictionary = BoardScreen.ADS[k]
+	var A: Dictionary = BoardScreen.branded(BoardScreen.ADS[k], false)
 	draw_rect(Rect2(Vector2.ZERO, sz), A["bg"])
 	var lines: Array = A["lines"]
 	var total := 0.0

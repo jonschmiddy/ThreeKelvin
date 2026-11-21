@@ -23,7 +23,7 @@ const BASE := {
 
 const OWNERS := {
 	&"korvan": {
-		acc = Color("#d97b2e"),
+		acc = Color("#c3cad2"),
 		b_hub = true, b_pulse = true,
 		s1_cross = true, s1_style = "navy", s1_band = true,
 		s2_label = "NAVY STORES", s2_code = "REF %04d-B", s2_acc = true, s2_field = true,
