@@ -356,10 +356,9 @@ func _site_deals() -> void:
 	var comet := MiniGames.pool_at(&"comet")
 	print("deal at comet: %s (haul %s)" % [", ".join(comet), ScienceHaul.source_of(&"comet")])
 	var dealt := {}
+	# (the deal's own first draw: `deal` itself reads the ship's sensors, and this harness has no ship)
 	for i in 64:
-		var n := MapGen.MapNode.new()
-		n.index = i
-		dealt[MiniGames.deal(n, &"comet").id] = true
+		dealt[comet[Rng.derive(&"minigame", i).randi() % comet.size()]] = true
 	_h._ok("a comet deals Ice Core and nothing else (%s; dealt %s over 64 systems)" % [", ".join(comet), ", ".join(dealt.keys())],
 		comet == [&"icecore"] and dealt.keys() == [&"icecore"])
 
