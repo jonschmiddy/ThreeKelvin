@@ -114,7 +114,9 @@ func _play(d: DeskScene, n: MapGen.MapNode, sc: SectorScreen, data0: int, pile0:
 	var gained := OptionResolve.pile_gained(n, pile0)
 	print("minigame %s: score %.2f, tier %s, haul %s (%s)" % [g.id(), d.game.score,
 		String(ScienceHaul.tier_key(d.game.tier)).to_upper(), d.game.haul, d.game.detail])
-	_h._ok("the game's end took the reading once (DATA +%d)" % (Run.data - data0), Run.data - data0 == OptionTable.reading(1))
+	# (a comet's reading pays by the spot it was met at, `CometPath.pay_here`)
+	var data_want := CometPath.pay_here() if CometPath.caught_at(n) >= 0 else OptionTable.reading(1)
+	_h._ok("the game's end took the reading once (DATA +%d of %d)" % [Run.data - data0, data_want], Run.data - data0 == data_want)
 	_h._ok("and paid its haul, a material in the system (%d)" % gained, gained >= 1 and d.game.haul != "")
 	# the line on the glass is the row the take paid, from the site's own source (`site=` stands in another)
 	var paid: Dictionary = d.result.get("haul", {})
@@ -249,6 +251,9 @@ func _local_with_reading(n: MapGen.MapNode) -> SectorScreen:
 	n.left.clear()
 	Run.at = n.index
 	Run.fuel = Run.FUEL_TANK
+	# (a comet reading, with `cometpass`: the ship met the comet at spot K, as `CometCatch` leaves it)
+	if Harness.arg("cometspot") != "":
+		CometPath.set_caught(n, int(Harness.arg("cometspot")))
 	Router.show_local()
 	await Harness.frames(_tree, 150)
 	var sc := Router.current as SectorScreen

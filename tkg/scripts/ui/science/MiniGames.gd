@@ -14,14 +14,34 @@ static var force: Dictionary = {}
 const ORDER: Array[StringName] = [&"coolant", &"centrifuge", &"icecore", &"pulsar", &"tray", &"anomaly", &"beams", &"spectrum", &"fourkelvin", &"torch", &"leak", &"sling", &"tuning", &"seismic", &"corescan", &"culture", &"dock"]
 ## The games by the site they are played at (Jon, Nov 18, page 6pDoF6JJ9CGLB8xiD4ytoQ). LAB games
 ## go with any site; Centrifuge is both LIFE and LAB. Only rock sites exist today (a reading at a
-## world, a belt or a comet): they deal ROCK and LAB. The rest wait for their sites (the dev flag
-## opens any). A game not yet ported is skipped.
+## world, a belt or a comet): they deal ROCK and LAB, unless the site has its own deal (`OWN`).
+## The rest wait for their sites (the dev flag opens any). A game not yet ported is skipped.
 ## Why: docs/why/MiniGame.md#which-game-a-site-deals
 const WRECKS: Array[StringName] = [&"torch", &"dock", &"leak"]
 const LIFE: Array[StringName] = [&"culture", &"centrifuge", &"anomaly"]
 const ROCK: Array[StringName] = [&"seismic", &"corescan", &"icecore", &"fourkelvin"]
 const SKY: Array[StringName] = [&"pulsar", &"spectrum", &"sling", &"tuning", &"beams"]
 const LAB: Array[StringName] = [&"coolant", &"tray", &"centrifuge"]
+
+
+## A SITE'S OWN DEAL, in place of its group's and the lab's: empty until Jon picks. The comet's
+## three options (Nov 21): A, Ice Core alone; B, Ice Core and Core Scan; C, the comet game
+## ("catch the ice trail") once it is ported, Ice Core standing in. Picking one is one line here,
+## `&"comet": COMET_A`. Why: docs/why/MiniGame.md#a-sites-own-deal
+const OWN: Dictionary[StringName, Array] = {}
+const COMET_A: Array[StringName] = [&"icecore"]
+const COMET_B: Array[StringName] = [&"icecore", &"corescan"]
+const COMET_C: Array[StringName] = [&"icecore"]
+
+
+## The games a reading at `site` deals: the site's own deal when it has one, else `pool(ROCK)`
+## (every reading today, at any site). Ported games only; none ported, the group's.
+static func pool_at(site: StringName, own: Dictionary = OWN) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for id: StringName in own.get(site, []):
+		if ORDER.has(id) and not out.has(id):
+			out.append(id)
+	return out if not out.is_empty() else pool(ROCK)
 
 
 ## The games a site of `group` deals: its own and the lab's, ported ones only, each once.
@@ -77,10 +97,10 @@ static func sensors_of(attr: int) -> int:
 	return clampi(attr / 2, 0, 5)
 
 
-## What system `n`'s science site deals: {id, depth, sensors, seed}.
-static func deal(n: MapGen.MapNode) -> Dictionary[String, Variant]:
+## What system `n`'s science site deals at `site`: {id, depth, sensors, seed}.
+static func deal(n: MapGen.MapNode, site: StringName = &"") -> Dictionary[String, Variant]:
 	var r := Rng.derive(&"minigame", n.index if n != null else 0)
-	var ids := pool(ROCK)
+	var ids := pool_at(site)
 	var out: Dictionary[String, Variant] = {}
 	out.assign({
 		id = ids[r.randi() % ids.size()],

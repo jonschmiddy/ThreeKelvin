@@ -64,3 +64,25 @@ Drawn block by block every frame they were tens of thousands of rects. The
 tails' way is taken from where the head holds, not where it first shows: taken
 mid-arrival they pointed away from the ship.
 ```
+
+## One pass
+
+Above `func _reading_here() -> int:`:
+
+```text
+Jon, Nov 21: "When you finish a comet mission it keeps passing by over and
+over and over." The close pass started whenever the comet's reading was open
+here, and "open here" (`LocalEventDrawer.open_here`) is the bar's event: the
+last one opened, which it keeps naming after it is taken so the bar can say
+TAKEN. The spot stays caught for the visit. So once the reading was taken the
+pass ended, saw the reading still "here", came in again, saw it taken, went
+out, and looped every 5 s (ARRIVE_S + LEAVE_S) for as long as LOCAL was up,
+and again each time LOCAL opened.
+
+The rule now: a pass is only for a reading still to take. Taken, the comet has
+gone by and is done, as the map's one pass says (`CometPath`, "gone for good"):
+it does not come alongside again and the map offers no spots for it
+(`CometCatch._open_reading`). A reading left untaken still has its comet
+beside the ship when it is opened again, since it is still there to take.
+CometCatchTest's one-pass check covers it.
+```

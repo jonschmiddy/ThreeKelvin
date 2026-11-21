@@ -208,6 +208,23 @@ at barren worlds, belts and comets, all rock, so a reading deals `pool(ROCK)`. S
 their own, with the sky, life and wreck kinds, are a separate feature (Jon, Nov 18: sites fully
 apart from encounters); until then those games open by the dev flag.
 
+## A site's own deal
+
+`MiniGames.OWN` maps a site to the games a reading there deals in place of its group's and
+the lab's. It is empty: every reading deals `pool(ROCK)` wherever it is, which is how a comet
+dealt Centrifuge (Jon, Nov 21: "When I tried to do the comet science, I got the centrifuge
+game, which was weird"). The comet's options wait for Jon:
+- A: Ice Core alone (`COMET_A`). Ice Core is ice cores, and its tell is STACK THE LAYERS IN ORDER.
+- B: Ice Core and Core Scan (`COMET_B`), so a run's second comet may differ.
+- C: the comet's own game, "catch the ice trail" (being prototyped), once it is ported; Ice
+  Core stands in until then (`COMET_C`). Porting it is its id in `ORDER` and `make`, and
+  `COMET_C` naming it.
+
+Picking one is one line, `&"comet": COMET_A` in `OWN`. A pick still draws from the same
+`Rng.derive(&"minigame", index)` in the same order, so no other site's deal moves.
+`MiniGameTest._site_deals` prints what each site deals and checks each option deals its games
+and only at a comet.
+
 ## Coolant
 
 `coolant2.js`, rule for rule: the walk, the second chamber's branch, the decoys, cracks beside the

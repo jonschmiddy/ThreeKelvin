@@ -36,6 +36,7 @@ func _run() -> void:
 	_cost()
 	_tiers()
 	_haul()
+	_site_deals()
 	if _games().has(&"tray"):
 		_prefetch()
 	for id in _games():
@@ -340,6 +341,28 @@ func _haul() -> void:
 	if n != null:
 		var h := ScienceHaul.pay(3, &"belt", n)
 		_h._ok("pay grants one material by its catalogue name and tier (%s)" % str(h), not h.is_empty() and String(h.name) != "" and StringName(h.tier) in MaterialTable.TIERS)
+
+
+## WHICH GAMES EACH SITE DEALS, printed: with no own deal every site deals `pool(ROCK)`, today's
+## deal, and each comet option deals just its own games (Nov 21). Why: docs/why/MiniGame.md#a-sites-own-deal
+func _site_deals() -> void:
+	var rock := MiniGames.pool(MiniGames.ROCK)
+	var same := true
+	for site: StringName in [&"barren", &"belt", &"comet", &"star", &"giant", &"derelict", &"life", &"pulsar", &"lab"]:
+		var ids := MiniGames.pool_at(site)
+		print("deal at %s: %s (haul %s)" % [site, ", ".join(ids), ScienceHaul.source_of(site)])
+		same = same and ids == rock
+	_h._ok("no own deal picked: every site deals the rock and lab games (%s)" % ", ".join(rock), same and MiniGames.OWN.is_empty())
+	var opts := {&"A": MiniGames.COMET_A, &"B": MiniGames.COMET_B, &"C": MiniGames.COMET_C}
+	for k: StringName in opts:
+		var own := {&"comet": opts[k]}
+		var ids := MiniGames.pool_at(&"comet", own)
+		var dealt := {}
+		for i in 64:
+			var r := Rng.derive(&"minigame", i)
+			dealt[ids[r.randi() % ids.size()]] = true
+		_h._ok("comet option %s deals %s, and only there (a belt still deals %d games)" % [k, ", ".join(ids), MiniGames.pool_at(&"belt", own).size()],
+			ids == Array(opts[k]) and dealt.size() == ids.size() and MiniGames.pool_at(&"belt", own) == rock)
 
 
 ## The start card at every depth (Jon, Nov 20: "CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE UP"): the

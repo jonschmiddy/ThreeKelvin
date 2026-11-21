@@ -88,11 +88,14 @@ var _side := Vector2.DOWN
 var _grit: Array[Vector3] = []
 
 
-## A comet's reading open here, met at a spot: its option, else -1.
+## A comet's reading open here, met at a spot and not yet taken: its option, else -1. A taken
+## one is done: the bar still names it, but the comet has gone. Why: docs/why/LocalComet.md#one-pass
 func _reading_here() -> int:
 	var n: MapGen.MapNode = sky.node
 	var i := LocalEventDrawer.open_here(n)
 	if i < 0 or StringName(OptionTable.by_id(n.options[i]).get("site", &"")) != &"comet":
+		return -1
+	if n.taken.has(MapGen.OPTION_SITE + i):
 		return -1
 	return i if CometPath.caught_at(n) >= 0 else -1
 

@@ -118,6 +118,7 @@ func _run() -> void:
 	h._ok("the comet reaches the spot and LOCAL opens on its reading, met at spot %d" % (CometPath.caught_at(n) + 1),
 		local and CometPath.caught_at(n) == k and LocalEventDrawer.here_now(n, opt))
 	await _idle()
+	await _pass_once(n, opt)
 	# BACK ON THE MAP: on its spot again, not at the edge
 	m = await _map()
 	h._ok("back on the map the ship is on its spot (%.2f px off, mode %s)" % [(m.flight.f.p as Vector2).distance_to(spot) if m != null else INF, m.flight.mode if m != null else &""],
@@ -139,6 +140,53 @@ func _run() -> void:
 	h._ok("spot 3, a second off with YOU %s, is TOO LATE and is not flown to" % CometPath.clock(float(cc.you[2])),
 		cc.too_late(2) and not cc.go_spot(2, opt) and m.flight.mode != &"fly")
 	_end()
+
+
+## ONE PASS (Jon, Nov 21: "it keeps passing by over and over"): the close pass comes alongside,
+## the reading is taken, it goes, and it never comes in again. LOCAL's sky builds no scene
+## headless, so its comet is stepped here against the real node. Why: docs/why/CometCatchTest.md#one-pass
+func _pass_once(n: MapGen.MapNode, opt: int) -> void:
+	var sky := _Sky.new()
+	sky.node = n
+	var lc: Node2D = LocalCometS.new()
+	lc.sky = sky
+	const DT := 1.0 / 60.0
+	for i in 60:
+		lc._step_pass(DT)
+	if not h._ok("LOCAL's comet comes alongside for the open reading (pass at spot %d)" % (int(lc._pass_k) + 1), int(lc._pass_k) >= 0):
+		lc.free()
+		return
+	var site := MapGen.OPTION_SITE + opt
+	n.taken.append(site)
+	var starts := 0
+	var was := int(lc._pass_k)
+	# (ARRIVE_S + LEAVE_S is 5 s: 15 s is room for three more passes)
+	for i in 900:
+		lc._step_pass(DT)
+		var now := int(lc._pass_k)
+		if was < 0 and now >= 0:
+			starts += 1
+		was = now
+	h._ok("reading taken: the comet goes once and does not come by again (%d more passes, pass %d)" % [starts, was],
+		starts == 0 and was == -2)
+	# (a LOCAL opened again later, its comet made fresh: no pass for a taken reading)
+	var lc2: Node2D = LocalCometS.new()
+	lc2.sky = sky
+	for i in 300:
+		lc2._step_pass(DT)
+	h._ok("LOCAL opened again: no close pass for the taken reading (pass %d)" % int(lc2._pass_k), int(lc2._pass_k) < 0)
+	lc.free()
+	lc2.free()
+	# (open again for the TOO LATE checks below, which plan only for an open reading)
+	n.taken.remove_at(n.taken.find(site))
+
+
+## What `LocalComet._step_pass` reads of its sky.
+class _Sky extends RefCounted:
+	var node: MapGen.MapNode
+
+
+const LocalCometS := preload("res://scripts/ui/LocalComet.gd")
 
 
 static func _secs(a: Array) -> String:
