@@ -311,10 +311,6 @@
  },
  "korvan/hull_light_zero": {
   "band": false,
-  "chevrons": [
-   228,
-   44
-  ],
   "windows": [
    [
     204,
@@ -386,10 +382,6 @@
  },
  "korvan/hull_medium_zero": {
   "band": false,
-  "chevrons": [
-   306,
-   59
-  ],
   "windows": [
    [
     177,
@@ -467,10 +459,6 @@
  },
  "korvan/hull_heavy_zero": {
   "band": false,
-  "chevrons": [
-   365,
-   88
-  ],
   "windows": [
    [
     196,

@@ -1,0 +1,1 @@
+- **Changed** — Korvan's S hulls no longer carry the two arrows on the prow.
