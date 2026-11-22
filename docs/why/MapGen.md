@@ -920,10 +920,16 @@ is run twice, out from the start and back from the core, and every system
 not on both (not "good") is moved:
   - round its own ring, so its depth, danger and ring are what they were
     (a pulsar, which stands at its shell's centre and on no ring, is pulled
-    straight toward the reached system instead, the least distance, so it
-    stays inside its shell: in the dwarfs every island was a pulsar dragged
-    to a cloud past the galaxy's edge, and turning one round a ring took it
-    up to 1.4 out of its shell);
+    straight toward the reached system instead, the least distance, and
+    its supernova shell moves with it, so it stays at the centre:
+    docs/why/NebulaField.md#shells-follow-pulsars. In the dwarfs every
+    island was a pulsar dragged to a cloud past the galaxy's edge; turning
+    one round a ring took it up to 1.4 out of its shell, and pulling it
+    alone left it on the shell's rim, which Jon asked about, Nov 22. Its
+    spot is one where the moved shell takes no other system into its gas
+    or out of it. After a pulsar moves, every system's gas is read again,
+    which also mends the flag of a pulsar `_seed_pulsars` moved, read
+    before it moved);
   - the least turn that puts it inside the slowest ship's jump of a good
     system, a legal hop BOTH ways under the two-ring rule (so it is reached
     and can leave), aimed a little inside that jump so the walk's margin

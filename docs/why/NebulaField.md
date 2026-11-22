@@ -226,3 +226,30 @@ and refused inside plain gas on the other.
 gas, since the falloff kills most of a cloud past about six tenths of
 each lobe, and the full extent for whether the CURSOR is over it.
 ```
+
+## Shells follow pulsars
+
+Above `const FOLLOW := 0.15` (Nov 22):
+
+```text
+A supernova remnant's shell is gas thrown off the pulsar at its centre, so
+the shell sits on the pulsar, wherever the map put it. MapGen's no-islands
+pass (docs/why/MapGen.md#no-islands) pulls a pulsar a little way toward the
+systems a ship can reach when it was dragged to a shell past the galaxy's
+edge: every island in the dwarf tier was one. Moved alone, it sat near the
+shell's rim (seed 80, tier 10: Jon, Nov 22, "why did the pulsar move to the
+edge of its shell?"). Now the shell moves with it, by the same offset.
+
+Derived from the map, never stored: each pulsar is given to the nearest
+remnant centre within FOLLOW (so a shell with no pulsar of its own never
+jumps onto a neighbour's), and each remnant moves onto the pulsar it was
+given. MapGen.generate starts from the shells as rolled (`unshift`), so a
+run never inherits the last one's move, and SaveGame does the same from
+the loaded map, so a save keeps no new key. An unmoved pulsar is at its
+shell's centre already, so nothing else moves.
+
+MapGen picks the pulsar's spot so that moving the shell takes no other
+system into its gas or out of it (Cloud.holds at EXTENT, the membership
+test); only if no spot manages that does it take the nearest clear one.
+After any pulsar moves, every system's gas is read again.
+```

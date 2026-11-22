@@ -476,15 +476,15 @@ static func generate(canvas: Rect2) -> Array:
 		for i in nodes.size():
 			(nodes[i] as MapNode).gal = at[i] * reach
 	_ensure_flyable(nodes)
-	for n in nodes:
-		var nn: MapNode = n
-		var cloud := NebulaField.at(nn.gal)
-		nn.in_nebula = cloud != null
-		if cloud != null:
-			nn.nebula_emission = cloud.emission
+	# (the shells as rolled: one a pulsar moved last time is put back, or two runs disagree)
+	NebulaField.unshift()
+	_mark_gas(nodes)
 	_seed_pulsars(nodes)
 	# After the pulsars, which move; before the stations, the twins and the marks, which read where.
-	_join_islands(nodes)
+	if _join_islands(nodes):
+		# A pulsar moved takes its shell along, and every system's gas is read again.
+		NebulaField.follow_pulsars(nodes)
+		_mark_gas(nodes)
 	_place_stations(nodes)
 	_mark_pulsar_neighbours(nodes)
 	_roll_twins(nodes)
@@ -496,6 +496,14 @@ static func generate(canvas: Rect2) -> Array:
 	# Why: docs/why/MapGen.md#start-node
 	nodes[0].taken.append(OPTION_WHOLE)
 	return nodes
+
+static func _mark_gas(nodes: Array) -> void:
+	for n in nodes:
+		var nn: MapNode = n
+		var cloud := NebulaField.at(nn.gal)
+		nn.in_nebula = cloud != null
+		nn.nebula_emission = cloud != null and cloud.emission
+
 
 ## After placement a walk guarantees the slowest ship can reach the core (Oct 11).
 ## Seed 65867625 stranded its start at the rim; a start swap or ring bridge fixes that.
@@ -619,11 +627,13 @@ static var islands_arc := 0.0
 static var island_repair := true
 
 
-static func _join_islands(nodes: Array) -> void:
+## True when it moved a pulsar.
+static func _join_islands(nodes: Array) -> bool:
 	islands_joined = 0
 	islands_arc = 0.0
+	var pulsar := false
 	if not flyable_repair or not island_repair or "noislands" in OS.get_cmdline_user_args():
-		return
+		return false
 	var r := fly_radius()
 	var core := _core_of(nodes)
 	var sq := maxf(0.05, float(Run.galaxy.squash))
@@ -650,8 +660,10 @@ static func _join_islands(nodes: Array) -> void:
 				pick = i
 				spots = t
 		if pick < 0:
-			return
+			return pulsar
+		pulsar = pulsar or (nodes[pick] as MapNode).type == NodeType.PULSAR
 		_move_island(nodes, pick, spots)
+	return pulsar
 
 
 ## Where island `i` may go to be a jump each way (two-ring rule) from a good system: (how far
@@ -672,7 +684,7 @@ static func _island_spots(nodes: Array, good: Dictionary, i: int, r: float, sq: 
 			continue
 		var qa := Vector2(a.gal.x, a.gal.y / sq)
 		if b.type == NodeType.PULSAR:
-			for depth: float in [0.95, 0.8, 0.6]:
+			for depth: float in [0.95, 0.8, 0.6, 0.4]:
 				var qp := qa + (qb - qa).normalized() * r * depth
 				out.append(Vector3(qb.distance_to(qp), qp.x, qp.y * sq))
 			continue
@@ -690,30 +702,52 @@ static func _island_spots(nodes: Array, good: Dictionary, i: int, r: float, sq: 
 	return out
 
 
-## Moves island `i` to the first of `spots` clear of every other system (the first at all
-## if none is), and marks its gas again, as it was read where the system used to be.
+## Moves island `i` to the first of `spots` clear of every other system, and for a pulsar
+## whose shell moving with it takes in or lets out no system; failing that the first clear
+## one, then the first at all. Marks its gas again, read where it used to be.
 static func _move_island(nodes: Array, i: int, spots: PackedVector3Array) -> void:
 	var b: MapNode = nodes[i]
 	var reach := float(Run.galaxy.get("reach", 1.0)) * test_stretch
 	var clear := spread_gap * RING_GAP * reach * 0.8
-	var to := 0
+	var shell := NebulaField.shell_of(b.gal) if b.type == NodeType.PULSAR else null
+	var to := -1
+	var clear_at := -1
 	for k in spots.size():
 		var g := Vector2(spots[k].y, spots[k].z)
-		var crowded := false
-		for raw in nodes:
-			var o: MapNode = raw
-			if o != b and o.type != NodeType.CORE and o.gal.distance_to(g) < clear:
-				crowded = true
-				break
-		if not crowded:
+		if _crowded(nodes, b, g, clear):
+			continue
+		if clear_at < 0:
+			clear_at = k
+		if shell == null or not _shell_moves_anyone(nodes, b, shell, g - b.gal):
 			to = k
 			break
+	if to < 0:
+		to = maxi(0, clear_at)
 	b.gal = Vector2(spots[to].y, spots[to].z)
 	islands_joined += 1
 	islands_arc = maxf(islands_arc, spots[to].x)
 	var cloud := NebulaField.at(b.gal)
 	b.in_nebula = cloud != null
 	b.nebula_emission = cloud != null and cloud.emission
+
+
+static func _crowded(nodes: Array, b: MapNode, g: Vector2, clear: float) -> bool:
+	for raw in nodes:
+		var o: MapNode = raw
+		if o != b and o.type != NodeType.CORE and o.gal.distance_to(g) < clear:
+			return true
+	return false
+
+
+## Whether shifting `shell` by `off` puts any system but `b` into its gas or out of it.
+static func _shell_moves_anyone(nodes: Array, b: MapNode, shell: NebulaField.Cloud, off: Vector2) -> bool:
+	for raw in nodes:
+		var o: MapNode = raw
+		if o == b or o.type == NodeType.CORE:
+			continue
+		if shell.holds(o.gal, NebulaField.EXTENT) != shell.holds(o.gal - off, NebulaField.EXTENT):
+			return true
+	return false
 
 
 ## Every system a ship with jump radius `r` can get to from `from` (the start): index ->

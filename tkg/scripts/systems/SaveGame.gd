@@ -365,10 +365,7 @@ static func load_into_run() -> bool:
 				stand[manufacturer] = int((saved_stand as Dictionary)[k])
 	Run.standing = stand
 
-	var map: Array = []
-	for e in saved_map:
-		map.append(_node_from(e))
-	Run.map = map
+	var map := _load_map(saved_map)
 	Run.at = clampi(int(d.get("at", 0)), 0, maxi(0, map.size() - 1))
 	var trail := PackedInt32Array()
 	for i in d.get("trail", []):
@@ -823,6 +820,20 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		left_at = left_at, left_of = left_of,
 		said_at = said_at, said_of = said_of,
 	}
+
+
+## The map off the save, and each remnant's shell back on its pulsar as `MapGen.generate`
+## left it (derived, not saved: `NebulaField.follow_pulsars`).
+static func _load_map(saved_map: Variant) -> Array[MapGen.MapNode]:
+	var map: Array = []
+	for e in saved_map:
+		map.append(_node_from(e))
+	Run.map = map
+	NebulaField.follow_pulsars(map)
+	var out: Array[MapGen.MapNode] = []
+	out.assign(map)
+	return out
+
 
 static func _node_from(e: Variant) -> MapGen.MapNode:
 	var d: Dictionary = e if typeof(e) == TYPE_DICTIONARY else {}

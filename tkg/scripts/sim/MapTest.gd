@@ -207,6 +207,14 @@ var _dead_at: Array[String] = []
 var _moved := 0
 var _moved_in := 0
 var _moved_most := 0.0
+var _shell_bad: Array[String] = []
+
+
+func _shell_spots() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for raw in NebulaField.clouds():
+		out.append((raw as NebulaField.Cloud).pos)
+	return out
 
 
 func _islands_of(map: Array) -> void:
@@ -226,6 +234,16 @@ func _islands_of(map: Array) -> void:
 	_dead += dead
 	if dead > 0:
 		_dead_at.append("seed %d (%s): %d" % [Rng.forced, kind, dead])
+	# A remnant's shell on its pulsar, and the same again when worked out from the map alone
+	# as a load does (`NebulaField.follow_pulsars`).
+	var shells := _shell_spots()
+	NebulaField.follow_pulsars(map)
+	if shells != _shell_spots():
+		_shell_bad.append("seed %d (%s): the shells moved when read off the map" % [Rng.forced, kind])
+	for raw in map:
+		var p: MapGen.MapNode = raw
+		if p.type == MapGen.NodeType.PULSAR and NebulaField.shell_of(p.gal) == null:
+			_shell_bad.append("seed %d (%s): %s is off its shell's centre" % [Rng.forced, kind, MapGen.star_name(p)])
 	if MapGen.islands_joined > 0:
 		_moved += MapGen.islands_joined
 		_moved_in += 1
@@ -243,6 +261,10 @@ func _islands_verdict() -> void:
 		_galaxies > 0 and _dead == 0)
 	for w in _dead_at.slice(0, 8):
 		_fail("dead ends: " + w)
+	_ok("every pulsar sits at its supernova shell's centre, and a load puts every shell back (%d wrong)"
+		% _shell_bad.size(), _galaxies > 0 and _shell_bad.is_empty())
+	for w in _shell_bad.slice(0, 8):
+		_fail(w)
 
 
 ## STATIONS A GALAXY under S3 (Jon, Nov 3): the bounds every pinned galaxy
