@@ -483,6 +483,8 @@ static func generate(canvas: Rect2) -> Array:
 		if cloud != null:
 			nn.nebula_emission = cloud.emission
 	_seed_pulsars(nodes)
+	# After the pulsars, which move; before the stations, the twins and the marks, which read where.
+	_join_islands(nodes)
 	_place_stations(nodes)
 	_mark_pulsar_neighbours(nodes)
 	_roll_twins(nodes)
@@ -505,10 +507,53 @@ static var flyable_repair := true
 ## the shipped galaxies almost never make are common, and the bridging is tested)
 static var test_stretch := 1.0
 
+
+## The slowest ship's jump, a little under: the radius every repair walk flies.
+static func fly_radius() -> float:
+	return Run.JUMP_RADIUS * Run.study_radius_min() * FLY_MARGIN
+
+
+## Every system but the core that the slowest ship cannot reach from the start, by index.
+static func islands(nodes: Array) -> Array[int]:
+	var core := _core_of(nodes)
+	var seen := _flown(nodes, fly_radius(), core)
+	var out: Array[int] = []
+	for i in nodes.size():
+		if i != core and not seen.has(i):
+			out.append(i)
+	return out
+
+
+## Every system the slowest ship can fly to from system `from`: index -> true. The job
+## boards and the quests ask it, so no work is sent where no ship can go.
+static func reach_of(nodes: Array, from: int) -> Dictionary[int, bool]:
+	var out: Dictionary[int, bool] = {}
+	if from >= 0 and from < nodes.size():
+		out.assign(_flown(nodes, fly_radius(), _core_of(nodes), from))
+	return out
+
+
+## Every system from which the slowest ship can still fly on to the core: index -> true.
+## A system missing here is a dead end, left only on a thruster's longer reach.
+static func core_reach(nodes: Array) -> Dictionary[int, bool]:
+	var out: Dictionary[int, bool] = {}
+	var core := _core_of(nodes)
+	if core >= 0:
+		out.assign(_flown(nodes, fly_radius(), core, core, true))
+	return out
+
+
+static func _core_of(nodes: Array) -> int:
+	for n in nodes:
+		if (n as MapNode).type == NodeType.CORE:
+			return (n as MapNode).index
+	return -1
+
+
 static func _ensure_flyable(nodes: Array) -> void:
 	if not flyable_repair:
 		return
-	var r: float = Run.JUMP_RADIUS * Run.study_radius_min() * FLY_MARGIN
+	var r: float = fly_radius()
 	var core := -1
 	for n in nodes:
 		if (n as MapNode).type == NodeType.CORE:
@@ -564,9 +609,117 @@ static func _ensure_flyable(nodes: Array) -> void:
 		B.gal = Vector2(q.x, q.y * sq)
 
 
-## Every system a ship with jump radius `r` can get to from the start: index ->
-## true. Bucketed by `r`, so a walk costs about one look at each system.
-static func _flown(nodes: Array, r: float, core: int) -> Dictionary:
+## NO ISLANDS (Nov 22): every system is in the slowest ship's reach of the start and can fly on
+## to the core, or a run is sent where it is stuck. Each is turned round its ring, the least it takes.
+## Why: docs/why/MapGen.md#no-islands
+## (what the last `generate` moved, for `-- maptest`: systems, and the furthest one went)
+static var islands_joined := 0
+static var islands_arc := 0.0
+## (off only for `-- maptest noislands`, to count what this pass saves)
+static var island_repair := true
+
+
+static func _join_islands(nodes: Array) -> void:
+	islands_joined = 0
+	islands_arc = 0.0
+	if not flyable_repair or not island_repair or "noislands" in OS.get_cmdline_user_args():
+		return
+	var r := fly_radius()
+	var core := _core_of(nodes)
+	var sq := maxf(0.05, float(Run.galaxy.squash))
+	# (each pass makes at least one more system good, so a pass a system is the bound)
+	for _pass in nodes.size():
+		# Good: reached from the start AND able to fly on to the core. A dead end, reached
+		# only by a jump out from three rings in, is as stuck as an island.
+		var seen := _flown(nodes, r, core)
+		var back := _flown(nodes, r, core, core, true)
+		var good := {}
+		for i: int in seen:
+			# (with the core out of reach, which `_ensure_flyable` failed to bridge, reached will do)
+			if back.has(i) or not seen.has(core):
+				good[i] = true
+		var pick := -1
+		var least := INF
+		var spots := PackedVector3Array()
+		for i in nodes.size():
+			if i == core or good.has(i):
+				continue
+			var t := _island_spots(nodes, good, i, r * 0.99, sq)
+			if not t.is_empty() and t[0].x < least:
+				least = t[0].x
+				pick = i
+				spots = t
+		if pick < 0:
+			return
+		_move_island(nodes, pick, spots)
+
+
+## Where island `i` may go to be a jump each way (two-ring rule) from a good system: (how far
+## it moves, then where), nearest first, a few depths into each window so a spot clear of its
+## neighbours can be chosen. Round its own ring; a pulsar, at its shell's centre and on no
+## ring, straight toward that system instead.
+## Why: docs/why/MapGen.md#no-islands
+static func _island_spots(nodes: Array, good: Dictionary, i: int, r: float, sq: float) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	var b: MapNode = nodes[i]
+	var qb := Vector2(b.gal.x, b.gal.y / sq)
+	var rb := qb.length()
+	if rb < 0.01:
+		return out
+	for j: int in good:
+		var a: MapNode = nodes[j]
+		if a.type == NodeType.CORE or Run.too_deep(a, b) or Run.too_deep(b, a):
+			continue
+		var qa := Vector2(a.gal.x, a.gal.y / sq)
+		if b.type == NodeType.PULSAR:
+			for depth: float in [0.95, 0.8, 0.6]:
+				var qp := qa + (qb - qa).normalized() * r * depth
+				out.append(Vector3(qb.distance_to(qp), qp.x, qp.y * sq))
+			continue
+		var ra := qa.length()
+		if ra < 0.01 or absf(ra - rb) >= r:
+			continue
+		# The widest angle off `a` at which a system on ring `rb` is still within `r` of it.
+		var half := acos(clampf((ra * ra + rb * rb - r * r) / (2.0 * ra * rb), -1.0, 1.0))
+		var off := wrapf(qb.angle() - qa.angle(), -PI, PI)
+		for depth: float in [0.95, 0.6, 0.25]:
+			var th := qa.angle() + signf(off) * half * depth
+			out.append(Vector3(absf(off - signf(off) * half * depth) * rb,
+				cos(th) * rb, sin(th) * rb * sq))
+	out.sort()
+	return out
+
+
+## Moves island `i` to the first of `spots` clear of every other system (the first at all
+## if none is), and marks its gas again, as it was read where the system used to be.
+static func _move_island(nodes: Array, i: int, spots: PackedVector3Array) -> void:
+	var b: MapNode = nodes[i]
+	var reach := float(Run.galaxy.get("reach", 1.0)) * test_stretch
+	var clear := spread_gap * RING_GAP * reach * 0.8
+	var to := 0
+	for k in spots.size():
+		var g := Vector2(spots[k].y, spots[k].z)
+		var crowded := false
+		for raw in nodes:
+			var o: MapNode = raw
+			if o != b and o.type != NodeType.CORE and o.gal.distance_to(g) < clear:
+				crowded = true
+				break
+		if not crowded:
+			to = k
+			break
+	b.gal = Vector2(spots[to].y, spots[to].z)
+	islands_joined += 1
+	islands_arc = maxf(islands_arc, spots[to].x)
+	var cloud := NebulaField.at(b.gal)
+	b.in_nebula = cloud != null
+	b.nebula_emission = cloud != null and cloud.emission
+
+
+## Every system a ship with jump radius `r` can get to from `from` (the start): index ->
+## true; `back`, every system that can get TO `from` instead. Bucketed by `r`, so a walk
+## costs about one look at each system.
+static func _flown(nodes: Array, r: float, core: int, from: int = 0, back: bool = false) -> Dictionary:
 	var sq := maxf(0.05, float(Run.galaxy.squash))
 	var grid := {}
 	var q := PackedVector2Array()
@@ -578,16 +731,21 @@ static func _flown(nodes: Array, r: float, core: int) -> Dictionary:
 		if not grid.has(key):
 			grid[key] = []
 		(grid[key] as Array).append(i)
-	var seen := {0: true}
-	var frontier: Array[int] = [0]
+	var seen := {from: true}
+	var frontier: Array[int] = [from]
 	while not frontier.is_empty():
 		var next: Array[int] = []
 		for i in frontier:
 			var a: MapNode = nodes[i]
 			# (the last ring's free approach, as `RunState.reachable_from` grants it)
-			if a.layer >= LAYERS - 2 and not seen.has(core):
+			if not back and a.layer >= LAYERS - 2 and not seen.has(core):
 				seen[core] = true
 				next.append(core)
+			if back and i == core:
+				for j in nodes.size():
+					if j != core and not seen.has(j) and (nodes[j] as MapNode).layer >= LAYERS - 2:
+						seen[j] = true
+						next.append(j)
 			var key := Vector2i(floori(q[i].x / r), floori(q[i].y / r))
 			for dx in range(-1, 2):
 				for dy in range(-1, 2):
@@ -597,7 +755,7 @@ static func _flown(nodes: Array, r: float, core: int) -> Dictionary:
 					for j: int in cell:
 						# (and two rings deeper at most, `RunState.too_deep`)
 						if not seen.has(j) and q[i].distance_to(q[j]) <= r \
-								and not Run.too_deep(a, nodes[j]):
+								and not (Run.too_deep(nodes[j], a) if back else Run.too_deep(a, nodes[j])):
 							seen[j] = true
 							next.append(j)
 		frontier = next

@@ -126,9 +126,12 @@ static func _target(n: MapGen.MapNode, r: RandomNumberGenerator,
 			return -1
 		return int(cached[r.randi() % cached.size()])
 	var pool: Array = []
+	# Only where a ship docked here can fly: a backstop to MapGen's no-islands pass.
+	# Why: docs/why/Contracts.md#job-targets
+	var can_fly := MapGen.reach_of(Run.map, n.index)
 	for other in Run.map:
 		var o: MapGen.MapNode = other
-		if o.index == n.index or not holds_goal(o):
+		if o.index == n.index or not holds_goal(o) or not can_fly.has(o.index):
 			continue
 		var reach := absi(o.layer - n.layer)
 		if reach > 3:

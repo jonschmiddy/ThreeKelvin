@@ -100,6 +100,23 @@ study found a few that one ring a jump could not finish;
 bridges the gap, and this is the sweep that says it did.
 ```
 
+## No islands
+
+Above `var _galaxies := 0` (Nov 22):
+
+```text
+A route to the core is not enough: ContractTest found a job posted at a
+system no jump reached, an island further than the slowest ship's jump
+from everything the start reaches. MapGen._join_islands now moves every one
+onto the walk (docs/why/MapGen.md#no-islands). Asked of every galaxy this
+harness rolls, the 120 pinned and the 255 of the kind sweep: no system the
+slowest ship (MapGen.fly_radius) cannot reach, and none it cannot fly on
+from to the core at that radius. The second is what makes losing a thruster
+safe: thrust only adds, so with no dead end the base jump always leads on.
+`noislands` switches the pass off; before it, about two spiral galaxies in
+five held an island.
+```
+
 ## Label drift
 
 Above `func _labels() -> void:`:

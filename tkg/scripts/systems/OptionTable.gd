@@ -294,13 +294,15 @@ static func place(from: MapGen.MapNode, id: StringName, src: StringName = &"") -
 		return -1
 	var want := from.layer + PLACE_DEPTH
 	var picks: Array[int] = []
+	# (never where no ship can fly from here: MapGen's no-islands pass, for an older map)
+	var can_fly := MapGen.reach_of(Run.map, from.index)
 	# The nearest layer at or past the wanted depth that has anything free.
 	while want < MapGen.LAYERS and picks.is_empty():
 		for other in Run.map:
 			var o: MapGen.MapNode = other
 			if o.layer != want or o.visited:
 				continue
-			if o.type != MapGen.NodeType.SYSTEM:
+			if o.type != MapGen.NodeType.SYSTEM or not can_fly.has(o.index):
 				continue
 			# One thread per system: two payoffs on one node read as coincidence and the chart
 			# marks once.
