@@ -10,8 +10,8 @@ judged (ruling 20, Oct 30: the solved flight, `FlightSolve`, in every system):
   godot --headless --path . -- sheet=FlightTest [seeds=N] [seed=N] [systems=N]
     [only=one|giant|twin|close] [worker=N] [out=<json>] [why=sys:start:target]
 For systems of N runs' maps (SYSTEM, PULSAR and STATION nodes; `systems` of
-each sweep a run, 12 unless asked, spread evenly through the map: seed 4242's
-holds 610, and flying all of them ran past 43 minutes for the one run;
+each sweep a run, 12 unless asked, spread evenly through the map: a map
+holds about 600, and flying all of them ran past 43 minutes for the one run;
 `systems=999` flies them all): one-star systems without a giant (`one`), with
 one (`giant`, every giant pulling at its rolled 1/10 to 1/4 of the star), and
 the ordinary systems again with two suns (`twin`, the node asked for them as
@@ -519,7 +519,9 @@ the same solved result). The old rule flew another in 86 of 108 clicks; the wind
 
 The line's move is bounded, not held at nought, since a 3 s window still passes inside a 6 s
 ride. Measured at 3 s on seed 4242, 108 flights: median 62.11 px, 90th 168. MOVE_MED is 80 px:
-the measured median and about 30% for another seed's draw or a solver change. That is well under
+the measured median and about 30% for another seed's draw or a solver change. Re-measured
+Nov 22 on seed 777, which took 4242's place when tier 0 dropped the Flocculent Spiral (Jon)
+and 4242's world moved: 136 flights, median 69.03 px, 90th 204.59; still under 80. That is well under
 the old rule's 134.08 px, which fails it (this harness run on main with the old overlay rule in
 place of the two calls). It is not the Nov 5 bar of 16 px. That bar needs a window longer than
 the 6 s ride (6.5 s measured 0.00 px), with a median 3.8 s wait, which Jon turned down.
@@ -576,7 +578,9 @@ seeds, twelve systems a sweep, four shards): two free starts leave a twin's
 residual, seed 4242 system 129 (EPSILON KESTREL IX) to one place and seed
 1999 system 217 (DELTA WICK REACH) to two on the curved path, the best burn
 from each keeping clear for 30 s, so again the arrivals miss; the close pairs
-leave none past the starts no burn can leave.
+leave none past the starts no burn can leave. Nov 22: seed 777 took 4242's place
+(tier 0 dropped the Flocculent Spiral, so 4242's world moved) and leaves no residual,
+so 4242 system 129 is off the list; 1999 system 217 stays.
 ```
 
 Until Nov 10 the list was seed 1999 system 177 and seed 7 system 209 (free), seed

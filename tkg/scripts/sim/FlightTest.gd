@@ -25,7 +25,7 @@ var _picks_on := true
 ## `flight=<path>`: another ShipFlight to measure (an older one, to compare).
 var _flight_script: Script = ShipFlightS
 
-const SEEDS := [4242, 7, 1999, 31337, 99, 123, 5150, 8080]
+const SEEDS := [777, 7, 1999, 31337, 99, 123, 5150, 8080]
 const NONE := {"w": false, "a": false, "s": false, "d": false}
 ## found and clean in at least this share of each sweep (DESIGN)
 const FOUND_MIN := 0.99
@@ -59,7 +59,7 @@ const PUT_LEFT_CLOSE := 6
 ## readings lay a few systems out anew, and three more starts leave one.
 ## Why: docs/why/FlightTest.md#the-harnesss-starts-the-residual-may
 const PUT_LEFT_CASES := {
-	"twin": ["4242:129:free", "1999:217:free"],
+	"twin": ["1999:217:free"],
 	"close": [],
 }
 ## the click comes up to this long after the first plan (s)
@@ -2309,7 +2309,7 @@ const HOLD_S := 6.0
 ## Counts frames where a flight could start but should not (Jon: be in an orbit, then click).
 ## Why: docs/why/FlightTest.md#retarget
 func _run_retarget() -> void:
-	Rng.forced = 4242 if _one_seed < 0 else _one_seed
+	Rng.forced = 777 if _one_seed < 0 else _one_seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var none := NONE
 	var dt := 1.0 / 60.0
@@ -2509,7 +2509,7 @@ static func _moved(a: PackedVector2Array, b: PackedVector2Array) -> float:
 ## Checks star orbits because the projected path kept updating into weird shapes (Jon).
 ## Why: docs/why/FlightTest.md#star-ride
 func _run_starride() -> void:
-	Rng.forced = 4242 if _one_seed < 0 else _one_seed
+	Rng.forced = 777 if _one_seed < 0 else _one_seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var none := NONE
 	var dt := 1.0 / 60.0

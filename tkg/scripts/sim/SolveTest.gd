@@ -4,7 +4,7 @@ extends Node
 ## PASS needs 99% found and clean per sweep, 97% for hand twins the layout never builds.
 ## Why: docs/why/SolveTest.md#solve-sweeps
 
-const SEEDS := [4242, 7, 1999, 31337]
+const SEEDS := [777, 7, 1999, 31337]
 const LAND_PX := 0.5
 const LAND_V := 0.5
 const START_PX := 0.05
@@ -339,7 +339,7 @@ func _twin_cases() -> void:
 ## Busiest pair of that kind per seed, at PHASES map times a lap apart. Held still, there is no lap.
 func _phase_cases() -> void:
 	var phases := PHASES_SHORT if _short else PHASES
-	for pick: Array in ([[7, 1], [4242, -1]] if _short else [[7, 1], [7, -1], [4242, -1]]):
+	for pick: Array in ([[7, 1], [777, -1]] if _short else [[7, 1], [7, -1], [777, -1]]):
 		var sd: int = pick[0]
 		Rng.forced = sd
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))

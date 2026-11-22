@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/sim/SolveTest.gd`, moved out of the code verba
 
 ## Solve sweeps
 
-Above `const SEEDS := [4242, 7, 1999, 31337]`:
+Above `const SEEDS := [777, 7, 1999, 31337]`:
 
 ```text
 THE AUTOPILOT'S SOLVED FLIGHTS (ruling 20, Oct 30), planned and measured:
@@ -110,7 +110,8 @@ Above `const PHASES := 8`:
 ```text
 the pair-phase sweep's angles round a lap (the review of the plan: 8), and
 in `short` (the gate's run) PHASES_SHORT of them, for the close pair of seed
-7 and the wide one of seed 4242 only: at full size the sweep took the gate's
+7 and the wide one of seed 777 (4242's until Nov 22, when tier 0 dropped the
+Flocculent Spiral and 4242's world moved) only: at full size the sweep took the gate's
 run from about 170 s to 370 s alone, past its 300 s limit (review 1)
 ```
 
