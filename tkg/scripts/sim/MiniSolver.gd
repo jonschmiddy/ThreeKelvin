@@ -43,7 +43,7 @@ static func for_game(g: MiniGame) -> MiniSolver:
 			s.plan = _corescan(g as GameCoreScan)
 		&"culture":
 			s.plan = _culture(g as GameCulture)
-		&"fourkelvin", &"torch", &"dock", &"skim":
+		&"fourkelvin", &"torch", &"dock", &"skim", &"flick", &"geyser":
 			s._dyn = String(g.id())
 	return s
 
@@ -58,6 +58,10 @@ func act(g: MiniGame, dt: float) -> Array[Dictionary]:
 		return DockPilot.act(g as GameDock)
 	if _dyn == "skim":
 		return SkimPilot.act(g as GameSkim)
+	if _dyn == "flick":
+		return FlickPilot.act(g as GameFlick)
+	if _dyn == "geyser":
+		return GeyserPilot.act(g as GameGeyser)
 	var out: Array[Dictionary] = []
 	_wait -= dt
 	while _i < plan.size() and _wait <= 0.0:

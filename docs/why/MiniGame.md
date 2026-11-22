@@ -217,12 +217,12 @@ was weird").
 
 Jon ruled C on Nov 21: "only the new comet game once you've picked it, with another, and also
 Ice Core." Ice Core (ice cores; its tell is STACK THE LAYERS IN ORDER) dealt alone until his
-comet pick was ported; since Nov 22 a comet deals Ice Core or Skim (`OWN`, below), the deal's
-first draw picking one. Every other site deals as before.
+comet picks were ported; since Nov 22 a comet deals Ice Core, Skim, Flick or Geyser (`OWN` and
+its list `COMET`, where a later pick joins), the deal's first draw picking one. Every other site deals as before.
 The deal still draws from `Rng.derive(&"minigame", index)` in the same order, so no other site's
 deal moves. The comet's haul stays mining: its readings are of ice and rock, the rock group's.
-`MiniGameTest._site_deals` prints what each site deals and checks a comet deals those two and
-nothing else, both turning up over 64 systems.
+`MiniGameTest._site_deals` prints what each site deals and checks a comet deals those four
+(`MiniGames.COMET`) and nothing else, each turning up over 64 systems.
 
 ## Coolant
 
@@ -411,6 +411,60 @@ the probe would pass a rock on its way to (the way there is the tether's pull as
 it). When every spot is near a lane it takes the one the grit passes farthest from. On 50 seeds at
 each sector, sensors 0 to 5 in turn, and 60 at sector 5 with sensors 0, it fills the hold every
 time. Before the way there was checked, 1 deal in 20 at sector 5 lost a fifth of the hold to grit.
+
+## Flick
+
+Jon's second comet pick (Nov 22: comet H; `tk-scratch/science/comet/games/comet_h.js`, its film
+`films/comet_h.mp4`). The comet breaks up and its chunks drift down at the ship; ice into the open
+bay is the haul, rock on the hull or in the bay spills two ice. A chunk is grabbed with a press,
+hangs off the pointer on a spring (rock heavier, so it lags more) and keeps its speed when let go;
+chunks knock each other, the held one five times heavier. Sensors slow the chunks (4% a point) and
+widen the bay (2 px a point); from 2 a red dotted path shows each rock headed for the ship.
+
+A port step for step, as Skim's: the deal is the page's own draws in its order (the kinds shuffled
+as `TK.shuffle` does, the first chunk always ice), sorted by time with an insertion sort because the
+page's sort is stable and Godot's is not. The page reads `performance.now()` for its blinks, the
+cracks' glow and the held chunk's ring, whose zero is its own, so the port's clock starts at 1 s
+(`NOW0`), where `diff.py`'s page starts it. What never changes is drawn once (the coma, the
+nucleus with its cracks kept apart, the order the bay's banked ice fills it). Its dump flies two
+seconds with the pilot playing every frame, each event sent before the frame it came in, so the
+grab, the spring, a throw and the knocks are all held to the page: 0 px.
+
+`FlickPilot` grabs, of the chunks that need a hand (any rock, ice that would miss the bay or land
+after the run ends, ice knocked off the ship's line), the one that lands soonest, once it is clear
+of the nucleus. A rock is flung off a side down a lane no other chunk will be in over the throw (up
+or level to the nearer side first, then the other side): the first version flung them up the
+nearer side and knocked ice off the glass in about one deal in six at sectors 4 and 5. Ice is carried
+over the bay and let go once its line falls into it. On 120 seeds at each sector it fills the hold
+every time, with no rock hit.
+
+## Geyser
+
+Jon's third comet pick (Nov 22: comet I; `tk-scratch/science/comet/games/comet_i.js`, its film
+`films/comet_i.mp4`). Low over a turning nucleus, sunlit vents wake on the right and fire gas
+straight up; the sampler floats only in a jet and fills there (fastest low in its core), sinks off
+it, and the ground ends the run (CRASHED, the score times 0.85). The jets drift left into the night
+and die, so it hops to the next. Sensors widen the jets (6% a point); from 2 a blue mark shows
+where the next vent will wake. Its hum is the torch's flame as a loop, while the gas is rich.
+
+A port step for step, as Skim's and Flick's: the vents are the page's own draws in its order, the
+clock starts at 1 s for the blinks (`NOW0`), and a vent's wake and death times are reckoned once.
+The ground's two texture hashes are made once for every cell the run can scroll to, and a jet's
+column skips the pixels whose glow is under the page's 0.08 before reckoning them: both were most
+of a frame. The gas motes are only drawn and are the only thing that draws the grain noise, so a run
+nobody watches (`drawing` off) skips them. Its dump flies two seconds with the pilot playing every
+frame, a hop included: 0 px.
+
+The page tunes the fill so a clean run at sector 3 about fills the sampler. At sector 5 the jets
+live under six seconds and lie 54 to 72 px apart, the thrusters give 55 px/s/s, and the sway can
+swing the core faster than they follow, so a hop costs about two seconds without gas and not every
+deal can be filled. `GeyserPilot` rides the core near time-optimally (the gas's push and the pull
+taken out) and plans each hop on ghosts of the game: it flies the rest of the run for nine leaving
+times and for staying put, each ghost planning its own next hop from four, and leaves at the best.
+The plain rule (arrive as the next jet is ready, never leave while the old one is strong) filled
+11 deals in 20 at sector 5; leaving 0.8 s sooner, 20 in 30; the planner, 144 of 150 (the rest 0.91
+to 0.94). At sectors 1 to 4 it fills every one of 150. `MiniGameTest` holds Geyser at sector 5 to 9
+deals in 10 filled and none under 0.9 (`NEAR_FULL`), every other game and sector to all of them.
 
 ## The camera games on the whole glass
 

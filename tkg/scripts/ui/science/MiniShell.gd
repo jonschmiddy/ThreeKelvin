@@ -36,8 +36,11 @@ const SFX := {
 	&"corescan": {&"fill": [&"mg_tomo_fill", 0.0], &"crack": [&"mg_tomo_crack", -0.06], &"win": [&"mg_win", 0.1]},
 	&"culture": {&"drop": [&"mg_culture_drop", 0.0], &"grow": [&"mg_culture_grow", 0.0], &"win": [&"mg_win", 0.0]},
 	&"dock": {&"dock": [&"mg_dock_dock", 0.0], &"puff": [&"mg_dock_puff", 0.0], &"win": [&"mg_win", 0.15]},
-	# the comet page's picks: the pulsar's tick as ice comes in, Four Kelvin's bump on a hit
+	# the comet pages' picks, each the same file the page played (tk-scratch/science/comet/lib/sfx)
 	&"skim": {&"tick": [&"mg_pulsar_tick", 0.0], &"hit": [&"mg_fourk_bump", 0.0], &"win": [&"mg_win", 0.3]},
+	&"flick": {&"grab": [&"mg_tray_slide", 0.0], &"throw": [&"mg_sling_launch", 0.0], &"knock": [&"mg_sling_hit", 0.0],
+		&"bank": [&"mg_icecore_place", 0.0], &"miss": [&"mg_tomo_crack", 0.0], &"hit": [&"mg_fourk_bump", 0.0], &"win": [&"mg_win", 0.3]},
+	&"geyser": {&"hum": [&"mg_torch_torch", 0.0], &"hit": [&"mg_fourk_bump", 0.0], &"win": [&"mg_win", 0.3]},
 }
 const SFX_PATH := "res://assets/audio/sfx/%s.wav"
 ## The reward waits for the win (its peak, 1.283 s in) or, with none, 1.1 s after the end.

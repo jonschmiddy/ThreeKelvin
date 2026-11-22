@@ -1,0 +1,1 @@
+- **Added** — Three new comet science games: Skim (steer a probe on a tether through the ice tail and dodge the grit), Flick (throw the rocks away and steer the ice into your ship's bay) and Geyser (ride the gas jets and hop to the next one before yours dies). A comet now deals one of them or Ice Core.

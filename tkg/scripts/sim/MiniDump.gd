@@ -74,8 +74,12 @@ static func puzzle(g: MiniGame) -> Dictionary:
 		&"dock":
 			p = js((g as GameDock).P)
 		&"skim":
-			# the page deals its comet in its own mount, from the same draws (`diff.py`)
+			# the comet pages deal in their own mounts, from the same draws (`diff.py`)
 			p = js((g as GameSkim).P)
+		&"flick":
+			p = js((g as GameFlick).P)
+		&"geyser":
+			p = {vents = js((g as GameGeyser).vents)}
 	return p
 
 

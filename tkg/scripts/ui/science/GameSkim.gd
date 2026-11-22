@@ -150,26 +150,9 @@ static func _mir(left: bool, x: float) -> float:
 	return x if left else W - 1 - x
 
 
-## The page's `mulberry`, a 32-bit generator: `mb_next` steps its state (kept in [0, 2^32)),
-## `mb_value` is the draw that state gives.
-static func mb_next(a: int) -> int:
-	return (a + 0x6D2B79F5) & 0xFFFFFFFF
-
-
-static func mb_value(a: int) -> float:
-	var t_ := _imul(a ^ (a >> 15), 1 | a)
-	t_ = ((t_ + _imul(t_ ^ (t_ >> 7), 61 | t_)) & 0xFFFFFFFF) ^ t_
-	return float((t_ ^ (t_ >> 14)) & 0xFFFFFFFF) / 4294967296.0
-
-
-## `Math.imul` on two values in [0, 2^32): the low 32 bits of the product, without 64-bit overflow.
-static func _imul(x: int, y: int) -> int:
-	return (x * (y & 0xFFFF) + (((x * (y >> 16)) & 0xFFFF) << 16)) & 0xFFFFFFFF
-
-
 func _noise() -> float:
-	_nz = mb_next(_nz)
-	return mb_value(_nz)
+	_nz = PageRand.mb_next(_nz)
+	return PageRand.mb_value(_nz)
 
 
 # ---------------------------------------------------------------- the game
@@ -467,12 +450,12 @@ func _draw_bg() -> void:
 				_bg.set_pixel(x, y, LIMB_LO)
 	var sr := (seed ^ 0x9e37) & 0xFFFFFFFF
 	for i in 55:
-		sr = mb_next(sr)
-		var x := int(floorf(mb_value(sr) * W))
-		sr = mb_next(sr)
-		var y := PY + int(floorf(mb_value(sr) * (H - PY)))
-		sr = mb_next(sr)
-		_bg.set_pixel(x, y, MiniPix.COLD if mb_value(sr) < 0.2 else MiniPix.LINE)
+		sr = PageRand.mb_next(sr)
+		var x := int(floorf(PageRand.mb_value(sr) * W))
+		sr = PageRand.mb_next(sr)
+		var y := PY + int(floorf(PageRand.mb_value(sr) * (H - PY)))
+		sr = PageRand.mb_next(sr)
+		_bg.set_pixel(x, y, MiniPix.COLD if PageRand.mb_value(sr) < 0.2 else MiniPix.LINE)
 
 
 ## The tail's glow: grains counted on 2 px cells, blurred (weights 2 / 1 / 0.5, scattered from each
