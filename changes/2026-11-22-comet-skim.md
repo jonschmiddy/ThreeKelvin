@@ -1,0 +1,1 @@
+- **Added** — Skim, a new comet science game: steer a probe on a tether through the comet's ice tail and dodge the grit. A comet now deals Skim or Ice Core.

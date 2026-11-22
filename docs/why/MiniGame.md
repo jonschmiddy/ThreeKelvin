@@ -216,12 +216,13 @@ Centrifuge (Jon, Nov 21: "When I tried to do the comet science, I got the centri
 was weird").
 
 Jon ruled C on Nov 21: "only the new comet game once you've picked it, with another, and also
-Ice Core." So a comet deals Ice Core alone (ice cores; its tell is STACK THE LAYERS IN ORDER)
-until the comet games he picks from the prototypes ("catch the ice trail" among them) are
-ported; then their ids join the comet's list beside Ice Core. Every other site deals as before.
+Ice Core." Ice Core (ice cores; its tell is STACK THE LAYERS IN ORDER) dealt alone until his
+comet pick was ported; since Nov 22 a comet deals Ice Core or Skim (`OWN`, below), the deal's
+first draw picking one. Every other site deals as before.
 The deal still draws from `Rng.derive(&"minigame", index)` in the same order, so no other site's
 deal moves. The comet's haul stays mining: its readings are of ice and rock, the rock group's.
-`MiniGameTest._site_deals` prints what each site deals and checks a comet deals Ice Core only.
+`MiniGameTest._site_deals` prints what each site deals and checks a comet deals those two and
+nothing else, both turning up over 64 systems.
 
 ## Coolant
 
@@ -383,6 +384,33 @@ third to a half of deals score 0.84 to 0.95), so `DockPilot` flies it better: it
 stops it as its rest point enters the bracket, then tapers the spin a turn ahead and stops it as
 the port's rest point reaches the bracket's near edge, so it latches slowly. On the page's own
 sim, 300 deals at each sector score 0.95 to 0.99.
+
+## Skim
+
+Jon's comet pick (Nov 21: comet A, round 2, the harder one; `tk-scratch/science/comet/games/comet_a.js`,
+its film `films/comet_a.mp4`). A comet deals it or Ice Core (`OWN`). It is a port step for step:
+the same 1/60 s step, the head's curve, the tail's drift and ripple, the grit's schedule, the
+spring tether, the scoop and the spill, with every depth's number and the sensors' two (the scoop
+3 + 0.35 S, the ice's life 3.4 (1 + 0.07 S)) as the page has them. The page's comet is drawn in
+its mount from `ctx.rng`, so `GameSkim.gen` takes the same draws in the same order; the grain
+noise is the page's `mulberry`, done on 32-bit values (`mb_next`, `mb_value`, `_imul`), and its
+`Math.hypot` is `GameSling.hyp`. Grains are six parallel arrays kept in the page's order, because
+the scoop draws noise grain by grain from the end. The glow's blur is scattered from each grain
+rather than gathered per cell: every sum is a multiple of a quarter, exact in any order, and it
+costs a ninth. Sparkles age a drawn frame at a time, as the page ages them in its draw.
+
+The page was written in the kit, so `diff.py` runs `kit.js` and the file as they are (no layout
+swaps). Its dump holds the stream's draws from the start, written at full precision, and flies a
+second of frames 1/16 s apart, a step both clocks hold exactly; both frames are 0 px.
+
+The page's own film bot rides behind the head and dodges by the next burst's lane; it fills the
+hold at sector 3 about half the time (the page's own note), so `SkimPilot` plays it better. It
+reads every rock's line (in flight, and the deal's schedule of the rest), tries spots in the head's
+frame behind the keep-out ring, scores each by the young ice there a moment on, and throws out any
+the probe would pass a rock on its way to (the way there is the tether's pull as its aim asks for
+it). When every spot is near a lane it takes the one the grit passes farthest from. On 50 seeds at
+each sector, sensors 0 to 5 in turn, and 60 at sector 5 with sensors 0, it fills the hold every
+time. Before the way there was checked, 1 deal in 20 at sector 5 lost a fifth of the hold to grit.
 
 ## The camera games on the whole glass
 

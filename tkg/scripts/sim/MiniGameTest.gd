@@ -144,6 +144,8 @@ func _deal(id: StringName, d: int, sens: int, s: int) -> Dictionary:
 			return GameCulture.gen(r, d)
 		&"dock":
 			return GameDock.gen(d, sens, r)
+		&"skim":
+			return GameSkim.gen(r, d)
 	return {}
 
 
@@ -230,7 +232,8 @@ func _dump(dir: String) -> void:
 			g.tick(dt)
 		g.px.img.save_png(dir.path_join("%s_end.png" % id))
 		var f := FileAccess.open(dir.path_join("%s_puzzle.json" % id), FileAccess.WRITE)
-		f.store_string(JSON.stringify({puzzle = puz, draws = draws, seed = 5, events = MiniDump.js(evs), raf = DUMP_RAF.get(id, [])}))
+		# Skim's whole comet is its draws, so they go in full (the rest as they always have)
+		f.store_string(JSON.stringify({puzzle = puz, draws = draws, seed = 5, events = MiniDump.js(evs), raf = DUMP_RAF.get(id, [])}, "", true, id == &"skim"))
 		f.close()
 
 
@@ -239,10 +242,13 @@ func _dump(dir: String) -> void:
 ## on their second.
 const DUMP_RAF := {&"beams": [1100.0], &"spectrum": [1400.0], &"icecore": [1100.0], &"tray": [1100.0], &"anomaly": [1100.0], &"pulsar": [1100.0],
 	&"leak": [1000.0, 1050.0], &"torch": [1000.0, 1050.0], &"fourkelvin": [1000.0], &"tuning": [1100.0], &"sling": [1100.0], &"seismic": [1600.0], &"corescan": [1100.0],
-	&"culture": [1100.0], &"dock": [1000.0, 1050.0]}
+	&"culture": [1100.0], &"dock": [1000.0, 1050.0], &"skim": SKIM_RAF}
+## Skim flies a second of frames 1/16 s apart, a step an exact binary fraction so both clocks agree.
+const SKIM_RAF := [1062.5, 1125.0, 1187.5, 1250.0, 1312.5, 1375.0, 1437.5, 1500.0, 1562.5, 1625.0, 1687.5, 1750.0, 1812.5, 1875.0, 1937.5, 2000.0]
+const SKIM_TICKS := [0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625]
 const DUMP_TICKS := {&"beams": [0.1], &"spectrum": [0.4], &"icecore": [0.1], &"tray": [0.1], &"anomaly": [0.1], &"pulsar": [0.1],
 	&"leak": [0.0, 0.05], &"torch": [0.0, 0.05], &"fourkelvin": [0.0], &"tuning": [0.1], &"sling": [0.1], &"seismic": [0.6], &"corescan": [0.1],
-	&"culture": [0.1], &"dock": [0.0, 0.05]}
+	&"culture": [0.1], &"dock": [0.0, 0.05], &"skim": SKIM_TICKS}
 
 
 ## Deals into `r`, leaving it where the game's own deal left its stream.
@@ -282,6 +288,9 @@ func _deal_into(id: StringName, r: RandomNumberGenerator) -> void:
 			GameCulture.gen(r, 3)
 		&"dock":
 			GameDock.gen(3, 1, r)
+		&"skim":
+			# the page deals its comet in its own mount, so its draws start where the stream does
+			pass
 
 
 ## What a frame of each game costs at sector 5 (printed, never asserted: it is the machine's).
@@ -343,8 +352,8 @@ func _haul() -> void:
 		_h._ok("pay grants one material by its catalogue name and tier (%s)" % str(h), not h.is_empty() and String(h.name) != "" and StringName(h.tier) in MaterialTable.TIERS)
 
 
-## WHICH GAMES EACH SITE DEALS, printed: a comet deals Ice Core alone (Jon, Nov 21, "C"), every other
-## site `pool(ROCK)`, as before. Why: docs/why/MiniGame.md#a-sites-own-deal
+## WHICH GAMES EACH SITE DEALS, printed: a comet deals Ice Core or Skim (Jon, Nov 21, "C"), every
+## other site `pool(ROCK)`, as before. Why: docs/why/MiniGame.md#a-sites-own-deal
 func _site_deals() -> void:
 	var rock := MiniGames.pool(MiniGames.ROCK)
 	var same := true
@@ -359,8 +368,9 @@ func _site_deals() -> void:
 	# (the deal's own first draw: `deal` itself reads the ship's sensors, and this harness has no ship)
 	for i in 64:
 		dealt[comet[Rng.derive(&"minigame", i).randi() % comet.size()]] = true
-	_h._ok("a comet deals Ice Core and nothing else (%s; dealt %s over 64 systems)" % [", ".join(comet), ", ".join(dealt.keys())],
-		comet == [&"icecore"] and dealt.keys() == [&"icecore"])
+	var both: Array[StringName] = [&"icecore", &"skim"]
+	_h._ok("a comet deals Ice Core or Skim and nothing else, both over 64 systems (%s; dealt %s)" % [", ".join(comet), ", ".join(dealt.keys())],
+		comet == both and dealt.size() == 2 and dealt.has(&"icecore") and dealt.has(&"skim"))
 
 
 ## The start card at every depth (Jon, Nov 20: "CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE UP"): the
@@ -401,9 +411,10 @@ func _tell(id: StringName) -> void:
 ## stops its card's icon clock). That flag may differ.
 const EMPTY := Vector2(1.5, 1.5)
 const ANY_PRESS := {&"anomaly": ["started"], &"fourkelvin": ["mode"], &"tray": ["started"], &"centrifuge": ["acted", "_icon_t"],
-	&"seismic": ["touched"], &"culture": ["touched"]}
+	&"seismic": ["touched"], &"culture": ["touched"], &"skim": ["started", "ax", "ay"]}
 ## The games whose clock that press starts: their twins part from there, so they are held at the click.
-const CLOCK_STARTS: Array[StringName] = [&"anomaly", &"fourkelvin"]
+## Skim's press starts the pass and takes hold of the tether where it lands.
+const CLOCK_STARTS: Array[StringName] = [&"anomaly", &"fourkelvin", &"skim"]
 
 
 ## Any click on the glass puts the start card away (Jon, Nov 20: Ice Core's card hid ONE UPSIDE DOWN

@@ -6,7 +6,7 @@
 `dump=` writes each game's deal (depth 3, sensors 1, seed 5) as the page names it, the stream's draws
 after the deal, its canvas at the start, and its canvas after the scripted run's moves but the last
 and the frames the page's loop draws them on. This runs the prototype's own file (`proto/`, copied
-from tk-scratch/science/minigames/phone/src, Nov 18) as Jon approved it re-laid out and in the one UI
+from tk-scratch/science/minigames/phone/src, Nov 18; `comet_a.js` from tk-scratch/science/comet/games, Nov 21) as Jon approved it re-laid out and in the one UI
 kit (`layout/`, Nov 20) in the installed Chrome on that same deal, its
 clock held, the same moves sent as pointer and key events, counts the pixels that differ and writes
 <dir>/<id>_<frame>_compare.png: prototype, game, and the differing pixels in red, at 4x.
@@ -48,7 +48,11 @@ GAMES = {
     "corescan": ("tomo2", "const c=CFG[ctx.depth],P=gen(ctx.rng,ctx.depth),n=P.n", "const c=CFG[ctx.depth],P=window.__P,n=P.n"),
     "culture": ("culture2", "const p=gen(ctx.rng,ctx.depth),c=CFG[ctx.depth]", "const p=window.__P,c=CFG[ctx.depth]"),
     "dock": ("wreck2", "const P=gen(ctx.depth,ctx.sensors,ctx.rng);", "const P=window.__P;"),
+    # Skim deals its comet in its mount, from the dumped draws (the stream's from its start)
+    "skim": ("comet_a", ",r=ctx.rng;", ",r=ctx.rng;"),
 }
+# The comet games were written in the kit (tk-scratch/science/comet, Nov 21): no layout swaps.
+KIT_ONLY = {"skim"}
 
 # The layouts (fit2 for Beams and Spectrum, fit3, fit4, the kit) are in layout/: `layout.page_js`.
 
@@ -84,7 +88,7 @@ DRIVER = """
   const stage=document.createElement('div');document.body.appendChild(stage);
   window.__reg.mount(stage,{depth:3,sensors:1,seed:data.seed,rng,done(){}});
   const cv=stage.querySelector('canvas');
-  if((gid==='fourkelvin'||gid==='tuning')&&window.__raf){window.__now=1000;window.__raf(1000)}
+  if((gid==='fourkelvin'||gid==='tuning'||gid==='skim')&&window.__raf){window.__now=1000;window.__raf(1000)}
   const start=cv.toDataURL();
   const r=cv.getBoundingClientRect();
   const codes={w:'KeyW',a:'KeyA',d:'KeyD'};
@@ -103,7 +107,10 @@ def page_for(gid: str) -> str:
     """The page as Jon approved it (Nov 20): kit.js, then the prototype's own file re-laid out to fill
     150x130 and dressed in the kit (`layout/`), its deal line reading the dumped deal."""
     name, deal, mine = GAMES[gid]
-    js = layout.page_js(gid)
+    if gid in KIT_ONLY:
+        js = (HERE / "layout" / "kit.js").read_text(encoding="utf-8") + "\n" + (PROTO / (name + ".js")).read_text(encoding="utf-8")
+    else:
+        js = layout.page_js(gid)
     assert js.count(deal) == 1, gid
     js = js.replace(deal, mine, 1)
     helpers = (PROTO / "tk_helpers.js").read_text(encoding="utf-8").rstrip().rstrip(",")

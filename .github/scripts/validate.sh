@@ -829,6 +829,14 @@ GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametorch 780 \
 	--headless --path "$PROJECT" -- sheet=MiniGameTest games=torch
 }
 
+unit_minigameskim() {
+step "Skim deals, flies and scores as its prototype"
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigameskim 600 \
+	"Skim deals, flies and scores" \
+	"Skim dealt no comet, an unflyable one, a different one twice, or scored wrong" \
+	--headless --path "$PROJECT" -- sheet=MiniGameTest games=skim
+}
+
 unit_minigametray() {
 step "The sample tray deals, solves and scores as its prototype"
 GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametray 800 \
@@ -2639,7 +2647,7 @@ gate_weight() {
 		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;; arrivesidetest) echo 60 ;;
 		sciencesimtest) echo 51 ;; routinetest) echo 28 ;; jumpshadertest) echo 90 ;;
 		meterfittest) echo 76 ;; convoyslidetest) echo 30 ;; stationaheadtest) echo 40 ;;
-		minigametest) echo 300 ;; minigamedials) echo 355 ;; minigameflown) echo 280 ;; minigametorch) echo 440 ;; minigametray) echo 500 ;; minigamesling) echo 470 ;;
+		minigametest) echo 300 ;; minigamedials) echo 355 ;; minigameflown) echo 280 ;; minigametorch) echo 440 ;; minigameskim) echo 200 ;; minigametray) echo 500 ;; minigamesling) echo 470 ;;
 		*) echo 15 ;;
 	esac
 }
