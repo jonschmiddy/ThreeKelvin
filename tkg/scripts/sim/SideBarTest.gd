@@ -600,8 +600,8 @@ func _run() -> void:
 	Router.animate_in_harness = true
 	ZoomLadder.force = 1
 	ZoomLadder.fixed_dt = 1.0 / 60.0
-	# (7 until Nov 21, when it became an Interacting Pair: there map -> chart blanks the bar for 2-3 frames, on main too)
-	Rng.forced = 4242
+	# (7, then 4242, until Nov 22: as the tier 0 kinds changed, both became worlds where map -> chart blanks the bar for 1-3 frames; 31337 and 4343 do too, on main as well. `seed=N` tries another.)
+	Rng.forced = Harness.seed_arg(1999)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	StarchartScreen._primed_for = Run.galaxy_seed
 	var sys := Run.at

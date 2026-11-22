@@ -83,13 +83,13 @@ a save, a typed seed and the fresh-profile launch all reach the same roll; the
 title's galaxy is its own any-kind roll and is replaced by the run's at NEW RUN.
 
 Jon picked A (sheet in `tk-scratch/spiral-tier0/`): tier 0 flies `TIER0_KINDS`, the
-spiral form without the two irregulars, named so the list is read, not inferred. He
-did not rule on the Flocculent Spiral (named a spiral, no arms at the chart's opening
-zoom) or the Interacting Pair (two arms, not named one); both stay as they were, on
-the list. Tiers 1 to 3 still fly all nine.
+spiral form without the two irregulars, named so the list is read, not inferred. Then
+he dropped the Flocculent Spiral too (named a spiral, but no arms at the chart's
+opening zoom). The Interacting Pair (two arms, not named one) stays. Six kinds; tiers
+1 to 3 still fly all nine.
 
 `roll_kind` keeps its one draw among the form's kinds and draws again only when it
 lands off the list, so every seed whose first draw was already a listed kind keeps
-its world; only the seeds that drew an irregular move. `LaunchTierTest`'s sweep
-checks the list (real kinds, spiral form, no irregular), 300 seeds rolling only
+its world; only the seeds that drew one of the three move. `LaunchTierTest`'s sweep
+checks the list (Jon's six, each a real kind of the spiral form), 300 seeds rolling only
 listed kinds, the kept first draws, and the chart naming the kind rolled.

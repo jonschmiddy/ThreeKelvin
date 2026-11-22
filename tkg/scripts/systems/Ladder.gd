@@ -27,11 +27,11 @@ const FORM_NAME := ["SPIRAL GALAXY", "LENTICULAR GALAXY", "ELLIPTICAL GALAXY", "
 const FORM_COLOUR := [Color8(150, 215, 205), Color8(240, 160, 67), Color8(238, 96, 58), Color8(255, 70, 90)]
 ## The galaxy kinds that are dwarfs: the torn one is one of these.
 const DWARF_KINDS := ["Blue Compact Dwarf", "Dwarf Spheroidal"]
-## THE KINDS TIER 0 FLIES, by name (Jon's A, Nov 21): the spiral form without the
-## two irregulars, which have arms to the chart and none to the eye.
+## THE KINDS TIER 0 FLIES, by name (Jon, Nov 21): the spiral form without the two
+## irregulars and the Flocculent Spiral, which show no arms on the chart.
 ## Why: docs/why/Ladder.md#tier-0-spirals
 const TIER0_KINDS := ["Grand-Design Spiral", "Barred Spiral", "Multi-Arm Spiral",
-	"Flocculent Spiral", "Anemic Spiral", "Interacting Pair", "Starburst Spiral"]
+	"Anemic Spiral", "Interacting Pair", "Starburst Spiral"]
 
 
 static func count() -> int:

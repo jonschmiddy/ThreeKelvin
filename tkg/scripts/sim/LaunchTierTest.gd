@@ -154,10 +154,16 @@ func _tier0_sweep() -> void:
 	var listed := true
 	for nm: String in Ladder.TIER0_KINDS:
 		var k := names.find(nm)
-		if k < 0 or Ladder.form_of_kind(k) != Ladder.Form.SPIRAL or nm.contains("Irregular"):
+		if k < 0 or Ladder.form_of_kind(k) != Ladder.Form.SPIRAL:
 			listed = false
-	_ok("tier 0's list is %d spiral kinds, no irregular" % Ladder.TIER0_KINDS.size(),
-		listed and Ladder.kinds_of(0).size() == Ladder.TIER0_KINDS.size())
+	# Jon's six (Nov 21): the irregulars and the Flocculent Spiral left out
+	var six := ["Grand-Design Spiral", "Barred Spiral", "Multi-Arm Spiral",
+		"Anemic Spiral", "Interacting Pair", "Starburst Spiral"]
+	var same := Ladder.TIER0_KINDS.size() == six.size()
+	for nm: String in six:
+		same = same and nm in Ladder.TIER0_KINDS
+	_ok("tier 0's list is Jon's six spiral-form kinds: %s" % [Ladder.TIER0_KINDS],
+		listed and same and Ladder.kinds_of(0).size() == six.size())
 	# the one draw as it was before the list: among every spiral-form kind
 	var all_spiral := Ladder.kinds_of(1)
 	var kept := 0
