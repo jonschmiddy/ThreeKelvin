@@ -617,7 +617,7 @@ func _refresh() -> void:
 	# Q1, Nov 9). The panel keeps what decides the jump: danger, fuel, warnings.
 	# Why: docs/why/StarchartScreen.md#jump-plate
 	_blurb("")
-	_rows.add_child(_danger_row(t.danger))
+	_star_head(t, here)
 
 	# Out of range is a different answer from "cannot afford it", and quoting a
 	# price for a jump the drive cannot make at all is the wrong answer twice.
@@ -870,20 +870,33 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 		MapGen.tier_name(n.danger), cost]
 	return b
 
-## A PICKED STAR'S ORBITS (Jon, Nov 22, "2: B"): its map, kind and counts, then a few facts, where
-## the in-range list stands with nothing picked. Why: docs/why/ChartOrbits.md#what-it-shows
+## A PICKED STAR (Jon, Nov 22): under its name the star itself, then one list of its facts with
+## DANGER, FUEL and WARNING, then its orbit map and what is in it, where the in-range list stands
+## with nothing picked. Why: docs/why/ChartOrbits.md#what-it-shows
+var _star_pic: Control
 var _star_box: VBoxContainer
 var _orbits: ChartOrbits
-var _star_kind: Label
 var _star_counts: Label
-var _star_rows: VBoxContainer
-## The beam's line, the pulsar card's own words (`SystemPanel`).
+## The beam's line, the pulsar card's own words (`SystemPanel`), beside the WARNING it explains.
 const BEAM_LINE := "Each pass through the beam adds fuel, hull damage and heat."
+const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
+## The picture's height, and each sun's drawn radius by kind (the map's own `STAR_R` order).
+const PIC_H := 64
+const PIC_R := {SystemLayout.StarKind.RED: 24.0, SystemLayout.StarKind.BLUE: 17.0}
+const PIC_R_SUN := 13.0
 
 
-## The list's box, then the star's box under it in the same slack.
+## The list's box, then the star's box under it in the same slack; the picture over the rows.
 func _build_star_box(right: VBoxContainer) -> void:
 	right.add_child(_neigh_scroll)
+	_star_pic = Control.new()
+	_star_pic.name = "StarPicture"
+	_star_pic.custom_minimum_size = Vector2(228, PIC_H)
+	_star_pic.clip_contents = true
+	_star_pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_star_pic.visible = false
+	right.add_child(_star_pic)
+	right.move_child(_star_pic, _rows.get_index())
 	_star_box = VBoxContainer.new()
 	_star_box.name = "StarBox"
 	_star_box.add_theme_constant_override("separation", 3)
@@ -891,22 +904,61 @@ func _build_star_box(right: VBoxContainer) -> void:
 	_star_box.visible = false
 	_orbits = ChartOrbits.new()
 	_star_box.add_child(_orbits)
-	_star_kind = UITheme.body("", UITheme.ICE, UITheme.FS_SMALL)
-	_star_box.add_child(_star_kind)
 	_star_counts = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
 	_star_counts.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_star_counts.custom_minimum_size = Vector2(228, 0)
 	_star_box.add_child(_star_counts)
-	_star_rows = VBoxContainer.new()
-	_star_rows.add_theme_constant_override("separation", 3)
-	_star_box.add_child(_star_rows)
 	right.add_child(_star_box)
+
+
+## The picture and the star's own rows, then DANGER (the first of the jump's rows).
+func _star_head(t: MapGen.MapNode, here: MapGen.MapNode) -> void:
+	var on := orbits_shown(t, here)
+	_star_pic.visible = on
+	if on:
+		_orbits.show_system(t)
+		_paint_star(t)
+		_rows.add_child(_row("STAR", _orbits.fact("kind"), _orbits.star_col.lightened(0.15)))
+		_rows.add_child(_row("RADIUS", _orbits.fact("radius")))
+		if _orbits.twin:
+			_rows.add_child(_row(MapGen.BINARY, ChartOrbits.second_sun(), ChartOrbits.SUN_B))
+	_rows.add_child(_danger_row(t.danger))
+
+
+## The star as the sector map paints it (`SunView`, a pair's two placed as `SystemPanel._twin_head`
+## places them). A pulsar is drawn in the chart's style instead: its map painter is a
+## 480 x 320 animated box tied to the map's rect and sky flash, not a portrait.
+func _paint_star(t: MapGen.MapNode) -> void:
+	Widgets.clear(_star_pic)
+	var L := _orbits.layout
+	var mid := Vector2(114, PIC_H / 2)
+	if L.star == SystemLayout.StarKind.PULSAR:
+		var pp := ChartOrbits.PulsarPic.new()
+		pp.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_star_pic.add_child(pp)
+		pp.setup(MapGlyphs.boost(_orbits.star_col, ChartGlyphs.NODE_LIFT), mid.round())
+		return
+	var kind := _orbits.kind_name()
+	var r0: float = PIC_R.get(L.star, PIC_R_SUN)
+	for s in L.stars():
+		var sv: Node2D = SunViewS.new()
+		var r := r0
+		var at := mid
+		if L.twin:
+			r = PIC_R_SUN * L.star_radius(s) / maxf(L.star_r, 1.0)
+			at += Vector2(34 if s == SystemLayout.STAR_B else -30, 0)
+		sv.position = at.round()
+		_star_pic.add_child(sv)
+		sv.call("setup", kind, t.index, r, s == SystemLayout.STAR_B)
+		sv.call("set_fade", r + 7.0, Vector2(44, 30))
 
 
 ## The list with nothing picked, the star's box with one picked; never both.
 func _show_list(on: bool) -> void:
 	_neigh_scroll.visible = on
 	_star_box.visible = not on
+	if on:
+		_star_pic.visible = false
 	if not on:
 		_say("")
 
@@ -922,25 +974,19 @@ static func orbits_shown(t: MapGen.MapNode, here: MapGen.MapNode) -> bool:
 
 func _fill_star(t: MapGen.MapNode, here: MapGen.MapNode) -> void:
 	_show_list(false)
-	Widgets.clear(_star_rows)
 	var on := orbits_shown(t, here)
+	_star_pic.visible = on
 	for c in _star_box.get_children():
 		(c as Control).visible = on
 	if not on:
 		return
-	_orbits.show_system(t)
-	_star_kind.text = _orbits.fact("kind")
-	_star_kind.add_theme_color_override("font_color", _orbits.star_col.lightened(0.15))
-	_star_counts.text = ChartOrbits.counts(_orbits.marks)
-	_star_counts.visible = _star_counts.text != ""
-	if _orbits.twin:
-		_star_rows.add_child(_row(MapGen.BINARY, ChartOrbits.second_sun(), ChartOrbits.SUN_B))
-	_star_rows.add_child(_row("RADIUS", _orbits.fact("radius")))
 	if t.type == MapGen.NodeType.PULSAR:
 		var l := UITheme.body(BEAM_LINE, UITheme.CHILL, UITheme.FS_SMALL)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size = Vector2(228, 0)
-		_star_rows.add_child(l)
+		_rows.add_child(l)
+	_star_counts.text = ChartOrbits.counts(_orbits.marks)
+	_star_counts.visible = _star_counts.text != ""
 
 
 ## The line over the list, hidden when it says nothing so it gives its row back.

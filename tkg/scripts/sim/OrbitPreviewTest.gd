@@ -176,11 +176,15 @@ func _panel() -> void:
 	var want := ChartOrbits.read(SystemLayout.of(t), t)
 	h._ok("picked: the orbits, no list", not sc._neigh_scroll.visible and sc._star_box.visible
 		and sc._orbits.visible)
+	h._ok("and the star's picture under its name, its kind in the rows",
+		sc._star_pic.visible and sc._star_pic.get_child_count() > 0
+		and sc._rows.get_child(0).get_child(2).get("text") == sc._orbits.fact("kind"))
 	h._ok("the map draws the layout's %d orbits (%d)" % [want.size(), sc._orbits.marks.size()],
 		sc._orbits.marks.size() == want.size() and want.size() > 0)
 	h._ok("the counts line says them (%s)" % sc._star_counts.text,
 		sc._star_counts.text == ChartOrbits.counts(want))
 	sc._on_chart_cleared()
 	await _tree.process_frame
-	h._ok("cleared: the list again", sc._neigh_scroll.visible and not sc._star_box.visible)
+	h._ok("cleared: the list again, no picture", sc._neigh_scroll.visible and not sc._star_box.visible
+		and not sc._star_pic.visible)
 	print("  (stood at %d)" % here.index)

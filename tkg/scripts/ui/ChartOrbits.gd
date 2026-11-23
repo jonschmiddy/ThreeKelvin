@@ -8,15 +8,10 @@ extends Control
 
 const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 const W := 228
-const H := 128
-## The game's hot line: `SystemLayout.ZONE_NEAR`, 380 px, 4.75 AU at `SystemView.au`'s 80 px an AU.
-const AU_PX := 80.0
-const HOT_AU := SystemLayout.ZONE_NEAR / AU_PX
+const H := 88
 ## Arcs and the warm hot line, in the panel's own colours.
 const ARC := Color("#3a4a5e")
 const BELT := UITheme.CHILL
-const HOT_LINE := UITheme.EMBER
-const HOT_DIM := Color(UITheme.EMBER, 0.6)
 const WORLD := Color("#a9b6c4")
 const GIANT := Color("#c7b79a")
 const GIANT_BAND := Color("#8d7f68")
@@ -33,22 +28,19 @@ var marks: Array[Dictionary] = []
 var star: SystemLayout.StarKind = SystemLayout.StarKind.ORDINARY
 var star_col: Color = Color.WHITE
 var twin := false
+## The layout drawn, for the star's picture above the map (`StarchartScreen._paint_star`).
+var layout: SystemLayout = null
 ## Built once in `show_system`, never in `_draw`: each arc's pixels, the belt's and the hot line's.
 var _arcs: Array[PackedVector2Array] = []
 var _belts: Array[PackedVector2Array] = []
-var _hot := PackedVector2Array()
 var _spots: Array[Vector2] = []
 var _scale := 1.0
 var _pulsar_px := PackedVector2Array()
-## The pixel font, and where HOT sits: once, just right of the hot line's top end.
-var _font: Font = null
-var _hot_label := Vector2.ZERO
 var _pulsar_col := PackedColorArray()
 
 
 func _init() -> void:
 	custom_minimum_size = Vector2(W, H)
-	_font = UITheme.pixel_font()
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
@@ -97,6 +89,7 @@ static func signature(L: SystemLayout, n: MapGen.MapNode) -> String:
 ## Lay the picture out for node `n`.
 func show_system(n: MapGen.MapNode) -> void:
 	var L := SystemLayout.of(n)
+	layout = L
 	marks = read(L, n)
 	star = L.star
 	twin = L.twin
@@ -108,6 +101,11 @@ func show_system(n: MapGen.MapNode) -> void:
 ## One of the star's facts (`kind`, `radius`), the sector panel's own (`SystemView.STAR_FACTS`).
 func fact(key: String) -> String:
 	return String((SystemViewS.STAR_FACTS[SystemViewS.KIND_NAMES[star]] as Dictionary)[key])
+
+
+## The star's kind as the sector map names it (`SystemView.KIND_NAMES`).
+func kind_name() -> String:
+	return String(SystemViewS.KIND_NAMES[star])
 
 
 ## A pair's second sun, as the sector panel names it.
@@ -128,7 +126,7 @@ func _build() -> void:
 	for d in marks:
 		# a world round one sun of a pair is drawn beside that sun, not on an arc
 		if twin and int(d.host) != -9:
-			_spots.append(_sun_at(int(d.host)) + Vector2(18, 0))
+			_spots.append(_sun_at(int(d.host)) + Vector2(12, 0))
 			continue
 		var r := float(d.orbit) * _scale
 		var a_max := asin(clampf((cy - 8.0) / r, 0.0, 1.0))
@@ -138,40 +136,32 @@ func _build() -> void:
 			_belts.append(_arc(r, 3))
 		else:
 			_arcs.append(_arc(r, 1))
-	_hot = _arc(SystemLayout.ZONE_NEAR * _scale, 2)
-	if not _hot.is_empty():
-		var top := _hot[0]
-		for q in _hot:
-			if q.y < top.y:
-				top = q
-		_hot_label = top + Vector2(3, 8)
-	_build_pulsar()
-
-
-## The chart's pulsar drawn larger: a bright point, two beams fading out on one diagonal.
-func _build_pulsar() -> void:
 	_pulsar_px = PackedVector2Array()
 	_pulsar_col = PackedColorArray()
-	if star != SystemLayout.StarKind.PULSAR:
-		return
-	var c := Vector2(14, roundf(H * 0.5))
-	var ink := MapGlyphs.boost(star_col, ChartGlyphs.NODE_LIFT)
-	for k in range(3, 15):
-		var a := clampf(1.15 - float(k) / 15.0, 0.25, 1.0)
+	if star == SystemLayout.StarKind.PULSAR:
+		pulsar_pixels(Vector2(6, roundf(H * 0.5)), MapGlyphs.boost(star_col, ChartGlyphs.NODE_LIFT),
+			1, 6, _pulsar_px, _pulsar_col)
+
+
+## A pulsar in the chart's style: a bright point, two beams `reach` blocks long fading out on one
+## diagonal, in `px`-pixel blocks; appended to `out` and `cols`.
+static func pulsar_pixels(c: Vector2, ink: Color, px: int, reach: int, out: PackedVector2Array,
+		cols: PackedColorArray) -> void:
+	for k in range(2, reach + 1):
+		var a := clampf(1.15 - float(k) / float(reach + 1), 0.25, 1.0)
 		for sgn in [-1.0, 1.0]:
-			_pulsar_px.append(c + Vector2(k, k) * sgn)
-			_pulsar_col.append(Color(ink, a))
-	for d in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 2), Vector2(-1, -1), Vector2(1, -1),
-			Vector2(-1, 1), Vector2(1, 1), Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1), Vector2.ZERO]:
-		_pulsar_px.append(c + d)
-		_pulsar_col.append(UITheme.ICE if d == Vector2.ZERO else ink)
+			out.append(c + Vector2(k, k) * sgn * px)
+			cols.append(Color(ink, a))
+	for d in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1), Vector2.ZERO]:
+		out.append(c + d * px)
+		cols.append(UITheme.ICE if d == Vector2.ZERO else ink)
 
 
 ## Where sun `host` sits on the left edge: one sun in the middle, a pair one above the other.
 func _sun_at(host: int) -> Vector2:
 	if not twin:
 		return Vector2(0, H * 0.5)
-	return Vector2(0, H * 0.5 + (16.0 if host == SystemLayout.STAR_B else -16.0))
+	return Vector2(0, H * 0.5 + (10.0 if host == SystemLayout.STAR_B else -10.0))
 
 
 ## The pixels of an arc of radius `r` round the left edge's middle, every `every`th one.
@@ -194,10 +184,6 @@ func _arc(r: float, every: int) -> PackedVector2Array:
 
 
 func _draw() -> void:
-	for p in _hot:
-		draw_rect(Rect2(p, Vector2.ONE), HOT_DIM, true)
-	if not _hot.is_empty() and _font != null:
-		draw_string(_font, _hot_label, "HOT", HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, HOT_LINE)
 	for arc in _arcs:
 		for p in arc:
 			draw_rect(Rect2(p, Vector2.ONE), ARC, true)
@@ -214,10 +200,10 @@ func _draw_star() -> void:
 		for i in _pulsar_px.size():
 			draw_rect(Rect2(_pulsar_px[i], Vector2.ONE), _pulsar_col[i], true)
 		return
-	var r := {SystemLayout.StarKind.RED: 18, SystemLayout.StarKind.BLUE: 13}.get(star, 9) as int
+	var r := {SystemLayout.StarKind.RED: 7, SystemLayout.StarKind.BLUE: 5}.get(star, 4) as int
 	if twin:
-		_half_disc(_sun_at(-1), 9, star_col)
-		_half_disc(_sun_at(SystemLayout.STAR_B), 6, SUN_B)
+		_half_disc(_sun_at(-1), 4, star_col)
+		_half_disc(_sun_at(SystemLayout.STAR_B), 3, SUN_B)
 		return
 	_half_disc(_sun_at(-1), r, star_col)
 
@@ -264,3 +250,18 @@ func _disc(c: Vector2, r: int, col: Color) -> void:
 				draw_rect(Rect2(c.x + x, c.y + y, 1, 1), col, true)
 			elif d <= (r + 1) * (r + 1) + 1:
 				draw_rect(Rect2(c.x + x, c.y + y, 1, 1), UITheme.PANEL, true)
+
+
+## The pulsar's picture over the panel's list: `pulsar_pixels` in 2 px blocks, built once.
+class PulsarPic extends Control:
+	var _px := PackedVector2Array()
+	var _cols := PackedColorArray()
+
+	func setup(ink: Color, c: Vector2) -> void:
+		ChartOrbits.pulsar_pixels(c, ink, 2, 14, _px, _cols)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		queue_redraw()
+
+	func _draw() -> void:
+		for i in _px.size():
+			draw_rect(Rect2(_px[i] - Vector2.ONE, Vector2(2, 2)), _cols[i], true)

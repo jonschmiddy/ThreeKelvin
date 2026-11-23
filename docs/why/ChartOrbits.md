@@ -22,13 +22,14 @@ What it leaves out, because the game does not fix it ahead:
 A signed job's place IS shown (a flare diamond): it is posted at signing and circled
 on the chart already.
 
-Scale is linear in AU so the hot line (SystemLayout.ZONE_NEAR, 380 px, 4.75 AU) sits
-where it really does against the orbits. A one-sun system picks each world's pool by
-its index, not its distance (SystemLayout._worlds), so a world just past the line can
-still be a hot one; the line is the game's rule, not a promise about each world.
-
-No HOT ZONE row (coordinator, Nov 22): 4.75 AU is the same round every star, so the
-row said nothing; the arc is labelled HOT once at its top end instead.
+Jon, Nov 22, on the first renders: "Show the stars underneath the name of the sector.
+Remove the HOT line. Let's have the system info at the top and then the simplified
+sector map view." So the panel reads: the name, the star as the sector map paints it
+(SunView; a pulsar in the chart's own point-and-beams, since its map painter is a
+480 x 320 animated box tied to the map's rect and sky flash), one list of STAR, RADIUS,
+BINARY, DANGER, FUEL and WARNING with the beam's line beside WARNING, then the orbit
+map with a small sun on its edge, then the counts. The hot line and its HOT label are
+gone; so is the HOT ZONE row, which read 4.75 AU round every star.
 
 A pair draws both suns on the edge; a world round one sun sits beside it, and the arcs
 are the worlds round both.
