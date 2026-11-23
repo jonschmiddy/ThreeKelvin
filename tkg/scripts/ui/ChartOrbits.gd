@@ -8,7 +8,7 @@ extends Control
 
 const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 const W := 228
-const H := 88
+const H := 72
 ## Arcs and the warm hot line, in the panel's own colours.
 const ARC := Color("#3a4a5e")
 const BELT := UITheme.CHILL
@@ -30,6 +30,7 @@ var star_col: Color = Color.WHITE
 var twin := false
 ## The layout drawn, for the star's picture above the map (`StarchartScreen._paint_star`).
 var layout: SystemLayout = null
+var _index := -1
 ## Built once in `show_system`, never in `_draw`: each arc's pixels, the belt's and the hot line's.
 var _arcs: Array[PackedVector2Array] = []
 var _belts: Array[PackedVector2Array] = []
@@ -90,6 +91,7 @@ static func signature(L: SystemLayout, n: MapGen.MapNode) -> String:
 func show_system(n: MapGen.MapNode) -> void:
 	var L := SystemLayout.of(n)
 	layout = L
+	_index = n.index
 	marks = read(L, n)
 	star = L.star
 	twin = L.twin
@@ -98,9 +100,10 @@ func show_system(n: MapGen.MapNode) -> void:
 	queue_redraw()
 
 
-## One of the star's facts (`kind`, `radius`), the sector panel's own (`SystemView.STAR_FACTS`).
+## One of the star's facts (`kind`, `radius`, `mass`, `temp`, `lum`), the sector panel's own
+## (`SystemView.star_facts_of`, this system's numbers).
 func fact(key: String) -> String:
-	return String((SystemViewS.STAR_FACTS[SystemViewS.KIND_NAMES[star]] as Dictionary)[key])
+	return String(SystemViewS.star_facts_of(null, kind_name(), -1, _index).get(key, ""))
 
 
 ## The star's kind as the sector map names it (`SystemView.KIND_NAMES`).
@@ -258,7 +261,7 @@ class PulsarPic extends Control:
 	var _cols := PackedColorArray()
 
 	func setup(ink: Color, c: Vector2) -> void:
-		ChartOrbits.pulsar_pixels(c, ink, 2, 14, _px, _cols)
+		ChartOrbits.pulsar_pixels(c, ink, 2, 11, _px, _cols)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		queue_redraw()
 

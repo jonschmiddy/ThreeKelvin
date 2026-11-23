@@ -818,14 +818,14 @@ func star_class() -> String:
 const STAR_B_FACTS := {"kind": "ORANGE DWARF", "cls": "K5", "temp": "4,400 K", "mass": "0.7 SOL", "radius": "0.7 SOL"}
 
 
-## Pair star facts change the words only: A reads as G2, B as K5; pull and drawing are unchanged.
+## Pair facts change the words only: A as G2 (with `index`, its own `StarNumbers`), B as K5.
 ## Why: docs/why/SystemView.md#star-b-facts
-static func star_facts_of(L: SystemLayout, kind_name: String, p: int) -> Dictionary:
-	var f: Dictionary = STAR_FACTS[kind_name]
-	if L == null or not L.twin or p != SystemLayout.STAR_B:
-		return f
-	var out: Dictionary = f.duplicate()
-	out.merge(STAR_B_FACTS, true)
+static func star_facts_of(L: SystemLayout, kind_name: String, p: int, index: int = -1) -> Dictionary:
+	var b := L != null and L.twin and p == SystemLayout.STAR_B
+	if not b and (index < 0 or not StarNumbers.SPREAD.has(kind_name)):
+		return STAR_FACTS[kind_name]
+	var out: Dictionary = (STAR_FACTS[kind_name] as Dictionary).duplicate()
+	out.merge(STAR_B_FACTS if b else StarNumbers.of(kind_name, index), true)
 	return out
 
 

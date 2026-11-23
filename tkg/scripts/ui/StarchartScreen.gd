@@ -881,9 +881,9 @@ var _star_counts: Label
 const BEAM_LINE := "Each pass through the beam adds fuel, hull damage and heat."
 const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
 ## The picture's height, and each sun's drawn radius by kind (the map's own `STAR_R` order).
-const PIC_H := 64
-const PIC_R := {SystemLayout.StarKind.RED: 24.0, SystemLayout.StarKind.BLUE: 17.0}
-const PIC_R_SUN := 13.0
+const PIC_H := 52
+const PIC_R := {SystemLayout.StarKind.RED: 21.0, SystemLayout.StarKind.BLUE: 15.0}
+const PIC_R_SUN := 12.0
 
 
 ## The list's box, then the star's box under it in the same slack; the picture over the rows.
@@ -919,7 +919,8 @@ func _star_head(t: MapGen.MapNode, here: MapGen.MapNode) -> void:
 		_orbits.show_system(t)
 		_paint_star(t)
 		_rows.add_child(_row("STAR", _orbits.fact("kind"), _orbits.star_col.lightened(0.15)))
-		_rows.add_child(_row("RADIUS", _orbits.fact("radius")))
+		for k in [["RADIUS", "radius"], ["MASS", "mass"], ["TEMP", "temp"], ["LUMINOSITY", "lum"]]:
+			_rows.add_child(_row(k[0], _orbits.fact(k[1])))
 		if _orbits.twin:
 			_rows.add_child(_row(MapGen.BINARY, ChartOrbits.second_sun(), ChartOrbits.SUN_B))
 	_rows.add_child(_danger_row(t.danger))
@@ -950,7 +951,7 @@ func _paint_star(t: MapGen.MapNode) -> void:
 		sv.position = at.round()
 		_star_pic.add_child(sv)
 		sv.call("setup", kind, t.index, r, s == SystemLayout.STAR_B)
-		sv.call("set_fade", r + 7.0, Vector2(44, 30))
+		sv.call("set_fade", r + 7.0, Vector2(44, 24))
 
 
 ## The list with nothing picked, the star's box with one picked; never both.

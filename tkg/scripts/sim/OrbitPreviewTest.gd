@@ -4,6 +4,7 @@ extends Node
 ##   godot --headless --path . -- sheet=OrbitPreviewTest [seeds=4]
 ## Why: docs/why/OrbitPreviewTest.md#orbit-preview-test
 
+const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 var h := Harness.new()
 var _tree: SceneTree
 
@@ -52,6 +53,7 @@ func _run() -> void:
 		_sweep(7100 + s * 211, kinds)
 	h._ok("every kind was compared (%s)" % [kinds], kinds.has("twin") and kinds.has("red")
 		and kinds.has("blue") and kinds.has("pulsar") and kinds.has("station") and kinds.has("job"))
+	_star_numbers()
 	_fog()
 	await _panel()
 	Rng.forced = 0
@@ -188,3 +190,48 @@ func _panel() -> void:
 	h._ok("cleared: the list again, no picture", sc._neigh_scroll.visible and not sc._star_box.visible
 		and not sc._star_pic.visible)
 	print("  (stood at %d)" % here.index)
+
+
+## Each sun's numbers (Jon, Nov 23): inside its kind's range, and the same after a fresh start.
+const RANGES := {
+	"ORDINARY": {mass = [0.8, 1.2], temp = [5300.0, 6000.0], radius = [0.8, 1.2]},
+	"RED": {mass = [15.0, 30.0], temp = [3400.0, 3800.0], radius = [700.0, 1500.0]},
+	"BLUE": {mass = [30.0, 60.0], temp = [20000.0, 30000.0], radius = [25.0, 70.0]},
+	"PULSAR": {mass = [1.3, 1.6], temp = [500000.0, 700000.0], radius = [10.0, 13.0]},
+}
+
+
+func _star_numbers() -> void:
+	_start(7311)
+	var first: Dictionary[int, String] = {}
+	var out := 0
+	var seen := {}
+	var odd := ""
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		var k: String = SystemViewS.KIND_NAMES[SystemLayout.star_kind(n)]
+		if not RANGES.has(k):
+			continue
+		var f := StarNumbers.of(k, n.index)
+		first[n.index] = str(f)
+		seen[k] = true
+		for key: String in ["mass", "temp", "radius"]:
+			var x := String(f[key]).split(" ")[0].replace(",", "").to_float()
+			var lo: float = RANGES[k][key][0]
+			var hi: float = RANGES[k][key][1]
+			# (two significant figures may round a hair past an edge)
+			if x < lo * 0.95 or x > hi * 1.05:
+				out += 1
+				odd = "%s %s %s" % [k, key, f[key]]
+		if String(f.lum) == "" or String(f.lum).begins_with("0 "):
+			out += 1
+	Rng.world.randf()
+	_start(7311)
+	var moved := 0
+	for i in first:
+		var k: String = SystemViewS.KIND_NAMES[SystemLayout.star_kind(Run.map[i])]
+		if str(StarNumbers.of(k, i)) != first[i]:
+			moved += 1
+	h._ok("every sun's mass, temperature and size inside its kind's range (%d out%s; kinds %s)"
+		% [out, "" if odd == "" else ", " + odd, seen.keys()], out == 0 and seen.size() == 4)
+	h._ok("and the same numbers after a fresh start (%d of %d moved)" % [moved, first.size()], moved == 0)

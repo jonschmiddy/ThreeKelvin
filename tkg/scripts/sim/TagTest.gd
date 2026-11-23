@@ -389,11 +389,12 @@ func _chart() -> void:
 	_ok("the name sits inside the plate", ch._jump.get_global_rect().encloses(ch._jump_to.get_global_rect()))
 	_ok("the blurb is gone with a star picked", not ch._dest_blurb.visible)
 	var hz := MapGen.hazards(go).size()
-	# and, in sensor range, the star's own rows over them (Jon, Nov 22): STAR, RADIUS, a pair's
+	# and, in sensor range, the star's own rows over them (Jon, Nov 22-23): STAR, RADIUS, MASS, TEMP,
+	# LUMINOSITY, a pair's
 	# BINARY, and a pulsar's beam line under its WARNING
 	var star_rows := 0
 	if StarchartScreen.orbits_shown(go, here):
-		star_rows = 2 + (1 if ch._orbits.twin else 0) + (1 if go.type == MapGen.NodeType.PULSAR else 0)
+		star_rows = 5 + (1 if ch._orbits.twin else 0) + (1 if go.type == MapGen.NodeType.PULSAR else 0)
 	_ok("the panel keeps danger, fuel and warnings: %d rows for %d hazards and %d star rows" % [
 		ch._rows.get_child_count(), hz, star_rows], ch._rows.get_child_count() == 2 + hz + star_rows)
 	var tip := ch._chart.tip_lines(go, here)

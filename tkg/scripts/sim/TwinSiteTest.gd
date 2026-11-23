@@ -2283,7 +2283,8 @@ static func _pull_hi() -> float:
 
 func _star_facts_page(m: SystemMapScreen) -> void:
 	var L: SystemLayout = m.view.layout
-	var one: Dictionary = SystemViewS.STAR_FACTS["ORDINARY"]
+	# (a one sun's words with this system's own numbers, Jon, Nov 23: `StarNumbers.of`)
+	var one: Dictionary = SystemViewS.star_facts_of(null, "ORDINARY", -1, m.view.node.index)
 	var fa := _page_facts(m, m.overlay.star_name_of(-1))
 	var fb := _page_facts(m, m.overlay.star_name_of(SystemLayout.STAR_B))
 	h._ok("star A reads as one sun does: %s, %s, %s, MASS %s, RADIUS %s" % [fa.get("kind"), fa.get("CLASS"), fa.get("SURFACE"), fa.get("MASS"), fa.get("RADIUS")],
@@ -2346,7 +2347,8 @@ func _star_facts_all() -> void:
 ## A SYSTEM WITH ONE SUN'S PAGE, as it always read: its kind's own facts.
 func _one_sun_facts(m: SystemMapScreen) -> void:
 	m.panel_back()
-	var sf: Dictionary = SystemViewS.STAR_FACTS[m.view.kind]
+	# (its kind's own words with this system's own numbers, Jon, Nov 23: `StarNumbers.of`)
+	var sf: Dictionary = SystemViewS.star_facts_of(null, m.view.kind, -1, m.view.node.index)
 	var got := _page_facts(m, m.view.star_name())
 	h._ok("one sun (%s): its page reads %s, %s, %s, MASS %s, RADIUS %s, its kind's own" % [m.view.kind, got.get("kind"), got.get("CLASS"), got.get("SURFACE"), got.get("MASS"), got.get("RADIUS")],
 		got.get("kind") == sf.kind and got.get("CLASS") == sf.cls and got.get("SURFACE") == sf.temp and got.get("MASS") == sf.mass and got.get("RADIUS") == sf.radius)

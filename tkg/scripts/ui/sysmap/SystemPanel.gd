@@ -597,7 +597,7 @@ func _star_head() -> void:
 	_name(v.star_name())
 	_class(v.star_class())
 	_blurb(MapGen.place_line(v.node))
-	var sf: Dictionary = SystemViewS.STAR_FACTS[v.kind]
+	var sf: Dictionary = SystemViewS.star_facts_of(null, v.kind, -1, v.node.index)
 	_row("CLASS", sf.cls)
 	_row("SURFACE", sf.temp)
 	_row("MASS", sf.mass)
@@ -640,7 +640,7 @@ func _twin_head() -> void:
 		_gap(2)
 		_wrap(screen.overlay.star_name_of(s), UITheme.ICE, UITheme.FS_SMALL)
 		_class(screen.overlay.star_class_of(s))
-		var sf: Dictionary = SystemViewS.star_facts_of(L, SystemViewS.KIND_NAMES[L.star_kind_of(s)], s)
+		var sf: Dictionary = SystemViewS.star_facts_of(L, SystemViewS.KIND_NAMES[L.star_kind_of(s)], s, v.node.index)
 		_row("CLASS", sf.cls)
 		_row("SURFACE", sf.temp)
 		_row("MASS", sf.mass)
@@ -783,7 +783,7 @@ func _place_head(i: int) -> void:
 			if key == "GRAVITY" and b.gm_frac > 0.0:
 				_row("MASS", mass_line(b.gm_frac, L.twin))
 	else:
-		var sf: Dictionary = SystemViewS.STAR_FACTS[v.kind]
+		var sf: Dictionary = SystemViewS.star_facts_of(null, v.kind, -1, v.node.index)
 		_row("CLASS", sf.cls)
 		_row("SURFACE", sf.temp)
 		_row("MASS", sf.mass)
