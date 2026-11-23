@@ -220,6 +220,10 @@ const V_SLOW := 2.0 * V_CUSP
 ## Why: docs/why/FlightSolve.md#arrival-draw-limit
 const DRAW_TILT := 0.38
 const DRAW_K := 0.6
+## Alongside, the last px and a half left (zoom 1, tilted) is not read for a turn: the
+## ship falls in with the place's own crawl there. FlightTest's corner skips it too.
+## Why: docs/why/FlightSolve.md#arrival-cusps
+const ALONGSIDE_FALL := 1.5
 ## Version of `choice` this file writes, so a preview planned under the old meaning is not rebuilt.
 const CHOICE_V := 3
 ## THE FAST TRANSFERS (Jon, Nov 4-5): every flight solved on its own clock, tau = pace x map time,
@@ -728,6 +732,9 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 		bad.usec = Time.get_ticks_usec() - t_us
 		return bad
 	_set = true
+	# (a fresh search starts as `_setup` left it, eased only by its own last look)
+	# Why: docs/why/FlightSolve.md#fallback-kept-by-arrival
+	var ease0 := _ease
 	# (a choice found eased, `_fresh`'s last look: rebuilt and warmed eased)
 	_ease_forced = false
 	if _dk == 0 and _kp > 1.0 and bool(prefer.get("ez", false)) and int(prefer.get("v", 0)) == CHOICE_V:
@@ -744,6 +751,8 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 			_b_J = INF
 			_b = {}
 			_budget = _n_integ + BUDGET
+			_ease = ease0
+			_ease_forced = false
 			_fresh()
 			if _b_J < INF:
 				var rf := _build_fresh()
@@ -773,13 +782,41 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 				_b = {}
 				# (a budget of its own, so it finds what a fresh search would)
 				_budget = _n_integ + BUDGET
+				_ease = ease0
+				_ease_forced = false
 				# Fresh plans include the fallback: a kept 359 stood where 206 was found.
 				# Why: docs/why/FlightSolve.md#warm-start
 				_fresh()
 				var keep := _b_J == INF
 				var rf: Result = null
 				if not keep and fell:
-					keep = float(wb.te) <= float(_b.te) + 1e-6
+					# BOTH BUILT, then their arrivals: the search's te is the seed's,
+					# and built a kept flight landed 2.9 ms behind a fresh clean one.
+					# Why: docs/why/FlightSolve.md#fallback-kept-by-arrival
+					var fj0 := _b_J
+					var fb0 := _b.duplicate()
+					var fcap := _tcap
+					var ftw0 := _tw
+					var fback := _back
+					var fease := _ease
+					var fezf := _ease_forced
+					_b_J = wj
+					_b = wb.duplicate()
+					_tcap = wcap
+					_tw = wtw
+					_back = wback
+					_ease = wease
+					_ease_forced = wezf
+					var rw := _build(&"warm")
+					_b_J = fj0
+					_b = fb0
+					_tcap = fcap
+					_tw = ftw0
+					_back = fback
+					_ease = fease
+					_ease_forced = fezf
+					rf = _build_fresh()
+					keep = rw.found and not (rf.found and float(rf.end.t) < float(rw.end.t) - 1e-6)
 				elif not keep:
 					rf = _build_fresh()
 					# Both priced at one weight, as at TIME_W_BACK a second costs 32 times less.
@@ -1314,7 +1351,7 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 			ez = ce[1] + Az + Bz
 		var left := Vector2(ex - px, DRAW_TILT * (ez - pz)).length()
 		lefts.append(left)
-		if _tk != 1 or left > 1.5:
+		if _tk != 1 or left > ALONGSIDE_FALL:
 			_acc_at(px, pz, tq)
 			var ax := _ax + (2.0 * Ax + 6.0 * Bx * tau) / (d * d)
 			var az := _az + (2.0 * Az + 6.0 * Bz * tau) / (d * d)
@@ -1338,7 +1375,7 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 		if gw < 1e-12:
 			continue
 		var uw := -wa.dot(wg) / gw
-		if uw <= 0.0 or uw >= 1.0 or (_tk == 1 and lerpf(lefts[j], lefts[j + 1], uw) <= 1.5):
+		if uw <= 0.0 or uw >= 1.0 or (_tk == 1 and lerpf(lefts[j], lefts[j + 1], uw) <= ALONGSIDE_FALL):
 			continue
 		var tw := (float(j) + uw) / 16.0
 		var tqw := te - d + tw * d
@@ -1356,7 +1393,7 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 	# Not read in the last px and a half alongside: the ship falls in with the place's own crawl.
 	# Why: docs/why/FlightSolve.md#arrival-cusps
 	for j in 16:
-		if _tk == 1 and lefts[j] <= 1.5:
+		if _tk == 1 and lefts[j] <= ALONGSIDE_FALL:
 			continue
 		var gx := vs[j + 1].x - vs[j].x
 		var gz := vs[j + 1].y - vs[j].y
@@ -1365,7 +1402,7 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 			continue
 		var u := -(vs[j].x * gx + vs[j].y * gz) / gg
 		if u > 0.0 and u < 1.0:
-			if _tk == 1 and lerpf(lefts[j], lefts[j + 1], u) <= 1.5:
+			if _tk == 1 and lerpf(lefts[j], lefts[j + 1], u) <= ALONGSIDE_FALL:
 				continue
 			var su := Vector2(vs[j].x + gx * u, vs[j].y + gz * u).length()
 			if su < vmin:
@@ -3481,18 +3518,26 @@ func _build_in(kind: StringName) -> Result:
 	var n0 := maxi(2, ceili((float(b.te) - td) / SAMPLE - 1e-6))
 	var n := n0
 	var ar := PackedFloat64Array()
-	for nn: int in [n0, n0 - 1]:
+	# The grid's arrival is a burn of its own, so it is held to the search's draw
+	# limit too; two samples later are looked at only when both nearer turn too tight.
+	# Why: docs/why/FlightSolve.md#arrival-on-the-grid
+	var ar_ok := false
+	for nn: int in [n0, n0 - 1, n0 + 1, n0 + 2]:
 		if nn < 2 or td + float(nn) * SAMPLE > _cT[_cn - 1]:
 			continue
+		if nn > n0 and ar_ok:
+			break
 		var tq := td + float(nn) * SAMPLE
 		var sq := _coast_at(tq)
 		var aq := _arrival(tq, sq[0], sq[1], sq[2], sq[3], s, float(b.pk))
 		if aq.is_empty() or tq - aq[2] < _tc0:
 			continue
-		if ar.is_empty() or (aq[7] > 0.5 and ar[7] < 0.5):
+		var ok := not _arrival_cusps(tq, aq)
+		if ar.is_empty() or (ok and not ar_ok) or (ok == ar_ok and aq[7] > 0.5 and ar[7] < 0.5):
 			ar = aq
 			n = nn
-		if ar[7] > 0.5 or _tk == 1:
+			ar_ok = ok
+		if ar_ok and (ar[7] > 0.5 or _tk == 1):
 			break
 	if ar.is_empty():
 		return res

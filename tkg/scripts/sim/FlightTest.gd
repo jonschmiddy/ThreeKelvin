@@ -210,7 +210,7 @@ func _stat(sweep0: String) -> Dictionary:
 			"flown": 0, "landed": 0, "ms": [], "T": [], "work": [], "lead": [], "clicks": 0, "drawn": 0,
 			"drawn_px": [], "corners1": 0, "corners2": 0, "turn1": [], "turn2": [], "snaps": 0, "frame_dv": 0.0,
 			"frame_ratio": 0.0, "star": INF, "keep": INF, "world": INF, "speed": 0.0, "not_found": [], "not_landed": [],
-			"cornered": [], "snapped": [], "off_drawn": [], "nose": 0.0, "by_start": {}, "systems": 0, "redrawn": 0, "ring_corners": 0, "game_corners1": 0, "game_corners2": 0, "unflyable": 0, "end_off": 0.0, "belt_ends": 0,
+			"cornered": [], "snapped": [], "off_drawn": [], "nose": 0.0, "by_start": {}, "systems": 0, "redrawn": 0, "ring_corners": 0, "fall_corners": 0, "game_corners1": 0, "game_corners2": 0, "unflyable": 0, "end_off": 0.0, "belt_ends": 0,
 			"chained": 0, "chain_T": [], "chain_ms": [], "chain_cut": [], "chain_list": [], "chain_far": 0.0, "far": 0.0, "put": [],
 			"click_game": [], "click_place": [], "click_two": [], "in_clean": 0, "in_worst": INF}
 	return _sw[sweep]
@@ -710,15 +710,19 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 	var from_r: int = b if key == "orbit" or key == "close" else -99
 	for zz: float in [1.0, 2.0]:
 		var skip := _ring_skip(fl, L, pl, path3, i, from_r, zz)
+		var fall := _fall_skip(pl, path3, skip)
 		_corner_only = false
 		var tv := _turn_max(path3, zz, skip)
 		_corner_only = true
-		var cv := _turn_max(path3, zz, skip)
-		var cr := _turn_max(path3, zz) if skip.count(1) > 0 else cv
+		var cv_ring := _turn_max(path3, zz, skip)
+		var cv := _turn_max(path3, zz, fall) if fall != skip else cv_ring
+		var cr := _turn_max(path3, zz) if skip.count(1) > 0 else cv_ring
 		_corner_only = false
 		(S["turn%d" % int(zz)] as Array).append(tv)
-		if cr > CORNER and cv <= CORNER and pl.res != null:
+		if cr > CORNER and cv_ring <= CORNER and pl.res != null:
 			S.ring_corners = int(S.ring_corners) + 1
+		if cv_ring > CORNER and cv <= CORNER and pl.res != null:
+			S.fall_corners = int(S.fall_corners) + 1
 		if cv > CORNER and pl.res != null:
 			S["corners%d" % int(zz)] = int(S["corners%d" % int(zz)]) + 1
 			var game: bool = key != "free" and key != "near"
@@ -2074,7 +2078,7 @@ func _report(cap: Dictionary) -> void:
 				"n == 0 or under >= n / 2 + 1", {"n": ce.size(), "under": under, "LIMIT": le})
 		print("  closest to a star's surface %.1f px; least margin to a keep-out %.2f px; closest to a world's disc %.1f px; top speed %.0f px/s" % [S.star, S.keep, S.world, S.speed])
 		print("  sharpest turn of the drawn path, deg per px: zoom 1 %s; zoom 2 %s" % [_dist(S.turn1), _dist(S.turn2)])
-		print("  corners (over %.0f deg/px in 2 px) in solved flights: zoom 1 %d, zoom 2 %d (from the game's starts %d, %d); and %d on a ring's own curve only (a ring drawn so small its ends turn that fast)" % [CORNER, S.corners1, S.corners2, S.game_corners1, S.game_corners2, S.ring_corners])
+		print("  corners (over %.0f deg/px in 2 px) in solved flights: zoom 1 %d, zoom 2 %d (from the game's starts %d, %d); and %d on a ring's own curve only (a ring drawn so small its ends turn that fast), %d in an alongside arrival's last %.1f px only (`FlightSolve.ALONGSIDE_FALL`)" % [CORNER, S.corners1, S.corners2, S.game_corners1, S.game_corners2, S.ring_corners, S.fall_corners, FlightSolve.ALONGSIDE_FALL])
 		print("  clicks: %d, %d flew the drawn flight; drawn against flown, px: %s; the drawn flight planned again before the click %d times; planned again AT the click (it left late, `ShipFlight.CLICK_LATE`) %d" % [S.clicks, S.drawn, _dist(S.drawn_px), S.redrawn, int(S.get("click_redrawn", 0))])
 		print("  flown: biggest frame-to-frame change of velocity %.1f px/s, %.1fx its neighbours; snaps %d; the nose's biggest turn in a frame %.1f deg" % [S.frame_dv, S.frame_ratio, S.snaps, S.nose])
 		if int(S.unflyable) > 0:
@@ -2650,6 +2654,20 @@ func _ring_skip(fl, _L: SystemLayout, pl, path3: PackedVector3Array, i: int, fro
 			var c2: Vector3 = fl.center(i, tk if k < ns else float(pl.end.t) + float(k - ns) / 120.0 * ShipFlightS.TAIL_S)
 			if Vector2(q.x - c2.x, q.z - c2.z).length() < r_to * 1.25:
 				out[k] = 1
+	return out
+
+
+## The ring skips, and an alongside arrival's last px and a half as the planner leaves it unread.
+## Why: docs/why/FlightTest.md#alongside-fall
+func _fall_skip(pl, path3: PackedVector3Array, skip: PackedByteArray) -> PackedByteArray:
+	if pl.res == null or int(pl.choice.get("tk", -1)) != 1 or pl.samp.is_empty():
+		return skip
+	var out := skip.duplicate()
+	var e: Vector3 = pl.samp[pl.samp.size() - 1]
+	for k in pl.samp.size():
+		var q: Vector3 = path3[k]
+		if Vector2(e.x - q.x, FlightSolve.DRAW_TILT * (e.z - q.z)).length() <= FlightSolve.ALONGSIDE_FALL:
+			out[k] = 1
 	return out
 
 

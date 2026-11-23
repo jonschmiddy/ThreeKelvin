@@ -608,3 +608,20 @@ So the start is turned on round the centre, 0.17 rad at a time, until no
 world's ring (soi x 1.05) comes over the orbit in CLICK_S + PREVIEW_AHEAD +
 0.5 s.
 ```
+
+## Alongside fall
+
+Above `func _fall_skip(`:
+
+```text
+AN ALONGSIDE ARRIVAL'S LAST PX AND A HALF is not read for a corner (Nov 22,
+the coordinator's yes on Jon's behalf). The planner does not read it either
+(`FlightSolve.ALONGSIDE_FALL`, docs/why/FlightSolve.md#arrival-cusps): there
+the ship slows to the place's own crawl and falls in with it, and the path
+turns inside a pixel. Seed 2468 system 183 (giant, CURVED, orbit 2 to world
+5's station) drew 23.9 deg a px 0.99 px from its end. Only a solved flight
+whose choice arrives alongside (`tk` 1) has it skipped, measured as the
+planner measures it (zoom 1, the plane tilted by DRAW_TILT); ring curves keep
+their own skip and every other arrival is read on every pixel. The count is
+printed beside the rings' ("in an alongside arrival's last 1.5 px only").
+```

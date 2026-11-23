@@ -36,6 +36,18 @@ const TWO_PINS := [
 	["seed 31337 node 28 ", "ring 1", "keep 5", 10],
 ]
 
+## Cases planned again always, past the every-seventh the replans read: on main
+## (d3577aa8) each kept a fallback flight warm where a fresh plan arrived sooner.
+## Why: docs/why/SolveTest.md#fallback-pins
+const FALLBACK_PINS := [
+	"seed 7 node 20 (wide pair, 6 bodies, sep 360, lap 341 s): ring 2 to keep 3, line-up 3",
+	"seed 7 node 20 (wide pair, 6 bodies, sep 360, lap 341 s) (curved): ring 1 to keep 4, line-up 4",
+	"seed 7 node 20 (wide pair, 6 bodies, sep 360, lap 341 s) (curved): ring 0 to keep 4, line-up 3",
+	"seed 7 node 20 (wide pair, 6 bodies, sep 360, lap 341 s) (curved): orbitS -4 to keep 5, line-up 3",
+	"seed 31337 node 216 (7 bodies, share 0.539, sep 354, giant 0.21) (curved): ring 1 to keep 6, line-up 4",
+	"seed 7 node 28 (6 bodies, share 0.544, sep 358, giant 0.12) (curved): ring 1 to keep 3, line-up 4",
+]
+
 const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 ## CURVED's median bend against DIRECT's, at the least (both run)
 const BEND_MARGIN := 2.0
@@ -988,9 +1000,15 @@ func _replans() -> void:
 	var bad := 0
 	var fell := 0
 	var held := 0
-	for i in range(0, _cases.size(), 7):
-		var r: FlightSolve.Result = _res[i]
+	var pinned := 0
+	for i in _cases.size():
 		var c: Dictionary = _cases[i]
+		var pin: bool = String(c.label) in FALLBACK_PINS
+		if i % 7 != 0 and not pin:
+			continue
+		var r: FlightSolve.Result = _res[i]
+		if pin:
+			pinned += 1
 		if r == null or not r.found or StringName(c.dep.kind) != &"ring":
 			continue
 		var d2: Dictionary = c.dep.duplicate()
@@ -1024,7 +1042,7 @@ func _replans() -> void:
 	print("replans: %d previews planned again 3 s on with their old choice: %s; kept warm, cost minus a fresh search's at TIME_W %s; the fallback's flights kept warm or rebuilt %d" % [n, kinds, _dist(over), fell])
 	h.total("replans: found again", "planned again 3 s on, found wherever a fresh search finds one (%d of %d)" % [ok, fresh_found], "ok >= fresh_found - maxi(1, fresh_found / 100)", {"ok": ok, "fresh_found": fresh_found})
 	h._ok("and no flight of C's own kept past the warm slack of both a fresh search and its own old cost, at TIME_W (%d)" % bad, bad == 0)
-	h._ok("and no flight the fallback found kept where a fresh plan arrives sooner (%d of the %d kept)" % [held, fell], held == 0)
+	h._ok("and no flight the fallback found kept where a fresh plan arrives sooner (%d of the %d kept; %d pinned cases read, `FALLBACK_PINS`)" % [held, fell, pinned], held == 0)
 	# Two-leg flights planned again as the overlay plans them, each from the last choice.
 	var twos := 0
 	var two_kept := 0

@@ -645,6 +645,39 @@ ring is only 4 px out and ring - 8 is inside the keep-out (for every twin
 star of 1,710: none of 96 flights there was found, the planner review, Oct 30).
 ```
 
+## Arrival on the grid
+
+Inside `_build()`, above `var ar_ok := false` (Nov 22):
+
+```text
+THE BUILT ARRIVAL IS HELD TO THE DRAW LIMIT. The search prices an arrival
+burn at its exact te and turns down one the map would draw tighter than
+DRAW_K (`_arrival_cusps`). The build moves the arrival onto the sample grid
+(the next sample, else the one before) and works the burn out again there,
+and that burn was never checked: the cubic burn's length jumps near the
+least pull (`FlightMath.cubic_burn`), so a sample's step can swap a long
+burn for a short hard one. Seed 4242 system 172's close pair on the tier 0
+world of Nov 22 (CURVED, orbit 3 to world 2) drew 1.80 rad a px (103 deg)
+0.68 s into a 0.75 s flight, FlightTest's corner at 32 deg a px. Each grid
+arrival is checked now, the nearer two first, two samples later only when
+both of those turn too tight.
+```
+
+## Fallback kept by arrival
+
+Inside `_solve()`, the warm path's fallback branch (Nov 22):
+
+```text
+A KEPT FALLBACK FLIGHT AGAINST A FRESH ONE, BOTH BUILT. The branch kept the
+warm flight while its search te was no later than the fresh search's best
+te, a seed's figure before either was built. Built, they can land the other
+way: seed 7 node 130's close pair (Interacting Pair since tier 0 dropped the
+irregulars; ring 2 to keep 6, line-up 7, planned again 3 s on) kept a
+fallback flight arriving at 18.0335 s where a fresh clean plan arrived at
+18.0306 s. Both are built now and the earlier arrival wins; the winner is
+built last, so the solver's coast is its own (`FlightChain._leg_two`).
+```
+
 ## Fallback flight rebuild
 
 Inside `_solve()`, above `_b_J = INF`:
