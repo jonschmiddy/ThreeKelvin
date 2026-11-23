@@ -120,6 +120,7 @@ const HAND_CLOSE := 5
 const PINS := [
 	["corner", 2468, 183, 2, 5],
 	["core", 9300],
+	["hand", 777, 131],
 ]
 ## `hand=0`: no flying by hand (`_hand_phase`)
 var _hand := true
@@ -1603,7 +1604,7 @@ static func _near_line(p: Vector2, line: PackedVector3Array, j0: int) -> Array:
 func _hand_phase() -> void:
 	var seen := {}
 	var dt := 1.0 / 60.0
-	var n := {"far": 0, "far_ok": 0, "far_flights": 0, "far_fl_ok": 0, "mid": 0, "mid_ok": 0, "sun": 0, "sun_ok": 0}
+	var n := {"far": 0, "far_ok": 0, "far_ring": 0, "far_flights": 0, "far_fl_ok": 0, "mid": 0, "mid_ok": 0, "sun": 0, "sun_ok": 0}
 	var rows: Array = []
 	var worst_out := -INF
 	var worst_settle := 0.0
@@ -1633,6 +1634,9 @@ func _hand_phase() -> void:
 		fl.setup(L, Vector2(-L.edge * 0.95, 0.0), t0)
 		fl.mode = &"free"
 		fl.f.p = away * L.edge * 0.99
+		# A let-go point already inside a world's ring is the ring's: being taken there is right.
+		# Why: docs/why/FlightTest.md#let-go-on-a-ring
+		var on_ring := _ring_at(fl, L, fl.f.p, t0)
 		fl.f.v = perp * 8.0
 		fl.f.orbit_r = -1.0
 		fl.f.coast = 0.0
@@ -1657,6 +1661,10 @@ func _hand_phase() -> void:
 		worst_out = maxf(worst_out, out)
 		worst_settle = maxf(worst_settle, settled_at if settled_at >= 0.0 else 99.0)
 		var far_ok: bool = settled_at >= 0.0 and settled_at < 30.0 and out <= -11.0 and pinned == 0 and taken_far == ""
+		if on_ring >= 0:
+			n.far_ring = int(n.far_ring) + 1
+			far_ok = true
+			print("  far side, system %d: let go on world %d's ring, taken there (%s)" % [int(row[6]), on_ring, taken_far])
 		if far_ok:
 			n.far_ok = int(n.far_ok) + 1
 		else:
@@ -1732,7 +1740,7 @@ func _hand_phase() -> void:
 				n.sun_ok = int(n.sun_ok) + 1
 			else:
 				rows.append("W at star %d, system %d: came to %.1f px from its centre, its keep-out %.1f (drawn sun %.1f)" % [s, int(row[6]), rmin, kc, kc - 6.0])
-	print("flighttest: flying by hand in a twin (%d systems, %d of them close pairs): let go on the far side, %d of %d settled inside the map and off its edge and taken by no ring (its circle at worst %+.0f px past the edge, settled at worst in %.1f s), %d of %d flights from there inside it; let go between the stars, %d of %d settled and taken by no ring; W at a sun, %d of %d held out of its keep-out (at worst %.1f px outside the drawn sun)" % [seen.size(), int(by_kind.get("close", 0)), n.far_ok, n.far, worst_out, worst_settle, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun, worst_sun])
+	print("flighttest: flying by hand in a twin (%d systems, %d of them close pairs): let go on the far side, %d of %d settled inside the map and off its edge and taken by no ring, or let go on one (%d) (its circle at worst %+.0f px past the edge, settled at worst in %.1f s), %d of %d flights from there inside it; let go between the stars, %d of %d settled and taken by no ring; W at a sun, %d of %d held out of its keep-out (at worst %.1f px outside the drawn sun)" % [seen.size(), int(by_kind.get("close", 0)), n.far_ok, n.far, n.far_ring, worst_out, worst_settle, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun, worst_sun])
 	for r in rows.slice(0, 20):
 		print("    " + r)
 	h._ok("by hand in a twin: let go anywhere it settles inside the map, between the stars too, and W never takes it into a sun (%d/%d, %d/%d, %d/%d, %d/%d)" % [n.far_ok, n.far, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun],
@@ -2738,6 +2746,17 @@ func _ring_skip(fl, _L: SystemLayout, pl, path3: PackedVector3Array, i: int, fro
 			if Vector2(q.x - c2.x, q.z - c2.z).length() < r_to * 1.25:
 				out[k] = 1
 	return out
+
+
+## The world whose ring holds p at t, or -1.
+func _ring_at(fl, L: SystemLayout, p: Vector2, t: float) -> int:
+	for b in L.bodies:
+		if b.world == &"" or b.soi <= 0.0:
+			continue
+		var c: Vector3 = fl.center(b.index, t)
+		if Vector2(c.x, c.z).distance_to(p) < b.soi:
+			return b.index
+	return -1
 
 
 ## The ring skips, and an alongside arrival's last px and a half as the planner leaves it unread.
