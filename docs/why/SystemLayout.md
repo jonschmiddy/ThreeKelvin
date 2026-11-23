@@ -550,3 +550,18 @@ The 45 sites assigned on Nov 9, for Jon to check, are listed in
 docs/tests.md's `subjecttest` row's neighbour, `tk-scratch/ui-build/part9/sites.md`,
 and the `-- subjecttest` check `_every_place` holds every option to its site.
 ```
+
+## Rings inside the edge
+
+Above `static func _ring_far(`:
+
+```text
+THE EDGE HOLDS EVERY WORLD'S RING (Nov 22, Jon's A through the coordinator).
+The edge was each body's disc plus 30 px; a world's ring (`soi_of`, 40 to
+100 px) was not counted, so a ring could reach past the edge. In seed 777
+system 131's twin, world 3's ring lay on the far side's let-go point at 0.99
+of the edge, and a ship let go there was taken by it at once (FlightTest's
+hand phase). Every edge, one sun or two, jobs and the Hellbender after it,
+is now at least the farthest ring plus 30. Only the edge moves: no body is
+placed by it, and one sun's opening zoom follows the edge as before.
+```
