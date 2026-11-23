@@ -520,8 +520,9 @@ the same solved result). The old rule flew another in 86 of 108 clicks; the wind
 The line's move is bounded, not held at nought, since a 3 s window still passes inside a 6 s
 ride. Measured at 3 s on seed 4242, 108 flights: median 62.11 px, 90th 168. MOVE_MED is 80 px:
 the measured median and about 30% for another seed's draw or a solver change. Re-measured
-Nov 22 on seed 777, which took 4242's place when tier 0 dropped the Flocculent Spiral (Jon)
-and 4242's world moved: 136 flights, median 69.03 px, 90th 204.59; still under 80. That is well under
+Nov 23 on seed 9300, which took 4242's place when tier 0 dropped the Flocculent Spiral (Jon)
+and 4242's world moved: 116 flights, median 47.84 px, 90th 160.35; still under 80. (4242's
+new world and 777 each draw a fault parked in tk-scratch/flight-fixes/PARKED.md.) That is well under
 the old rule's 134.08 px, which fails it (this harness run on main with the old overlay rule in
 place of the two calls). It is not the Nov 5 bar of 16 px. That bar needs a window longer than
 the 6 s ride (6.5 s measured 0.00 px), with a median 3.8 s wait, which Jon turned down.
@@ -578,9 +579,9 @@ seeds, twelve systems a sweep, four shards): two free starts leave a twin's
 residual, seed 4242 system 129 (EPSILON KESTREL IX) to one place and seed
 1999 system 217 (DELTA WICK REACH) to two on the curved path, the best burn
 from each keeping clear for 30 s, so again the arrivals miss; the close pairs
-leave none past the starts no burn can leave. Nov 22: seed 777 took 4242's place
-(tier 0 dropped the Flocculent Spiral, so 4242's world moved) and leaves no residual,
-so 4242 system 129 is off the list; 1999 system 217 stays.
+leave none past the starts no burn can leave. Nov 23: seed 9300 took 4242's place
+(tier 0 dropped the Flocculent Spiral, so 4242's world moved) and leaves none past the
+starts no burn can leave, so 4242 system 129 is off the list; 1999 system 217 stays.
 ```
 
 Until Nov 10 the list was seed 1999 system 177 and seed 7 system 209 (free), seed
