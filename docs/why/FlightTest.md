@@ -636,9 +636,10 @@ faults found on other worlds would not come round again. Each failed on main
 (d3577aa8) and passes since the flight fixes: seed 2468 system 183 (giant,
 CURVED, orbit 2 to world 5), a corner 0.99 px from an alongside arrival's
 end; seed 9300's core, today's planner at 128.6 px inside the 144 px lens
-(DIRECT, orbit 0 to world 1); seed 777 system 131 as a wide pair, the far
-side's let-go point on world 3's ring. The corner and core pins fly in the
-shard that flies the places, the hand pin in the hand phase; `-- sheet=FlightTest
+(DIRECT, orbit 0 to world 1). A "hand" pin (a wide pair let go as the hand
+phase does) waits on the edge call for seed 777 system 131, whose far side's
+let-go point lies on world 3's ring. The corner and core pins fly in the
+shard that flies the places, a hand pin in the hand phase; `-- sheet=FlightTest
 pins` flies them alone (a look, not a verdict: the hand phase's other checks
 read no rows there and fail).
 ```

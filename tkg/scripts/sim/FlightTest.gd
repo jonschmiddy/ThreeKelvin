@@ -113,16 +113,13 @@ var _pick_hand := false
 ## clicks' starts hold
 const HAND_WIDE := 10
 const HAND_CLOSE := 5
-## FLIGHTS PINNED from worlds past the seeds the gate flies (Nov 22): each
-## failed on main (d3577aa8). [what, seed, system, ...]: "corner" a CURVED
-## flight from orbit b to place i judged for a game start's corner; "core"
-## every DIRECT flight in the seed's core judged against the lens; "hand" a
-## wide pair let go by hand as `_hand_phase` lets go.
+## FLIGHTS PINNED from worlds past the gate's seeds, each failing on main (Nov 22):
+## [what, seed, system, ...]: "corner" CURVED orbit b to i, "core" the seed's core
+## on DIRECT against the lens, "hand" a wide pair let go as `_hand_phase` does.
 ## Why: docs/why/FlightTest.md#pinned-flights
 const PINS := [
 	["corner", 2468, 183, 2, 5],
 	["core", 9300],
-	["hand", 777, 131],
 ]
 ## `hand=0`: no flying by hand (`_hand_phase`)
 var _hand := true

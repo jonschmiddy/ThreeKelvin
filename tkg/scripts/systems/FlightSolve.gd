@@ -220,8 +220,7 @@ const V_SLOW := 2.0 * V_CUSP
 ## Why: docs/why/FlightSolve.md#arrival-draw-limit
 const DRAW_TILT := 0.38
 const DRAW_K := 0.6
-## Alongside, the last px and a half left (zoom 1, tilted) is not read for a turn: the
-## ship falls in with the place's own crawl there. FlightTest's corner skips it too.
+## Alongside, the last px and a half (zoom 1, tilted) is not read for a turn; FlightTest too.
 ## Why: docs/why/FlightSolve.md#arrival-cusps
 const ALONGSIDE_FALL := 1.5
 ## Version of `choice` this file writes, so a preview planned under the old meaning is not rebuilt.
@@ -588,7 +587,7 @@ static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, 
 		pf = {}
 	var r: Result
 	if k == 1.0 and not curved:
-		r = _solve_tau(grav, dep, tgt, t, pf)
+		r = FlightPick.solve_tau(grav, dep, tgt, t, pf)
 	else:
 		var d := dep_tau(dep, k)
 		if curved:
@@ -600,7 +599,7 @@ static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, 
 		var g := tgt_tau(tgt, k)
 		# (at pace 1 -- CURVED at today's speed, or a harness already in tau -- the
 		# system as it is given)
-		r = _solve_tau(grav if k == 1.0 else grav.paced(k), d, g, t * k, pf)
+		r = FlightPick.solve_tau(grav if k == 1.0 else grav.paced(k), d, g, t * k, pf)
 	r.pace = k
 	r.path = path
 	r.tau = true
@@ -616,82 +615,6 @@ static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, 
 ## The shape of a flight from its samples: [bend, turn] (`FlightMath.shape_of`).
 static func shape_of(samp: PackedVector3Array) -> PackedFloat64Array:
 	return FlightMath.shape_of(samp)
-
-
-## (the search on the flight's own clock: dep, tgt and t already in tau)
-static func _solve_tau(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}) -> Result:
-	if grav.star_x0.size() > 1 or prefer.has("chain") or prefer.has("alt"):
-		var held := StringName(dep.get("kind", &"")) != &"free"
-		if prefer.has("chain"):
-			# A held two-leg flight is kept only while a fresh plan finds none arriving sooner.
-			# Why: docs/why/FlightSolve.md#two-leg-replans
-			var t_us := Time.get_ticks_usec()
-			var rc := FlightChain.chain_again(grav, dep, tgt, t, prefer)
-			if rc == null:
-				var ch: Dictionary = prefer.chain
-				rc = _solve_or_chain(grav, dep, tgt, t, {}, ch.get("W", Vector2.INF))
-			elif held:
-				rc = _sooner_of(rc, _solve_or_chain(grav, dep, tgt, t, {}, Vector2.INF))
-			rc.usec = Time.get_ticks_usec() - t_us
-			return rc
-		if prefer.has("alt") and held:
-			# Old legs are tried beside the warm plan, and where they beat it, beside a fresh one.
-			# Why: docs/why/FlightSolve.md#two-leg-replans
-			var t_ua := Time.get_ticks_usec()
-			var c1 := prefer.duplicate()
-			c1.erase("alt")
-			var ra := FlightChain.chain_again(grav, dep, tgt, t, prefer.alt)
-			var r := _solve_or_chain(grav, dep, tgt, t, c1, Vector2.INF)
-			if ra != null:
-				var rk := _sooner_of(ra, r)
-				r = rk if rk != ra else _sooner_of(ra, _solve_or_chain(grav, dep, tgt, t, {}, Vector2.INF))
-			r.usec = Time.get_ticks_usec() - t_ua
-			return r
-	return _solve_or_chain(grav, dep, tgt, t, prefer, Vector2.INF)
-
-
-## Held legs lose to a fresh plan that arrives sooner, or a preview stayed slow in two legs.
-## Why: docs/why/FlightSolve.md#sooner-of-two-plans
-static func _sooner_of(rc: Result, r1: Result) -> Result:
-	var n := rc.integrations + r1.integrations
-	var st := rc.steps + r1.steps
-	var out := rc
-	if r1.found and r1.clean and float(r1.end.t) < float(rc.end.t) - 1e-6:
-		out = r1
-		if r1.legs == 1:
-			out.choice = r1.choice.duplicate()
-			out.choice.alt = rc.choice
-	out.integrations = n
-	out.steps = st
-	return out
-
-
-## The flight of one leg; where none is found, of two (`FlightChain.chain`, a twin's or round one sun;
-## `hint` its first point tried first).
-static func _solve_or_chain(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary, hint: Vector2) -> Result:
-	var fs := FlightSolve.new()
-	var r := fs._solve(grav, dep, tgt, t, prefer)
-	if r.found and fs._kept_alone:
-		# A kept fallback flight is weighed against two legs too, as a fresh plan finds them.
-		# Why: docs/why/FlightSolve.md#fallback-kept-by-arrival
-		var t_k := Time.get_ticks_usec()
-		var rk := FlightChain.chain(grav, dep, tgt, t, hint)
-		if rk != null:
-			var u := r.usec + Time.get_ticks_usec() - t_k
-			r = _sooner_of(r, rk)
-			r.usec = u
-		return r
-	if r.found or not fs._set:
-		return r
-	var t_us := Time.get_ticks_usec()
-	var rc := FlightChain.chain(grav, dep, tgt, t, hint)
-	if rc == null:
-		r.usec += Time.get_ticks_usec() - t_us
-		return r
-	rc.integrations += r.integrations
-	rc.steps += r.steps
-	rc.usec = r.usec + Time.get_ticks_usec() - t_us
-	return rc
 
 
 ## A twin star uses its rail, not ring - 8, which is inside its keep-out (96 flights failed).
@@ -775,89 +698,7 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 		if res == null and _warm(prefer):
 			# A fallback flight is kept only against a fresh search, or it held every replan.
 			# Why: docs/why/FlightSolve.md#warm-start
-			var j_old := float(prefer.get("J", INF))
-			var fell := _leg == 0 and _tcap > _cap0 + 1e-6
-			var rk: Result = null
-			if not fell:
-				rk = _build(&"warm")
-				if rk.found and rk.cost <= j_old + _slack(j_old):
-					res = rk
-			if res == null:
-				var wj := _b_J
-				var wb := _b.duplicate()
-				var wcap := _tcap
-				var wtw := _tw
-				var wback := _back
-				# (and its easing: a fresh search that found nothing else eases,
-				# `_fresh`'s last look, and the kept flight is flown as it was)
-				var wease := _ease
-				var wezf := _ease_forced
-				_b_J = INF
-				_b = {}
-				# (a budget of its own, so it finds what a fresh search would)
-				_budget = _n_integ + BUDGET
-				_ease = ease0
-				_ease_forced = false
-				# Fresh plans include the fallback: a kept 359 stood where 206 was found.
-				# Why: docs/why/FlightSolve.md#warm-start
-				_fresh()
-				var keep := _b_J == INF
-				_kept_alone = keep and fell
-				var rf: Result = null
-				if not keep and fell:
-					# BOTH BUILT, then their arrivals: the search's te is the seed's,
-					# and built a kept flight landed 2.9 ms behind a fresh clean one.
-					# Why: docs/why/FlightSolve.md#fallback-kept-by-arrival
-					var fj0 := _b_J
-					var fb0 := _b.duplicate()
-					var fcap := _tcap
-					var ftw0 := _tw
-					var fback := _back
-					var fease := _ease
-					var fezf := _ease_forced
-					_b_J = wj
-					_b = wb.duplicate()
-					_tcap = wcap
-					_tw = wtw
-					_back = wback
-					_ease = wease
-					_ease_forced = wezf
-					var rw := _build(&"warm")
-					_b_J = fj0
-					_b = fb0
-					_tcap = fcap
-					_tw = ftw0
-					_back = fback
-					_ease = fease
-					_ease_forced = fezf
-					rf = _build_fresh()
-					keep = rw.found and not (rf.found and float(rf.end.t) < float(rw.end.t) - 1e-6)
-				elif not keep:
-					rf = _build_fresh()
-					# Both priced at one weight, as at TIME_W_BACK a second costs 32 times less.
-					var fj := rf.cost
-					var kj := rk.cost
-					var ftw := float(rf.choice.get("tw", wtw))
-					if absf(ftw - wtw) > 1e-9:
-						fj += (TIME_W - ftw) * rf.T
-						kj += (TIME_W - wtw) * rk.T
-					keep = rk.found and (not rf.found or fj + _slack(fj) >= kj)
-				if keep:
-					# (built again, not rk: the fresh search flew over the coast
-					# rk was built on, and a leg's second leaves from it,
-					# `FlightChain._leg_two` reading `_coast_at` of the first's solver)
-					_b_J = wj
-					_b = wb
-					_tcap = wcap
-					_tw = wtw
-					_back = wback
-					_ease = wease
-					_ease_forced = wezf
-					res = _build(&"warm")
-				elif rf != null:
-					res = rf
-				else:
-					res = _build_fresh()
+			res = _warm_kept(prefer, ease0)
 	if res == null:
 		# A warm start that flew nothing gets its own budget so it finds what a fresh plan does.
 		# Why: docs/why/FlightSolve.md#warm-start
@@ -874,6 +715,126 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 	res.us_build = _us_build
 	res.usec = Time.get_ticks_usec() - t_us
 	return res
+
+
+## The arrival on the sample grid, its sample count last, held to the draw limit; or empty.
+## Why: docs/why/FlightSolve.md#arrival-on-the-grid
+func _grid_arrival(td: float, s: float, pk: float, n0: int) -> PackedFloat64Array:
+	var n := n0
+	var ar := PackedFloat64Array()
+	var ar_ok := false
+	for nn: int in [n0, n0 - 1, n0 + 1, n0 + 2]:
+		if nn < 2 or td + float(nn) * SAMPLE > _cT[_cn - 1]:
+			continue
+		if nn > n0 and ar_ok:
+			break
+		var tq := td + float(nn) * SAMPLE
+		var sq := _coast_at(tq)
+		var aq := _arrival(tq, sq[0], sq[1], sq[2], sq[3], s, pk)
+		if aq.is_empty() or tq - aq[2] < _tc0:
+			continue
+		var ok := not _arrival_cusps(tq, aq)
+		if ar.is_empty() or (ok and not ar_ok) or (ok == ar_ok and aq[7] > 0.5 and ar[7] < 0.5):
+			ar = aq
+			n = nn
+			ar_ok = ok
+		if ar_ok and (ar[7] > 0.5 or _tk == 1):
+			break
+	if not ar.is_empty():
+		ar.append(float(n))
+	return ar
+
+
+## One solve here, whether it was set up, whether a fallback was kept alone (`FlightPick`).
+func solve_here(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary) -> Result:
+	return _solve(grav, dep, tgt, t, prefer)
+
+
+func was_set() -> bool:
+	return _set
+
+
+func kept_alone() -> bool:
+	return _kept_alone
+
+
+## The search's best and the tier it was found at, to put back (`_snap`, `_put`).
+class Snap:
+	var j := INF
+	var b := {}
+	var cap := 0.0
+	var tw := 0.0
+	var back := false
+	var ease := false
+	var ezf := false
+
+
+func _snap() -> Snap:
+	var s := Snap.new()
+	s.j = _b_J
+	s.b = _b.duplicate()
+	s.cap = _tcap
+	s.tw = _tw
+	s.back = _back
+	s.ease = _ease
+	s.ezf = _ease_forced
+	return s
+
+
+func _put(s: Snap) -> void:
+	_b_J = s.j
+	_b = s.b.duplicate()
+	_tcap = s.cap
+	_tw = s.tw
+	_back = s.back
+	_ease = s.ease
+	_ease_forced = s.ezf
+
+
+## A warm start's flight against a fresh search's, the one flown built last (`FlightChain`).
+## Why: docs/why/FlightSolve.md#warm-start
+func _warm_kept(prefer: Dictionary, ease0: bool) -> Result:
+	var j_old := float(prefer.get("J", INF))
+	var fell := _leg == 0 and _tcap > _cap0 + 1e-6
+	var rk: Result = null
+	if not fell:
+		rk = _build(&"warm")
+		if rk.found and rk.cost <= j_old + _slack(j_old):
+			return rk
+	var w := _snap()
+	_b_J = INF
+	_b = {}
+	# (a budget of its own, so it finds what a fresh search would, un-eased as one starts)
+	_budget = _n_integ + BUDGET
+	_ease = ease0
+	_ease_forced = false
+	_fresh()
+	var keep := _b_J == INF
+	_kept_alone = keep and fell
+	var rf: Result = null
+	if not keep and fell:
+		# Both built, then their arrivals: the search's te is the seed's.
+		# Why: docs/why/FlightSolve.md#fallback-kept-by-arrival
+		var f := _snap()
+		_put(w)
+		var rw := _build(&"warm")
+		_put(f)
+		rf = _build_fresh()
+		keep = rw.found and not (rf.found and float(rf.end.t) < float(rw.end.t) - 1e-6)
+	elif not keep:
+		rf = _build_fresh()
+		# Both priced at one weight, as at TIME_W_BACK a second costs 32 times less.
+		var fj := rf.cost
+		var kj := rk.cost
+		var ftw := float(rf.choice.get("tw", w.tw))
+		if absf(ftw - w.tw) > 1e-9:
+			fj += (TIME_W - ftw) * rf.T
+			kj += (TIME_W - w.tw) * rk.T
+		keep = rk.found and (not rf.found or fj + _slack(fj) >= kj)
+	if keep:
+		_put(w)
+		return _build(&"warm")
+	return rf if rf != null else _build_fresh()
 
 
 ## A flight's cost j, priced at tw, priced again at TIME_W: its seconds to its
@@ -3531,31 +3492,10 @@ func _build_in(kind: StringName) -> Result:
 	var s := float(b.s)
 	# End on the sample grid: the next sample after the arrival, else the one before.
 	var n0 := maxi(2, ceili((float(b.te) - td) / SAMPLE - 1e-6))
-	var n := n0
-	var ar := PackedFloat64Array()
-	# The grid's arrival is a burn of its own, so it is held to the search's draw
-	# limit too; two samples later are looked at only when both nearer turn too tight.
-	# Why: docs/why/FlightSolve.md#arrival-on-the-grid
-	var ar_ok := false
-	for nn: int in [n0, n0 - 1, n0 + 1, n0 + 2]:
-		if nn < 2 or td + float(nn) * SAMPLE > _cT[_cn - 1]:
-			continue
-		if nn > n0 and ar_ok:
-			break
-		var tq := td + float(nn) * SAMPLE
-		var sq := _coast_at(tq)
-		var aq := _arrival(tq, sq[0], sq[1], sq[2], sq[3], s, float(b.pk))
-		if aq.is_empty() or tq - aq[2] < _tc0:
-			continue
-		var ok := not _arrival_cusps(tq, aq)
-		if ar.is_empty() or (ok and not ar_ok) or (ok == ar_ok and aq[7] > 0.5 and ar[7] < 0.5):
-			ar = aq
-			n = nn
-			ar_ok = ok
-		if ar_ok and (ar[7] > 0.5 or _tk == 1):
-			break
+	var ar := _grid_arrival(td, s, float(b.pk), n0)
 	if ar.is_empty():
 		return res
+	var n := int(ar[ar.size() - 1])
 	var te := td + float(n) * SAMPLE
 	var phi := ar[1]
 	var d2 := ar[2]

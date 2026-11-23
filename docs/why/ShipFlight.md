@@ -977,7 +977,7 @@ direct|curved` the path.
 
 ## Old planner lens
 
-Inside `_clean()`, above `var lens :=` (Nov 22):
+Above `static func lens_of(` in MapGravity, read by `_clean()` (Nov 22):
 
 ```text
 TODAY'S PLANNER KEEPS OUT OF A BLACK HOLE'S LENS. The solver's keep-out
