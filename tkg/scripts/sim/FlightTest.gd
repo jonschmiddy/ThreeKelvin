@@ -113,6 +113,17 @@ var _pick_hand := false
 ## clicks' starts hold
 const HAND_WIDE := 10
 const HAND_CLOSE := 5
+## FLIGHTS PINNED from worlds past the seeds the gate flies (Nov 22): each
+## failed on main (d3577aa8). [what, seed, system, ...]: "corner" a CURVED
+## flight from orbit b to place i judged for a game start's corner; "core"
+## every DIRECT flight in the seed's core judged against the lens; "hand" a
+## wide pair let go by hand as `_hand_phase` lets go.
+## Why: docs/why/FlightTest.md#pinned-flights
+const PINS := [
+	["corner", 2468, 183, 2, 5],
+	["core", 9300],
+	["hand", 777, 131],
+]
 ## `hand=0`: no flying by hand (`_hand_phase`)
 var _hand := true
 ## `phase=hand`: only the hand phase (above); `phase=rest` is `hand=0`
@@ -217,6 +228,15 @@ func _stat(sweep0: String) -> Dictionary:
 
 
 func _run() -> void:
+	_hand_pins = _pin_hand_rows()
+	# `pins`: the pinned flights alone (`PINS`)
+	if "pins" in OS.get_cmdline_user_args():
+		ShipFlightS.flight_opts()
+		_pins_phase()
+		_hand_phase()
+		h.verdict("flighttest")
+		get_tree().quit(h.code())
+		return
 	if _retarget:
 		_run_retarget()
 		return
@@ -253,6 +273,8 @@ func _run() -> void:
 		for pi2 in _paths.size():
 			_set_path(pi2)
 			_places_phase(seeds)
+		if _one_seed < 0:
+			_pins_phase()
 	var t_ph := Time.get_ticks_msec()
 	if not _rows_only and not _hand_only and h.mine(1):
 		await _worker_phase()
@@ -285,6 +307,67 @@ func _set_path(pi: int) -> void:
 	_picks_on = pi == _paths.size() - 1
 	ShipFlightS.n_fallback = 0
 	print("flighttest: the %s path at pace %.1f" % [p, float(ShipFlightS.flight_opts().pace)])
+
+
+var _hand_pins: Array = []
+
+
+## The pinned wide pairs as `_hand_phase`'s rows, laid out before any sweep starts a run.
+func _pin_hand_rows() -> Array:
+	var out: Array = []
+	for pin: Array in PINS:
+		if String(pin[0]) != "hand":
+			continue
+		Rng.forced = int(pin[1])
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		var n: MapGen.MapNode = Run.map[int(pin[2])]
+		OptionTable.ensure(n)
+		var was := n.twin
+		n.twin = true
+		SystemLayout.close_force = -1
+		var L := SystemLayout.of(n)
+		SystemLayout.close_force = 0
+		n.twin = was
+		out.append(["pin", L, "orbit", 0, 0, 40.0 + float(n.index % 17) * 13.0, n.index])
+	Rng.forced = 0
+	return out
+
+
+## The pinned corner and core flights (`PINS`), in the shard that flies the places.
+func _pins_phase() -> void:
+	for pin: Array in PINS:
+		var what := String(pin[0])
+		if what == "hand":
+			continue
+		Rng.forced = int(pin[1])
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		Rng.forced = 0
+		if what == "corner":
+			_set_path(_paths.find(&"curved") if _paths.has(&"curved") else 0)
+			var n: MapGen.MapNode = Run.map[int(pin[2])]
+			OptionTable.ensure(n)
+			n.twin = false
+			var L := SystemLayout.of(n)
+			var sw := "pin %d:%d" % [int(pin[1]), int(pin[2])]
+			var S := _stat(sw)
+			_case(sw, int(pin[1]), n, L, "orbit", int(pin[3]), int(pin[4]), 40.0 + float(n.index % 17) * 13.0)
+			h._ok("pinned: seed %d system %d, CURVED from orbit %d to %d, no corner (zoom 1 %d, zoom 2 %d)" % [int(pin[1]), int(pin[2]), int(pin[3]), int(pin[4]), S.game_corners1, S.game_corners2],
+				int(S.game_corners1) == 0 and int(S.game_corners2) == 0 and int(S.plans) > 0)
+		elif what == "core":
+			_set_path(_paths.find(&"direct") if _paths.has(&"direct") else 0)
+			for raw in Run.map:
+				var n2: MapGen.MapNode = raw
+				if n2.type != MapGen.NodeType.CORE:
+					continue
+				OptionTable.ensure(n2)
+				var Lc := SystemLayout.of(n2)
+				var keep := MapGravity.keep_out_star(Lc, -1)
+				var st := {"plans": 0, "solved": 0, "old": 0, "none": 0, "T": [], "miss": [], "close": INF, "inside": 0}
+				for b in Lc.bodies:
+					_far_case(st, "core", int(pin[1]), n2, Lc, b.index, keep)
+				h._ok("pinned: seed %d's core, no DIRECT flight inside the lens, %.1f px (%d; closest %.1f)" % [int(pin[1]), keep, int(st.inside), float(st.close)],
+					int(st.inside) == 0 and int(st.plans) > 0)
+	_set_path(_paths.size() - 1)
 
 
 var _n_sys := 0
@@ -1531,11 +1614,14 @@ func _hand_phase() -> void:
 	# (ten wide pairs and five close pairs, as the clicks gathered them:
 	# HAND_WIDE and HAND_CLOSE)
 	var by_kind := {}
-	for row: Array in (_ck.twin as Array) + (_ck.close as Array):
+	for row: Array in (_ck.twin as Array) + (_ck.close as Array) + (_hand_pins if _one_seed < 0 else []):
 		var L: SystemLayout = row[1]
 		var kind := "close" if L.close else "wide"
 		var key := "%s %d" % [kind, int(row[6])]
-		if seen.has(key) or int(by_kind.get(kind, 0)) >= (HAND_CLOSE if L.close else HAND_WIDE):
+		var is_pin: bool = String(row[0]) == "pin"
+		if is_pin:
+			key = "pin %d" % int(row[6])
+		if seen.has(key) or (not is_pin and int(by_kind.get(kind, 0)) >= (HAND_CLOSE if L.close else HAND_WIDE)):
 			continue
 		seen[key] = true
 		by_kind[kind] = int(by_kind.get(kind, 0)) + 1

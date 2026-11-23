@@ -625,3 +625,21 @@ planner measures it (zoom 1, the plane tilted by DRAW_TILT); ring curves keep
 their own skip and every other arrival is read on every pixel. The count is
 printed beside the rings' ("in an alongside arrival's last 1.5 px only").
 ```
+
+## Pinned flights
+
+Above `const PINS := [`:
+
+```text
+THE FLIGHTS PINNED (Nov 22): the gate flies three seeds, and the planner's
+faults found on other worlds would not come round again. Each failed on main
+(d3577aa8) and passes since the flight fixes: seed 2468 system 183 (giant,
+CURVED, orbit 2 to world 5), a corner 0.99 px from an alongside arrival's
+end; seed 9300's core, today's planner at 128.6 px inside the 144 px lens
+(DIRECT, orbit 0 to world 1); seed 777 system 131 as a wide pair, the far
+side's let-go point on world 3's ring. The corner and core pins fly in the
+shard that flies the places, the hand pin in the hand phase; `-- sheet=FlightTest
+pins` flies them alone (a look, not a verdict: the hand phase's other checks
+read no rows there and fail).
+```
+
