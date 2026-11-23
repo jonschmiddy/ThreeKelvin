@@ -510,6 +510,9 @@ var _tight_t := INF
 ## Leg of a flight in two: 0 one leg, 1 the first, 2 the second. Also gates the wider search.
 var _leg := 0
 var _wide_ok := true
+## A fallback flight kept because a fresh search of one leg found none: the
+## caller weighs it against a flight in two legs too (`_solve_or_chain`).
+var _kept_alone := false
 var _set := false
 
 ## a place's centre and motion (`_dep_at`, `_tgt_at` write these)
@@ -668,6 +671,16 @@ static func _sooner_of(rc: Result, r1: Result) -> Result:
 static func _solve_or_chain(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary, hint: Vector2) -> Result:
 	var fs := FlightSolve.new()
 	var r := fs._solve(grav, dep, tgt, t, prefer)
+	if r.found and fs._kept_alone:
+		# A kept fallback flight is weighed against two legs too, as a fresh plan finds them.
+		# Why: docs/why/FlightSolve.md#fallback-kept-by-arrival
+		var t_k := Time.get_ticks_usec()
+		var rk := FlightChain.chain(grav, dep, tgt, t, hint)
+		if rk != null:
+			var u := r.usec + Time.get_ticks_usec() - t_k
+			r = _sooner_of(r, rk)
+			r.usec = u
+		return r
 	if r.found or not fs._set:
 		return r
 	var t_us := Time.get_ticks_usec()
@@ -754,6 +767,7 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 			_ease = ease0
 			_ease_forced = false
 			_fresh()
+			_kept_alone = _b_J == INF
 			if _b_J < INF:
 				var rf := _build_fresh()
 				if rf.found and rf.clean and float(rf.end.t) < float(res.end.t) - 1e-6:
@@ -788,6 +802,7 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 				# Why: docs/why/FlightSolve.md#warm-start
 				_fresh()
 				var keep := _b_J == INF
+				_kept_alone = keep and fell
 				var rf: Result = null
 				if not keep and fell:
 					# BOTH BUILT, then their arrivals: the search's te is the seed's,

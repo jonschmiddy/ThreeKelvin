@@ -676,6 +676,15 @@ irregulars; ring 2 to keep 6, line-up 7, planned again 3 s on) kept a
 fallback flight arriving at 18.0335 s where a fresh clean plan arrived at
 18.0306 s. Both are built now and the earlier arrival wins; the winner is
 built last, so the solver's coast is its own (`FlightChain._leg_two`).
+AND AGAINST TWO LEGS: where the fresh search of one leg finds nothing, a
+fresh plan goes on to two legs (`_solve_or_chain`), and the warm path kept
+its fallback flight without looking: read every replan on main (d3577aa8),
+seed 7 node 28's ring 1 to keep 3 (CURVED, rtwin) kept 90.04 s where a fresh
+plan flew 41.41 s in two legs. A kept fallback flight (`_kept_alone`) is
+now weighed against the chain too, the sooner clean one flown
+(`_sooner_of`). The fresh search inside the warm path also starts un-eased,
+as a fresh solve does (`ease0`); a choice found eased is still rebuilt and
+warmed eased.
 ```
 
 ## Fallback flight rebuild
