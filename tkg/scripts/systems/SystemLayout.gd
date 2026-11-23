@@ -600,7 +600,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		b.name = "%s %s" % [short, ROMAN[mini(i, ROMAN.size() - 1)]]
 		last = b.orbit
 		last_reach = reach
-	L.edge = maxf(maxf(HI, last + last_reach), _ring_far(L)) + 30.0
+	L.edge = maxf(HI, last + last_reach) + 30.0
 	L.fit_zoom = open_zoom(L.edge)
 	# Job targets are added last on their own stream, so worlds seen before signing do not move.
 	for k in jobs.size():
@@ -616,7 +616,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		L.bodies.append(jb)
 		last = jb.orbit
 		last_reach = reach_of(jb) + (soi_of(jb) if jb.world != &"" else 0.0)
-		L.edge = maxf(jb.orbit + last_reach, _ring_far(L)) + 30.0
+		L.edge = jb.orbit + last_reach + 30.0
 	# THE HELLBENDER'S OWN PLACE, past every orbit and last in the list, so
 	# nothing else moves when it comes or goes
 	if hellbender_here(n):
@@ -626,7 +626,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		hb.phase = float(Rng.derive(&"hellbender_place", n.index).randf()) * TAU
 		hb.name = "%s %s" % [short, ROMAN[mini(hb.index, ROMAN.size() - 1)]]
 		L.bodies.append(hb)
-		L.edge = maxf(hb.orbit + reach_of(hb), _ring_far(L)) + 30.0
+		L.edge = hb.orbit + reach_of(hb) + 30.0
 	# EACH WORLD'S RING, sized by how much it weighs (giants biggest, small rocks
 	# least) and spread for the wider system; nothing else has one
 	for b in L.bodies:
@@ -981,18 +981,6 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 	_past_the_edge(L, n, jobs, short)
 
 
-## The farthest any world's ring reaches from star A's origin; anything else, its own reach.
-## Why: docs/why/SystemLayout.md#rings-inside-the-edge
-static func _ring_far(L: SystemLayout) -> float:
-	var far := 0.0
-	for b in L.bodies:
-		var ring := reach_of(b)
-		if b.world != &"":
-			ring = maxf(ring, S_RING if (L.twin and is_star(b.host_id)) else soi_of(b))
-		far = maxf(far, b.host0.length() + b.orbit + ring)
-	return far
-
-
 ## Edge of a binary: by each body's reach from star A's origin, never under `least`.
 static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int], short: String, least := 0.0) -> void:
 	var far := 0.0
@@ -1001,7 +989,6 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 	for b in L.bodies:
 		far = maxf(far, b.host0.length() + b.orbit + reach_of(b))
 		ext = maxf(ext, b.host0.distance_to(L.bary) + b.orbit + reach_of(b))
-	far = maxf(far, _ring_far(L))
 	L.edge = maxf(maxf(HI, far) + 30.0, least)
 	for k in jobs.size():
 		var jr := Rng.derive(&"job_place", n.index * 8 + k)
@@ -1017,7 +1004,7 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 		jb.name = "%s %s" % [short, ROMAN[mini(jb.index, ROMAN.size() - 1)]]
 		L.bodies.append(jb)
 		ext = jb.orbit + reach_of(jb) + (soi_of(jb) if jb.world != &"" else 0.0)
-		L.edge = maxf(maxf(L.bary.length() + ext, _ring_far(L)) + 30.0, least)
+		L.edge = maxf(L.bary.length() + ext + 30.0, least)
 	if hellbender_here(n):
 		var hb := _hellbender_body(L, n)
 		hb.orbit = maxf(HI, ext) + reach_of(hb) + GAP + 24.0
@@ -1027,7 +1014,7 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 		hb.phase = float(Rng.derive(&"hellbender_place", n.index).randf()) * TAU
 		hb.name = "%s %s" % [short, ROMAN[mini(hb.index, ROMAN.size() - 1)]]
 		L.bodies.append(hb)
-		L.edge = maxf(maxf(L.bary.length() + hb.orbit + reach_of(hb), _ring_far(L)) + 30.0, least)
+		L.edge = maxf(L.bary.length() + hb.orbit + reach_of(hb) + 30.0, least)
 	for b in L.bodies:
 		if b.world != &"":
 			b.soi = S_RING if is_star(b.host_id) else soi_of(b)
