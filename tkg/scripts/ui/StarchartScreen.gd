@@ -294,7 +294,7 @@ func _build() -> void:
 	_neigh_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_neigh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_neigh_scroll.add_child(_neigh)
-	right.add_child(_neigh_scroll)
+	_build_star_box(right)
 	_jump = Widgets.button("JUMP", _on_jump)
 	_jump_plate(_jump)
 	right.add_child(_jump)
@@ -564,6 +564,7 @@ func _refresh() -> void:
 	_quest_marks()
 
 	if _selected < 0:
+		_show_list(true)
 		_fill_neighbours(here)
 		# Two different nothings: nothing chosen, versus nothing possible.
 		if _anywhere_to_go():
@@ -599,6 +600,7 @@ func _refresh() -> void:
 		# can read is information; an absence they have to notice is a bug.
 		_rows.add_child(_row("SURVEY", "NONE"))
 		_say("")
+		_fill_star(t, here)
 		_jump.disabled = not Run.can_jump_to(t)
 		_jump_to.text = MapGen.star_name(t) if not _jump.disabled else ""
 		_berth_lock()
@@ -644,8 +646,8 @@ func _refresh() -> void:
 	for i in hz.size():
 		_rows.add_child(_row("WARNING" if i == 0 else "", hz[i], _WARN))
 
-	# Names what is in reach: a bare count left you hunting the chart for the places.
-	_fill_neighbours(here)
+	# The star's orbits and facts take the list's place (Jon, Nov 22, B).
+	_fill_star(t, here)
 
 	# Two different reasons a jump is impossible, and they need different words:
 	# no route at all, versus a route you cannot currently pay for.
@@ -867,6 +869,80 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 		MapGen.place_line(n), n.danger, MapGen.DANGER_MAX,
 		MapGen.tier_name(n.danger), cost]
 	return b
+
+## A PICKED STAR'S ORBITS (Jon, Nov 22, "2: B"): its map, kind and counts, then a few facts, where
+## the in-range list stands with nothing picked. Why: docs/why/ChartOrbits.md#what-it-shows
+var _star_box: VBoxContainer
+var _orbits: ChartOrbits
+var _star_kind: Label
+var _star_counts: Label
+var _star_rows: VBoxContainer
+## The beam's line, the pulsar card's own words (`SystemPanel`).
+const BEAM_LINE := "Each pass through the beam adds fuel, hull damage and heat."
+
+
+## The list's box, then the star's box under it in the same slack.
+func _build_star_box(right: VBoxContainer) -> void:
+	right.add_child(_neigh_scroll)
+	_star_box = VBoxContainer.new()
+	_star_box.name = "StarBox"
+	_star_box.add_theme_constant_override("separation", 3)
+	_star_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_star_box.visible = false
+	_orbits = ChartOrbits.new()
+	_star_box.add_child(_orbits)
+	_star_kind = UITheme.body("", UITheme.ICE, UITheme.FS_SMALL)
+	_star_box.add_child(_star_kind)
+	_star_counts = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
+	_star_counts.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_star_counts.custom_minimum_size = Vector2(228, 0)
+	_star_box.add_child(_star_counts)
+	_star_rows = VBoxContainer.new()
+	_star_rows.add_theme_constant_override("separation", 3)
+	_star_box.add_child(_star_rows)
+	right.add_child(_star_box)
+
+
+## The list with nothing picked, the star's box with one picked; never both.
+func _show_list(on: bool) -> void:
+	_neigh_scroll.visible = on
+	_star_box.visible = not on
+	if not on:
+		_say("")
+
+
+## Only inside SENSOR RANGE (or where you are): NOT SCANNED and POSITION ONLY show nothing.
+static func orbits_shown(t: MapGen.MapNode, here: MapGen.MapNode) -> bool:
+	if t == null or t.type == MapGen.NodeType.CORE:
+		return false
+	if Run.known_only_by_contract(t.index):
+		return false
+	return t.sensed or (here != null and t.index == here.index)
+
+
+func _fill_star(t: MapGen.MapNode, here: MapGen.MapNode) -> void:
+	_show_list(false)
+	Widgets.clear(_star_rows)
+	var on := orbits_shown(t, here)
+	for c in _star_box.get_children():
+		(c as Control).visible = on
+	if not on:
+		return
+	_orbits.show_system(t)
+	_star_kind.text = _orbits.fact("kind")
+	_star_kind.add_theme_color_override("font_color", _orbits.star_col.lightened(0.15))
+	_star_counts.text = ChartOrbits.counts(_orbits.marks)
+	_star_counts.visible = _star_counts.text != ""
+	if _orbits.twin:
+		_star_rows.add_child(_row(MapGen.BINARY, ChartOrbits.second_sun(), ChartOrbits.SUN_B))
+	_star_rows.add_child(_row("RADIUS", _orbits.fact("radius")))
+	_star_rows.add_child(_row("HOT ZONE", "INSIDE %.2f AU" % ChartOrbits.HOT_AU, ChartOrbits.HOT_LINE))
+	if t.type == MapGen.NodeType.PULSAR:
+		var l := UITheme.body(BEAM_LINE, UITheme.CHILL, UITheme.FS_SMALL)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(228, 0)
+		_star_rows.add_child(l)
+
 
 ## The line over the list, hidden when it says nothing so it gives its row back.
 func _say(s: String) -> void:

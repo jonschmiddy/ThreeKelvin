@@ -1298,6 +1298,13 @@ ALLOW_EXTRA="$GATE_LEAKS|were leaked at exit" gate_sheet wrecksitetest 470 \
 	--headless --path "$PROJECT" -- sheet=WreckSiteTest
 }
 
+unit_orbitpreviewtest() {
+step "The star chart's orbit map is what the sector map draws on arrival"
+# Jon, Nov 22 (destination panel B): read before a visit, the orbits match the arrival,
+# looking moves nothing, and fog hides them. Why: docs/why/validate.md#unit_orbitpreviewtest
+ALLOW_EXTRA="$GATE_LEAKS|were leaked at exit" gate_sheet orbitpreviewtest 300 	"the orbit map matches every arrival, looking moves nothing, and fog hides it" 	"the orbit map differs from an arrival, or shows through fog" 	--headless --path "$PROJECT" -- sheet=OrbitPreviewTest
+}
+
 unit_stationaheadtest() {
 step "The station's rooms loaded ahead of the first ride leave the same pages as a ride does"
 # Jon's sweep 2 ruling 6A (Nov 14): the Promenade and the Exchange load in small steps once the

@@ -141,6 +141,7 @@ func run(tree: SceneTree) -> void:
 				% [MapGen.place_blurb(t2).length(), sc0._rows.global_position.y,
 					sc0._neigh.get_child_count(), jb, screen_h,
 					"  <-- OFF SCREEN" if jb > screen_h else ""])
+	await _dest(tree, _arg("dest="))
 	var tag := ""
 	# `zoom=N` frames it as the player does: the galaxy-wide shot draws neither range ring.
 	# Why: docs/why/ChartShot.md#chart-shot-options
@@ -212,3 +213,53 @@ func run(tree: SceneTree) -> void:
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
 	tree.quit()
+
+
+## `dest=dwarf|red|neutron|twin`: picks a system of that kind to photograph its orbit map
+## (`ChartOrbits`), sensed ones first; a picked one out of sight is marked sensed and says so.
+func _dest(_tree: SceneTree, want: String) -> void:
+	var sc := Router.current as StarchartScreen
+	if sc == null or want == "":
+		return
+	var best := -1
+	for pass_i in 2:
+		for raw in Run.map:
+			var n: MapGen.MapNode = raw
+			if best >= 0 or (pass_i == 0 and not n.sensed) or not _dest_fits(n, want):
+				continue
+			best = n.index
+	if best < 0:
+		print("  dest=%s: NO MATCH" % want)
+		return
+	var t: MapGen.MapNode = Run.map[best]
+	if not t.sensed:
+		t.sensed = true
+		print("  dest=%s: marked sensed for the shot (none in sight)" % want)
+	sc._on_node_picked(best)
+	for i in 8:
+		await RenderingServer.frame_post_draw
+	print("  dest=%s: %s · %s" % [want, MapGen.star_name(t),
+		ChartOrbits.signature(SystemLayout.of(t), t)])
+
+
+static func _dest_fits(n: MapGen.MapNode, want: String) -> bool:
+	match want:
+		"dwarf":
+			return n.type == MapGen.NodeType.SYSTEM and n.star == MapGen.Star.ORDINARY \
+				and not n.twin and n.gas_giant and ChartOrbits.counts(
+					ChartOrbits.read(SystemLayout.of(n), n)).contains("PLANETS")
+		"red":
+			return n.type == MapGen.NodeType.STATION and n.star == MapGen.Star.RED
+		"neutron":
+			return n.type == MapGen.NodeType.PULSAR
+		"twin":
+			return n.type == MapGen.NodeType.SYSTEM and n.twin and MapGen.twin_ok(n)
+	return false
+
+
+## The value of user arg `key` (with its `=`), or "".
+static func _arg(key: String) -> String:
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with(key):
+			return (a as String).substr(key.length())
+	return ""

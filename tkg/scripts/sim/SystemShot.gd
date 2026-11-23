@@ -1038,6 +1038,10 @@ func _ready() -> void:
 			await get_tree().process_frame
 		for _j in 30:
 			await RenderingServer.frame_post_draw
+	# `scrollend`: every scroll box on the screen at its bottom, for the cards under the fold
+	if "scrollend" in OS.get_cmdline_user_args():
+		for sc0 in scr.find_children("*", "ScrollContainer", true, false):
+			(sc0 as ScrollContainer).scroll_vertical = 100000
 	for _i in 4:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw

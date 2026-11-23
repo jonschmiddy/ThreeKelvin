@@ -8,6 +8,10 @@ extends RefCounted
 ## Photograph the tree and say where it went. Every shot in this file is this
 ## same pair of lines; the filename is the only thing that varies.
 func _snap(tree: SceneTree, path: String) -> void:
+	# `shot=<png>`: written there instead (a throwaway profile's user:// goes with it)
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("shot="):
+			path = (a as String).substr(5)
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
 
@@ -45,6 +49,10 @@ func run(tree: SceneTree) -> void:
 	# `start` photographs the node the run opens on, which is the one place with
 	# its own drawer height.
 	var target := Run.at if "start" in OS.get_cmdline_user_args() else _find(want_group)
+	# `node=I`: that system instead
+	for a1 in OS.get_cmdline_user_args():
+		if (a1 as String).begins_with("node="):
+			target = int((a1 as String).substr(5))
 	if target < 0:
 		print("no system %s found on seed %d"
 			% ["with a group" if want_group else "with options", Rng.forced])
@@ -69,6 +77,11 @@ func run(tree: SceneTree) -> void:
 	Router.show_sector()
 	for i in 90:
 		await RenderingServer.frame_post_draw
+	# `local`: LOCAL, the ship and the line under it, instead of the map
+	if "local" in OS.get_cmdline_user_args():
+		Router.show_local()
+		for i in 120:
+			await RenderingServer.frame_post_draw
 	var tag := "_group" if want_group else ""
 	if "spent" in OS.get_cmdline_user_args():
 		tag += "_spent"
