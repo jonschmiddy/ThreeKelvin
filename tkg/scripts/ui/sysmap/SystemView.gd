@@ -1296,7 +1296,7 @@ func _radiant_safety() -> void:
 	print_verbose("RADIANT the sector map's GPU time: %.2f ms a frame over %d frames" % [avg, int(_rprobe.n)])
 	if avg > ChartRadiant.budget_ms() and ((DisplaySettings.render_style == STYLE_RADIANT and not DisplaySettings.harness_style()) 			or ChartRadiant.probe_forced()):
 		push_warning("RADIANT sector measured %.1f ms a frame on this machine; drawing SIMPLIFIED" % avg)
-		Run.log_line("RADIANT is too heavy for this machine, so the sector map is drawn SIMPLIFIED.", &"them")
+		Run.log_line("RADIANT runs too slowly on this machine, so the sector map is drawn in SIMPLIFIED.", &"them")
 		# Fall back from the next picture: switching under a still view changed its brightness.
 		# Why: docs/why/SystemView.md#radiant-safety
 		ChartRadiant.fell_back = true

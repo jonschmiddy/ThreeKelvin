@@ -406,10 +406,10 @@ const PRIMER_W := 460
 ## Two of the three lines were wrong: one promised what `can_jump_to` forbids, one inverted.
 ## Why: docs/why/StarchartScreen.md#primer-legend-text
 const PRIMER_LEGEND: Array[String] = [
-	"A system's colour is its star: pale is ordinary, red and blue are rarer.",
-	"You fly as far as THRUSTER REACH, and two rings deeper a jump at most. You see as far as SENSOR RANGE. Past your sight a jump is refused: NOT SCANNED.",
-	"Each row shows danger, then fuel. Full danger beside empty fuel is a cheap, deadly jump.",
-	"Danger has five steps: EASY, ROUGH, HARD, BRUTAL and LETHAL. A more dangerous system offers more.",
+	"Pale stars are common, and red and blue ones are rare.",
+	"You can jump as far as THRUSTER REACH and two rings deeper, but only inside SENSOR RANGE.",
+	"Each row shows how dangerous the system is and how much fuel it takes to get there.",
+	"Danger runs from EASY to LETHAL, and the harder ones pay more.",
 ]
 
 ## A star inside the reach ring is refused on its FUEL row: a jump goes two rings deeper at most.
@@ -435,21 +435,21 @@ func _primer_cost() -> Array[String]:
 	var dens: float = float(Run.galaxy.get("density", 1.0))
 	# Sentences, not rows: this is the galaxy talking, and 'Tight.' lost the good half.
 	if reach >= 1.08:
-		out.append("A wide disc. The crossings are long, and each one costs fuel.")
+		out.append("Systems are far apart, and each jump costs a lot of fuel.")
 	elif reach <= 0.85:
-		out.append("A tight disc. Systems sit close together, so a tank goes further here.")
+		out.append("Systems sit close together, so fuel goes further.")
 	if dens >= 1.15:
-		out.append("It has many systems. There are more places to stop than you can afford.")
+		out.append("There are more systems here than one tank can visit.")
 	elif dens <= 0.80:
-		out.append("It has few systems. Some stretches have nothing in them.")
+		out.append("There are few systems, with long empty gaps between them.")
 	# `hop_distance` divides y by squash, so fuel follows round distance, not drawn distance.
 	# Measured on a Lenticular: the same drawn gap costs 3 fuel sideways and 6 vertically.
 	# Why: docs/why/StarchartScreen.md#squash-anisotropy
 	var sq: float = float(Run.galaxy.get("squash", 1.0))
 	if sq < 0.5:
-		out.append("It is steeply tilted, so the chart misleads on distance. A gap up or down costs far more than the same gap sideways.")
+		out.append("The galaxy is tilted, so a jump up or down costs more fuel than it looks on the chart.")
 	if out.is_empty():
-		out.append("It is ordinary to cross, with no unusual distances or gaps.")
+		out.append("Distances here are normal.")
 	return out
 
 
@@ -572,14 +572,12 @@ func _refresh() -> void:
 			_class("%s - %s" % [
 				Run.galaxy_name, GalaxyGen.type_name(Run.galaxy_kind).to_upper()])
 			_blurb(GalaxyGen.blurb(Run.galaxy_kind))
-			# The count stays: blanking it left the start of a run with a list and no number above.
-			# Why: docs/why/StarchartScreen.md#neighbour-count-hint
 		else:
 			_dest_name.text = "NOWHERE"
 			_class("")
-			_blurb("No jump you can afford. The tank is dry.")
+			_blurb("Not enough fuel to reach any system.")
 			# Not repeated here, as the header already said it: the same sentence twice.
-			_hint.text = ""
+			_say("")
 		_lock_jump()
 		return
 
@@ -600,7 +598,7 @@ func _refresh() -> void:
 		# Said plainly rather than left as four blank rows. An absence the player
 		# can read is information; an absence they have to notice is a bug.
 		_rows.add_child(_row("SURVEY", "NONE"))
-		_hint.text = "They gave you a position and nothing else."
+		_say("")
 		_jump.disabled = not Run.can_jump_to(t)
 		_jump_to.text = MapGen.star_name(t) if not _jump.disabled else ""
 		_berth_lock()
@@ -752,12 +750,11 @@ func _fill_neighbours(here: MapGen.MapNode) -> void:
 			return rx < ry
 		return MapGen.hop_distance(here, x) < MapGen.hop_distance(here, y))
 	if near.is_empty():
-		_hint.text = "Nothing in range. The tank is too low to reach anything."
+		_say("Not enough fuel to reach any system.")
 		return
-	# Only the count: it decides farm or dive before a row is read; the rest was rows read aloud.
+	# No IN RANGE count over the list (Jon, Nov 22: "You can remove the In range").
 	# Why: docs/why/StarchartScreen.md#neighbour-count-hint
-	_hint.text = "IN RANGE - %d SYSTEM%s" % [
-		near.size(), "" if near.size() == 1 else "S"]
+	_say("")
 	for n in near:
 		_neigh.add_child(_neighbour_row(n))
 	# Nothing set here: `custom_minimum_size` is a demand, and pushed JUMP off screen.
@@ -870,6 +867,12 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 		MapGen.place_line(n), n.danger, MapGen.DANGER_MAX,
 		MapGen.tier_name(n.danger), cost]
 	return b
+
+## The line over the list, hidden when it says nothing so it gives its row back.
+func _say(s: String) -> void:
+	_hint.text = s
+	_hint.visible = s != ""
+
 
 ## Hazard red, warmer than THEM (an enemy's colour), so a warning wins over the cold blues.
 const _WARN := UITheme.LEAVE

@@ -424,6 +424,10 @@ the end of one.
 
 ## Neighbour count hint
 
+Nov 22: Jon cut the count ("You can remove the In range"). The list sits
+under the galaxy with no header, and `_say("")` hides the line so it gives
+its row back. What follows is the history of the count.
+
 Inside `_refresh()`, above `else:`:
 
 ```text
