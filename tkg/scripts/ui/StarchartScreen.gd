@@ -936,7 +936,6 @@ func _fill_star(t: MapGen.MapNode, here: MapGen.MapNode) -> void:
 	if _orbits.twin:
 		_star_rows.add_child(_row(MapGen.BINARY, ChartOrbits.second_sun(), ChartOrbits.SUN_B))
 	_star_rows.add_child(_row("RADIUS", _orbits.fact("radius")))
-	_star_rows.add_child(_row("HOT ZONE", "INSIDE %.2f AU" % ChartOrbits.HOT_AU, ChartOrbits.HOT_LINE))
 	if t.type == MapGen.NodeType.PULSAR:
 		var l := UITheme.body(BEAM_LINE, UITheme.CHILL, UITheme.FS_SMALL)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

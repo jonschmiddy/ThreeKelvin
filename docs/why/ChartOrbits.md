@@ -27,6 +27,9 @@ where it really does against the orbits. A one-sun system picks each world's poo
 its index, not its distance (SystemLayout._worlds), so a world just past the line can
 still be a hot one; the line is the game's rule, not a promise about each world.
 
+No HOT ZONE row (coordinator, Nov 22): 4.75 AU is the same round every star, so the
+row said nothing; the arc is labelled HOT once at its top end instead.
+
 A pair draws both suns on the edge; a world round one sun sits beside it, and the arcs
 are the worlds round both.
 ```

@@ -8,7 +8,7 @@ extends Control
 
 const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 const W := 228
-const H := 60
+const H := 128
 ## The game's hot line: `SystemLayout.ZONE_NEAR`, 380 px, 4.75 AU at `SystemView.au`'s 80 px an AU.
 const AU_PX := 80.0
 const HOT_AU := SystemLayout.ZONE_NEAR / AU_PX
@@ -16,6 +16,7 @@ const HOT_AU := SystemLayout.ZONE_NEAR / AU_PX
 const ARC := Color("#3a4a5e")
 const BELT := UITheme.CHILL
 const HOT_LINE := UITheme.EMBER
+const HOT_DIM := Color(UITheme.EMBER, 0.6)
 const WORLD := Color("#a9b6c4")
 const GIANT := Color("#c7b79a")
 const GIANT_BAND := Color("#8d7f68")
@@ -39,11 +40,15 @@ var _hot := PackedVector2Array()
 var _spots: Array[Vector2] = []
 var _scale := 1.0
 var _pulsar_px := PackedVector2Array()
+## The pixel font, and where HOT sits: once, just right of the hot line's top end.
+var _font: Font = null
+var _hot_label := Vector2.ZERO
 var _pulsar_col := PackedColorArray()
 
 
 func _init() -> void:
 	custom_minimum_size = Vector2(W, H)
+	_font = UITheme.pixel_font()
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
@@ -123,10 +128,10 @@ func _build() -> void:
 	for d in marks:
 		# a world round one sun of a pair is drawn beside that sun, not on an arc
 		if twin and int(d.host) != -9:
-			_spots.append(_sun_at(int(d.host)) + Vector2(12, 0))
+			_spots.append(_sun_at(int(d.host)) + Vector2(18, 0))
 			continue
 		var r := float(d.orbit) * _scale
-		var a_max := asin(clampf((cy - 4.0) / r, 0.0, 1.0))
+		var a_max := asin(clampf((cy - 8.0) / r, 0.0, 1.0))
 		var th := a_max * sin(float(d.phase))
 		_spots.append(Vector2(roundf(r * cos(th)), roundf(cy + r * sin(th))))
 		if d.kind == &"belt":
@@ -134,6 +139,12 @@ func _build() -> void:
 		else:
 			_arcs.append(_arc(r, 1))
 	_hot = _arc(SystemLayout.ZONE_NEAR * _scale, 2)
+	if not _hot.is_empty():
+		var top := _hot[0]
+		for q in _hot:
+			if q.y < top.y:
+				top = q
+		_hot_label = top + Vector2(3, 8)
 	_build_pulsar()
 
 
@@ -143,14 +154,15 @@ func _build_pulsar() -> void:
 	_pulsar_col = PackedColorArray()
 	if star != SystemLayout.StarKind.PULSAR:
 		return
-	var c := Vector2(9, roundf(H * 0.5))
+	var c := Vector2(14, roundf(H * 0.5))
 	var ink := MapGlyphs.boost(star_col, ChartGlyphs.NODE_LIFT)
-	for k in range(2, 10):
-		var a := clampf(1.1 - float(k) / 10.0, 0.25, 1.0)
+	for k in range(3, 15):
+		var a := clampf(1.15 - float(k) / 15.0, 0.25, 1.0)
 		for sgn in [-1.0, 1.0]:
 			_pulsar_px.append(c + Vector2(k, k) * sgn)
 			_pulsar_col.append(Color(ink, a))
-	for d in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1), Vector2.ZERO]:
+	for d in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 2), Vector2(-1, -1), Vector2(1, -1),
+			Vector2(-1, 1), Vector2(1, 1), Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1), Vector2.ZERO]:
 		_pulsar_px.append(c + d)
 		_pulsar_col.append(UITheme.ICE if d == Vector2.ZERO else ink)
 
@@ -159,7 +171,7 @@ func _build_pulsar() -> void:
 func _sun_at(host: int) -> Vector2:
 	if not twin:
 		return Vector2(0, H * 0.5)
-	return Vector2(0, H * 0.5 + (9.0 if host == SystemLayout.STAR_B else -9.0))
+	return Vector2(0, H * 0.5 + (16.0 if host == SystemLayout.STAR_B else -16.0))
 
 
 ## The pixels of an arc of radius `r` round the left edge's middle, every `every`th one.
@@ -183,7 +195,9 @@ func _arc(r: float, every: int) -> PackedVector2Array:
 
 func _draw() -> void:
 	for p in _hot:
-		draw_rect(Rect2(p, Vector2.ONE), Color(HOT_LINE, 0.55), true)
+		draw_rect(Rect2(p, Vector2.ONE), HOT_DIM, true)
+	if not _hot.is_empty() and _font != null:
+		draw_string(_font, _hot_label, "HOT", HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, HOT_LINE)
 	for arc in _arcs:
 		for p in arc:
 			draw_rect(Rect2(p, Vector2.ONE), ARC, true)
@@ -200,10 +214,10 @@ func _draw_star() -> void:
 		for i in _pulsar_px.size():
 			draw_rect(Rect2(_pulsar_px[i], Vector2.ONE), _pulsar_col[i], true)
 		return
-	var r := {SystemLayout.StarKind.RED: 9, SystemLayout.StarKind.BLUE: 7}.get(star, 5) as int
+	var r := {SystemLayout.StarKind.RED: 18, SystemLayout.StarKind.BLUE: 13}.get(star, 9) as int
 	if twin:
-		_half_disc(_sun_at(-1), 5, star_col)
-		_half_disc(_sun_at(SystemLayout.STAR_B), 3, SUN_B)
+		_half_disc(_sun_at(-1), 9, star_col)
+		_half_disc(_sun_at(SystemLayout.STAR_B), 6, SUN_B)
 		return
 	_half_disc(_sun_at(-1), r, star_col)
 
@@ -219,22 +233,26 @@ func _half_disc(c: Vector2, r: int, col: Color) -> void:
 func _draw_mark(kind: StringName, p: Vector2) -> void:
 	match kind:
 		&"planet":
-			_disc(p, 2, WORLD)
+			_disc(p, 3, WORLD)
 		&"giant":
-			_disc(p, 3, GIANT)
-			draw_rect(Rect2(p.x - 3, p.y, 7, 1), GIANT_BAND, true)
+			_disc(p, 5, GIANT)
+			draw_rect(Rect2(p.x - 5, p.y - 1, 11, 1), GIANT_BAND, true)
+			draw_rect(Rect2(p.x - 4, p.y + 2, 9, 1), GIANT_BAND, true)
 		&"station":
-			ChartGlyphs.draw_node(self, MapGen.NodeType.STATION, p, ChartGlyphs.SMALL,
+			ChartGlyphs.draw_node(self, MapGen.NodeType.STATION, p, ChartGlyphs.BIG,
 				MapGlyphs.boost(UITheme.ICE, ChartGlyphs.NODE_LIFT), UITheme.VOID)
 		&"wreck":
-			for k in 4:
-				draw_rect(Rect2(p.x - 2 + k, p.y - 2 + k, 1, 1), WRECK_LIT if k == 1 else WRECK, true)
-			draw_rect(Rect2(p.x - 1, p.y - 2, 1, 1), WRECK, true)
+			# a broken hull lying on its orbit: a 2 px bar, lit along its top
+			for k in 7:
+				draw_rect(Rect2(p.x - 3 + k, p.y - 3 + k, 2, 2), WRECK, true)
+				if k % 2 == 0:
+					draw_rect(Rect2(p.x - 3 + k, p.y - 3 + k, 1, 1), WRECK_LIT, true)
 		&"job":
-			for d in [Vector2(0, -2), Vector2(-1, -1), Vector2(1, -1), Vector2(-2, 0), Vector2(2, 0),
-					Vector2(-1, 1), Vector2(1, 1), Vector2(0, 2)]:
-				draw_rect(Rect2(p + d, Vector2.ONE), UITheme.FLARE, true)
-			draw_rect(Rect2(p, Vector2.ONE), UITheme.HOT, true)
+			for y in range(-4, 5):
+				var w := 4 - absi(y)
+				draw_rect(Rect2(p.x - w, p.y + y, 1, 1), UITheme.FLARE, true)
+				draw_rect(Rect2(p.x + w, p.y + y, 1, 1), UITheme.FLARE, true)
+			draw_rect(Rect2(p.x - 1, p.y - 1, 3, 3), UITheme.HOT, true)
 
 
 ## A small round world on a dark rim, so it reads across an arc.
