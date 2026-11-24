@@ -1,7 +1,7 @@
 class_name ShipRoomOld
 extends ShipRoom
 
-## The Old hangar's mothball racks (Jon, Nov 24: A16 approved, A17's lamp): a locked maker's tarps
+## The Old hangar's mothball racks (Jon, Nov 24: A16 approved, A17's lamp): a locked manufacturer's tarps
 ## under one failing sodium lamp, lit as two layers (ambient, and the lamp x its level).
 ## Why: docs/why/ShipRoomOld.md#two-layers
 
@@ -81,7 +81,7 @@ func _motes(file: String) -> Control:
 	return c
 
 
-## Each tarp takes its dusty, padded wind texture (`export.py`); a maker with none wears Solari's.
+## Each tarp takes its dusty, padded wind texture (`export.py`); a manufacturer with none wears Solari's.
 ## Each post gets its dead hose, over the post and under the tarp.
 ## Why: docs/why/ShipRoomOld.md#hoses
 func _placed() -> void:

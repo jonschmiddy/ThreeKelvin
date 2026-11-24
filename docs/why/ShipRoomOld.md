@@ -1,6 +1,6 @@
 # ShipRoomOld
 
-The Old hangar (Mothball racks): the room a locked maker's three tarped ships wait in. Jon approved the
+The Old hangar (Mothball racks): the room a locked manufacturer's three tarped ships wait in. Jon approved the
 film `tk-scratch/shipselect/life2/old/A16.mp4` on Nov 24 and then asked for A17's lamp ("there is a bit of
 light on the floor of old when the lights are off"). The film's code is the source of truth:
 `life2/old/A5.py` (TK_VARIANT=A17), `oldbase.py`, `tarp_wind.py`, `gen/old7.py`, `gen/stands8.py`. Everything
@@ -54,7 +54,7 @@ the sodium colour times the lamp's level, so the dust goes out with the lamp.
 - The near and mid motes and the shaken dust are in `above`: over the tarps and under the banners, so they pass
   behind the banners with no masking (the film masked the banner's silhouette by hand, A12).
 - Overlapping motes: the film kept the brighter; here the later one is drawn. They rarely overlap.
-- The shaken dust starts at Solari's tarps' tops (the film's). Another maker's tarp is the same size with a
+- The shaken dust starts at Solari's tarps' tops (the film's). Another manufacturer's tarp is the same size with a
   slightly different top edge, so its dust may start a pixel or two off the cloth.
 
 ## hoses
@@ -77,7 +77,7 @@ strap pulling up as the gust peaks. Each pixel takes the field's offset in whole
 toward the lamp by the billow's slope (inside the cloth only, held to +-18 %, and to the cloth's own lightest and
 darkest). The tarp's box never moves: only cloth inside its hold field ripples.
 
-`export.py` writes each maker's tarp, dusted as the film dusted Solari's (`old7.dusty_tarp`), padded 6 px each
+`export.py` writes each manufacturer's tarp, dusted as the film dusted Solari's (`old7.dusty_tarp`), padded 6 px each
 side and below, with the hold field (weight, loose-end share, strap pull, drape depth) and the cloth's phases and
 lightness range in rows under it. `YardStandSet.Tarp.set_wind` draws that texture, and the room's tarp material
 works the field out per pixel each frame.
