@@ -82,6 +82,10 @@ func setup() -> void:
 	vm.shader = preload("res://shaders/ship_room_vignette.gdshader")
 	_vignette.material = vm
 	add_child(_vignette)
+	# a room's own passes read the screen too: copy it fresh, so the blur has everything under it
+	var bb := BackBufferCopy.new()
+	bb.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	add_child(bb)
 	_blur = ColorRect.new()
 	_blur.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_blur.size = Vector2(W, H)

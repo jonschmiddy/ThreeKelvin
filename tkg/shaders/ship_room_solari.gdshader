@@ -74,31 +74,16 @@ vec4 room_emissive(ivec2 p) {
 	return e;
 }
 
-float hull_alpha(sampler2D tx, vec2 uv, vec2 px, float dx, float dy) {
-	return texture(tx, uv + vec2(dx, dy) * px).a > 0.0 ? 1.0 : 0.0;
+// the hull's own texture is read in fragment() only (a builtin sampler can't be passed on)
+#define HA(dx, dy) step(0.001, texture(TEXTURE, UV + vec2(dx, dy) * TEXTURE_PIXEL_SIZE).a)
+#define HE(dx, dy) (HA(dx, dy) * (1.0 - HA(dx - 1.0, dy) * HA(dx + 1.0, dy) * HA(dx, dy - 1.0) * HA(dx, dy + 1.0)))
+
+float k5(int i) {
+	int a = abs(i);
+	return a > 2 ? 0.0 : float(3 - a) / 81.0;
 }
 
-bool hull_edge(sampler2D tx, vec2 uv, vec2 px, float dx, float dy) {
-	if (hull_alpha(tx, uv, px, dx, dy) == 0.0) {
-		return false;
-	}
-	return hull_alpha(tx, uv, px, dx - 1.0, dy) * hull_alpha(tx, uv, px, dx + 1.0, dy)
-		* hull_alpha(tx, uv, px, dx, dy - 1.0) * hull_alpha(tx, uv, px, dx, dy + 1.0) == 0.0;
-}
-
-// The softened silhouette (two 3x3 box blurs) at an offset, for the outline's normal.
-float hull_soft(sampler2D tx, vec2 uv, vec2 px, float ox, float oy) {
-	const float W5[5] = float[](1.0, 2.0, 3.0, 2.0, 1.0);
-	float s = 0.0;
-	for (int i = 0; i < 5; i++) {
-		for (int j = 0; j < 5; j++) {
-			s += W5[i] * W5[j] * hull_alpha(tx, uv, px, ox + float(i - 2), oy + float(j - 2));
-		}
-	}
-	return s / 81.0;
-}
-
-vec3 hull_lit(sampler2D tx, vec4 c, vec2 uv, vec2 px) {
+vec3 hull_lit(vec4 c, bool edge, bool edge2, vec2 n) {
 	float u = clamp((floor(fp.y) - rows.x) / max(1.0, rows.y - rows.x), 0.0, 1.0);
 	float key = 1.45 * (1.0 - 0.42 * pow(u, 1.2));
 	vec3 Lh = key * vec3(1.0, 0.9, 0.78) + 0.10 * AMBC;
@@ -111,13 +96,7 @@ vec3 hull_lit(sampler2D tx, vec4 c, vec2 uv, vec2 px) {
 	}
 	Lh += u * u * (0.42 + 0.9 * bounce) * vec3(1.0, 0.66, 0.40);
 	vec3 rgb = c.rgb * Lh;
-	bool edge = hull_edge(tx, uv, px, 0.0, 0.0);
-	bool edge2 = !edge && (hull_edge(tx, uv, px, 1.0, 0.0) || hull_edge(tx, uv, px, -1.0, 0.0)
-		|| hull_edge(tx, uv, px, 0.0, 1.0) || hull_edge(tx, uv, px, 0.0, -1.0));
 	if (edge || edge2) {
-		vec2 g = vec2(hull_soft(tx, uv, px, 1.0, 0.0) - hull_soft(tx, uv, px, -1.0, 0.0),
-			hull_soft(tx, uv, px, 0.0, 1.0) - hull_soft(tx, uv, px, 0.0, -1.0)) * 0.5;
-		vec2 n = -g / (length(g) + 1e-6);
 		vec3 acc = vec3(0.0);
 		for (int i = 0; i < n_hl; i++) {
 			vec4 l = hl_pos[i];
@@ -153,7 +132,24 @@ void fragment() {
 	} else {
 		vec4 c = texture(TEXTURE, UV) * COLOR;
 		if (mode == 2) {
-			vec3 rgb = hull_lit(TEXTURE, c, UV, TEXTURE_PIXEL_SIZE);
+			bool edge = HE(0.0, 0.0) > 0.5;
+			bool edge2 = !edge && c.a > 0.0 && (HE(1.0, 0.0) + HE(-1.0, 0.0) + HE(0.0, 1.0) + HE(0.0, -1.0)) > 0.5;
+			vec2 n = vec2(0.0);
+			if (edge || edge2) {
+				// the outline's outward normal off the silhouette softened by two 3x3 box blurs
+				vec2 g = vec2(0.0);
+				for (int i = -3; i <= 3; i++) {
+					for (int j = -3; j <= 3; j++) {
+						float a = HA(float(i), float(j));
+						// d/dx of the 5x5 [1 2 3 2 1] kernel, centred differences
+						float wx = (k5(i - 1) - k5(i + 1)) * k5(j);
+						float wy = (k5(j - 1) - k5(j + 1)) * k5(i);
+						g += a * vec2(wx, wy);
+					}
+				}
+				n = -g / (length(g) + 1e-6);
+			}
+			vec3 rgb = hull_lit(c, edge, edge2, n);
 			COLOR = vec4(hazed(rgb, fp, 1.0 / 12.0), c.a);
 		} else if ((mode == 1 || mode == 3) && c.a > 0.15 && c.a < 0.85) {
 			// a painted pixel's alpha says what it is: 0.5 burns unlit, 0.25 darkens what is
