@@ -93,7 +93,13 @@ func _depth(id: StringName, d: int, seeds: int) -> void:
 	_h._ok("%s depth %d: every seed deals a puzzle" % [id, d], dealt == seeds)
 	_h._ok("%s depth %d: the same seed deals the same puzzle" % [id, d], same == seeds)
 	_h._ok("%s depth %d: the solver solves every puzzle" % [id, d], solved == seeds)
-	_h._ok("%s depth %d: a perfect solve scores about 1" % [id, d], perfect == seeds)
+	var near: Dictionary = (NEAR_FULL.get(id, {}) as Dictionary).get(d, {})
+	if near.is_empty():
+		_h._ok("%s depth %d: a perfect solve scores about 1" % [id, d], perfect == seeds)
+	else:
+		_h._ok("%s depth %d: a scripted solve scores about 1 on %d of %d deals (at least %d%%), none under %.2f (worst %.2f)"
+			% [id, d, perfect, seeds, roundi(float(near.share) * 100.0), float(near.floor), worst],
+			perfect >= ceili(float(near.share) * seeds) and worst >= float(near.floor))
 	_h._ok("%s depth %d: a give-up scores 0 to 0.2" % [id, d], quits == seeds)
 	_h._ok("%s depth %d: every deal fills the glass, exactly 150x140 (152x140 shown 150)" % [id, d], sized == seeds)
 
@@ -144,6 +150,12 @@ func _deal(id: StringName, d: int, sens: int, s: int) -> Dictionary:
 			return GameCulture.gen(r, d)
 		&"dock":
 			return GameDock.gen(d, sens, r)
+		&"skim":
+			return GameSkim.gen(r, d)
+		&"flick":
+			return GameFlick.gen(r, d, sens)
+		&"geyser":
+			return GameGeyser.gen(r, d)
 	return {}
 
 
@@ -219,18 +231,28 @@ func _dump(dir: String) -> void:
 		g.px.img.save_png(dir.path_join("%s_start.png" % id))
 		var sv := MiniSolver.for_game(g)
 		var evs: Array[Dictionary] = []
-		if sv.plan.is_empty():
-			evs = sv.act(g, 0.0)
-		else:
-			evs = sv.plan.slice(0, maxi(0, sv.plan.size() - 2))
-		for e in evs:
-			send(g, e)
 		var ticks: Array = DUMP_TICKS.get(id, [])
-		for dt: float in ticks:
-			g.tick(dt)
+		if id in STEPPED:
+			# the pilot plays each frame, its events sent before the frame they came in (`f`)
+			for i in ticks.size():
+				for e in sv.act(g, ticks[i]):
+					send(g, e)
+					e.f = i
+					evs.append(e)
+				g.tick(ticks[i])
+		else:
+			if sv.plan.is_empty():
+				evs = sv.act(g, 0.0)
+			else:
+				evs = sv.plan.slice(0, maxi(0, sv.plan.size() - 2))
+			for e in evs:
+				send(g, e)
+			for dt: float in ticks:
+				g.tick(dt)
 		g.px.img.save_png(dir.path_join("%s_end.png" % id))
 		var f := FileAccess.open(dir.path_join("%s_puzzle.json" % id), FileAccess.WRITE)
-		f.store_string(JSON.stringify({puzzle = puz, draws = draws, seed = 5, events = MiniDump.js(evs), raf = DUMP_RAF.get(id, [])}))
+		# a comet page's whole deal is its draws, so they go in full (the rest as they always have)
+		f.store_string(JSON.stringify({puzzle = puz, draws = draws, seed = 5, events = MiniDump.js(evs), raf = DUMP_RAF.get(id, [])}, "", true, id in COMET_PAGES))
 		f.close()
 
 
@@ -239,10 +261,18 @@ func _dump(dir: String) -> void:
 ## on their second.
 const DUMP_RAF := {&"beams": [1100.0], &"spectrum": [1400.0], &"icecore": [1100.0], &"tray": [1100.0], &"anomaly": [1100.0], &"pulsar": [1100.0],
 	&"leak": [1000.0, 1050.0], &"torch": [1000.0, 1050.0], &"fourkelvin": [1000.0], &"tuning": [1100.0], &"sling": [1100.0], &"seismic": [1600.0], &"corescan": [1100.0],
-	&"culture": [1100.0], &"dock": [1000.0, 1050.0]}
+	&"culture": [1100.0], &"dock": [1000.0, 1050.0], &"skim": SKIM_RAF, &"flick": COMET_RAF, &"geyser": COMET_RAF}
+## The comet games fly frames 1/16 s apart, a step an exact binary fraction so both clocks agree: Skim
+## a second of them after its first press, Flick and Geyser two, their pilots playing every frame.
+const SKIM_RAF := [1062.5, 1125.0, 1187.5, 1250.0, 1312.5, 1375.0, 1437.5, 1500.0, 1562.5, 1625.0, 1687.5, 1750.0, 1812.5, 1875.0, 1937.5, 2000.0]
+const SKIM_TICKS := [0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625]
+const COMET_RAF := SKIM_RAF + [2062.5, 2125.0, 2187.5, 2250.0, 2312.5, 2375.0, 2437.5, 2500.0, 2562.5, 2625.0, 2687.5, 2750.0, 2812.5, 2875.0, 2937.5, 3000.0]
+const COMET_TICKS := SKIM_TICKS + SKIM_TICKS
+const COMET_PAGES: Array[StringName] = [&"skim", &"flick", &"geyser"]
+const STEPPED: Array[StringName] = [&"flick", &"geyser"]
 const DUMP_TICKS := {&"beams": [0.1], &"spectrum": [0.4], &"icecore": [0.1], &"tray": [0.1], &"anomaly": [0.1], &"pulsar": [0.1],
 	&"leak": [0.0, 0.05], &"torch": [0.0, 0.05], &"fourkelvin": [0.0], &"tuning": [0.1], &"sling": [0.1], &"seismic": [0.6], &"corescan": [0.1],
-	&"culture": [0.1], &"dock": [0.0, 0.05]}
+	&"culture": [0.1], &"dock": [0.0, 0.05], &"skim": SKIM_TICKS, &"flick": COMET_TICKS, &"geyser": COMET_TICKS}
 
 
 ## Deals into `r`, leaving it where the game's own deal left its stream.
@@ -282,6 +312,9 @@ func _deal_into(id: StringName, r: RandomNumberGenerator) -> void:
 			GameCulture.gen(r, 3)
 		&"dock":
 			GameDock.gen(3, 1, r)
+		&"skim", &"flick", &"geyser":
+			# the comet pages deal in their own mounts, so their draws start where the stream does
+			pass
 
 
 ## What a frame of each game costs at sector 5 (printed, never asserted: it is the machine's).
@@ -343,8 +376,9 @@ func _haul() -> void:
 		_h._ok("pay grants one material by its catalogue name and tier (%s)" % str(h), not h.is_empty() and String(h.name) != "" and StringName(h.tier) in MaterialTable.TIERS)
 
 
-## WHICH GAMES EACH SITE DEALS, printed: a comet deals Ice Core alone (Jon, Nov 21, "C"), every other
-## site `pool(ROCK)`, as before. Why: docs/why/MiniGame.md#a-sites-own-deal
+## WHICH GAMES EACH SITE DEALS, printed: a comet deals Ice Core or a comet game Jon picked (Nov 21,
+## "C"; Skim, Flick, Geyser), every other site `pool(ROCK)`, as before.
+## Why: docs/why/MiniGame.md#a-sites-own-deal
 func _site_deals() -> void:
 	var rock := MiniGames.pool(MiniGames.ROCK)
 	var same := true
@@ -358,9 +392,12 @@ func _site_deals() -> void:
 	var dealt := {}
 	# (the deal's own first draw: `deal` itself reads the ship's sensors, and this harness has no ship)
 	for i in 64:
-		dealt[comet[Rng.derive(&"minigame", i).randi() % comet.size()]] = true
-	_h._ok("a comet deals Ice Core and nothing else (%s; dealt %s over 64 systems)" % [", ".join(comet), ", ".join(dealt.keys())],
-		comet == [&"icecore"] and dealt.keys() == [&"icecore"])
+		var id: StringName = comet[Rng.derive(&"minigame", i).randi() % comet.size()]
+		dealt[id] = int(dealt.get(id, 0)) + 1
+	var want: Array[StringName] = [&"icecore", &"skim", &"flick", &"geyser"]
+	var each := want.all(func(id: StringName) -> bool: return dealt.has(id))
+	_h._ok("a comet deals Ice Core, Skim, Flick or Geyser and nothing else, each over 64 systems (%s; dealt %s)" % [", ".join(comet), str(dealt)],
+		comet == want and dealt.size() == want.size() and each)
 
 
 ## The start card at every depth (Jon, Nov 20: "CONTROL [GAME INSTRUCTIONS] / [ESC] TO GIVE UP"): the
@@ -401,9 +438,11 @@ func _tell(id: StringName) -> void:
 ## stops its card's icon clock). That flag may differ.
 const EMPTY := Vector2(1.5, 1.5)
 const ANY_PRESS := {&"anomaly": ["started"], &"fourkelvin": ["mode"], &"tray": ["started"], &"centrifuge": ["acted", "_icon_t"],
-	&"seismic": ["touched"], &"culture": ["touched"]}
+	&"seismic": ["touched"], &"culture": ["touched"], &"skim": ["started", "ax", "ay"], &"flick": ["started", "ptr_x", "ptr_y"],
+	&"geyser": ["started", "ptr_x"]}
 ## The games whose clock that press starts: their twins part from there, so they are held at the click.
-const CLOCK_STARTS: Array[StringName] = [&"anomaly", &"fourkelvin"]
+## The comet games' press starts their clock (Skim's takes hold of the tether where it lands).
+const CLOCK_STARTS: Array[StringName] = [&"anomaly", &"fourkelvin", &"skim", &"flick", &"geyser"]
 
 
 ## Any click on the glass puts the start card away (Jon, Nov 20: Ice Core's card hid ONE UPSIDE DOWN
@@ -591,6 +630,12 @@ func _give_up(id: StringName) -> void:
 	while not sh.revealed:
 		sh.tick(STEP)
 	_card_checks(id, sh, false, "SLAG", 0)
+
+
+## Where a perfect run cannot always fill the bar: Geyser at sector 5, whose jets burn too briefly
+## and hop too far for every deal to be filled (the page tunes a clean sector 3 run to about fill it).
+## Why: docs/why/MiniGame.md#geyser
+const NEAR_FULL := {&"geyser": {5: {share = 0.9, floor = 0.9}}}
 
 
 ## The game area every game fills, the whole glass (Jon, Nov 19: no black bars; A, Nov 20: no strip).

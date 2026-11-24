@@ -11,7 +11,7 @@ static var enabled := true
 ## the site whose source pays the haul.
 static var force: Dictionary = {}
 ## Every ported game (the dev flag opens any).
-const ORDER: Array[StringName] = [&"coolant", &"centrifuge", &"icecore", &"pulsar", &"tray", &"anomaly", &"beams", &"spectrum", &"fourkelvin", &"torch", &"leak", &"sling", &"tuning", &"seismic", &"corescan", &"culture", &"dock"]
+const ORDER: Array[StringName] = [&"coolant", &"centrifuge", &"icecore", &"pulsar", &"tray", &"anomaly", &"beams", &"spectrum", &"fourkelvin", &"torch", &"leak", &"sling", &"tuning", &"seismic", &"corescan", &"culture", &"dock", &"skim", &"flick", &"geyser"]
 ## The games by the site they are played at (Jon, Nov 18, page 6pDoF6JJ9CGLB8xiD4ytoQ). LAB games
 ## go with any site; Centrifuge is both LIFE and LAB. Only rock sites exist today (a reading at a
 ## world, a belt or a comet): they deal ROCK and LAB, unless the site has its own deal (`OWN`).
@@ -24,10 +24,11 @@ const SKY: Array[StringName] = [&"pulsar", &"spectrum", &"sling", &"tuning", &"b
 const LAB: Array[StringName] = [&"coolant", &"tray", &"centrifuge"]
 
 
-## A SITE'S OWN DEAL, in place of its group's and the lab's. A comet deals Ice Core (Jon, Nov 21,
-## "C"); the comet games he picks from the prototypes join this list when they are ported.
+## A SITE'S OWN DEAL, in place of its group's and the lab's. A comet deals Ice Core or one of the
+## comet games Jon picked (Nov 21, "C"; Skim, then Flick and Geyser on Nov 22): a new pick joins COMET.
 ## Why: docs/why/MiniGame.md#a-sites-own-deal
-const OWN: Dictionary[StringName, Array] = {&"comet": [&"icecore"]}
+const COMET: Array[StringName] = [&"icecore", &"skim", &"flick", &"geyser"]
+const OWN: Dictionary[StringName, Array] = {&"comet": COMET}
 
 
 ## The games a reading at `site` deals: the site's own deal when it has one, else `pool(ROCK)`
@@ -85,6 +86,12 @@ static func make(id: StringName) -> MiniGame:
 			return GameCulture.new()
 		&"dock":
 			return GameDock.new()
+		&"skim":
+			return GameSkim.new()
+		&"flick":
+			return GameFlick.new()
+		&"geyser":
+			return GameGeyser.new()
 	return null
 
 
