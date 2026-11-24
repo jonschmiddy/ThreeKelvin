@@ -25,7 +25,7 @@ var _picks_on := true
 ## `flight=<path>`: another ShipFlight to measure (an older one, to compare).
 var _flight_script: Script = ShipFlightS
 
-const SEEDS := [4242, 7, 1999, 31337, 99, 123, 5150, 8080]
+const SEEDS := [9300, 7, 1999, 31337, 99, 123, 5150, 8080]
 const NONE := {"w": false, "a": false, "s": false, "d": false}
 ## found and clean in at least this share of each sweep (DESIGN)
 const FOUND_MIN := 0.99
@@ -59,7 +59,7 @@ const PUT_LEFT_CLOSE := 6
 ## readings lay a few systems out anew, and three more starts leave one.
 ## Why: docs/why/FlightTest.md#the-harnesss-starts-the-residual-may
 const PUT_LEFT_CASES := {
-	"twin": ["4242:129:free", "1999:217:free"],
+	"twin": ["1999:217:free"],
 	"close": [],
 }
 ## the click comes up to this long after the first plan (s)
@@ -113,6 +113,15 @@ var _pick_hand := false
 ## clicks' starts hold
 const HAND_WIDE := 10
 const HAND_CLOSE := 5
+## FLIGHTS PINNED from worlds past the gate's seeds, each failing on main (Nov 22):
+## [what, seed, system, ...]: "corner" CURVED orbit b to i, "core" the seed's core
+## on DIRECT against the lens, "hand" a wide pair let go as `_hand_phase` does.
+## Why: docs/why/FlightTest.md#pinned-flights
+const PINS := [
+	["corner", 2468, 183, 2, 5],
+	["core", 9300],
+	["hand", 777, 131],
+]
 ## `hand=0`: no flying by hand (`_hand_phase`)
 var _hand := true
 ## `phase=hand`: only the hand phase (above); `phase=rest` is `hand=0`
@@ -210,13 +219,22 @@ func _stat(sweep0: String) -> Dictionary:
 			"flown": 0, "landed": 0, "ms": [], "T": [], "work": [], "lead": [], "clicks": 0, "drawn": 0,
 			"drawn_px": [], "corners1": 0, "corners2": 0, "turn1": [], "turn2": [], "snaps": 0, "frame_dv": 0.0,
 			"frame_ratio": 0.0, "star": INF, "keep": INF, "world": INF, "speed": 0.0, "not_found": [], "not_landed": [],
-			"cornered": [], "snapped": [], "off_drawn": [], "nose": 0.0, "by_start": {}, "systems": 0, "redrawn": 0, "ring_corners": 0, "game_corners1": 0, "game_corners2": 0, "unflyable": 0, "end_off": 0.0, "belt_ends": 0,
+			"cornered": [], "snapped": [], "off_drawn": [], "nose": 0.0, "by_start": {}, "systems": 0, "redrawn": 0, "ring_corners": 0, "fall_corners": 0, "game_corners1": 0, "game_corners2": 0, "unflyable": 0, "end_off": 0.0, "belt_ends": 0,
 			"chained": 0, "chain_T": [], "chain_ms": [], "chain_cut": [], "chain_list": [], "chain_far": 0.0, "far": 0.0, "put": [],
 			"click_game": [], "click_place": [], "click_two": [], "in_clean": 0, "in_worst": INF}
 	return _sw[sweep]
 
 
 func _run() -> void:
+	_hand_pins = _pin_hand_rows()
+	# `pins`: the pinned flights alone (`PINS`)
+	if "pins" in OS.get_cmdline_user_args():
+		ShipFlightS.flight_opts()
+		_pins_phase()
+		_hand_phase()
+		h.verdict("flighttest")
+		get_tree().quit(h.code())
+		return
 	if _retarget:
 		_run_retarget()
 		return
@@ -253,6 +271,8 @@ func _run() -> void:
 		for pi2 in _paths.size():
 			_set_path(pi2)
 			_places_phase(seeds)
+		if _one_seed < 0:
+			_pins_phase()
 	var t_ph := Time.get_ticks_msec()
 	if not _rows_only and not _hand_only and h.mine(1):
 		await _worker_phase()
@@ -285,6 +305,67 @@ func _set_path(pi: int) -> void:
 	_picks_on = pi == _paths.size() - 1
 	ShipFlightS.n_fallback = 0
 	print("flighttest: the %s path at pace %.1f" % [p, float(ShipFlightS.flight_opts().pace)])
+
+
+var _hand_pins: Array = []
+
+
+## The pinned wide pairs as `_hand_phase`'s rows, laid out before any sweep starts a run.
+func _pin_hand_rows() -> Array:
+	var out: Array = []
+	for pin: Array in PINS:
+		if String(pin[0]) != "hand":
+			continue
+		Rng.forced = int(pin[1])
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		var n: MapGen.MapNode = Run.map[int(pin[2])]
+		OptionTable.ensure(n)
+		var was := n.twin
+		n.twin = true
+		SystemLayout.close_force = -1
+		var L := SystemLayout.of(n)
+		SystemLayout.close_force = 0
+		n.twin = was
+		out.append(["pin", L, "orbit", 0, 0, 40.0 + float(n.index % 17) * 13.0, n.index])
+	Rng.forced = 0
+	return out
+
+
+## The pinned corner and core flights (`PINS`), in the shard that flies the places.
+func _pins_phase() -> void:
+	for pin: Array in PINS:
+		var what := String(pin[0])
+		if what == "hand":
+			continue
+		Rng.forced = int(pin[1])
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		Rng.forced = 0
+		if what == "corner":
+			_set_path(_paths.find(&"curved") if _paths.has(&"curved") else 0)
+			var n: MapGen.MapNode = Run.map[int(pin[2])]
+			OptionTable.ensure(n)
+			n.twin = false
+			var L := SystemLayout.of(n)
+			var sw := "pin %d:%d" % [int(pin[1]), int(pin[2])]
+			var S := _stat(sw)
+			_case(sw, int(pin[1]), n, L, "orbit", int(pin[3]), int(pin[4]), 40.0 + float(n.index % 17) * 13.0)
+			h._ok("pinned: seed %d system %d, CURVED from orbit %d to %d, no corner (zoom 1 %d, zoom 2 %d)" % [int(pin[1]), int(pin[2]), int(pin[3]), int(pin[4]), S.game_corners1, S.game_corners2],
+				int(S.game_corners1) == 0 and int(S.game_corners2) == 0 and int(S.plans) > 0)
+		elif what == "core":
+			_set_path(_paths.find(&"direct") if _paths.has(&"direct") else 0)
+			for raw in Run.map:
+				var n2: MapGen.MapNode = raw
+				if n2.type != MapGen.NodeType.CORE:
+					continue
+				OptionTable.ensure(n2)
+				var Lc := SystemLayout.of(n2)
+				var keep := MapGravity.keep_out_star(Lc, -1)
+				var st := {"plans": 0, "solved": 0, "old": 0, "none": 0, "T": [], "miss": [], "close": INF, "inside": 0}
+				for b in Lc.bodies:
+					_far_case(st, "core", int(pin[1]), n2, Lc, b.index, keep)
+				h._ok("pinned: seed %d's core, no DIRECT flight inside the lens, %.1f px (%d; closest %.1f)" % [int(pin[1]), keep, int(st.inside), float(st.close)],
+					int(st.inside) == 0 and int(st.plans) > 0)
+	_set_path(_paths.size() - 1)
 
 
 var _n_sys := 0
@@ -710,15 +791,19 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 	var from_r: int = b if key == "orbit" or key == "close" else -99
 	for zz: float in [1.0, 2.0]:
 		var skip := _ring_skip(fl, L, pl, path3, i, from_r, zz)
+		var fall := _fall_skip(pl, path3, skip)
 		_corner_only = false
 		var tv := _turn_max(path3, zz, skip)
 		_corner_only = true
-		var cv := _turn_max(path3, zz, skip)
-		var cr := _turn_max(path3, zz) if skip.count(1) > 0 else cv
+		var cv_ring := _turn_max(path3, zz, skip)
+		var cv := _turn_max(path3, zz, fall) if fall != skip else cv_ring
+		var cr := _turn_max(path3, zz) if skip.count(1) > 0 else cv_ring
 		_corner_only = false
 		(S["turn%d" % int(zz)] as Array).append(tv)
-		if cr > CORNER and cv <= CORNER and pl.res != null:
+		if cr > CORNER and cv_ring <= CORNER and pl.res != null:
 			S.ring_corners = int(S.ring_corners) + 1
+		if cv_ring > CORNER and cv <= CORNER and pl.res != null:
+			S.fall_corners = int(S.fall_corners) + 1
 		if cv > CORNER and pl.res != null:
 			S["corners%d" % int(zz)] = int(S["corners%d" % int(zz)]) + 1
 			var game: bool = key != "free" and key != "near"
@@ -1519,7 +1604,7 @@ static func _near_line(p: Vector2, line: PackedVector3Array, j0: int) -> Array:
 func _hand_phase() -> void:
 	var seen := {}
 	var dt := 1.0 / 60.0
-	var n := {"far": 0, "far_ok": 0, "far_flights": 0, "far_fl_ok": 0, "mid": 0, "mid_ok": 0, "sun": 0, "sun_ok": 0}
+	var n := {"far": 0, "far_ok": 0, "far_ring": 0, "far_flights": 0, "far_fl_ok": 0, "mid": 0, "mid_ok": 0, "sun": 0, "sun_ok": 0}
 	var rows: Array = []
 	var worst_out := -INF
 	var worst_settle := 0.0
@@ -1527,11 +1612,14 @@ func _hand_phase() -> void:
 	# (ten wide pairs and five close pairs, as the clicks gathered them:
 	# HAND_WIDE and HAND_CLOSE)
 	var by_kind := {}
-	for row: Array in (_ck.twin as Array) + (_ck.close as Array):
+	for row: Array in (_ck.twin as Array) + (_ck.close as Array) + (_hand_pins if _one_seed < 0 else []):
 		var L: SystemLayout = row[1]
 		var kind := "close" if L.close else "wide"
 		var key := "%s %d" % [kind, int(row[6])]
-		if seen.has(key) or int(by_kind.get(kind, 0)) >= (HAND_CLOSE if L.close else HAND_WIDE):
+		var is_pin: bool = String(row[0]) == "pin"
+		if is_pin:
+			key = "pin %d" % int(row[6])
+		if seen.has(key) or (not is_pin and int(by_kind.get(kind, 0)) >= (HAND_CLOSE if L.close else HAND_WIDE)):
 			continue
 		seen[key] = true
 		by_kind[kind] = int(by_kind.get(kind, 0)) + 1
@@ -1546,6 +1634,9 @@ func _hand_phase() -> void:
 		fl.setup(L, Vector2(-L.edge * 0.95, 0.0), t0)
 		fl.mode = &"free"
 		fl.f.p = away * L.edge * 0.99
+		# A let-go point already inside a world's ring is the ring's: being taken there is right.
+		# Why: docs/why/FlightTest.md#let-go-on-a-ring
+		var on_ring := _ring_at(fl, L, fl.f.p, t0)
 		fl.f.v = perp * 8.0
 		fl.f.orbit_r = -1.0
 		fl.f.coast = 0.0
@@ -1570,6 +1661,10 @@ func _hand_phase() -> void:
 		worst_out = maxf(worst_out, out)
 		worst_settle = maxf(worst_settle, settled_at if settled_at >= 0.0 else 99.0)
 		var far_ok: bool = settled_at >= 0.0 and settled_at < 30.0 and out <= -11.0 and pinned == 0 and taken_far == ""
+		if on_ring >= 0:
+			n.far_ring = int(n.far_ring) + 1
+			far_ok = true
+			print("  far side, system %d: let go on world %d's ring, taken there (%s)" % [int(row[6]), on_ring, taken_far])
 		if far_ok:
 			n.far_ok = int(n.far_ok) + 1
 		else:
@@ -1645,7 +1740,7 @@ func _hand_phase() -> void:
 				n.sun_ok = int(n.sun_ok) + 1
 			else:
 				rows.append("W at star %d, system %d: came to %.1f px from its centre, its keep-out %.1f (drawn sun %.1f)" % [s, int(row[6]), rmin, kc, kc - 6.0])
-	print("flighttest: flying by hand in a twin (%d systems, %d of them close pairs): let go on the far side, %d of %d settled inside the map and off its edge and taken by no ring (its circle at worst %+.0f px past the edge, settled at worst in %.1f s), %d of %d flights from there inside it; let go between the stars, %d of %d settled and taken by no ring; W at a sun, %d of %d held out of its keep-out (at worst %.1f px outside the drawn sun)" % [seen.size(), int(by_kind.get("close", 0)), n.far_ok, n.far, worst_out, worst_settle, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun, worst_sun])
+	print("flighttest: flying by hand in a twin (%d systems, %d of them close pairs): let go on the far side, %d of %d settled inside the map and off its edge and taken by no ring, or let go on one (%d) (its circle at worst %+.0f px past the edge, settled at worst in %.1f s), %d of %d flights from there inside it; let go between the stars, %d of %d settled and taken by no ring; W at a sun, %d of %d held out of its keep-out (at worst %.1f px outside the drawn sun)" % [seen.size(), int(by_kind.get("close", 0)), n.far_ok, n.far, n.far_ring, worst_out, worst_settle, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun, worst_sun])
 	for r in rows.slice(0, 20):
 		print("    " + r)
 	h._ok("by hand in a twin: let go anywhere it settles inside the map, between the stars too, and W never takes it into a sun (%d/%d, %d/%d, %d/%d, %d/%d)" % [n.far_ok, n.far, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun],
@@ -2074,7 +2169,7 @@ func _report(cap: Dictionary) -> void:
 				"n == 0 or under >= n / 2 + 1", {"n": ce.size(), "under": under, "LIMIT": le})
 		print("  closest to a star's surface %.1f px; least margin to a keep-out %.2f px; closest to a world's disc %.1f px; top speed %.0f px/s" % [S.star, S.keep, S.world, S.speed])
 		print("  sharpest turn of the drawn path, deg per px: zoom 1 %s; zoom 2 %s" % [_dist(S.turn1), _dist(S.turn2)])
-		print("  corners (over %.0f deg/px in 2 px) in solved flights: zoom 1 %d, zoom 2 %d (from the game's starts %d, %d); and %d on a ring's own curve only (a ring drawn so small its ends turn that fast)" % [CORNER, S.corners1, S.corners2, S.game_corners1, S.game_corners2, S.ring_corners])
+		print("  corners (over %.0f deg/px in 2 px) in solved flights: zoom 1 %d, zoom 2 %d (from the game's starts %d, %d); and %d on a ring's own curve only (a ring drawn so small its ends turn that fast), %d in an alongside arrival's last %.1f px only (`FlightSolve.ALONGSIDE_FALL`)" % [CORNER, S.corners1, S.corners2, S.game_corners1, S.game_corners2, S.ring_corners, S.fall_corners, FlightSolve.ALONGSIDE_FALL])
 		print("  clicks: %d, %d flew the drawn flight; drawn against flown, px: %s; the drawn flight planned again before the click %d times; planned again AT the click (it left late, `ShipFlight.CLICK_LATE`) %d" % [S.clicks, S.drawn, _dist(S.drawn_px), S.redrawn, int(S.get("click_redrawn", 0))])
 		print("  flown: biggest frame-to-frame change of velocity %.1f px/s, %.1fx its neighbours; snaps %d; the nose's biggest turn in a frame %.1f deg" % [S.frame_dv, S.frame_ratio, S.snaps, S.nose])
 		if int(S.unflyable) > 0:
@@ -2214,7 +2309,7 @@ const HOLD_S := 6.0
 ## Counts frames where a flight could start but should not (Jon: be in an orbit, then click).
 ## Why: docs/why/FlightTest.md#retarget
 func _run_retarget() -> void:
-	Rng.forced = 4242 if _one_seed < 0 else _one_seed
+	Rng.forced = 9300 if _one_seed < 0 else _one_seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var none := NONE
 	var dt := 1.0 / 60.0
@@ -2414,7 +2509,7 @@ static func _moved(a: PackedVector2Array, b: PackedVector2Array) -> float:
 ## Checks star orbits because the projected path kept updating into weird shapes (Jon).
 ## Why: docs/why/FlightTest.md#star-ride
 func _run_starride() -> void:
-	Rng.forced = 4242 if _one_seed < 0 else _one_seed
+	Rng.forced = 9300 if _one_seed < 0 else _one_seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var none := NONE
 	var dt := 1.0 / 60.0
@@ -2650,6 +2745,31 @@ func _ring_skip(fl, _L: SystemLayout, pl, path3: PackedVector3Array, i: int, fro
 			var c2: Vector3 = fl.center(i, tk if k < ns else float(pl.end.t) + float(k - ns) / 120.0 * ShipFlightS.TAIL_S)
 			if Vector2(q.x - c2.x, q.z - c2.z).length() < r_to * 1.25:
 				out[k] = 1
+	return out
+
+
+## The world whose ring holds p at t, or -1.
+func _ring_at(fl, L: SystemLayout, p: Vector2, t: float) -> int:
+	for b in L.bodies:
+		if b.world == &"" or b.soi <= 0.0:
+			continue
+		var c: Vector3 = fl.center(b.index, t)
+		if Vector2(c.x, c.z).distance_to(p) < b.soi:
+			return b.index
+	return -1
+
+
+## The ring skips, and an alongside arrival's last px and a half as the planner leaves it unread.
+## Why: docs/why/FlightTest.md#alongside-fall
+func _fall_skip(pl, path3: PackedVector3Array, skip: PackedByteArray) -> PackedByteArray:
+	if pl.res == null or int(pl.choice.get("tk", -1)) != 1 or pl.samp.is_empty():
+		return skip
+	var out := skip.duplicate()
+	var e: Vector3 = pl.samp[pl.samp.size() - 1]
+	for k in pl.samp.size():
+		var q: Vector3 = path3[k]
+		if Vector2(e.x - q.x, FlightSolve.DRAW_TILT * (e.z - q.z)).length() <= FlightSolve.ALONGSIDE_FALL:
+			out[k] = 1
 	return out
 
 

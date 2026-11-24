@@ -974,3 +974,16 @@ ring and its ride round it stay at the map's RAIL_V and STAR_RAIL_V. A
 harness's `-- flight_pace=K` sets the pace for either path; `-- autopilot=
 direct|curved` the path.
 ```
+
+## Old planner lens
+
+Above `static func lens_of(` in MapGravity, read by `_clean()` (Nov 22):
+
+```text
+TODAY'S PLANNER KEEPS OUT OF A BLACK HOLE'S LENS. The solver's keep-out
+round a black hole is its lens, 144 px (`MapGravity.keep_out_star`); the
+old planner's was the star's keep_clear, and on the last 0.6 s of an
+approach it gave way to the place's own distance less 16 px. Seed 9300's
+core (system 341, DIRECT, orbit 0 to world 1) flew to 128.6 px. A plan
+that goes inside the lens is not clean now, the approach's give included.
+```

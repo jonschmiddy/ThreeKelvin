@@ -554,7 +554,8 @@ func _painted() -> void:
 	var clouded := 0
 	var ones := 0
 	var bad: Array[String] = []
-	Rng.forced = 4242
+	# (4242 until Nov 22: tier 0 dropped the Flocculent Spiral and 4242 lost its twins in a cloud)
+	Rng.forced = 1999
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	for raw in Run.map:
 		var nd: MapGen.MapNode = raw
