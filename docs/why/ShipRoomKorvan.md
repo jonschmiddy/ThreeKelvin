@@ -23,6 +23,12 @@ the game reads the very same stepped values:
 - hulls take mix18's `hull_light`: the berth lamps' ship field times a stepped row light (lit top, a hard
   terminator a little below the middle, the floor's bounce on the belly), plus `dsh`, capped at 0.98.
 
+The lift arc's floor pool is round 20's (mix20, Jon: "no shadows on the stands from the guy welding"): it
+reaches past the posts (`soft12(clip(E x 1.3) ^ 1.25)`, no longer `E ^ 2`) and the heavy's posts and the lift throw
+shadows straight away from the arc's floor point, cut out of it with a pair-dithered edge (`floor_shadow20`). It
+is exported from the game's own post positions (x 359 and 503, a pixel right of the film's), and it flickers
+with the arc because the whole pool is scaled by the arc's level each frame.
+
 The floor is the film's code-drawn plate grid (round 18 laid it after `stands5.rebuild`): flat plates, straight
 joins, a rivet at each plate corner, no painted cracks.
 
