@@ -29,8 +29,9 @@ uniform vec4 pool_a[32];
 uniform vec4 pool_b[32];
 uniform vec4 pool_c[32];
 uniform vec4 pool_d[32];
-// the people walking through the pours' and the roar's light: (x0, x1, z, height)
+// the people walking through the arc's light: (x0, x1, z, height); the torch's tip
 uniform vec4 people[3];
+uniform vec2 arc_tip = vec2(0.0);
 
 const vec3 AMBC = vec3(1.0, 0.84, 0.72);
 const vec3 FIRE = vec3(1.0, 0.62, 0.30);
@@ -137,9 +138,6 @@ void light_sum(ivec2 c, out vec3 l3, out float s0, out float s1) {
 	for (int i = 0; i < 6; i++) {
 		float w = fch(c, 4 + i);
 		float pf = fch(c, 10 + i);
-		if (pf > 0.0 && fl) {
-			pf *= people_k(c, vec3(TAPS[i], 205.0, 50.0));
-		}
 		v = w + 0.24 * pf;
 		if (lip == i + 1) {
 			v += 0.16 + 0.30 * flare[i];
@@ -156,16 +154,16 @@ void light_sum(ivec2 c, out vec3 l3, out float s0, out float s1) {
 	}
 	if (door_k > 0) {
 		v = fch(c, 16 + door_k) * door_w;
-		if (v > 0.0 && fl) {
-			float top = 66.0 + 67.0 * float(door_k) / 6.0;
-			v *= people_k(c, vec3(207.0, 205.0, (66.0 + top) * 0.5));
-		}
 		l3 += v * WHITE_HEAT;
 		s0 += v;
 		s1 += v * door_b;
 	}
 	if (arc_i >= 0) {
 		v = fch(c, 22 + arc_i) * arc_w;
+		// a walker near the arc throws its own point shadow (show20: no wedges from the pours or the roar)
+		if (v > 0.0 && fl) {
+			v *= people_k(c, vec3(arc_tip.x, 386.0, 386.0 - arc_tip.y));
+		}
 		l3 += v * ARC;
 		s0 += v;
 		s1 += v;

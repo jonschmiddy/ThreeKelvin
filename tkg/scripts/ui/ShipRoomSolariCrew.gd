@@ -40,6 +40,8 @@ const BEAM_COL := Color(1.0, 226.0 / 255.0, 172.0 / 255.0)
 var meta: Dictionary = {}
 var _tex: Dictionary[StringName, Texture2D] = {}
 var _belly: Dictionary = {}
+## Each front-lane look's frames as silhouettes: per frame, per row, its opaque columns.
+var _sil: Dictionary[StringName, Array] = {}
 var _gspark: ShipRoomSolariFx.Sparks
 var _wspark: ShipRoomSolariFx.Sparks
 
@@ -54,6 +56,8 @@ func _init(r: ShipRoomSolari) -> void:
 	_tex[&"tech_raised"] = _cool_strip(_tex[&"look_rigger"], false)
 	_tex[&"lift"] = _lift_tex(load(YARD + str(meta.lifts.unclaimed.picture)) as Texture2D)
 	_belly = r.layout.get("solari", {}).get("belly_rows", {})
+	for look: StringName in [&"look_rigger", &"look_loader", &"tech_raised"]:
+		_sil[look] = _silhouettes(_tex.get(look), 8)
 	_gspark = ShipRoomSolariFx.Sparks.new(7, 70.0, Vector2(0.3, 0.8), 300.0, 0.35)
 	_wspark = ShipRoomSolariFx.Sparks.new(31, 36.0, Vector2(0.35, 0.9), 240.0, 0.3)
 
@@ -80,6 +84,29 @@ static func _cool_strip(src: Texture2D, welder: bool) -> Texture2D:
 			elif y >= 22:
 				img.set_pixel(x, y, Color8(58, 50, 52))
 	return ImageTexture.create_from_image(img)
+
+
+## Per frame of a strip, per row, the opaque columns (the wall shadow's source).
+static func _silhouettes(src: Texture2D, frames: int) -> Array[Array]:
+	var out: Array[Array] = []
+	if src == null:
+		return out
+	var img := src.get_image()
+	if img == null:
+		return out
+	img = img.duplicate() as Image
+	img.decompress()
+	var fw := img.get_width() / frames
+	for f in frames:
+		var rows: Array[PackedInt32Array] = []
+		for y in img.get_height():
+			var cols := PackedInt32Array()
+			for c in fw:
+				if img.get_pixel(f * fw + c, y).a > 0.0:
+					cols.append(c)
+			rows.append(cols)
+		out.append(rows)
+	return out
 
 
 ## draw_lift's scissor lift, raised 26 rows: its base, the scissors repeated, its deck on top.
@@ -152,8 +179,12 @@ func _frame(ci: CanvasItem, look: StringName, fr: int, flip: bool, x: int, y: in
 		return
 	var fw := tx.get_width() / int(meta.crew[String(look)].frames) if meta.crew.has(String(look)) else 21
 	var fh := tx.get_height()
-	var dst := Rect2(x + fw, y, -fw, fh) if flip else Rect2(x, y, fw, fh)
-	ci.draw_texture_rect_region(tx, dst, Rect2(fr * fw, 0, fw, fh), mod)
+	if flip:
+		ci.draw_set_transform(Vector2(x + fw, y), 0.0, Vector2(-1, 1))
+		ci.draw_texture_rect_region(tx, Rect2(0, 0, fw, fh), Rect2(fr * fw, 0, fw, fh), mod)
+		ci.draw_set_transform(Vector2.ZERO)
+	else:
+		ci.draw_texture_rect_region(tx, Rect2(x, y, fw, fh), Rect2(fr * fw, 0, fw, fh), mod)
 
 
 ## kit.contact: an oval under a thing's feet, darkest at the foot, its rim ordered-dithered; it only darkens.
@@ -394,6 +425,7 @@ func light_state(t: float, r: ShipRoomSolari) -> Dictionary[StringName, Variant]
 		var tip := weld_tip(ws[0])
 		r.hull_light(tip.x, tip.y, 130, ShipRoomSolari.ARC, 1.3 * fl)
 		out[&"arc_i"] = mini(2, ws[0])
+		out[&"arc_tip"] = Vector2(tip)
 		out[&"arc_w"] = fl
 	if grind_on(tl):
 		var b: float = [0.85, 0.95, 1.05][int(C.hash1([77, int(tl * 8.0)]) * 3.0)]
@@ -444,7 +476,7 @@ func _weld_floor(x: float) -> float:
 
 
 ## Everyone in front of the hulls, in foot-row order, lit at their own pixels (FRONT: rgb x m).
-func paint_front(ci: CanvasItem, t: float) -> void:
+func paint_front(ci: CanvasItem, t: float, m_at: Callable) -> void:
 	var tl := fposmod(t, C.LOOP)
 	var ls: Dictionary = meta.lifts.unclaimed
 	var lx0 := int(LIFT_X - float(ls.cx) + float(ls.x0))
@@ -458,7 +490,9 @@ func paint_front(ci: CanvasItem, t: float) -> void:
 	var shining := false
 	for sx: int in [430, 486, 530]:
 		shining = shining or absf(tp.x - sx) < 0.5
-	_frame(ci, &"tech_raised" if shining else &"look_rigger", tp.fr, tp.flip, int(roundf(tp.x)) - 10, 336 - 41)
+	var tlook: StringName = &"tech_raised" if shining else &"look_rigger"
+	_frame(ci, tlook, tp.fr, tp.flip, int(roundf(tp.x)) - 10, 336 - 41)
+	wall_shadow(ci, tlook, tp, 21, 336, m_at)
 	if shining:
 		_beam(ci, tp)
 	else:
@@ -467,6 +501,7 @@ func paint_front(ci: CanvasItem, t: float) -> void:
 	_welder(ci, tl)
 	for p in carriers:
 		_frame(ci, &"look_loader", p.fr, p.flip, int(roundf(p.x)) - 10, 392 - 44)
+		wall_shadow(ci, &"look_loader", p, 21, 392, m_at)
 
 
 func _frame_strip(ci: CanvasItem, key: StringName, fr: int, x: int, y: int) -> void:
@@ -605,3 +640,41 @@ static func _lit(k: float) -> Color:
 ## The heavy's underside row at a column, or -1 where it has none.
 func _cover(x: int) -> int:
 	return int(_belly.get(str(x), -1))
+
+
+## show20.wall_shadow (Jon: "This guy's shadow is weird"): one shadow from the furnace wall behind a
+## walker, his pose's silhouette flipped and flattened onto the floor (0.4 of his height) from his feet,
+## leaning away from the nearest furnace (at most 0.5 px a row), x0.5 near and x0.72 far, as strong as
+## the floor's light at his feet.
+func wall_shadow(ci: CanvasItem, look: StringName, p: Pose, w: int, feet: int, m_at: Callable) -> void:
+	var frames: Array = _sil.get(look, [])
+	if p.fr >= frames.size():
+		return
+	var sil: Array = frames[p.fr]
+	var rows: Array[int] = []
+	for r in sil.size():
+		if not (sil[r] as PackedInt32Array).is_empty():
+			rows.append(r)
+	if rows.is_empty():
+		return
+	var x_left := int(roundf(p.x)) - w / 2
+	var cx := x_left + w / 2.0
+	var tn := C.TAPS[0]
+	for tt in C.TAPS:
+		if absf(tt - cx) < absf(tn - cx):
+			tn = tt
+	var lean := clampf((cx - tn) / 240.0, -0.5, 0.5)
+	var m: Vector3 = m_at.call(clampi(int(cx), 0, ShipRoom.W - 1), mini(ShipRoom.H - 1, feet))
+	var lv := clampf(((m.x + m.y + m.z) / 3.0 - 0.15) / 0.7, 0.0, 1.0)
+	if lv <= 0.05:
+		return
+	var sh_h := maxi(2, int(roundf(0.4 * rows.size())))
+	for k in sh_h:
+		var src := rows[-1] - int(k / 0.4)
+		if src < rows[0]:
+			break
+		var dx := int(roundf(lean * k))
+		var kk := 1.0 - (0.28 if k >= sh_h / 2 else 0.5) * lv
+		for c in sil[src] as PackedInt32Array:
+			var cc := w - 1 - c if p.flip else c
+			B.px(ci, x_left + cc + dx, feet + k, Color(kk, 0, 0, B.SHADE))
