@@ -37,3 +37,22 @@ The lamp is A17's schedule on the film's 10 s loop (`A5.lamp`): two long outages
 `1 + 0.018 sin(2 pi 3t/10) + 0.012 sin(2 pi 7t/10 + 1)`. Frames are 30 fps steps (`round((t - t0) x 30)`), so a
 flicker lasts as long as it did in the film at any frame rate. The level multiplies after the stepping, so no
 band edge ever moves. A launch's beat (`lamp_k`) multiplies it too.
+
+## dust
+
+The dust is the film's own: A5's 700 far motes (behind the tarps), 400 mid motes (a quarter of them flakes that
+glint once or twice a loop), 18 near motes with two dimmer halo pixels, and the dust a gust shakes off each tarp's
+top as it reaches it (a kick up, a sink down the face, a drift outward). `export.py` runs the film's code and keeps
+each mote's track: its pixel each frame (the film's slow ellipse, snapped with hysteresis so it never steps back
+and forth) and its brightness there (how lit the air is at that pixel, its glint, its fade). A mote is never drawn
+where the air is unlit. The game draws them all in one MultiMesh per layer; the shader reads the track at the
+frame (30 a second on the 10 s loop, which the film made seamless) and screens the mote onto what is under it in
+the sodium colour times the lamp's level, so the dust goes out with the lamp.
+
+- The far motes are in `under`, so they pass behind the posts as well as the tarps (in the film they were drawn
+  over the posts, which were painted into the room). They hang in the air behind the tarps, where the posts are.
+- The near and mid motes and the shaken dust are in `above`: over the tarps and under the banners, so they pass
+  behind the banners with no masking (the film masked the banner's silhouette by hand, A12).
+- Overlapping motes: the film kept the brighter; here the later one is drawn. They rarely overlap.
+- The shaken dust starts at Solari's tarps' tops (the film's). Another maker's tarp is the same size with a
+  slightly different top edge, so its dust may start a pixel or two off the cloth.

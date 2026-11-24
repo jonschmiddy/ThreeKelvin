@@ -19,6 +19,7 @@ const BURSTS := [[1.30, [0.08, 0.08, 1, 1, 1, 0.10, 1, 1, 0.06, 0.06, 0.06, 1, 1
 	[8.90, [0.08]]]
 
 var _level := 1.0
+var _dust: Array[ShaderMaterial] = []
 
 
 func hull_amb() -> float:
@@ -41,7 +42,39 @@ func _build() -> void:
 		m.set_shader_parameter(&"amb", tex(id, "amb.png"))
 		m.set_shader_parameter(&"lamp", tex(id, "lamp.png"))
 		m.set_shader_parameter(&"emissive", tex(id, "emissive.png"))
+	# the far dust hangs behind the stands and tarps; the near dust in front of them, under the banners
+	under.add_child(_motes("motes_back.png"))
+	above.add_child(_motes("motes_front.png"))
 	_tick(0.0)
+
+
+## The dust: one instance a mote, its track in the texture (one row each), placed by its shader.
+## Why: docs/why/ShipRoomOld.md#dust
+func _motes(file: String) -> Control:
+	var c := Motes.new()
+	var tx := tex(id, file)
+	if tx == null:
+		return c
+	var a := []
+	a.resize(Mesh.ARRAY_MAX)
+	a[Mesh.ARRAY_VERTEX] = PackedVector2Array([Vector2(0, 0), Vector2(2, 0), Vector2(2, 2), Vector2(0, 2)])
+	a[Mesh.ARRAY_INDEX] = PackedInt32Array([0, 1, 2, 0, 2, 3])
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_2D
+	mm.mesh = mesh
+	mm.instance_count = tx.get_height()
+	mm.custom_aabb = AABB(Vector3.ZERO, Vector3(W, H, 0))
+	for i in mm.instance_count:
+		mm.set_instance_transform_2d(i, Transform2D.IDENTITY)
+	c.mm = mm
+	var m := ShaderMaterial.new()
+	m.shader = preload("res://shaders/ship_room_old_motes.gdshader")
+	m.set_shader_parameter(&"motes", tx)
+	c.material = m
+	_dust.append(m)
+	return c
 
 
 ## Each tarp takes its dusty, padded wind texture (`export.py`); a maker with none wears Solari's.
@@ -84,3 +117,20 @@ func _tick(_dt: float) -> void:
 	for m: ShaderMaterial in [_mat_room, _mat_thing, _mat_hull]:
 		m.set_shader_parameter(&"level", _level)
 		m.set_shader_parameter(&"t", u)
+	var f := int(floor(u * FPS + 0.0001)) % int(LOOP * FPS)
+	for m in _dust:
+		m.set_shader_parameter(&"frame", f)
+		m.set_shader_parameter(&"level", _level)
+
+
+## The dust's one draw: every mote at once (`ship_room_old_motes.gdshader` moves them).
+class Motes extends Control:
+	var mm: MultiMesh = null
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		size = Vector2(ShipRoom.W, ShipRoom.H)
+
+	func _draw() -> void:
+		if mm != null:
+			draw_multimesh(mm, null)
