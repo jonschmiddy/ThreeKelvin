@@ -20,6 +20,13 @@ static func act(id: StringName) -> String:
 				if b != null and b.is_visible_in_tree() and int(b.get_meta(&"node", -1)) != ch._selected:
 					b.pressed.emit()
 					return "picked %s in the chart's list" % MapGen.star_name(Run.map[int(b.get_meta(&"node"))])
+			# with a star picked its orbits stand where the list was (Nov 22): another star is
+			# clicked on the chart itself
+			for raw in Run.in_range():
+				var m: MapGen.MapNode = raw
+				if m.index != ch._selected and m.index != Run.at and m.sensed:
+					ch._on_node_picked(m.index)
+					return "picked %s on the chart" % MapGen.star_name(m)
 		&"events":
 			var map := cur as SystemMapScreen
 			if map == null or map.panel == null:
