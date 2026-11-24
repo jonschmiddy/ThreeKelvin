@@ -18,6 +18,10 @@ const BURSTS := [[1.30, [0.08, 0.08, 1, 1, 1, 0.10, 1, 1, 0.06, 0.06, 0.06, 1, 1
 	[7.40, [0.10, 0.10, 1, 0.06, 1, 1, 1, 0.10, 0.10, 0.10, 1, 1, 0.08, 1, 1, 0.12, 0.12, 1, 1, 1, 0.06, 0.06]],
 	[8.90, [0.08]]]
 
+## A dead hose's sprite corner from where it leaves its post (stands8.dead_hose: 9 px out from the
+## post's middle, 40 rows over its feet), left post's hose and right post's.
+const HOSE_AT := {-1: Vector2i(-27, -1), 1: Vector2i(4, -1)}
+
 var _level := 1.0
 var _dust: Array[ShaderMaterial] = []
 
@@ -78,15 +82,39 @@ func _motes(file: String) -> Control:
 
 
 ## Each tarp takes its dusty, padded wind texture (`export.py`); a maker with none wears Solari's.
+## Each post gets its dead hose, over the post and under the tarp.
+## Why: docs/why/ShipRoomOld.md#hoses
 func _placed() -> void:
 	for st: Variant in sets:
 		var s := st as YardStandSet
-		if s == null or s._tarp == null or s._tarp.texture == null:
+		if s == null:
+			continue
+		_hoses(s)
+		if s._tarp == null or s._tarp.texture == null:
 			continue
 		var wt := tex(id, "tarps/" + s._tarp.texture.resource_path.get_file())
 		if wt == null:
 			wt = tex(id, "tarps/solari_%s.png" % YardStandSet.TARP_WEIGHT[s.weight])
 		s._tarp.set_wind(wt)
+
+
+func _hoses(s: YardStandSet) -> void:
+	for i in s.post_x.size():
+		var side := -1 if i == 0 else 1
+		var tx := tex(id, "hose_l.png" if side < 0 else "hose_r.png")
+		if tx == null:
+			continue
+		var off: Vector2i = HOSE_AT[side]
+		var at := Vector2i(s.post_x[i] + s.post_w / 2 + side * 9, s.feet - 40) + off
+		var tr := TextureRect.new()
+		tr.texture = tx
+		tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tr.material = thing_material()
+		tr.position = Vector2(at) - s.position
+		s.add_child(tr)
+		if s._tarp != null:
+			s.move_child(tr, s._tarp.get_index())
 
 
 ## The lamp's level `u` seconds into the loop: out is out (0), the stutters and flickers are

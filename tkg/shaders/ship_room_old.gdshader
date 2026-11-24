@@ -75,15 +75,17 @@ float gust(float X) {
 	return e * smoothx(10.0, 9.2, t);
 }
 
-// the hold field at sprite pixel q: (W, edge, pull, v)
-vec4 hold(sampler2D tx, ivec2 q, int h) {
-	vec4 d = texelFetch(tx, ivec2(PAD + q.x, h + PAD + q.y), 0);
+// the hold field's texel unpacked: (W, edge, pull, v)
+vec4 unpack(vec4 d) {
 	return vec4(d.r * 2.0, d.g, d.b, (d.a * 255.0 - 1.0) / 254.0);
 }
 
-// the billow h at sprite pixel q (tarp_wind.Tarp.field)
-float billow(sampler2D tx, ivec2 q, int h, float X0, vec3 ph) {
-	vec4 d = hold(tx, q, h);
+// (functions cannot read TEXTURE, so the fragment fetches through these)
+#define HOLD(q) unpack(texelFetch(TEXTURE, ivec2(PAD + (q).x, h + PAD + (q).y), 0))
+#define CLOTH(q) ((q).x >= 0 && (q).y >= 0 && (q).x < w && (q).y < h && texelFetch(TEXTURE, ivec2(PAD + (q).x, (q).y), 0).a > 0.0)
+
+// the billow h at sprite pixel q with hold d (tarp_wind.Tarp.field)
+float billow(vec4 d, ivec2 q, float X0, vec3 ph) {
 	float X = X0 + float(q.x);
 	float g = gust(X);
 	float w1 = sin(TAU * (X / 70.0 - 0.9 * t) + ph.x);
@@ -97,53 +99,13 @@ float snapx(float v) {
 	return sign(v) * floor(abs(v) + 0.25);
 }
 
-bool cloth(sampler2D tx, ivec2 q, ivec2 sz) {
-	return q.x >= 0 && q.y >= 0 && q.x < sz.x && q.y < sz.y && texelFetch(tx, ivec2(PAD + q.x, q.y), 0).a > 0.0;
-}
-
-vec4 tarp(sampler2D tx, vec2 uv) {
-	ivec2 ts = textureSize(tx, 0);
-	int w = ts.x - 2 * PAD;
-	int h = (ts.y - PAD - 1) / 2;
-	ivec2 loc = ivec2(floor(uv * vec2(ts)));
-	ivec2 o = ivec2(loc.x - PAD, loc.y);
-	ivec2 f = ivec2(floor(fp));
-	vec2 pos = vec2(f - o);
-	vec4 p0 = texelFetch(tx, ivec2(0, 2 * h + PAD), 0) * 255.0;
-	vec3 ph = texelFetch(tx, ivec2(1, 2 * h + PAD), 0).rgb * 6.28;
-	ivec2 c = clamp(o, ivec2(0), ivec2(w - 1, h - 1));
-	vec4 d = hold(tx, c, h);
-	float X = pos.x + float(c.x);
-	float g = gust(X);
-	float w1 = sin(TAU * (X / 70.0 - 0.9 * t) + ph.x);
-	float hh = billow(tx, c, h, pos.x, ph);
-	float flap = d.g * g * smoothx(0.0, 0.6, g) * 1.2 * sin(TAU * 3.3 * t + X / 9.0);
-	float dx = hh + flap;
-	float dy = -d.r * g * 1.4 * (0.6 + 0.4 * w1) * d.a - d.b * g * 1.4 + 0.4 * flap;
-	ivec2 D = ivec2(int(snapx(dx * wind)), int(snapx(dy * wind)));
-	ivec2 s = o - D;
-	if (s.x < 0 || s.y < 0 || s.x >= w || s.y >= h) {
-		return vec4(0.0);
-	}
-	vec4 px = texelFetch(tx, ivec2(PAD + s.x, s.y), 0);
-	if (px.a <= 0.0) {
-		return vec4(0.0);
-	}
-	vec3 rgb = px.rgb * 255.0;
-	// the fold faces turn toward and away from the lamp: the slope inside the cloth only, held to +-0.18
-	bool inner = cloth(tx, c, ivec2(w, h)) && cloth(tx, c + ivec2(1, 0), ivec2(w, h)) && cloth(tx, c - ivec2(1, 0), ivec2(w, h))
-		&& cloth(tx, c + ivec2(0, 1), ivec2(w, h)) && cloth(tx, c - ivec2(0, 1), ivec2(w, h));
-	if (inner && wind > 0.0) {
-		float gx = (billow(tx, c + ivec2(1, 0), h, pos.x, ph) - billow(tx, c - ivec2(1, 0), h, pos.x, ph)) * 0.5;
-		float gy = (billow(tx, c + ivec2(0, 1), h, pos.x, ph) - billow(tx, c - ivec2(0, 1), h, pos.x, ph)) * 0.5;
-		vec2 l = normalize(LAMP - (pos + vec2(float(w), float(h)) * 0.5));
-		rgb = clamp(rgb * clamp(1.0 + 1.4 * (gx * l.x + gy * l.y) * wind, 0.82, 1.18), 0.0, 255.0);
-	}
-	// held to the cloth's own lightest and darkest
+// the cloth's pixel, its folds re-shaded by slope `sl` (inside the cloth only, held to +-0.18), held to
+// the cloth's own lightest and darkest `lh`, then lit as the film lit sprites at frame pixel f
+vec4 lit_tarp(vec4 px, float sl, vec2 lh, ivec2 f, float r) {
+	vec3 rgb = clamp(px.rgb * 255.0 * clamp(1.0 + 1.4 * sl, 0.82, 1.18), 0.0, 255.0);
 	float lum = (rgb.r + rgb.g + rgb.b) / 3.0;
-	rgb *= clamp(lum, p0.x, p0.y) / max(lum, 0.001);
+	rgb *= clamp(lum, lh.x, lh.y) / max(lum, 0.001);
 	vec3 L = clamp(light_at(f), 0.0, 1.0);
-	float r = mix(1.08, 0.78, float(o.y) / float(h + PAD - 1));
 	return vec4(clamp(rgb * (0.35 + 0.5 * L) * r, 0.0, 255.0) / 255.0, px.a);
 }
 
@@ -160,6 +122,37 @@ void fragment() {
 		vec4 c = texture(TEXTURE, UV);
 		COLOR = vec4(min(c.rgb * light_at(p), vec3(1.0)), c.a);
 	} else {
-		COLOR = tarp(TEXTURE, UV);
+		ivec2 ts = textureSize(TEXTURE, 0);
+		int w = ts.x - 2 * PAD;
+		int h = (ts.y - PAD - 1) / 2;
+		ivec2 loc = ivec2(floor(UV * vec2(ts)));
+		ivec2 o = ivec2(loc.x - PAD, loc.y);
+		vec2 pos = vec2(p - o);
+		vec2 lh = texelFetch(TEXTURE, ivec2(0, 2 * h + PAD), 0).rg * 255.0;
+		vec3 ph = texelFetch(TEXTURE, ivec2(1, 2 * h + PAD), 0).rgb * 6.28;
+		ivec2 c = clamp(o, ivec2(0), ivec2(w - 1, h - 1));
+		vec4 d = HOLD(c);
+		float X = pos.x + float(c.x);
+		float g = gust(X);
+		float w1 = sin(TAU * (X / 70.0 - 0.9 * t) + ph.x);
+		float flap = d.g * g * smoothx(0.0, 0.6, g) * 1.2 * sin(TAU * 3.3 * t + X / 9.0);
+		float dx = billow(d, c, pos.x, ph) + flap;
+		float dy = -d.r * g * 1.4 * (0.6 + 0.4 * w1) * d.a - d.b * g * 1.4 + 0.4 * flap;
+		ivec2 sp = o - ivec2(int(snapx(dx * wind)), int(snapx(dy * wind)));
+		vec4 px = vec4(0.0);
+		if (sp.x >= 0 && sp.y >= 0 && sp.x < w && sp.y < h) {
+			px = texelFetch(TEXTURE, ivec2(PAD + sp.x, sp.y), 0);
+		}
+		float sl = 0.0;
+		ivec2 ex = ivec2(1, 0);
+		ivec2 ey = ivec2(0, 1);
+		if (wind > 0.0 && CLOTH(c) && CLOTH(c + ex) && CLOTH(c - ex) && CLOTH(c + ey) && CLOTH(c - ey)) {
+			float gx = (billow(HOLD(c + ex), c + ex, pos.x, ph) - billow(HOLD(c - ex), c - ex, pos.x, ph)) * 0.5;
+			float gy = (billow(HOLD(c + ey), c + ey, pos.x, ph) - billow(HOLD(c - ey), c - ey, pos.x, ph)) * 0.5;
+			vec2 l = normalize(LAMP - (pos + vec2(float(w), float(h)) * 0.5));
+			sl = (gx * l.x + gy * l.y) * wind;
+		}
+		float r = mix(1.08, 0.78, float(o.y) / float(h + PAD - 1));
+		COLOR = px.a > 0.0 ? lit_tarp(px, sl, lh, p, r) : vec4(0.0);
 	}
 }

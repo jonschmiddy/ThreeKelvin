@@ -56,3 +56,36 @@ the sodium colour times the lamp's level, so the dust goes out with the lamp.
 - Overlapping motes: the film kept the brighter; here the later one is drawn. They rarely overlap.
 - The shaken dust starts at Solari's tarps' tops (the film's). Another maker's tarp is the same size with a
   slightly different top edge, so its dust may start a pixel or two off the cloth.
+
+## hoses
+
+Old A's stands are Korvan's cradle gone old (rust ramp, flaked paint, dust on the top edges: the room's
+`post.png`), and each post has a dead hydraulic hose off its ram, unplugged, sagging to the floor and lying there
+with its open coupling (`gen/stands8.dead_hose`). The film painted the hoses into the room after the stands, so a
+hose runs over its post and under the tarp. The game draws the posts itself (`YardStandSet`), so the room adds the
+two hose sprites (`hose_l.png`, `hose_r.png`, drawn by the film's own function) into each stand set once the posts
+are placed: 9 px out from the post's middle, 40 rows over its feet, after the posts and before the tarp, lit as the
+room. A set is rebuilt on every `setup`, which frees them with it.
+
+## wind
+
+The tarps move in the film's air (`tarp_wind.py`, Jon approved it): a hold weight that is nothing where the hull
+and the straps hold the cloth and grows down the drape to the hem (more at the loose ends), the gust's two waves
+along the drape as it reaches each column (one gust a loop at 1.0 s from the left, 260 px/s, rising 0.35 s, falling
+over 1.3 s), a slow breath between gusts, the loose corners flapping at 3.3 Hz, the skirt lifting and the centre
+strap pulling up as the gust peaks. Each pixel takes the field's offset in whole pixels, and the fold faces re-shade
+toward the lamp by the billow's slope (inside the cloth only, held to +-18 %, and to the cloth's own lightest and
+darkest). The tarp's box never moves: only cloth inside its hold field ripples.
+
+`export.py` writes each maker's tarp, dusted as the film dusted Solari's (`old7.dusty_tarp`), padded 6 px each
+side and below, with the hold field (weight, loose-end share, strap pull, drape depth) and the cloth's phases and
+lightness range in rows under it. `YardStandSet.Tarp.set_wind` draws that texture, and the room's tarp material
+works the field out per pixel each frame.
+
+- The film snapped each pixel with hysteresis (a pixel moves once the field is 0.75 past it, and back once it is
+  0.25 short), which needs each pixel's last offset. A shader has none, so a pixel here steps at 0.75 both ways:
+  the same still cloth when the air is calm, the same whole-pixel steps in a gust, a step back a little later
+  than the film's.
+- The wind takes nothing while the tarp drops and eases in over 0.6 s once it has settled (its draw colour carries
+  it to the shader), so the cloth never jumps when the wind comes on.
+- The game's old hem ripple (every 4.2 s) is what the film replaced; it stays for a tarp with no wind texture.
