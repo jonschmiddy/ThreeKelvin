@@ -17,6 +17,9 @@ func _run() -> void:
 	await Harness.frames(get_tree(), 2)
 	if DevMode.available:
 		DevMode.enabled = false
+	# `look=flat`: no tube's curve or scanlines, so a capture lies pixel for pixel on the film
+	if Harness.arg("look") == "flat":
+		DisplaySettings.set_look(DisplaySettings.Look.FLAT)
 	var room := Harness.arg("room", "korvan")
 	# Solari's casting bed needs Solari open: a won flight on the scratch record opens it
 	if room == "solari":

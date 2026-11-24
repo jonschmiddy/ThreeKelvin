@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://blebnivnol77v"
-path="res://.godot/imported/light.png-413be0bea220100207e22acee6855b2f.ctex"
+uid="uid://c0k4j7ue7bg0h"
+path="res://.godot/imported/light5.png-1ecab1bd54a3dbf77ec92547660acc9c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/sprites/station/shiprooms/korvan/light.png"
-dest_files=["res://.godot/imported/light.png-413be0bea220100207e22acee6855b2f.ctex"]
+source_file="res://art/sprites/station/shiprooms/korvan/light5.png"
+dest_files=["res://.godot/imported/light5.png-1ecab1bd54a3dbf77ec92547660acc9c.ctex"]
 
 [params]
 
