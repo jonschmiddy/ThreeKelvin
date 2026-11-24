@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bpmjcawykler5"
-path="res://.godot/imported/light.png-2da0bdac7837897ec61997248317ae45.ctex"
+uid="uid://cn33aichpcb2n"
+path="res://.godot/imported/amb.png-35b4d1ab4ad7b45283fbfdc48e45a358.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/sprites/station/shiprooms/old/light.png"
-dest_files=["res://.godot/imported/light.png-2da0bdac7837897ec61997248317ae45.ctex"]
+source_file="res://art/sprites/station/shiprooms/old/amb.png"
+dest_files=["res://.godot/imported/amb.png-35b4d1ab4ad7b45283fbfdc48e45a358.ctex"]
 
 [params]
 
