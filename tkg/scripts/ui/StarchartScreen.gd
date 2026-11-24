@@ -1041,16 +1041,16 @@ func _danger_row(danger: int) -> Control:
 func _fuel_row(cost: int, afford: bool) -> Control:
 	var row := _gauge_row("FUEL", cost,
 		MicroGauge.Mode.FUEL if afford else MicroGauge.Mode.UNAFFORDABLE)
-	# the same slot as danger's word, empty, so both rows' boxes start and end together (Jon, Nov 23)
-	row.add_child(_word_slot("", UITheme.COLD))
+	# its cost in danger's slot, so both rows' boxes start and end together (Jon, Nov 23: "X FUEL")
+	row.add_child(_word_slot("%d FUEL" % cost, UITheme.COLD if afford else _WARN))
 	return row
 
-## The word after a gauge, in a slot as wide as the widest danger word.
+## The word after a gauge, in a slot as wide as the widest danger word or fuel cost.
 func _word_slot(word: String, colour: Color) -> Label:
 	var l := UITheme.body(word, colour, UITheme.FS_SMALL)
 	var f := l.get_theme_font("font")
 	var w := 0.0
-	for t in MapGen.TIER_NAMES:
+	for t in MapGen.TIER_NAMES + ["%d FUEL" % MapGen.DANGER_MAX]:
 		w = maxf(w, f.get_string_size(" " + t, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x)
 	l.custom_minimum_size = Vector2(ceilf(w), 0)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT

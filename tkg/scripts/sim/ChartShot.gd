@@ -232,7 +232,7 @@ func run(tree: SceneTree) -> void:
 	tree.quit()
 
 
-## `dest=dwarf|red|neutron|twin`: picks a system of that kind to photograph its orbit map
+## `dest=dwarf|red|neutron|twin|near|neartwin`: picks a system of that kind to photograph its orbit map
 ## (`ChartOrbits`), sensed ones first; a picked one out of sight is marked sensed and says so.
 func _dest(_tree: SceneTree, want: String) -> void:
 	var sc := Router.current as StarchartScreen
@@ -271,6 +271,11 @@ static func _dest_fits(n: MapGen.MapNode, want: String) -> bool:
 			return n.type == MapGen.NodeType.PULSAR
 		"twin":
 			return n.type == MapGen.NodeType.SYSTEM and n.twin and MapGen.twin_ok(n)
+		"near":
+			# one a jump reaches, so FUEL shows its price
+			return n.type == MapGen.NodeType.SYSTEM and n.index != Run.at and Run.reachable(n) 				and not Run.too_deep_only(Run.node_at(), n)
+		"neartwin":
+			return _dest_fits(n, "twin") and _dest_fits(n, "near")
 	return false
 
 
