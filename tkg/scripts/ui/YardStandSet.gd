@@ -456,13 +456,20 @@ func drop_tarp() -> void:
 ## THE TARP: the art posed row by row in whole pixels. It falls from twelve
 ## rows up, lands, sags, springs back and settles; at rest, every few seconds,
 ## the hall's air ripples the loose hem sideways while the body never moves.
+## A room may give it wind instead (`set_wind`): its material moves the cloth.
 class Tarp extends Control:
+	## A wind texture's margin round the art, each side and below.
+	const WIND_PAD := 6
+	## The wind eases in over this long once the tarp has settled.
+	const WIND_IN := 0.6
 	var texture: Texture2D
 	var image: Image
 	var tex_w: int = 0
 	var tex_h: int = 0
 	var delay: float = 0.0
 	var seed_s: float = 0.0
+	## The room's wind texture (the art padded by WIND_PAD, its hold field under it), or null.
+	var wind: Texture2D = null
 	var _u: float = -1.0
 	var _dropping: bool = false
 	var _last_key := ""
@@ -487,9 +494,18 @@ class Tarp extends Control:
 		_u = -delay
 		_dropping = true
 
+	## Draw the cloth from a room's wind texture: its material ripples it in place (Old hangar).
+	func set_wind(t: Texture2D) -> void:
+		wind = t
+		queue_redraw()
+
+	## How much of the wind the cloth takes: none while it drops, easing in once it has settled.
+	func wind_k() -> float:
+		return clampf((maxf(_u, 0.0) - 0.56) / WIND_IN, 0.0, 1.0)
+
 	func _process(dt: float) -> void:
 		_u += dt
-		var key := str(pose())
+		var key := str(pose()) + (str(snappedf(wind_k(), 0.02)) if wind != null else "")
 		if key != _last_key:
 			_last_key = key
 			queue_redraw()
@@ -525,19 +541,28 @@ class Tarp extends Control:
 		var flutter := float(p[3])
 		var ox := at.x + 4.0
 		var oy := at.y + TARP_LIFT
+		# with wind, the rows come from the wind texture (art WIND_PAD in), its draw colour saying how much wind
+		var tx := wind if wind != null else texture
+		var sx := float(WIND_PAD) if wind != null else 0.0
 		if lift != 0.0 or stretch != 0.0 or sag != 0.0:
+			var still := Color(0.0, 1.0, 1.0, 1.0) if wind != null else Color.WHITE
 			var last_y := -1000
 			for r in tex_h:
 				var f := float(r) / float(maxi(1, tex_h - 1))
 				var y := r + int(round(lift - stretch * (1.0 - f) + sag * f * f))
-				var row := Rect2(0, r, tex_w, 1)
+				var row := Rect2(sx, r, tex_w, 1)
 				# a row that leaves a gap under the one above fills it with itself
 				while last_y > -1000 and last_y + 1 < y:
 					last_y += 1
-					ci.draw_texture_rect_region(texture, Rect2(ox, oy + last_y, tex_w, 1), row)
+					ci.draw_texture_rect_region(tx, Rect2(ox, oy + last_y, tex_w, 1), row, still)
 				if y > last_y:
-					ci.draw_texture_rect_region(texture, Rect2(ox, oy + y, tex_w, 1), row)
+					ci.draw_texture_rect_region(tx, Rect2(ox, oy + y, tex_w, 1), row, still)
 					last_y = y
+			return
+		if wind != null:
+			var pad := float(WIND_PAD)
+			var box := Vector2(tex_w + 2.0 * pad, tex_h + pad)
+			ci.draw_texture_rect_region(wind, Rect2(Vector2(ox - pad, oy), box), Rect2(Vector2.ZERO, box), Color(wind_k(), 1.0, 1.0, 1.0))
 			return
 		var hem := maxi(0, tex_h - 12)
 		ci.draw_texture_rect_region(texture, Rect2(ox, oy, tex_w, hem), Rect2(0, 0, tex_w, hem))
