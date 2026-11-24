@@ -25,6 +25,7 @@ func _run() -> void:
 	# Solari's casting bed needs Solari open: a won Korvan flight on the scratch record opens it
 	if room == "solari" and cs != null and not Unlocks.unlocked(&"solari"):
 		Run.fit_chassis(&"korvan", HullData.Weight.MEDIUM, 0)
+		Run.launched_as = &"korvan"
 		RunHistory.record(RunHistory.Outcome.WON, "ShipRoomShot")
 		cs = await _pick_screen()
 	if cs == null:

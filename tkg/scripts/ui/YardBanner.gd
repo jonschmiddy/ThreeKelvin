@@ -208,6 +208,7 @@ static func _sc(c: Color, k: float) -> Color:
 
 
 ## This frame's offset of each row: none at the rod, up to WAVE_A at the foot, travelling down.
+## All of the cloth's motion is here: a new sway replaces this function alone.
 func _wave() -> void:
 	var p: float = WAVE_P[index % WAVE_P.size()]
 	var ph := TAU * _t / p + float(WAVE_PHASE[index % WAVE_PHASE.size()])
