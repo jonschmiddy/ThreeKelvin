@@ -1,0 +1,1 @@
+- **Fixed** — on the star chart, the DANGER and FUEL boxes now start and end in the same columns.

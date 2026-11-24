@@ -54,6 +54,7 @@ func _run() -> void:
 	h._ok("every kind was compared (%s)" % [kinds], kinds.has("twin") and kinds.has("red")
 		and kinds.has("blue") and kinds.has("pulsar") and kinds.has("station") and kinds.has("job"))
 	_star_numbers()
+	_looks()
 	_fog()
 	await _panel()
 	Rng.forced = 0
@@ -190,6 +191,94 @@ func _panel() -> void:
 	h._ok("cleared: the list again, no picture", sc._neigh_scroll.visible and not sc._star_box.visible
 		and not sc._star_pic.visible)
 	print("  (stood at %d)" % here.index)
+
+
+## Each look of the map (`ChartOrbits.LOOKS`, Nov 23) over one seed's systems: every orbit drawn
+## inside the box, the same picture read before the visit and after arriving, the orrery and the
+## arrival view with each world at its angle as the map opens, the lineup in orbit order.
+func _looks() -> void:
+	_start(7100)
+	var bad := {}
+	var seen := 0
+	for lk in ChartOrbits.LOOKS:
+		bad[lk] = []
+	var before := {}
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n.type == MapGen.NodeType.CORE or n.type == MapGen.NodeType.START:
+			continue
+		for lk in ChartOrbits.LOOKS:
+			ChartOrbits.look = lk
+			var o := ChartOrbits.new()
+			o.show_system(n)
+			before["%d:%s" % [n.index, lk]] = str(o._spots)
+			var why := _look_fault(o, n)
+			if why != "":
+				(bad[lk] as Array).append("%d %s" % [n.index, why])
+			o.free()
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n.type == MapGen.NodeType.CORE or n.type == MapGen.NodeType.START:
+			continue
+		_arrive(n.index)
+		seen += 1
+		for lk in ChartOrbits.LOOKS:
+			ChartOrbits.look = lk
+			var o := ChartOrbits.new()
+			o.show_system(n)
+			if str(o._spots) != before["%d:%s" % [n.index, lk]]:
+				(bad[lk] as Array).append("%d drawn differently after arriving" % n.index)
+			o.free()
+	ChartOrbits.look = &"arcs"
+	for lk in ChartOrbits.LOOKS:
+		var b: Array = bad[lk]
+		h._ok("look %s: %d systems drawn whole, in the box, as arrived%s" % [lk, seen,
+			"" if b.is_empty() else ": " + ", ".join(b.slice(0, 4))], b.is_empty() and seen > 20)
+
+
+## Why look `o` of `n` is wrong, or "".
+func _look_fault(o: ChartOrbits, n: MapGen.MapNode) -> String:
+	var L := SystemLayout.of(n)
+	if str(ChartOrbits.read(L, n)) != str(o.marks):
+		return "marks are not the layout's"
+	if o._spots.size() != o.marks.size():
+		return "a mark has no place"
+	for p in o._spots:
+		if p.x < 0 or p.x >= ChartOrbits.W or p.y < 0 or p.y >= ChartOrbits.H:
+			return "a mark off the box at %s" % p
+	var t := o.t_drawn
+	var tilt: float = SystemViewS.TILT
+	for i in o.marks.size():
+		var d: Dictionary = o.marks[i]
+		var b: SystemLayout.Body = L.bodies[int(d.body)]
+		var main := not L.twin or int(d.host) == -9
+		var want := (b.pos(t) - b.host_at(t)).angle()
+		match ChartOrbits.look:
+			&"orrery":
+				if main:
+					var v: Vector2 = o._spots[i] - Vector2(roundf(ChartOrbits.W * 0.5), roundf(ChartOrbits.H * 0.5))
+					if absf(angle_difference(v.angle(), want)) > 0.35:
+						return "a world at the wrong angle"
+			&"arrival":
+				var c0: Vector2 = L.bary if L.twin else Vector2.ZERO
+				var mid := Vector2(roundf(ChartOrbits.W * 0.5), roundf(ChartOrbits.H * 0.5))
+				var v2: Vector2 = o._spots[i] - mid
+				var want_v := (b.pos(t) - c0)
+				if v2.length() > 6.0 and absf(angle_difference(Vector2(v2.x, v2.y / tilt).angle(), want_v.angle())) > 0.35:
+					return "a world not where the map opens it"
+	if ChartOrbits.look == &"lineup":
+		var xs: Array = []
+		var order := []
+		for i in o.marks.size():
+			if not L.twin or int(o.marks[i].host) == -9:
+				order.append([float(o.marks[i].orbit), o._spots[i].x])
+		order.sort_custom(func(a: Array, b2: Array) -> bool: return a[0] < b2[0])
+		for e in order:
+			xs.append(e[1])
+		for k in range(1, xs.size()):
+			if xs[k] <= xs[k - 1]:
+				return "the line is not in orbit order"
+	return ""
 
 
 ## Each sun's numbers (Jon, Nov 23): inside its kind's range, and the same after a fresh start.

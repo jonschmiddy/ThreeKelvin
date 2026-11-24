@@ -1033,15 +1033,28 @@ func _row(key: String, value: String, colour: Color = UITheme.CHILL) -> Control:
 ## Gauge plus the word: a player learns BRUTAL once and can read every system against it.
 func _danger_row(danger: int) -> Control:
 	var row := _gauge_row("DANGER", danger, MicroGauge.Mode.DANGER)
-	row.add_child(UITheme.body(" " + MapGen.tier_name(danger),
-		_WARN if danger >= 7 else UITheme.COLD, UITheme.FS_SMALL))
+	row.add_child(_word_slot(MapGen.tier_name(danger), _WARN if danger >= 7 else UITheme.COLD))
 	return row
 
 ## Fuel in the same boxes as danger, at the same count, so the two rows read as
 ## one comparison: what it costs against what it costs you.
 func _fuel_row(cost: int, afford: bool) -> Control:
-	return _gauge_row("FUEL", cost,
+	var row := _gauge_row("FUEL", cost,
 		MicroGauge.Mode.FUEL if afford else MicroGauge.Mode.UNAFFORDABLE)
+	# the same slot as danger's word, empty, so both rows' boxes start and end together (Jon, Nov 23)
+	row.add_child(_word_slot("", UITheme.COLD))
+	return row
+
+## The word after a gauge, in a slot as wide as the widest danger word.
+func _word_slot(word: String, colour: Color) -> Label:
+	var l := UITheme.body(word, colour, UITheme.FS_SMALL)
+	var f := l.get_theme_font("font")
+	var w := 0.0
+	for t in MapGen.TIER_NAMES:
+		w = maxf(w, f.get_string_size(" " + t, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x)
+	l.custom_minimum_size = Vector2(ceilf(w), 0)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	return l
 
 func _gauge_row(key: String, value: int, mode: MicroGauge.Mode) -> Control:
 	var row := HBoxContainer.new()

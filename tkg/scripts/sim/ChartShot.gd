@@ -11,6 +11,9 @@ func run(tree: SceneTree) -> void:
 			Rng.forced = int((a0 as String).substr(5))
 			print("  [seed] %d" % Rng.forced)
 	Run.start_new_run(&"korvan", 1)
+	# `orbitlook=<look>`: the orbit map drawn in that look (`ChartOrbits.LOOKS`, the dev switch)
+	if _arg("orbitlook=") != "":
+		ChartOrbits.look = StringName(_arg("orbitlook="))
 	# `kind=N` regenerates the map after the swap, as node layout reads `Run.galaxy`.
 	# Why: docs/why/ChartShot.md#chart-shot-options
 	for a1 in OS.get_cmdline_user_args():
@@ -212,6 +215,20 @@ func run(tree: SceneTree) -> void:
 			path = (a2 as String).substr(5)
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
+	# `looks`: the same panel again in each of the orbit map's looks (`ChartOrbits.LOOKS`), as
+	# <shot>_<look>.png. Why: docs/why/ChartOrbits.md#looks
+	var sc3 := Router.current as StarchartScreen
+	if "looks" in OS.get_cmdline_user_args() and sc3 != null and sc3._orbits.layout != null:
+		var picked: MapGen.MapNode = Run.map[sc3._orbits.shown()]
+		for lk in ChartOrbits.LOOKS:
+			ChartOrbits.look = lk
+			sc3._orbits.show_system(picked)
+			for i in 3:
+				await RenderingServer.frame_post_draw
+			var p2 := path.get_basename() + "_%s.png" % lk
+			tree.root.get_texture().get_image().save_png(p2)
+			print("wrote ", ProjectSettings.globalize_path(p2))
+		ChartOrbits.look = &"arcs"
 	tree.quit()
 
 

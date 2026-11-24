@@ -36,3 +36,26 @@ orbit map." The counts line moved from under the orbit map to just over it.
 A pair draws both suns on the edge; a world round one sun sits beside it, and the arcs
 are the worlds round both.
 ```
+
+## Looks
+
+Above `const LOOKS: Array[StringName] = [&"arcs", &"orrery", &"lineup", &"arrival"]`:
+
+```text
+THREE OTHER PICTURES OF THE SAME ORBITS (Jon, Nov 23: "Can I get a couple versions of the
+simplified sector map?"), each a different idea, behind a dev switch (`look`; ChartShot's
+`orbitlook=<look>`, or `looks` to photograph the panel in all four):
+  arcs     today's: the star cut by the left edge, an arc per orbit, linear in AU
+  orrery   top down: the star in the middle, a full ring per orbit spaced by order (a
+           ring per AU would crowd the inner worlds into the star in 72 px), each world
+           at the angle it has as the map opens (`Run.map_t`); a world round one sun of
+           a pair beside that sun, at its angle
+  lineup   the star at the left, one line out, the worlds on it in orbit order, each at
+           its own size and colour (a giant big, a rock small, a belt a column of dots)
+  arrival  the sector map itself, small: its projection (`SystemView.TILT`), its orbits
+           as ellipses, the whole system fitted, each world where it is as the map opens
+           and in its own colour (`Worlds.RAMP`)
+Every look draws the same marks from the same `read`, so the counts line and the match
+with arrival hold for all of them; OrbitPreviewTest checks each look over a seed's
+systems (in the box, the same before and after arriving, angles as the map opens).
+```
