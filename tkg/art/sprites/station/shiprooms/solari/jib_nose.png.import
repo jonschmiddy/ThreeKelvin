@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dnw0esef7sk17"
-path="res://.godot/imported/light.png-7b9d7c8d5d2f5f36215449a2bbc03b96.ctex"
+uid="uid://dih31i861yuu7"
+path="res://.godot/imported/jib_nose.png-696feea3a213458b7fbec2dc9a8d3f1e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/sprites/station/shiprooms/solari/light.png"
-dest_files=["res://.godot/imported/light.png-7b9d7c8d5d2f5f36215449a2bbc03b96.ctex"]
+source_file="res://art/sprites/station/shiprooms/solari/jib_nose.png"
+dest_files=["res://.godot/imported/jib_nose.png-696feea3a213458b7fbec2dc9a8d3f1e.ctex"]
 
 [params]
 

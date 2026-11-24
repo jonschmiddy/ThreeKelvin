@@ -33,6 +33,9 @@ func _run() -> void:
 		get_tree().quit(1)
 		return
 	cs._select(0 if room == "korvan" else 1)
+	# no run has a hull yet, so the record above cannot open Solari: stand its set in its room
+	if room == "solari" and cs._yard.room.id != &"solari":
+		cs._yard.show_set(&"solari", true, 0)
 	var pick := Harness.arg("pick", "")
 	if pick != "":
 		cs._pick_weight({"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM,
