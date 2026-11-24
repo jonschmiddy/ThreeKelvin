@@ -39,3 +39,16 @@ and ragged pixels, the burner's rim and flicker, sparks' throws, the heat shimme
 embers, the drones' prop blur) is not re-rolled: `export.py data` writes those draws into `film.json` per frame
 or per tenth of a second, so the game shows the very same ones. Anything worked out without the generator
 (walks, eases, swings, door and burn curves) is ported as code.
+
+## life
+
+The film's life is ported from its own code (mix18.py and what it imports or execs): the same plans, paces,
+poses, timings and positions, each piece drawn where and when the film drew it, in the film's order (behind
+the hulls in `under`, in front of them in `above`). A piece is a `ShipRoomKorvanPaint` layer that is cleared
+and redrawn each film frame from rects and sprite regions, and lit the way the film lit it: a sprite at its own
+pixels under the object light (`blit(light=L + k)`), at one point of it (`shade_at`), code-drawn colours times
+a clamped light level (`kl_at`), the room's light for the film's albedo edits (the hoist block, the door panel,
+the heat shimmer), or as drawn for what burns. Contact shadows are multiplies (`core.contact`), glows and beams
+adds. The code-drawn pieces (the lift risen to the seam, the forklift, the crane's parts and trolley, the
+drones, the corridor, the tinted crew) are exported once into `atlas.png`; the Yard's own crew strips are read
+from the Yard's art.

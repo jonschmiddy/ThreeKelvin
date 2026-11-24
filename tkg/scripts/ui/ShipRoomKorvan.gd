@@ -15,6 +15,9 @@ var _post_mat: ShaderMaterial
 var _hull_mat: ShaderMaterial
 var _life_mat: ShaderMaterial
 var _light := ShipRoomKorvanLight.new()
+var life: ShipRoomKorvanLife
+var back: ShipRoomKorvanBack
+var front: ShipRoomKorvanFront
 var _shown := -1
 
 
@@ -32,6 +35,14 @@ func _build() -> void:
 	_hull_mat = _korvan_mat(2)
 	_life_mat = _korvan_mat(3)
 	(under.get_child(0) as CanvasItem).material = _room_mat
+	life = ShipRoomKorvanLife.new(_life_mat)
+	back = ShipRoomKorvanBack.new(life)
+	life.on(under)
+	back.build_edits()
+	back.build()
+	front = ShipRoomKorvanFront.new(life)
+	life.on(above)
+	front.build()
 	_tick(0.0)
 
 
@@ -119,3 +130,6 @@ func _tick(_dt: float) -> void:
 	_light.build(f)
 	for n: StringName in _light.u:
 		_uniform(n, _light.u[n])
+	life.clear_all()
+	back.draw(f, float(f) / 30.0, float(_light.u[&"lk"]))
+	front.draw(f, float(f) / 30.0)

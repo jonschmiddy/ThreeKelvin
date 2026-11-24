@@ -8,7 +8,7 @@ render_mode unshaded;
 //   1  a post: the stands' own light x WORK x the lamps, plus dyn and dobj, side-lit by work lights
 //   2  a hull: the berth lamps' ship light x its row light (hull_light), plus dsh, capped at 0.98
 //   3  life: its own colour under the object light (lmode: 0 at its pixels, 1 at a point, 2 k-scaled,
-//      3 the room light at its pixels (albedo edits), 4 unlit x mul)
+//      3 the room light at its pixels (albedo edits), 4 as drawn, 5 a flat light; then x mul + add)
 
 uniform int mode = 0;
 uniform sampler2D albedo : filter_nearest, repeat_disable;
@@ -68,6 +68,7 @@ instance uniform vec2 rows = vec2(0.0, 1.0);
 instance uniform int lmode = 0;
 instance uniform vec2 lp = vec2(0.0);
 instance uniform vec4 lk4 = vec4(0.0, 0.0, 9.0, 1.0);
+instance uniform vec3 ladd = vec3(0.0);
 
 varying vec2 fp;
 
@@ -318,9 +319,9 @@ void fragment() {
 			rgb *= clamp(max(L.r, max(L.g, L.b)) + lk4.x, lk4.y, lk4.z) * lk4.w;
 		} else if (lmode == 3) {
 			rgb = shade(rgb, l_room(q));
-		} else {
-			rgb *= lk4.w;
+		} else if (lmode == 5) {
+			rgb = shade(rgb, vec3(lk4.x));
 		}
-		COLOR = vec4(rgb, c.a);
+		COLOR = vec4(rgb * (lmode == 2 ? 1.0 : lk4.w) + ladd, c.a);
 	}
 }
