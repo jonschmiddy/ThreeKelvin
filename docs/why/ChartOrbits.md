@@ -30,6 +30,8 @@ sector map view." So the panel reads: the name, the star as the sector map paint
 BINARY, DANGER, FUEL and WARNING with the beam's line beside WARNING, then the orbit
 map with a small sun on its edge, then the counts. The hot line and its HOT label are
 gone; so is the HOT ZONE row, which read 4.75 AU round every star.
+Jon, Nov 23: "Let's have the x planets x giant x belt x wrecks above the simplified
+orbit map." The counts line moved from under the orbit map to just over it.
 
 A pair draws both suns on the edge; a world round one sun sits beside it, and the arcs
 are the worlds round both.

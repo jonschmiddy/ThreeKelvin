@@ -871,7 +871,7 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 	return b
 
 ## A PICKED STAR (Jon, Nov 22): under its name the star itself, then one list of its facts with
-## DANGER, FUEL and WARNING, then its orbit map and what is in it, where the in-range list stands
+## DANGER, FUEL and WARNING, then what is in it over its orbit map, where the in-range list stands
 ## with nothing picked. Why: docs/why/ChartOrbits.md#what-it-shows
 var _star_pic: Control
 var _star_box: VBoxContainer
@@ -902,12 +902,13 @@ func _build_star_box(right: VBoxContainer) -> void:
 	_star_box.add_theme_constant_override("separation", 3)
 	_star_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_star_box.visible = false
-	_orbits = ChartOrbits.new()
-	_star_box.add_child(_orbits)
+	# the counts over the orbit map (Jon, Nov 23)
 	_star_counts = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
 	_star_counts.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_star_counts.custom_minimum_size = Vector2(228, 0)
 	_star_box.add_child(_star_counts)
+	_orbits = ChartOrbits.new()
+	_star_box.add_child(_orbits)
 	right.add_child(_star_box)
 
 
