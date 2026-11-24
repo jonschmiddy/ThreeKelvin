@@ -420,7 +420,9 @@ func gun_for(m: ModuleData, slot: ModuleData.Slot) -> ShipGun:
 	var h: HullData = ship if ship != null else Run.hull
 	if h == null or m.mount < 0 or m.mount >= h.gun_sides.size():
 		return null
-	return ShipGun.of(m.id, h.gun_sides[m.mount])
+	# An unbranded gun is drawn in the hull manufacturer's colours; a branded one keeps its own.
+	# Why: docs/why/ShipGun.md#manufacturer-drawn-yard-guns
+	return ShipGun.of(m.id, h.gun_sides[m.mount], h.manufacturer if m.manufacturer == &"" else &"")
 
 
 ## A gun at full size; hovered, on its plate's ground and edge as the hold icon would be.
