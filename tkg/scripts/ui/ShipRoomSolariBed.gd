@@ -198,8 +198,13 @@ func _blit(ci: CanvasItem, n: StringName, x: int, y: int, flip: bool, w: int = -
 		return
 	var sw := tx.get_width() if w < 0 else w
 	var src := Rect2(0, 0, sw, tx.get_height())
-	var dst := Rect2(x + sw, y, -sw, tx.get_height()) if flip else Rect2(x, y, sw, tx.get_height())
-	ci.draw_texture_rect_region(tx, dst, src)
+	if flip:
+		# mirrored about its own box (a negative rect width shifts it a box over)
+		ci.draw_set_transform(Vector2(x + sw, y), 0.0, Vector2(-1, 1))
+		ci.draw_texture_rect_region(tx, Rect2(0, 0, sw, tx.get_height()), src)
+		ci.draw_set_transform(Vector2.ZERO)
+	else:
+		ci.draw_texture_rect_region(tx, Rect2(x, y, sw, tx.get_height()), src)
 
 
 ## show18.draw_jib: the arm level from the post to the tip, the nose and its lamp, the plumb chain,

@@ -25,6 +25,8 @@ var _sol: Dictionary = {}
 var _pools: Array[PackedFloat32Array] = []
 var _hull_lights: Array[PackedFloat32Array] = []
 var _pour_w := PackedFloat32Array([0, 0, 0, 0, 0, 0])
+## this frame's door, arc, grinder and lamp weights, for the CPU's light (`l3_at`)
+var _lw: Dictionary[StringName, Variant] = {}
 var bed: ShipRoomSolariBed
 var crew: ShipRoomSolariCrew
 var fx: ShipRoomSolariFx
@@ -99,7 +101,7 @@ func _build() -> void:
 	_add_layer(under, func(ci: CanvasItem) -> void: fx.paint(ci, t), null)
 	_screen(under, Mode.AIR)
 	_add_layer(under, func(ci: CanvasItem) -> void: fx.paint_dust(ci, t), null)
-	_add_layer(above, func(ci: CanvasItem) -> void: crew.paint_front(ci, t), mats[Mode.FRONT])
+	_add_layer(above, func(ci: CanvasItem) -> void: crew.paint_front(ci, t, m_at), mats[Mode.FRONT])
 	var add := CanvasItemMaterial.new()
 	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	_add_layer(above, func(ci: CanvasItem) -> void: crew.paint_beam_light(ci, t), add)
@@ -192,6 +194,9 @@ func _light() -> void:
 	_pool(Vector4(dxp, 66, 12, 18), Vector4(0.4, 0, 0, 0), Color(0.8, 0.9, 1.0), 0.35)
 	var tired := fposmod(t, 7.3)
 	var cl := _crew_light()
+	_lw = cl.duplicate()
+	_lw[&"door_k"] = door_k
+	_lw[&"door_w"] = op
 	for m: ShaderMaterial in mats.values():
 		m.set_shader_parameter(&"t_room", t)
 		m.set_shader_parameter(&"lamp_k", lamp_k)
@@ -281,33 +286,36 @@ func _send_lists() -> void:
 
 
 # ------------------------------------------------------------------ the hulls' floor bounce
-## Each hull's belly takes the floor's light under it (light_hulls: five cells under its canvas).
+## Each hull's belly takes the floor's light under it (light_hulls: five cells under its canvas);
+## each hull's box and bounce go to the shader by its columns, as a canvas item takes no instance uniforms.
 func _bounce() -> void:
 	var hulls: Dictionary = _sol.get("hulls", {})
+	var box := PackedVector4Array([Vector4(-1, -1, 0, 1), Vector4(-1, -1, 0, 1), Vector4(-1, -1, 0, 1)])
+	var bnc := PackedVector4Array([Vector4.ZERO, Vector4.ZERO, Vector4.ZERO])
+	var i := 0
 	for st: Variant in sets:
 		var s := st as YardStandSet
-		if s == null or s._view == null:
+		if s == null or s._view == null or i >= 3:
 			continue
+		var r := s.thing
+		box[i] = Vector4(r.position.x - 12, r.end.x + 12, r.position.y, r.end.y - 1)
 		var hb: Array = hulls.get(HullData.weight_name(s.weight).to_lower(), [])
-		if hb.size() < 4:
-			continue
-		var ww := int(hb[2])
-		var cx := int(hb[0]) + ww / 2
-		var y := mini(H - 1, int(hb[1]) + int(hb[3]) + 18)
-		var fl := Vector3.ZERO
-		for dx: int in [-ww / 3, -ww / 6, 0, ww / 6, ww / 3]:
-			fl += l3_at(cx + dx, y)
-		fl /= 5.0
-		s._view.set_instance_shader_parameter(&"bounce", fl)
-		if s.mounts != null:
-			s.mounts.set_instance_shader_parameter(&"bounce", fl)
+		if hb.size() >= 4:
+			var ww := int(hb[2])
+			var cx := int(hb[0]) + ww / 2
+			var y := mini(H - 1, int(hb[1]) + int(hb[3]) + 18)
+			var fl := Vector3.ZERO
+			for dx: int in [-ww / 3, -ww / 6, 0, ww / 6, ww / 3]:
+				fl += l3_at(cx + dx, y)
+			fl /= 5.0
+			bnc[i] = Vector4(fl.x, fl.y, fl.z, 0)
+		i += 1
+	var m := mats[Mode.HULL]
+	m.set_shader_parameter(&"hull_box", box)
+	m.set_shader_parameter(&"hull_bounce", bnc)
 
 
 func _placed() -> void:
-	for st: Variant in sets:
-		var s := st as YardStandSet
-		if s != null and s.mounts != null and s._view != null:
-			s.mounts.set_instance_shader_parameter(&"rows", Vector2(s.thing.position.y, s.thing.end.y - 1))
 	_bounce()
 
 
@@ -326,6 +334,17 @@ func l3_at(x: int, y: int) -> Vector3:
 	for i in 6:
 		var v := _f(c, 4 + i) + (0.24 + _pour_w[i]) * _f(c, 10 + i)
 		l3 += v * Vector3(FIRE.r, FIRE.g, FIRE.b)
+	var dk := int(_lw.get(&"door_k", 0))
+	if dk > 0:
+		l3 += _f(c, 16 + dk) * float(_lw.get(&"door_w", 0.0)) * Vector3(1.0, 0.93, 0.78)
+	var ai := int(_lw.get(&"arc_i", -1))
+	if ai >= 0:
+		l3 += _f(c, 22 + ai) * float(_lw.get(&"arc_w", 0.0)) * Vector3(0.72, 0.85, 1.0)
+	if float(_lw.get(&"grind_w", 0.0)) > 0.0:
+		l3 += _f(c, 25) * 0.6 * Vector3(FIRE.r, FIRE.g, FIRE.b)
+	var ti := int(_lw.get(&"tech_i", -1))
+	if ti >= 0:
+		l3 += _f(c, 26 + ti) * 0.5 * Vector3(1.0, 0.92, 0.75)
 	var p := Vector2(c.x * 2.0 + 0.5, c.y * 2.0 + 0.5)
 	for q in _pools:
 		l3 += _pool_at(p, q) * Vector3(q[8], q[9], q[10])

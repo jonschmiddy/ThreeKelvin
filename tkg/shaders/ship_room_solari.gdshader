@@ -27,8 +27,10 @@ uniform int n_hl = 0;
 uniform vec4 hl_pos[20];
 uniform vec4 hl_col[20];
 uniform float brass = 0.45;
-instance uniform vec2 rows = vec2(0.0, 1.0);
-instance uniform vec3 bounce = vec3(0.0);
+// each hull: its columns and rows in the frame (x0, x1, top, foot) and its floor bounce (instance
+// uniforms do not reach a canvas item here: every hull read rows (0, 1), its key at the belly's)
+uniform vec4 hull_box[3];
+uniform vec4 hull_bounce[3];
 
 varying vec2 fp;
 
@@ -84,6 +86,14 @@ float k5(int i) {
 }
 
 vec3 hull_lit(vec4 c, bool edge, bool edge2, vec2 n) {
+	int hi = 0;
+	for (int i = 1; i < 3; i++) {
+		if (fp.x >= hull_box[i].x && fp.x <= hull_box[i].y) {
+			hi = i;
+		}
+	}
+	vec2 rows = hull_box[hi].zw;
+	vec3 bounce = hull_bounce[hi].rgb;
 	float u = clamp((floor(fp.y) - rows.x) / max(1.0, rows.y - rows.x), 0.0, 1.0);
 	float key = 1.45 * (1.0 - 0.42 * pow(u, 1.2));
 	vec3 Lh = key * vec3(1.0, 0.9, 0.78) + 0.10 * AMBC;
@@ -130,7 +140,8 @@ void fragment() {
 		vec4 e = room_emissive(p);
 		COLOR = vec4(mix(lit, e.rgb, e.a), 1.0);
 	} else {
-		vec4 c = texture(TEXTURE, UV) * COLOR;
+		// COLOR is already the texture times the vertex colour (and the modulate)
+		vec4 c = COLOR;
 		if (mode == 2) {
 			bool edge = HE(0.0, 0.0) > 0.5;
 			bool edge2 = !edge && c.a > 0.0 && (HE(1.0, 0.0) + HE(-1.0, 0.0) + HE(0.0, 1.0) + HE(0.0, -1.0)) > 0.5;

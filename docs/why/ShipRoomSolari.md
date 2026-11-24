@@ -70,3 +70,21 @@ furnaces drift embers up; furnace 2's roar throws embers and spill; a plate land
 The quench sprays from the fixed nozzle on the bed's lip in an arc into the mould, and its steam rolls up the wall in
 round, lobed puffs with a denser core and a thinner rim (round 15: never the old dither squares), lit warm from the
 plate below and by the room.
+
+## walker-shadows
+
+Round 20 (show20, Jon: "This guy's shadow is weird"): the front-lane walkers had thrown a hard cell-grid wedge from
+every pour and from the roar at once, long and at odd angles. Now each walker throws one shadow from the furnace wall
+behind him: his current pose's silhouette, flipped and flattened onto the floor toward the camera (0.4 of his height),
+its top row on his feet, leaning away from the nearest furnace (at most 0.5 px a row), x0.5 on its near half and x0.72
+on its far half, as strong as the floor's light at his feet (a dim floor, a faint shadow). The pours' and the roar's
+light fields carry no walker shadows any more; the arc keeps its own point shadow, only while it burns.
+
+## hull-colour
+
+A canvas item's COLOR in fragment() is already its texture times its vertex colour, so reading the texture again
+squared every sprite's colour: the hulls came out at half the film's brightness (x0.47 of their albedo where the film
+has x1.5 to x1.8). The game's hull canvas at grade C is the film's albedo exactly (heavy 23833 px, mean luma 39.9
+both; medium 40.9; light 44.8), so the film's light was right and the read was wrong. A canvas item takes no
+instance uniforms here either, so each hull's rows and floor bounce go to the shader as a small array found by its
+columns.
