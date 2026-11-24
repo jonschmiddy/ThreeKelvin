@@ -25,6 +25,8 @@ const BLUR_RATE := 5.0
 
 var room: ShipRoom = null
 var banners: Array[YardBanner] = []
+## The banners' cloth: their picture, its motion and its shadow on the room's wall.
+var cloth: YardCloth = null
 ## By weight: light, medium, heavy.
 var sets: Dictionary = {}
 var manufacturer: StringName = &""
@@ -75,6 +77,9 @@ func setup() -> void:
 		b.pressed.connect(func() -> void: banner_pressed.emit(i))
 		banners.append(b)
 		add_child(b)
+	cloth = YardCloth.new()
+	add_child(cloth)
+	cloth.setup(self)
 	_vignette = ColorRect.new()
 	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_vignette.size = Vector2(W, H)
@@ -136,6 +141,7 @@ func show_set(m: StringName, open: bool, tier: int = 0) -> void:
 		for w: HullData.Weight in sets:
 			(sets[w] as YardStandSet).drop_tarp()
 	room.placed(sets.values())
+	cloth.attach(room)
 	if _sharp_set != null:
 		_ghost.set_source(_sharp_set)
 
