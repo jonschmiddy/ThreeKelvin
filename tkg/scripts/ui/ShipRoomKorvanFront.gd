@@ -16,10 +16,21 @@ const DESK_X := 199
 const LEG_P := 104
 const CRATE_ROW := 378
 const DECK_BOT := 381
+## Round 19's platform trolley (Jon: "this guy using a ... line to hold the box? weird."): its U-bar's top
+## at his waist, crate slots clear of it; he pushes from just behind it and pulls a step further off.
+const LEG_STOP := 4.95
+const CART2_W := 38
+const CART_D := 6
+const PULL_STEP := 4
+const BAR_TOP := LANE - 17
+const SLOT1 := 8
+const SLOT2 := 23
 
 var life: ShipRoomKorvanLife
 var p: Dictionary[StringName, ShipRoomKorvanPaint] = {}
 var _courier: ShipRoomKorvanLife.Walker
+var _suit: Image = null
+var _ink: Dictionary[Vector3i, int] = {}
 var _arc: Sparks = null
 var _w8: Array[Sparks] = [null, null]
 var _bench_s: Sparks = null
@@ -28,7 +39,7 @@ var _bench_s: Sparks = null
 func _init(l: ShipRoomKorvanLife) -> void:
 	life = l
 	_courier = ShipRoomKorvanLife.Walker.new("look_suit", [["in", -60, LANE, 0.5], ["walk", 150, LANE], ["stand", 5.0],
-		["walk", 132, LANE], ["stand", 3.3], ["walk", -60, LANE], ["out"]], 22.0)
+		["walk", 132, LANE], ["stand", LEG_STOP], ["walk", -60, LANE], ["out"]], 22.0)
 
 
 func _mk(n: StringName, b: ShipRoomKorvanPaint.Blend = ShipRoomKorvanPaint.Blend.LIT) -> ShipRoomKorvanPaint:
@@ -90,6 +101,7 @@ func _build_delivery() -> void:
 		_mk(StringName("deck%d" % i))
 	_mk(&"courier_sh", P.Blend.MUL)
 	_mk(&"courier")
+	_mk(&"bar_k")
 	for i in 2:
 		_mk(StringName("held%d" % i))
 	_mk(&"courier_k")
@@ -477,74 +489,107 @@ static func _ease_lerp(a: Vector2, b: Vector2, k: float) -> Vector2:
 	return a + (b - a) * F.smooth(k)
 
 
-## people8.courier_state: (x, facing left, reaching) and the two crates [x, bottom, carried] A then B.
+## people8 round 19's leg stop as timed actions: [kind, secs, data]; kind 0 walk (from, to), 1 turn (left),
+## 2 lift and 3 set ([crate 0 A or 1 B, spot, left hand]).
+func _plan_leg(x0: int, cx0: int) -> Array[Array]:
+	var leg := Vector2(LEG_P, CRATE_ROW)
+	var s1 := Vector2(cx0 + SLOT1, DECK_BOT)
+	var s2 := Vector2(cx0 + SLOT2, DECK_BOT)
+	var xa := LEG_P + 22
+	var xb := int(s2.x) - 8
+	var xc := int(s1.x) - 8
+	var acts: Array[Array] = [[0, xa], [2, [1, leg, true]], [1, false], [0, xb], [3, [1, s2, false]], [1, true],
+		[0, xc], [1, false], [2, [0, s1, false]], [1, true], [0, xa], [3, [0, leg, true]], [1, false], [0, x0], [1, true]]
+	var out: Array[Array] = []
+	var x := x0
+	for a in acts:
+		match int(a[0]):
+			0:
+				out.append([0, absf(int(a[1]) - x) / 22.0, Vector2i(x, int(a[1]))])
+				x = int(a[1])
+			1:
+				out.append([1, 0.12, a[1]])
+			2:
+				out.append([2, 0.32, a[1]])
+			_:
+				out.append([3, 0.34, a[1]])
+	return out
+
+
+## people8 round 19's courier_state: [(x, facing left, frame or -1 standing), crate A, crate B (x, bottom,
+## carried), (hold 0 none 1 push 2 pull, the cart's left edge, 0)].
 func _courier_state(u: float, at: PackedFloat32Array) -> Array[Vector3]:
 	var s := _courier.segs
 	var sa0 := float(s[1][1])
 	var sa1 := float(s[1][2])
 	var sb0 := float(s[3][1])
 	var sb1 := float(s[3][2])
-	var x := at[0]
+	var x := int(at[0])
+	var fi := int(at[2])
 	var left := at[3] > 0.5
-	if u >= sa0 and u < sa1:
-		left = u >= sa1 - 0.45
-	var cx0 := x + 6
-	var slot1 := Vector2(cx0 + 3, DECK_BOT)
-	var slot2 := Vector2(cx0 + 18, DECK_BOT)
-	var hl := Vector2(x - 22, LANE - 18)
-	var hr := Vector2(x + 8, LANE - 18)
-	var leg := Vector2(LEG_P, CRATE_ROW)
-	var A := slot1
-	var B := leg
-	var carried := 0
-	var reach := false
+	var walking := not ((u >= sa0 and u < sa1) or (u >= sb0 and u < sb1))
+	var leg := Vector3(LEG_P, CRATE_ROW, 0)
 	if u < sb0:
-		pass
-	elif u >= sb0 + 2.6 or u >= sb1:
-		A = leg
-		B = slot2
-	else:
-		var v := u - sb0
-		if v < 0.4:
-			left = true
-			reach = true
-		elif v < 0.7:
-			left = true
-			reach = true
-			B = _ease_lerp(leg, hl, (v - 0.4) / 0.3)
-			carried = 2
-		elif v < 1.0:
-			left = v < 0.85
-			B = hl if left else hr
-			carried = 2
-		elif v < 1.3:
-			left = false
-			reach = true
-			B = _ease_lerp(hr, slot2, (v - 1.0) / 0.3)
-			carried = 2
-		elif v < 1.6:
-			left = false
-			reach = true
-			B = slot2
-		elif v < 1.9:
-			left = false
-			reach = true
-			B = slot2
-			A = _ease_lerp(slot1, hr, (v - 1.6) / 0.3)
-			carried = 1
-		elif v < 2.2:
-			left = v >= 2.05
-			B = slot2
-			A = hl if left else hr
-			carried = 1
+		var cx0 := x + CART_D
+		if u >= sa0 and u < sa1:
+			left = u >= sa1 - 0.45
+		return [Vector3(x - (PULL_STEP if left else 0), 1.0 if left else 0.0, fi if walking else -1),
+			Vector3(cx0 + SLOT1, DECK_BOT, 0), leg, Vector3(2 if left else 1, cx0, 0)]
+	var xw := F.pyround(float(s[3][3]))
+	var cx0p := xw + CART_D
+	var x0 := xw - PULL_STEP
+	if u >= sb1:
+		var cx0 := x + CART_D
+		return [Vector3(x - PULL_STEP, 1.0, fi), leg, Vector3(cx0 + SLOT2, DECK_BOT, 0), Vector3(2, cx0, 0)]
+	var v := u - sb0
+	var crates: Array[Vector3] = [Vector3(cx0p + SLOT1, DECK_BOT, 0), leg]
+	x = x0
+	left = true
+	fi = -1
+	var adv := _courier.adv
+	var kind := -1
+	var dat: Variant = null
+	var done := false
+	for act: Array in _plan_leg(x0, cx0p):
+		kind = int(act[0])
+		var dur := float(act[1])
+		dat = act[2]
+		var k := clampf(v / dur, 0.0, 1.0) if dur > 0.0 else 1.0
+		done = v >= dur
+		if kind == 0:
+			var w: Vector2i = dat
+			var dist := absi(w.y - w.x)
+			var steps := int(22.0 * minf(v, dur) / adv)
+			var moved := mini(dist, F.pyround(steps * adv))
+			x = w.x + (moved if w.y > w.x else -moved)
+			left = w.y < w.x
+			fi = steps % 8 if not done else -1
+		elif kind == 1:
+			if v >= 0.0 and (v >= dur * 0.5 or done):
+				left = dat
+			fi = -1
 		else:
-			left = true
-			reach = true
-			B = slot2
-			A = _ease_lerp(hl, leg, (v - 2.2) / 0.4)
-			carried = 1
-	return [Vector3(x, 1.0 if left else 0.0, 1.0 if reach else 0.0), Vector3(A.x, A.y, 1.0 if carried == 1 else 0.0),
-		Vector3(B.x, B.y, 1.0 if carried == 2 else 0.0)]
+			var d: Array = dat
+			var held := Vector2(x - 22, LANE - 18) if d[2] else Vector2(x + 8, LANE - 18)
+			left = d[2]
+			fi = -1
+			var c: int = d[0]
+			if kind == 2:
+				var pos := _ease_lerp(d[1], held, k)
+				crates[c] = Vector3(pos.x, pos.y, 1)
+			else:
+				var pos := _ease_lerp(held, d[1], k)
+				crates[c] = Vector3(pos.x, pos.y, 0 if done else 1)
+		if kind == 0 or kind == 1:
+			for c in 2:
+				if crates[c].z > 0.5:
+					var h := Vector2(x - 22, LANE - 18) if left else Vector2(x + 8, LANE - 18)
+					crates[c] = Vector3(h.x, h.y, 1)
+		if not done:
+			break
+		v -= dur
+	var hold := 2 if (v >= 0.0 and kind == 1 and dat == true and x == x0 and done) else 0
+	return [Vector3(x, 1.0 if left else 0.0, fi), crates[0], crates[1], Vector3(hold, cx0p, 0)]
 
 
 func _delivery(t: float) -> void:
@@ -572,19 +617,20 @@ func _delivery(t: float) -> void:
 	_foreman(u, fx, sa0)
 
 
-func _courier_draw(u: float, at: PackedFloat32Array, st: Array[Vector3]) -> void:
-	var s := _courier.segs
+func _courier_draw(_u: float, _at: PackedFloat32Array, st: Array[Vector3]) -> void:
 	var x := int(st[0].x)
 	var left := st[0].y > 0.5
-	var reach := st[0].z > 0.5
-	var stand_now := (u >= float(s[1][1]) and u < float(s[1][2])) or (u >= float(s[3][1]) and u < float(s[3][2]))
-	var fi := int(F.Y["crew"]["look_suit"]["stand"]) if stand_now else int(at[2])
-	var flip := left if stand_now else at[3] > 0.5
+	var fi := int(st[0].z)
+	var hold := int(st[3].x)
+	var cx0 := int(st[3].y)
+	if fi < 0:
+		fi = int(F.Y["crew"]["look_suit"]["stand"])
 	var sz := life.crew_src("look_suit", fi).size
-	var cx0 := x + 6
-	p[&"cart_sh"].contact(cx0, cx0 + 34, LANE, 3)
+	var sx := x - int(sz.x) / 2
+	var sy := LANE - int(sz.y)
+	p[&"cart_sh"].contact(cx0, cx0 + CART2_W, LANE, 3)
 	p[&"cart"].light(1, Vector2(cx0 + 12, LANE - 10), 0.15)
-	life.piece(p[&"cart"], "cart2", cx0, LANE - 13)
+	life.piece(p[&"cart"], "cart19", cx0, BAR_TOP)
 	for i in 2:
 		var c := st[i + 1]
 		if c.z < 0.5 and absf(c.y - DECK_BOT) < 0.5:
@@ -592,36 +638,49 @@ func _courier_draw(u: float, at: PackedFloat32Array, st: Array[Vector3]) -> void
 			life.piece(p[StringName("deck%d" % i)], "crate", F.pyround(c.x), F.pyround(c.y) - 12)
 	p[&"courier_sh"].contact(x - 7, x + 7, LANE, 3)
 	p[&"courier"].light(1, Vector2(x, LANE - 20), 0.15)
-	life.crew(p[&"courier"], "look_suit", fi, x - int(sz.x) / 2, LANE - int(sz.y), flip)
+	life.crew(p[&"courier"], "look_suit", fi, sx, sy, left)
 	var k := p[&"courier_k"]
 	k.light(2, Vector2(x, LANE - 24), 0.3, 0.4, 1.3)
+	var bar := p[&"bar_k"]
+	bar.light(2, Vector2(x, LANE - 24), 0.3, 0.4, 1.3)
+	if hold > 0:
+		# a level forearm at his waist from his body to the bar, the hand on the bar's top (_hands_on_bar)
+		var hy0 := BAR_TOP - 1
+		var edge := sx
+		for yy in [hy0, hy0 + 1]:
+			edge = maxi(edge, sx + _right_ink(fi, left, yy - sy))
+		for xx in range(edge + 1, cx0):
+			bar.rect(xx, hy0, 1, 2, P.c8(206, 210, 220))
+		bar.rect(cx0, hy0, 2, 2, SKIN)
+		if hold == 1:
+			bar.px(cx0 + 2, hy0, P.c8(236 * 0.8, 160 * 0.8, 112 * 0.8))
 	for i in 2:
 		var c := st[i + 1]
-		if c.z > 0.5 or (reach and absf(c.y - DECK_BOT) > 0.5 and absf(c.y - CRATE_ROW) > 0.5):
+		if c.z > 0.5:
 			var bx := F.pyround(c.x)
 			var bt := F.pyround(c.y)
 			p[StringName("held%d" % i)].light(1, Vector2(bx + 7, bt - 6), 0.2)
 			life.piece(p[StringName("held%d" % i)], "crate", bx, bt - 12)
 			for hx: int in [bx - 1, bx + 14]:
 				k.rect(hx, bt - 7, 1, 2, SKIN)
-	if reach:
-		var tgt: Vector3 = Vector3(NAN, 0, 0)
-		for c in [st[1], st[2]]:
-			if (c as Vector3).z > 0.5:
-				tgt = c
-				break
-		if is_nan(tgt.x):
-			for c in [st[1], st[2]]:
-				var cc := c as Vector3
-				if (absf(cc.x - (x - 22)) < 20) if left else (absf(cc.x - (x + 8)) < 20):
-					tgt = cc
-					break
-		if not is_nan(tgt.x):
-			var gx := F.pyround(tgt.x) + (14 if left else -1)
-			var gy := F.pyround(tgt.y) - 6
-			for v in ShipRoomKorvanLife.seg(Vector2(x - 3 if left else x + 3, LANE - 30), Vector2(gx, gy)):
-				k.px(int(v.x), int(v.y), P.c8(206, 210, 220))
-			k.px(gx, gy, SKIN)
+
+
+## The last inked column of a look_suit frame's row r (flipped when facing left), or 0 when the row is empty.
+func _right_ink(fi: int, flip: bool, r: int) -> int:
+	var key := Vector3i(fi, 1 if flip else 0, r)
+	if _ink.has(key):
+		return _ink[key]
+	var src := life.crew_src("look_suit", fi)
+	if _suit == null:
+		_suit = life.yard_tex(String(F.Y["crew"]["look_suit"]["picture"])).get_image()
+	var best := 0
+	if r >= 0 and r < int(src.size.y):
+		for c in int(src.size.x):
+			var sc := int(src.size.x) - 1 - c if flip else c
+			if _suit.get_pixel(int(src.position.x) + sc, int(src.position.y) + r).a > 0.0:
+				best = c
+	_ink[key] = best
+	return best
 
 
 static func _foreman_x(u: float, sa0: float, sa1: float) -> int:
