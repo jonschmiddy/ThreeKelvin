@@ -77,8 +77,6 @@ Solari's is a rich amber (#eca034, #d68c2a, #b27020) with dark ink #2c1a0c, outl
 in every room. The ??? cloths keep the films' dark tones. The five manufacturers not redrawn yet (developer mode only)
 take their own field in the same three bands.
 
-The sway is a slow wave travelling down the cloth instead of the old whole-cloth shear that snapped between nine
-poses: `offset(r) = 1.5 (r/99)^1.5 sin(2 pi t / P - (pi/100) r + phase)`, P one of 5, 6, 7.5 and 10 s and a phase
-per banner. Each row is laid at its rounded offset; the edge column past it takes the fraction as alpha, so the
-outline creeps less than a pixel between whole steps. Over the cloth's top half the wave never reaches half a
-pixel, so the name, the emblem and the ??? never move. The rod and chains never move. `SWAY_PX` went with it.
+The cloth now hangs and moves as Jon's banner page's cloth simulation (Nov 24: "The movement is PERFECT"), on the
+GPU, lit by each room's own lamps and throwing its shadow on the wall: `docs/why/YardBanner.md`. The travelling
+wave and its fixed rod are gone.

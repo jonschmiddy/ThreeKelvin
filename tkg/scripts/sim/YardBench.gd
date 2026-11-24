@@ -218,11 +218,11 @@ func _off(part: String) -> Callable:
 			y.set_process(false)
 			return func() -> void: y.set_process(true)
 		"banners":
-			for b in y.banners:
-				b.set_process(false)
+			y.cloth.set_process(false)
+			y.cloth.show_cloth(false)
 			return func() -> void:
-				for b in y.banners:
-					b.set_process(true)
+				y.cloth.set_process(true)
+				y.cloth.show_cloth(true)
 		"blur":
 			var was: bool = y._blur.visible
 			y._blur.visible = false
