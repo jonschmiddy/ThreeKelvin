@@ -608,3 +608,56 @@ So the start is turned on round the centre, 0.17 rad at a time, until no
 world's ring (soi x 1.05) comes over the orbit in CLICK_S + PREVIEW_AHEAD +
 0.5 s.
 ```
+
+## Alongside fall
+
+Above `func _fall_skip(`:
+
+```text
+AN ALONGSIDE ARRIVAL'S LAST PX AND A HALF is not read for a corner (Nov 22,
+the coordinator's yes on Jon's behalf). The planner does not read it either
+(`FlightSolve.ALONGSIDE_FALL`, docs/why/FlightSolve.md#arrival-cusps): there
+the ship slows to the place's own crawl and falls in with it, and the path
+turns inside a pixel. Seed 2468 system 183 (giant, CURVED, orbit 2 to world
+5's station) drew 23.9 deg a px 0.99 px from its end. Only a solved flight
+whose choice arrives alongside (`tk` 1) has it skipped, measured as the
+planner measures it (zoom 1, the plane tilted by DRAW_TILT); ring curves keep
+their own skip and every other arrival is read on every pixel. The count is
+printed beside the rings' ("in an alongside arrival's last 1.5 px only").
+```
+
+## Pinned flights
+
+Above `const PINS := [`:
+
+```text
+THE FLIGHTS PINNED (Nov 22): the gate flies three seeds, and the planner's
+faults found on other worlds would not come round again. Each failed on main
+(d3577aa8) and passes since the flight fixes: seed 2468 system 183 (giant,
+CURVED, orbit 2 to world 5), a corner 0.99 px from an alongside arrival's
+end; seed 9300's core, today's planner at 128.6 px inside the 144 px lens
+(DIRECT, orbit 0 to world 1); seed 777 system 131 as a wide pair, whose far
+side's let-go point lies on world 3's ring (`#let-go-on-a-ring`). The corner
+and core pins fly in the shard that flies the places, the hand pin in the
+hand phase; `-- sheet=FlightTest
+pins` flies them alone (a look, not a verdict: the hand phase's other checks
+read no rows there and fail).
+```
+
+## Let go on a ring
+
+Inside `_hand_phase()`, above `var on_ring := _ring_at(`:
+
+```text
+A LET-GO POINT INSIDE A WORLD'S RING (Nov 22, the coordinator's B): the far
+side's point is 0.99 of the edge, and the edge counts each body's disc, not
+its ring, so a ring can hold it (seed 777 system 131's wide pair, world 3's
+ring). A ship let go inside a ring is taken by it: that is the game working,
+and asking it to settle round both suns there asked for the impossible. Such
+a point is counted apart ("or let go on one") and passes; every other far
+side still has to settle inside the map, off its edge, taken by no ring.
+Counting rings in the edge (option A) moved every changed twin's opening
+past its fitted zoom (SystemTest, 1,232 failures) and is parked with the
+solver's keep-in at the edge: tk-scratch/flight-fixes/PARKED.md.
+```
+

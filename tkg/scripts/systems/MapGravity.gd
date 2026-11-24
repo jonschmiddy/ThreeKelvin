@@ -199,6 +199,12 @@ static func keep_zoom(L: SystemLayout) -> float:
 	return open_zoom(L)
 
 
+## A black hole's lens keep-out (`keep_out_star`), else 0: today's planner keeps out of it too.
+## Why: docs/why/ShipFlight.md#old-planner-lens
+static func lens_of(L: SystemLayout) -> float:
+	return keep_out_star(L, -1) if L.star_kind_of(-1) == SystemLayout.StarKind.CORE else 0.0
+
+
 ## Larger of keep-clear and the drawn sun plus margin. A black hole keeps out of its lens, 144.
 ## Kept to its 52 px disc, solved flights dove across the shadow and lens (one-sun review).
 ## Why: docs/why/MapGravity.md#star-keep-out
