@@ -59,7 +59,6 @@ func build() -> void:
 	_mk(&"office", P.Blend.MUL)
 	_mk(&"paper")
 	_mk(&"holo")
-	_mk(&"holo_cv")
 	_mk(&"beacons")
 	_mk(&"burner", P.Blend.UNLIT)
 	_mk(&"blades")
@@ -71,7 +70,7 @@ func build() -> void:
 	_build_jobs()
 	_mk(&"truck_k")
 	_mk(&"truck_crate")
-	_mk(&"truck_man")
+	_mk(&"truck_hand")
 	_mk(&"stack")
 	_mk(&"tele")
 	_mk(&"tele_lamp")
@@ -670,8 +669,8 @@ func _trucks(t: float) -> void:
 			var bx := tx - 10 if left else tx + 1
 			p[&"truck_crate"].light(1, Vector2(bx + 4, feet - 6), 0.2)
 			life.piece(p[&"truck_crate"], "small_crate", bx, feet - 11)
-		p[&"truck_man"].light(1, Vector2(cx, feet - 5), 0.12)
-		life.crew(p[&"truck_man"], "t_suit", int(a[2]), x, y, left)
+		p[&"truck_hand"].light(1, Vector2(cx, feet - 5), 0.12)
+		life.crew(p[&"truck_hand"], "t_suit", int(a[2]), x, y, left)
 	p[&"stack"].light(1, Vector2(226, 204), 0.2)
 	life.piece(p[&"stack"], "small_crate", 222, 199)
 

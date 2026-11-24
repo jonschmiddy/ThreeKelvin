@@ -20,6 +20,9 @@ const DECK_BOT := 381
 var life: ShipRoomKorvanLife
 var p: Dictionary[StringName, ShipRoomKorvanPaint] = {}
 var _courier: ShipRoomKorvanLife.Walker
+var _arc: Sparks = null
+var _w8: Array[Sparks] = [null, null]
+var _bench_s: Sparks = null
 
 
 func _init(l: ShipRoomKorvanLife) -> void:
@@ -58,7 +61,7 @@ func build() -> void:
 		_mk(StringName("w%d_bink" % i))
 		_mk(StringName("w%d_bk" % i))
 		_mk(StringName("w%d_bkt" % i))
-		_mk(StringName("w%d_man" % i)).light(0, Vector2.ZERO, 0.1 if i == 1 else 0.0)
+		_mk(StringName("w%d_crew" % i)).light(0, Vector2.ZERO, 0.1 if i == 1 else 0.0)
 		_mk(StringName("w%d_fink" % i))
 		_mk(StringName("w%d_fkt" % i))
 		_mk(StringName("w%d_tool_ink" % i))
@@ -109,7 +112,11 @@ func draw(f: int, t: float) -> void:
 		var tip := F.arc_tip(wp.x)
 		_star(p[&"arc_glow"], p[&"arc"], tip, lvl, ((F.D["tenths"] as Array)[int(floorf(tA * 10.0))] as Dictionary)["arc"], false)
 	_arc_sparks(tA)
-	_floor_lamp()
+	if not p[&"flamp"].keep:
+		_floor_lamp()
+		_desk()
+		for n: StringName in [&"flamp_sh", &"flamp", &"flamp_beam", &"desk_sh", &"desk_k", &"desk_ink"]:
+			p[n].keep = true
 	for i in 2:
 		_ladder(i, t, fr)
 	_delivery(t)
@@ -144,7 +151,10 @@ func _bench(t: float) -> void:
 	p[&"bench_sh"].contact(bx - 18, bx + 16, bf, 3, 0.5)
 	life.strip(p[&"bench"], "grind_strip", int(t * 10.0) % 9 if grinding else 0, bx - 24, bf - 28)
 	var g := Vector2(float(F.K["g_ox"]), float(F.K["g_oy"]))
-	for s: Array in F.D["spawn"]["bench"]:
+	if _bench_s == null:
+		_bench_s = Sparks.new(F.D["spawn"]["bench"], 30.0, g, Callable())
+	for j in _bench_s.alive(t):
+		var s: Array = _bench_s.rows[j]
 		var age := fposmod(t - float(s[0]), 30.0)
 		if age > float(s[3]):
 			continue
@@ -250,25 +260,6 @@ static func spark_col(a: float) -> Color:
 	return P.c8(192, 80, 26)
 
 
-## A spark thrown from `from` at (vx, vy), stepped at 120 Hz with its bounces: [x, y, px, py].
-static func _fly(from: Vector2, vx: float, vy: float, age: float, deck: Callable) -> PackedFloat32Array:
-	var x := from.x
-	var y := from.y
-	var prev := Vector2(x, y)
-	var dt := 1.0 / 120.0
-	for i in int(age / dt):
-		prev = Vector2(x, y)
-		vy += 260.0 * dt
-		x += vx * dt
-		y += vy * dt
-		var stop: float = deck.call(x, y)
-		if y >= stop and vy > 0.0:
-			y = stop
-			vy *= -0.32
-			vx *= 0.55
-	return PackedFloat32Array([x, y, prev.x, prev.y])
-
-
 func _arc_sparks(tA: float) -> void:
 	var K := F.K
 	var lx0 := float(K["lift_x0"])
@@ -277,12 +268,14 @@ func _arc_sparks(tA: float) -> void:
 	var ly := float(K["ly"])
 	var deck := func(x: float, y: float) -> float:
 		return wb if x >= lx0 and x <= lx0 + lw - 1.0 and y < wb + 2.0 else ly + 1.0
-	var from := Vector2(float(K["tip_x"]), float(K["belly"]) + 2.0)
-	for s: Array in F.D["spawn"]["arc"]:
+	if _arc == null:
+		_arc = Sparks.new(F.D["spawn"]["arc"], 10.0, Vector2(float(K["tip_x"]), float(K["belly"]) + 2.0), deck)
+	for i in _arc.alive(tA):
+		var s: Array = _arc.rows[i]
 		var age := fposmod(tA - float(s[0]), 10.0)
 		if age > float(s[3]):
 			continue
-		var v := _fly(from, float(s[1]), float(s[2]), age, deck)
+		var v := _arc.fly(i, age)
 		var a := age / float(s[3])
 		_spark(p[&"sparks"], v, spark_col(a), a < 0.7, 0.6)
 
@@ -337,9 +330,9 @@ func _ladder(i: int, t: float, fr: Dictionary) -> void:
 		p[StringName("w%d_sh" % i)].contact(int(sp["tw"][0]) - 3, int(sp["tw"][1]) + 3, WFLOOR, 3, 0.5)
 	_platform(i, sp, true)
 	if grind:
-		life.piece(p[StringName("w%d_man" % i)], "tech_tg", x0, y0)
+		life.piece(p[StringName("w%d_crew" % i)], "tech_tg", x0, y0)
 	else:
-		life.strip(p[StringName("w%d_man" % i)], "welder_strip", int(st.x), x0, y0)
+		life.strip(p[StringName("w%d_crew" % i)], "welder_strip", int(st.x), x0, y0)
 	_platform(i, sp, false)
 	if grind:
 		_grinder(i, sp, on, int(fr["jit"]) if on else 0, t)
@@ -363,14 +356,17 @@ func _ladder(i: int, t: float, fr: Dictionary) -> void:
 
 
 func _ladder_sparks(i: int, sp: Dictionary, t: float, grind: bool) -> void:
-	var from := Vector2(float(sp["tip"][0]), float(sp["tip"][1]))
-	var deck := func(_x: float, _y: float) -> float:
-		return WFLOOR + 1.0
-	for s: Array in (F.D["spawn"]["w8"] as Array)[i]:
+	if _w8[i] == null:
+		var deck := func(_x: float, _y: float) -> float:
+			return WFLOOR + 1.0
+		_w8[i] = Sparks.new((F.D["spawn"]["w8"] as Array)[i], 30.0, Vector2(float(sp["tip"][0]), float(sp["tip"][1])), deck)
+	var sk: Sparks = _w8[i]
+	for j in sk.alive(t):
+		var s: Array = sk.rows[j]
 		var age := fposmod(t - float(s[0]), 30.0)
 		if age > float(s[3]):
 			continue
-		var v := _fly(from, float(s[1]), float(s[2]), age, deck)
+		var v := sk.fly(j, age)
 		var a := age / float(s[3])
 		if grind:
 			var c := P.c8(255, 214, 120) if a < 0.3 else (P.c8(255, 150, 50) if a < 0.7 else P.c8(190, 74, 24))
@@ -557,7 +553,6 @@ func _delivery(t: float) -> void:
 	var sa0 := float(s[1][1])
 	var sa1 := float(s[1][2])
 	var fx := _foreman_x(u, sa0, sa1)
-	_desk()
 	var at := _courier.at(u)
 	var on := u >= _courier.t_in and u < _courier.t_out and not at.is_empty()
 	var st: Array[Vector3] = []
@@ -697,3 +692,57 @@ func _forklift(t: float) -> void:
 	var by := lane - fh + 1 + int(bc[1])
 	if bx >= 0 and bx < 959:
 		p[&"fork_lamp"].rect(bx, by, 2, 2, P.c8(255, 190, 70) if int(t / 0.2) % 2 == 0 else P.c8(110, 64, 22))
+
+
+## A film's table of throws (born, vx, vy, life) on a loop of `period`: only those alive now are looked at,
+## and each one's 120 Hz flight is carried on from where the last frame left it.
+class Sparks:
+	var ts := PackedFloat32Array()
+	var rows: Array = []
+	var period := 30.0
+	var maxlife := 0.0
+	var from := Vector2.ZERO
+	var deck: Callable
+	var _st: Dictionary[int, PackedFloat32Array] = {}
+
+	func _init(list: Array, per: float, fr: Vector2, dk: Callable) -> void:
+		rows = list
+		period = per
+		from = fr
+		deck = dk
+		for r: Array in list:
+			ts.append(float(r[0]))
+			maxlife = maxf(maxlife, float(r[3]))
+
+	func alive(t: float) -> PackedInt32Array:
+		var out := PackedInt32Array()
+		var lo := t - maxlife
+		for i in range(ts.bsearch(maxf(lo, 0.0), true), ts.bsearch(t, false)):
+			out.append(i)
+		if lo < 0.0:
+			for i in range(ts.bsearch(period + lo, true), ts.size()):
+				out.append(i)
+		return out
+
+	## [x, y, x a step before, y a step before] at `age`.
+	func fly(i: int, age: float) -> PackedFloat32Array:
+		var r: Array = rows[i]
+		var n := int(age / (1.0 / 120.0))
+		var s: PackedFloat32Array = _st.get(i, PackedFloat32Array())
+		if s.is_empty() or int(s[0]) > n:
+			s = PackedFloat32Array([0, from.x, from.y, float(r[1]), float(r[2]), from.x, from.y])
+		var dt := 1.0 / 120.0
+		while int(s[0]) < n:
+			s[5] = s[1]
+			s[6] = s[2]
+			s[4] += 260.0 * dt
+			s[1] += s[3] * dt
+			s[2] += s[4] * dt
+			var stop: float = deck.call(s[1], s[2])
+			if s[2] >= stop and s[4] > 0.0:
+				s[2] = stop
+				s[4] *= -0.32
+				s[3] *= 0.55
+			s[0] += 1.0
+		_st[i] = s
+		return PackedFloat32Array([s[1], s[2], s[5], s[6]])

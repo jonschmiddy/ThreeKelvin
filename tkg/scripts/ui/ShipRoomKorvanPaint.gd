@@ -8,8 +8,17 @@ extends Node2D
 enum Blend { LIT, MUL, ADD, UNLIT }
 
 var blend := Blend.LIT
+## Drawn once and kept: what never changes from frame to frame (the floor lamp, the desk).
+var keep := false
 ## Draws outside this frame rect are cut (the door's opening, the office glass).
-var clip := Rect2(0, 0, 960, 540)
+var clip := Rect2(0, 0, 960, 540):
+	set(v):
+		clip = v
+		_full = v == FRAME
+var _full := true
+const FRAME := Rect2(0, 0, 960, 540)
+## Contact shadows worked out once per place and size: [x, y, f] each.
+static var _contacts: Dictionary[Vector4i, PackedVector3Array] = {}
 var _ops: Array[Array] = []
 
 
@@ -50,7 +59,11 @@ static func c8(r: float, g: float, b: float, a: float = 1.0) -> Color:
 
 
 func rect(x: int, y: int, w: int, h: int, c: Color) -> void:
-	var r := Rect2(x, y, w, h).intersection(clip)
+	var r := Rect2(x, y, w, h)
+	if not _full:
+		r = r.intersection(clip)
+	elif x < 0 or y < 0 or x + w > 960 or y + h > 540:
+		r = r.intersection(FRAME)
 	if r.size.x > 0 and r.size.y > 0:
 		_ops.append([0, r, c])
 
@@ -81,6 +94,17 @@ func sprite(tex: Texture2D, src: Rect2, x: int, y: int, flip: bool = false, mod:
 ## The film's contact shadow (core.contact) as multiplies: an ellipse round the feet, its rim
 ## dithered on the frame's grid. Only on a MUL layer.
 func contact(x0: float, x1: float, feet: int, length: int = 6, dark: float = 0.5) -> void:
+	var key := Vector4i(roundi(x0 * 2.0), roundi(x1 * 2.0), feet, length * 100 + roundi(dark * 100.0))
+	var cells: PackedVector3Array = _contacts.get(key, PackedVector3Array())
+	if cells.is_empty():
+		cells = _contact_cells(x0, x1, feet, length, dark)
+		_contacts[key] = cells
+	for c in cells:
+		_ops.append([0, Rect2(c.x, c.y, 1, 1), Color(c.z, c.z, c.z)])
+
+
+static func _contact_cells(x0: float, x1: float, feet: int, length: int, dark: float) -> PackedVector3Array:
+	var out := PackedVector3Array()
 	var cx := (x0 + x1) / 2.0
 	var rx := maxf(2.0, (x1 - x0) / 2.0 + 3.0)
 	for dy in range(-1, length + 1):
@@ -91,8 +115,8 @@ func contact(x0: float, x1: float, feet: int, length: int = 6, dark: float = 0.5
 			var r := sqrt(pow((x - cx) / rx, 2.0) + pow((dy + 1) / (length + 1.0), 2.0))
 			var k := clampf(1.0 - r, 0.0, 1.0)
 			if k > 0.35 or (k > 0.0 and ShipRoom.bayer4(x, y) < k / 0.35):
-				var f := 1.0 - dark * clampf(0.45 + k, 0.0, 1.0)
-				rect(x, y, 1, 1, Color(f, f, f))
+				out.append(Vector3(x, y, 1.0 - dark * clampf(0.45 + k, 0.0, 1.0)))
+	return out
 
 
 func _draw() -> void:

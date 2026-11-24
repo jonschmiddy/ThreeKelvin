@@ -74,7 +74,8 @@ static func puff(p: ShipRoomKorvanPaint, x: float, y: float, rad: float, al: flo
 
 func clear_all() -> void:
 	for p in _paints:
-		p.clear()
+		if not p.keep:
+			p.clear()
 
 
 ## An atlas piece's source rect.
