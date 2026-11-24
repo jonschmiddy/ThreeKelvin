@@ -99,7 +99,7 @@ func _launch() -> void:
 	var top := 0.0
 	var right := 0.0
 	var sunk := 0
-	var lamps0 := cs._yard.scene.light.lamp_gain.duplicate()
+	var lamps0 := cs._yard.room.lamp_k
 	var lamps_moved := 0
 	var light_jump := 0.0
 	var light_prev := -1.0
@@ -113,7 +113,7 @@ func _launch() -> void:
 		if Router.current != cs:
 			landed_at = _t - t0
 			break
-		if _t - t0 > ShipLift.exit_s() + 0.1 and _left_behind(lift, cs._yard.scene):
+		if _t - t0 > ShipLift.exit_s() + 0.1 and _left_behind(lift, cs._yard.room.extra):
 			left_lit += 1
 		if flame_at < 0.0 and lift.view._thrust_now() >= 0:
 			flame_at = _t - t0
@@ -124,7 +124,7 @@ func _launch() -> void:
 		top = minf(top, berth.position.y - y0)
 		right = maxf(right, berth.position.x - x0)
 		sunk = maxi(sunk, berth.retract)
-		if cs._yard.scene.light.lamp_gain != lamps0:
+		if cs._yard.room.lamp_k != lamps0:
 			lamps_moved += 1
 		var lv := lift.plume.light_level()
 		if light_prev >= 0.0:
@@ -227,7 +227,7 @@ func _undock() -> void:
 		if Router.current == st and is_instance_valid(st) and st._heavy != null:
 			if t_lift < 0.0:
 				t_lift = _t
-			if _t - t_lift > StationScreen.undock_elev_s() + ShipLift.exit_s() + 0.1 and _left_behind(st._heavy, st._scene):
+			if _t - t_lift > StationScreen.undock_elev_s() + ShipLift.exit_s() + 0.1 and _left_behind(st._heavy, st._scene.life.extra if st._scene.life != null else []):
 				left_lit += 1
 			used = true
 			right = maxf(right, st._mine_view.position.x - rest.x)
@@ -250,13 +250,12 @@ func _undock() -> void:
 ## Anything of the lift still lit on the picture once the hull is off it: its flame,
 ## the jets' or nozzle's light, or a small light it put in the yard's light (one
 ## still easing out past the picture's right edge, with the hull, is not on it).
-func _left_behind(lift: ShipLift, sc: YardScene) -> bool:
+func _left_behind(lift: ShipLift, extra: Array) -> bool:
 	if lift.view._thrust_now() >= 0 or lift.lit() > 0:
 		return true
 	var edge := float(lift.host.size.x)
 	var lit: Array = lift.plume.lights()
-	if sc.life != null:
-		lit.append_array(sc.life.extra)
+	lit.append_array(extra)
 	for l: Array in lit:
 		if float(l[0]) - float(l[2]) < edge:
 			return true

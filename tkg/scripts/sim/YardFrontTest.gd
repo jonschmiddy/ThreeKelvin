@@ -149,8 +149,7 @@ func _locked(cs: ChassisSelect) -> void:
 	_ok("LAUNCH is grey and nothing can launch", not cs.launchable() and cs._band.key.visible and cs._band.key.disabled)
 	_ok("the band says what unlocks it: \"%s\"" % Unlocks.lock_line(&"solari"),
 		_band_says(cs, Unlocks.lock_line(&"solari").to_upper()) and _band_says(cs, "LOCKED MANUFACTURER"))
-	_ok("the hall goes dim and two lamps stutter", cs._yard.locked and cs._yard._lamp_gains()[0] == 0.5
-		and cs._yard._lamp_gains()[2] <= 0.5)
+	_ok("the tarps wait in the Old hangar (%s)" % cs._yard.room.id, cs._yard.locked and cs._yard.room.id == &"old")
 	var was := Router.current
 	cs._launch()
 	cs._band.key.pressed.emit()
@@ -161,7 +160,8 @@ func _locked(cs: ChassisSelect) -> void:
 	await _enter(null)
 	var korvan: YardBanner = cs._yard.banners[0]
 	await _click(cs, korvan.global_position + Vector2(YardBanner.MARGIN + 24, 50))
-	_ok("Korvan's banner brings the ships and the pick back", cs.manufacturer() == &"korvan" and cs.open()
+	_ok("Korvan's banner brings the ships, its depot and the pick back", cs.manufacturer() == &"korvan" and cs.open()
+		and cs._yard.room.id == &"korvan"
 		and cs._picked == int(HullData.Weight.MEDIUM) and cs.launchable()
 		and cs._yard.sets.values().all(func(s: YardStandSet) -> bool: return not s.tarped))
 
@@ -306,33 +306,25 @@ func _labels(root: Node) -> Array[Label]:
 	return out
 
 
-## LIT AS THE SHIPYARD DECK (Jon's D, Nov 12): with a ship picked every lamp is
-## full, the ambient is the deck's, no haze cones hang in the hall, and the floor
-## lamps' bake carries both rows of hulls, each at its berth's depth, so their
-## shadows lie in the pools (`YardStandsShot` prints the light under each hull).
+## THE ROOM (Jon, Nov 22-24): Korvan's ships in its Parts depot, each hull on two posts
+## that clear its belly guns and stand level, behind the hull, their feet on the berth's row.
 func _lit_as_deck(cs: ChassisSelect) -> void:
 	var y := cs._yard
-	var full := true
-	for g: float in y._lamp_gains():
-		full = full and is_equal_approx(g, 1.0)
-	_ok("a picked ship is lit as the deck lights one: every lamp full", full)
-	_ok("the deck's ambient (%.2f)" % y.scene.light.amb,
-		is_equal_approx(float(y.scene.light.mats[0].get_shader_parameter(&"amb")), y.scene.light.amb) and y.scene.light.amb >= 0.15)
-	var consts := (y.get_script() as Script).get_script_constant_map()
-	_ok("no haze cones in the hall", not consts.has("POOLS") and not consts.has("HAZE"))
-	var m := YardFrontPools.material_for(y)
-	var ok := bool(m.get_shader_parameter(&"ships")) and bool(m.get_shader_parameter(&"ships2"))
-	var cam_f := 500.0 * 300.0
-	ok = ok and is_equal_approx(float(m.get_shader_parameter(&"zs")), cam_f / float(YardSlot.FRONT_FEET - 30))
-	ok = ok and is_equal_approx(float(m.get_shader_parameter(&"zs2")), cam_f / float(YardSlot.BACK_FEET - 30))
-	var front_mask := (m.get_shader_parameter(&"mask") as Texture2D).get_image()
-	var back_mask := (m.get_shader_parameter(&"mask2") as Texture2D).get_image()
+	_ok("Korvan's ships stand in its depot", y.room != null and y.room.id == &"korvan")
+	var ok := true
 	for w: HullData.Weight in y.sets:
-		var p := _spot(y.sets[w], true)
-		var mk := back_mask if w == HullData.Weight.HEAVY else front_mask
-		var other := front_mask if w == HullData.Weight.HEAVY else back_mask
-		ok = ok and p.x >= 0.0 and mk.get_pixelv(Vector2i(p)).r8 == 255 and other.get_pixelv(Vector2i(p)).r8 == 0
-	_ok("the floor lamps' bake has every hull in its row, each at its berth's depth", ok)
+		var s: YardStandSet = y.sets[w]
+		ok = ok and s.post_x.size() == 2 and s.post_top < s.feet and s.feet == int(ShipRoom.FEET[w])
+		for g in s.guns:
+			for px in s.post_x:
+				ok = ok and (px + s.post_w - 1 < g.x or px > g.y)
+	_ok("every hull on two level posts clear of its belly guns", ok)
+	var under := y.room.under.get_index()
+	var above := y.room.above.get_index()
+	var between := true
+	for s: YardStandSet in y.sets.values():
+		between = between and s.get_index() > under and s.get_index() < above
+	_ok("the room under the stands, its air over them", between)
 
 
 ## FIT: every word and the key on screen, none over another, none over a hull

@@ -193,6 +193,28 @@ func part_rects_canvas() -> Array[Rect2]:
 	return out
 
 
+## Each gun's picture and its rect in canvas pixels: the ship-select stands keep their
+## posts clear of the guns' own pixels, not their boxes (`YardStandSet.belly_guns`).
+func gun_pictures_canvas() -> Array[Array]:
+	var out: Array[Array] = []
+	if _view == null:
+		return out
+	_place()
+	var c0 := _view.canvas_to_local(Vector2.ZERO)
+	var px := float(_view._k)
+	var k := part_mag()
+	for s in _spots:
+		var m: ModuleData = s.held
+		if not shows(m):
+			continue
+		var g := gun_for(m, s.slot)
+		if g == null or g.tex == null:
+			continue
+		var r := part_rect(m, s.slot, s.at, k)
+		out.append([Rect2((r.position - c0) / px, r.size / px), g.tex.get_image()])
+	return out
+
+
 ## Whatever is on hardpoint `i` of `slot`, on whichever ship this is drawing.
 func _held(slot: ModuleData.Slot, i: int) -> ModuleData:
 	if ship == null:

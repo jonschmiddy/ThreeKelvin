@@ -119,7 +119,7 @@ func _steam() -> void:
 	var p := LiftPlume.new()
 	p.setup(y.size.x, y.size.y, 220.0)
 	p.floor_y = float(s.feet)
-	p.lamps = ShipLift.lamps_of(y.scene.light, y.size.x)
+	p.lamps = y.room.ceiling_lamps()
 	var r := Rect2(s.thing)
 	p.hull = Rect2(r.position.x, r.position.y, r.size.x, r.size.y * 0.5)
 	p.src = Vector2(r.get_center().x, r.position.y + r.size.y * 0.5)
@@ -154,33 +154,13 @@ var _hovers := 0
 var _hold := false
 
 
-## A banner's click, piece by piece (as `YardFront.show_set` runs it).
+## A banner's click as `YardFront.show_set` runs it, timed whole.
 func _profile_select(m: StringName) -> void:
 	var y := _cs._yard
 	var open := Unlocks.unlocked(m) or DevMode.enabled
-	y.manufacturer = m
-	y.locked = not open
-	for w: HullData.Weight in y.sets:
-		var u := Time.get_ticks_usec()
-		var frame := DB.hull_for(&"korvan", w)
-		var hull: HullData = DB.at_tier(DB.hull_for(m, w), 0) if open else null
-		(y.sets[w] as YardStandSet).setup(y.scene, w, hull, frame, m)
-		print("    %s setup %d: %.1f ms" % [m, w, (Time.get_ticks_usec() - u) / 1000.0])
-	var u2 := Time.get_ticks_usec()
-	var map := PackedByteArray()
-	map.resize(960 * YardFront.HALL_H * 4)
-	for w: HullData.Weight in y.sets:
-		(y.sets[w] as YardStandSet).mask_into(map, 960)
-	print("    %s mask_into x3: %.1f ms" % [m, (Time.get_ticks_usec() - u2) / 1000.0])
-	u2 = Time.get_ticks_usec()
-	y._rebake()
-	print("    %s _rebake whole: %.1f ms" % [m, (Time.get_ticks_usec() - u2) / 1000.0])
-	u2 = Time.get_ticks_usec()
-	y.scene._bake_bay()
-	print("    %s _bake_bay alone: %.1f ms" % [m, (Time.get_ticks_usec() - u2) / 1000.0])
-	u2 = Time.get_ticks_usec()
-	y._apply_light()
-	print("    %s _apply_light: %.1f ms" % [m, (Time.get_ticks_usec() - u2) / 1000.0])
+	var u := Time.get_ticks_usec()
+	y.show_set(m, open, 0)
+	print("    %s show_set: %.1f ms" % [m, (Time.get_ticks_usec() - u) / 1000.0])
 
 
 ## What a click costs: each banner, then each ship picked and pointed at.
@@ -235,8 +215,8 @@ func _off(part: String) -> Callable:
 	var y := _cs._yard
 	match part:
 		"tick":
-			y.scene.set_process(false)
-			return func() -> void: y.scene.set_process(true)
+			y.set_process(false)
+			return func() -> void: y.set_process(true)
 		"banners":
 			for b in y.banners:
 				b.set_process(false)
@@ -248,8 +228,8 @@ func _off(part: String) -> Callable:
 			y._blur.visible = false
 			return func() -> void: y._blur.visible = was
 		"hall":
-			y.scene.visible = false
-			return func() -> void: y.scene.visible = true
+			y.room.under.visible = false
+			return func() -> void: y.room.under.visible = true
 	return func() -> void: pass
 
 
@@ -300,8 +280,7 @@ func _sample(secs: float) -> Dictionary:
 	var rcpu := 0.0
 	var calls := 0.0
 	var prims := 0.0
-	var sc := _cs._yard.scene
-	var last_tick := sc._tick_n
+	var last_tick := Engine.get_process_frames()
 	var prev := Time.get_ticks_usec()
 	var until := prev + int(secs * 1000000.0)
 	while Time.get_ticks_usec() < until:
@@ -310,11 +289,11 @@ func _sample(secs: float) -> Dictionary:
 		times.append(float(now - prev) / 1000.0)
 		prev = now
 		var p := float(int(mark.pre) - int(mark.proc)) / 1000.0
-		if sc._tick_n != last_tick:
+		if Engine.get_process_frames() != last_tick:
 			procs_tick.append(p)
 		else:
 			procs_idle.append(p)
-		last_tick = sc._tick_n
+		last_tick = Engine.get_process_frames()
 		draw += float(now - int(mark.pre)) / 1000.0
 		gpu += RenderingServer.viewport_get_measured_render_time_gpu(_root_rid) + RenderingServer.viewport_get_measured_render_time_gpu(_game_rid)
 		rcpu += RenderingServer.viewport_get_measured_render_time_cpu(_root_rid) + RenderingServer.viewport_get_measured_render_time_cpu(_game_rid)

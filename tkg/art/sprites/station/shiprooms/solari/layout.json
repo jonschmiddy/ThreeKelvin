@@ -1,0 +1,269 @@
+{
+ "size": [
+  960,
+  540
+ ],
+ "wall_foot": 207,
+ "light_gain": 1.1,
+ "berths": {
+  "light": {
+   "centre": 200,
+   "apart": 84,
+   "feet": 372,
+   "seat": 295,
+   "posts": [
+    158,
+    242
+   ]
+  },
+  "medium": {
+   "centre": 776,
+   "apart": 108,
+   "feet": 372,
+   "seat": 295,
+   "posts": [
+    722,
+    830
+   ]
+  },
+  "heavy": {
+   "centre": 480,
+   "apart": 180,
+   "feet": 334,
+   "seat": 267,
+   "posts": [
+    390,
+    570
+   ]
+  }
+ },
+ "stand_posts": [
+  {
+   "berth": "heavy",
+   "file": "stand_heavy_post0.png",
+   "x": 371,
+   "y": 264,
+   "w": 39,
+   "h": 70
+  },
+  {
+   "berth": "heavy",
+   "file": "stand_heavy_post1.png",
+   "x": 551,
+   "y": 264,
+   "w": 39,
+   "h": 70
+  },
+  {
+   "berth": "light",
+   "file": "stand_light_post0.png",
+   "x": 139,
+   "y": 289,
+   "w": 39,
+   "h": 83
+  },
+  {
+   "berth": "light",
+   "file": "stand_light_post1.png",
+   "x": 223,
+   "y": 289,
+   "w": 39,
+   "h": 83
+  },
+  {
+   "berth": "medium",
+   "file": "stand_medium_post0.png",
+   "x": 703,
+   "y": 291,
+   "w": 39,
+   "h": 81
+  },
+  {
+   "berth": "medium",
+   "file": "stand_medium_post1.png",
+   "x": 811,
+   "y": 291,
+   "w": 39,
+   "h": 81
+  }
+ ],
+ "saddle_over_hull": [
+  {
+   "x": 371,
+   "y": 264,
+   "rows": 10,
+   "w": 39
+  },
+  {
+   "x": 551,
+   "y": 264,
+   "rows": 10,
+   "w": 39
+  },
+  {
+   "x": 139,
+   "y": 289,
+   "rows": 10,
+   "w": 39
+  },
+  {
+   "x": 223,
+   "y": 289,
+   "rows": 10,
+   "w": 39
+  },
+  {
+   "x": 703,
+   "y": 291,
+   "rows": 10,
+   "w": 39
+  },
+  {
+   "x": 811,
+   "y": 291,
+   "rows": 10,
+   "w": 39
+  }
+ ],
+ "contact_shadows": [
+  {
+   "x0": 369,
+   "x1": 411,
+   "feet": 334,
+   "length": 6,
+   "dark": 0.5
+  },
+  {
+   "x0": 549,
+   "x1": 591,
+   "feet": 334,
+   "length": 6,
+   "dark": 0.5
+  },
+  {
+   "x0": 137,
+   "x1": 179,
+   "feet": 372,
+   "length": 6,
+   "dark": 0.5
+  },
+  {
+   "x0": 221,
+   "x1": 263,
+   "feet": 372,
+   "length": 6,
+   "dark": 0.5
+  },
+  {
+   "x0": 701,
+   "x1": 743,
+   "feet": 372,
+   "length": 6,
+   "dark": 0.5
+  },
+  {
+   "x0": 809,
+   "x1": 851,
+   "feet": 372,
+   "length": 6,
+   "dark": 0.5
+  }
+ ],
+ "stand_measure": [
+  {
+   "tag": "solari A",
+   "berth": "heavy",
+   "post_x": 390,
+   "hull_underside": 270,
+   "stand_top": 264,
+   "stand_feet": 334,
+   "stand_h": 70,
+   "plumb_px": 1.0
+  },
+  {
+   "tag": "solari A",
+   "berth": "heavy",
+   "post_x": 570,
+   "hull_underside": 267,
+   "stand_top": 264,
+   "stand_feet": 334,
+   "stand_h": 70,
+   "plumb_px": 1.0
+  },
+  {
+   "tag": "solari A",
+   "berth": "light",
+   "post_x": 158,
+   "hull_underside": 292,
+   "stand_top": 289,
+   "stand_feet": 372,
+   "stand_h": 83,
+   "plumb_px": 1.0
+  },
+  {
+   "tag": "solari A",
+   "berth": "light",
+   "post_x": 242,
+   "hull_underside": 300,
+   "stand_top": 289,
+   "stand_feet": 372,
+   "stand_h": 83,
+   "plumb_px": 1.0
+  },
+  {
+   "tag": "solari A",
+   "berth": "medium",
+   "post_x": 722,
+   "hull_underside": 294,
+   "stand_top": 291,
+   "stand_feet": 372,
+   "stand_h": 81,
+   "plumb_px": 1.0
+  },
+  {
+   "tag": "solari A",
+   "berth": "medium",
+   "post_x": 830,
+   "hull_underside": 297,
+   "stand_top": 291,
+   "stand_feet": 372,
+   "stand_h": 81,
+   "plumb_px": 1.0
+  }
+ ],
+ "life": "see PORT.md (life) and life/crew_meta.json; the sprites are the game's Yard sprites, copied into life/",
+ "taps_x": [
+  33,
+  206,
+  380,
+  560,
+  743,
+  920
+ ],
+ "stream_rows": {
+  "33": [
+   137,
+   155
+  ],
+  "206": [
+   137,
+   155
+  ],
+  "380": [
+   137,
+   155
+  ],
+  "560": [
+   138,
+   155
+  ],
+  "743": [
+   137,
+   155
+  ],
+  "920": [
+   138,
+   155
+  ]
+ }
+}

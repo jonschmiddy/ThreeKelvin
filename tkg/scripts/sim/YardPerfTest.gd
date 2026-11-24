@@ -1,8 +1,8 @@
 extends Node
 
 ## The front door's banner click kept cheap without changing a pixel: hulls baked
-## ahead on a worker as the main thread bakes them, the ship map byte for byte the
-## per-pixel one, the pools baked once. Counts work, never times it (`docs/tests.md`).
+## ahead on a worker as the main thread bakes them, a room built only when the banner
+## changes rooms. Counts work, never times it (`docs/tests.md`).
 ## Why: docs/why/ChassisSelect.md#hulls-baked-ahead
 
 var _tree: SceneTree
@@ -80,14 +80,13 @@ func _ahead(cs: ChassisSelect) -> void:
 	cs._select(0)
 
 
-## The ship map in bytes is the per-pixel one, set by set, open and locked; the
-## pools baked once a banner (their hulls' shadows are in them), never on a pick.
+## A room is built when the banner changes rooms and never on a pick, and every set,
+## open or locked, stands its three berths on two posts each.
 func _maps(cs: ChassisSelect) -> void:
 	var y := cs._yard
-	# (a bake of the pools sets this back: headless, `_bake_bay` finishes at once)
-	y.scene._bay_ready = false
-	var bakes0 := YardFrontPools.bakes
-	var sets := 0
+	var builds0 := ShipRoom.builds
+	var changes := 0
+	var last := y.room.id if y.room != null else &""
 	var was_dev := DevMode.enabled
 	for pass_dev: bool in [true, false]:
 		DevMode.enabled = pass_dev and DevMode.available
@@ -95,70 +94,21 @@ func _maps(cs: ChassisSelect) -> void:
 			var m: StringName = DB.STARTABLE[i]
 			var open := Unlocks.unlocked(m)
 			y.show_set(m, open, 0)
-			sets += 1
-			var got := y.ship_map()
-			var want := _old_map(y)
-			var lit := 0
-			for k in range(0, got.size(), 4):
-				lit += 1 if got[k] == 255 else 0
-			h._ok("%s %s: the ship map is the per-pixel one (%d hull pixels)" % [m, "hulls" if open else "tarps", lit],
-				got == want and lit > 0)
+			if ShipRoom.id_for(m, open) != last:
+				changes += 1
+				last = ShipRoom.id_for(m, open)
+			var posts := 0
+			for s: YardStandSet in y.sets.values():
+				posts += s.post_x.size()
+			h._ok("%s %s: in the %s room, %d posts" % [m, "hulls" if open else "tarps", y.room.id, posts],
+				y.room.id == ShipRoom.id_for(m, open) and posts == 6)
 	DevMode.enabled = was_dev
-	h._ok("the floor pools were baked once a banner (%d for %d)" % [YardFrontPools.bakes - bakes0, sets],
-		y._bay_baked and YardFrontPools.bakes - bakes0 == sets)
-	var before := YardFrontPools.bakes
+	h._ok("a room was built once a room change (%d for %d)" % [ShipRoom.builds - builds0, changes],
+		ShipRoom.builds - builds0 == changes)
+	var before := ShipRoom.builds
 	y.set_picked(int(HullData.Weight.MEDIUM))
 	y.set_picked(-1)
-	h._ok("a pick bakes no pools", YardFrontPools.bakes == before)
-	y.scene._bay_ready = true
-
-
-## The map as `YardFront._rebake` made it before Nov 12, pixel by pixel.
-func _old_map(y: YardFront) -> PackedByteArray:
-	var img := Image.create(YardFront.W, YardFront.HALL_H, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	for w: HullData.Weight in y.sets:
-		var s: YardStandSet = y.sets[w]
-		if s._stand_img != null:
-			for sx in s._stand_x:
-				_stamp(img, s._stand_img, Rect2i(Vector2i.ZERO, s._stand_img.get_size()), Vector2i(sx, s._stand_top), Color8(0, 255, 0, 255), false)
-		if s._view != null:
-			var c := s._view.canvas()
-			_stamp(img, c, c.get_used_rect(), Vector2i(s._x0, s.thing.position.y), Color8(255, 0, 0, 255), true)
-		elif s._tarp != null and s._tarp.image != null:
-			_stamp(img, s._tarp.image, Rect2i(Vector2i.ZERO, s._tarp.image.get_size()), s.thing.position, Color8(255, 0, 0, 255), true)
-	for x in YardFront.W:
-		var top := -1
-		var bot := -1
-		for yy in YardFront.HALL_H:
-			if img.get_pixel(x, yy).r8 == 255:
-				if top < 0:
-					top = yy
-				bot = yy
-		if top < 0 or bot - top < 6:
-			continue
-		for yy in range(top, bot + 1):
-			var c := img.get_pixel(x, yy)
-			if c.r8 != 255:
-				continue
-			var u := float(yy - top) / float(bot - top)
-			var k := floorf(clampf((u - 0.5) / 0.5, 0.0, 1.0) * 3.0 + 0.5) / 3.0
-			c.b8 = clampi(int(floorf((1.0 - 0.45 * k) * 255.0 + 0.5)), 1, 255)
-			img.set_pixel(x, yy, c)
-	return img.get_data()
-
-
-static func _stamp(img: Image, src: Image, ink: Rect2i, at: Vector2i, col: Color, over: bool) -> void:
-	for yy in ink.size.y:
-		for x in ink.size.x:
-			if src.get_pixel(ink.position.x + x, ink.position.y + yy).a8 < 128:
-				continue
-			var X := at.x + x
-			var Y := at.y + yy
-			if X < 0 or Y < 0 or X >= img.get_width() or Y >= img.get_height():
-				continue
-			if over or img.get_pixel(X, Y).r8 == 0:
-				img.set_pixel(X, Y, col)
+	h._ok("a pick builds no room", ShipRoom.builds == before)
 
 
 func _finish() -> void:
