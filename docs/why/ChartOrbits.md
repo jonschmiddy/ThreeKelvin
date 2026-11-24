@@ -28,13 +28,13 @@ sector map view." So the panel reads: the name, the star as the sector map paint
 (SunView; a pulsar in the chart's own point-and-beams, since its map painter is a
 480 x 320 animated box tied to the map's rect and sky flash), one list of STAR, RADIUS,
 BINARY, DANGER, FUEL and WARNING with the beam's line beside WARNING, then the orbit
-map with a small sun on its edge, then the counts. The hot line and its HOT label are
+map with a small sun on its edge, then the counts (since Nov 23 the map you arrive in, small: see Looks). The hot line and its HOT label are
 gone; so is the HOT ZONE row, which read 4.75 AU round every star.
 Jon, Nov 23: "Let's have the x planets x giant x belt x wrecks above the simplified
 orbit map." The counts line moved from under the orbit map to just over it.
 
-A pair draws both suns on the edge; a world round one sun sits beside it, and the arcs
-are the worlds round both.
+A pair draws both suns where they stand as the map opens, each world on its own orbit
+round one sun or round both.
 ```
 
 ## Looks
