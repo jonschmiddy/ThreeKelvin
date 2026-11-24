@@ -18,22 +18,18 @@ func _run() -> void:
 	if DevMode.available:
 		DevMode.enabled = false
 	var room := Harness.arg("room", "korvan")
-	# Solari's casting bed needs Solari open: a won flight on the scratch record opens it
-	if room == "solari":
+	var cs := await _pick_screen()
+	# Solari's casting bed needs Solari open: a won Korvan flight on the scratch record opens it
+	if room == "solari" and cs != null and not Unlocks.unlocked(&"solari"):
+		Run.fit_chassis(&"korvan", HullData.Weight.MEDIUM, 0)
 		RunHistory.record(RunHistory.Outcome.WON, "ShipRoomShot")
-	Router.new_run(4242)
-	var cs: ChassisSelect = null
-	for i in 600:
-		cs = Router.current as ChassisSelect
-		if cs != null and cs._yard != null and cs._yard.room != null:
-			break
-		await get_tree().process_frame
+		cs = await _pick_screen()
 	if cs == null:
 		print("shiproomshot: no hull pick")
 		get_tree().quit(1)
 		return
 	cs._select(0 if room == "korvan" else 1)
-	# no run has a hull yet, so the record above cannot open Solari: stand its set in its room
+	# (should the record still not open it, its set stands in its room anyway)
 	if room == "solari" and cs._yard.room.id != &"solari":
 		cs._yard.show_set(&"solari", true, 0)
 	var pick := Harness.arg("pick", "")
@@ -65,6 +61,17 @@ func _run() -> void:
 		_shot("%s_%05.1f" % [room, a])
 	print("shiproomshot: done, %s" % _out)
 	get_tree().quit()
+
+
+## A new run's hull pick, once its room is up.
+func _pick_screen() -> ChassisSelect:
+	Router.new_run(4242)
+	for i in 600:
+		var cs := Router.current as ChassisSelect
+		if cs != null and cs._yard != null and cs._yard.room != null:
+			return cs
+		await get_tree().process_frame
+	return null
 
 
 func _shot(name: String) -> void:

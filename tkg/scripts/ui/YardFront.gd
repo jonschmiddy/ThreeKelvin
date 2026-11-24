@@ -2,8 +2,8 @@ class_name YardFront
 extends Control
 
 ## THE SHIP-SELECT SCREEN's picture (Jon's W2 v10 banners, Nov 10; the rooms, Nov 22-24):
-## the maker's room (`ShipRoom`), seven banners on the gantry, its hulls (or a locked
-## maker's tarps) on their posts, a hover that blurs the rest. What a click means is
+## the manufacturer's room (`ShipRoom`), seven banners on the gantry, its hulls (or a locked
+## manufacturer's tarps) on their posts, a hover that blurs the rest. What a click means is
 ## `ChassisSelect`'s; this is the room.
 ## Why: docs/why/ChassisSelect.md#banner-yard
 
@@ -117,7 +117,7 @@ static func fall_texture(band: Color) -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
-## Show a maker's three hulls in its room, or its three tarps in the Old hangar when it is locked.
+## Show a manufacturer's three hulls in its room, or its three tarps in the Old hangar when it is locked.
 func show_set(m: StringName, open: bool, tier: int = 0) -> void:
 	if not ready_hall:
 		return

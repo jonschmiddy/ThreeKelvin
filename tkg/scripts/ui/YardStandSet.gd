@@ -2,7 +2,7 @@ class_name YardStandSet
 extends Control
 
 ## One berth on the ship-select screen: a hull on two of its room's posts, or a locked
-## maker's tarp. The hull (or tarp) is what you click; the posts stand behind it, placed by
+## manufacturer's tarp. The hull (or tarp) is what you click; the posts stand behind it, placed by
 ## PORT.md's rule (clear of the belly guns, both level, tucked behind the belly).
 ## Why: docs/why/ShipRoom.md#posts-clear-the-guns
 
@@ -10,7 +10,7 @@ signal pressed
 signal hovered(on: bool)
 
 const WEIGHTS := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
-## Each locked maker's own tarp (Jon, Nov 12); one with none of its own wears Solari's.
+## Each locked manufacturer's own tarp (Jon, Nov 12); one with none of its own wears Solari's.
 const TARP_DIR := "res://art/sprites/station/yard/tarps/%s_%s.png"
 const TARP_WEIGHT := {HullData.Weight.LIGHT: "light", HullData.Weight.MEDIUM: "medium", HullData.Weight.HEAVY: "heavy"}
 ## The tarps drop one after another, the heavy first, and each hem ripples on its own clock.
@@ -378,7 +378,7 @@ func _stand_tarp(manufacturer: StringName) -> void:
 	_tarp.move_to_front()
 
 
-## The maker's tarp for this weight (one with none of its own wears Solari's).
+## The manufacturer's tarp for this weight (one with none of its own wears Solari's).
 static func tarp_file(manufacturer: StringName, w: HullData.Weight) -> String:
 	var f := TARP_DIR % [String(manufacturer), String(TARP_WEIGHT[w])]
 	return f if ResourceLoader.exists(f) else TARP_DIR % ["solari", String(TARP_WEIGHT[w])]

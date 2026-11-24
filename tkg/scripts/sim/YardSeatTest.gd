@@ -89,7 +89,7 @@ func _run() -> void:
 
 
 ## THE SHIP-SELECT POSTS (PORT.md's rule, Jon Nov 22: "The stands go through the guns?"):
-## every maker's three hulls at every grade on two level posts, clear of the belly guns,
+## every manufacturer's three hulls at every grade on two level posts, clear of the belly guns,
 ## tucked behind the belly, their feet on the berth's row; each locked set's tarp on two.
 ## Why: docs/why/ShipRoom.md#posts-clear-the-guns
 func _front() -> void:
@@ -122,7 +122,7 @@ func _front() -> void:
 			if not _ok("%s: a tarp on two posts" % tag, s._tarp != null and s._tarp.image != null and s.post_x.size() == 2):
 				continue
 			var path := s._tarp.texture.resource_path
-			_ok("%s: the maker's own tarp, else Solari's (%s)" % [tag, path.get_file()],
+			_ok("%s: the manufacturer's own tarp, else Solari's (%s)" % [tag, path.get_file()],
 				path.get_file() == "%s_%s.png" % [m, YardStandSet.TARP_WEIGHT[w]] or path.get_file().begins_with("solari_"))
 			_post_rule(s, tag, false)
 	front.free()

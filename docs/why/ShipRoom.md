@@ -2,9 +2,9 @@
 
 ## rooms
 
-The ship-select screen stands each maker's three hulls in a room of its own (Jon, Nov 22 to 24, the
+The ship-select screen stands each manufacturer's three hulls in a room of its own (Jon, Nov 22 to 24, the
 approved films in `tk-scratch/shipselect/life2/`): Korvan's Parts depot (`mix18.mp4`), Solari's Casting bed
-(`show18.mp4`) and the Old hangar (`A16.mp4`), where a locked maker's tarps wait. The rooms replaced the
+(`show18.mp4`) and the Old hangar (`A16.mp4`), where a locked manufacturer's tarps wait. The rooms replaced the
 Shipyard deck's city hall, which the front door had borrowed since Nov 12.
 
 A room is two layers, not one node, because the hulls sit between them: `under` holds the room's picture
@@ -18,7 +18,7 @@ The base class draws the port package's static light (`tk-scratch/shipselect/fin
 `rgb x (amb + 0.5 L) x rows`. Each room's class (`ShipRoomKorvan`, `ShipRoomSolari`, `ShipRoomOld`) carries
 its film's own light model and life on top.
 
-A locked maker shows the Old hangar; Solari open shows the Casting bed; every other open maker (Korvan, and the
+A locked manufacturer shows the Old hangar; Solari open shows the Casting bed; every other open manufacturer (Korvan, and the
 five whose rooms are not drawn yet, which only developer mode opens) shows Korvan's depot.
 
 ## contact-shadows
@@ -74,7 +74,7 @@ foot 86-99), the emblem, and a 1 px ink outline round the silhouette, the forked
 fold pattern or anything behind it. Korvan's is a mid steel-grey (#7e848e, #6a707a, #565a62) with its name and
 emblem in its hull-stripe orange #e0882e, a thin orange trim just inside the forked foot, outline #14161a.
 Solari's is a rich amber (#eca034, #d68c2a, #b27020) with dark ink #2c1a0c, outline #28160a: the brightest cloth
-in every room. The ??? cloths keep the films' dark tones. The five makers not redrawn yet (developer mode only)
+in every room. The ??? cloths keep the films' dark tones. The five manufacturers not redrawn yet (developer mode only)
 take their own field in the same three bands.
 
 The sway is a slow wave travelling down the cloth instead of the old whole-cloth shear that snapped between nine

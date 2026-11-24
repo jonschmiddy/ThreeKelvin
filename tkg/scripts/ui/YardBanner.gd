@@ -29,7 +29,7 @@ const LOCKED_BANDS := [Color8(26, 27, 33), Color8(22, 22, 27), Color8(19, 19, 23
 const LOCKED_OUTLINE := Color8(16, 17, 22)
 ## Korvan's grey with orange marks and a trim along its foot; Solari's amber with dark marks (Jon, Nov 24):
 ## head, mid, foot, ink, outline, trim.
-const MAKER_CLOTH := {
+const MANUFACTURER_CLOTH := {
 	&"korvan": [Color8(126, 132, 142), Color8(106, 112, 122), Color8(86, 90, 98), Color8(224, 136, 46), Color8(20, 22, 26), true],
 	&"solari": [Color8(236, 160, 52), Color8(214, 140, 42), Color8(178, 112, 32), Color8(44, 26, 12), Color8(40, 22, 10), false],
 }
@@ -103,7 +103,7 @@ func _bake(md: ManufacturerData) -> void:
 	var trim := false
 	_ink = LOCKED_INK
 	if open and md != null:
-		var mc: Array = MAKER_CLOTH.get(manufacturer, [])
+		var mc: Array = MANUFACTURER_CLOTH.get(manufacturer, [])
 		if mc.is_empty():
 			bands = [_sc(md.field, 1.12), md.field, _sc(md.field, 0.86)]
 			_ink = md.colour

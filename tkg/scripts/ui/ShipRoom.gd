@@ -1,7 +1,7 @@
 class_name ShipRoom
 extends RefCounted
 
-## THE SHIP-SELECT ROOM behind a maker's three stands (Jon, Nov 22-24): `under` is the
+## THE SHIP-SELECT ROOM behind a manufacturer's three stands (Jon, Nov 22-24): `under` is the
 ## room and its back life, `above` its front life and air (over the hulls, under the banners).
 ## Why: docs/why/ShipRoom.md#rooms
 
@@ -42,8 +42,8 @@ var _post_img: Image = null
 var _shadows: TextureRect = null
 
 
-## The room a set is shown in: a locked maker's tarps in the Old hangar, Solari's ships on
-## the casting bed, and every other open maker's in Korvan's depot.
+## The room a set is shown in: a locked manufacturer's tarps in the Old hangar, Solari's ships on
+## the casting bed, and every other open manufacturer's in Korvan's depot.
 static func id_for(m: StringName, open: bool) -> StringName:
 	if not open:
 		return &"old"
