@@ -52,3 +52,21 @@ the heat shimmer), or as drawn for what burns. Contact shadows are multiplies (`
 adds. The code-drawn pieces (the lift risen to the seam, the forklift, the crane's parts and trolley, the
 drones, the corridor, the tinted crew) are exported once into `atlas.png`; the Yard's own crew strips are read
 from the Yard's art.
+
+## air
+
+The film's air (`hero.py`, mix18's `post_light` and `_finish`) is in two places, as the film laid it:
+
+- behind the hulls, added over the room: each wall tube's shaft at its own tube's weight (the shafts never
+  overlap, so one field and an index of whose it is), the berth lamps' shafts down onto the hulls' tops (the
+  crane's load cuts them under it), the door's shaft while it is open, and the 900 dust motes, each on its own
+  slow loop and lit only where a shaft is;
+- over everything under the banners, one pass reading the screen: the worn deck's sheen (what is bright over
+  each line where things meet the floor, mirrored, blurred a pixel, stepped in sixths of 48), the haze (the
+  room blurred 21 px wide, dimmed, mixed in by the film's stepped depth map: thick high on the far wall, clear on
+  the near floor, light on hulls and stands, and only 0.17 on the crane so it stays crisp) and bloom (a 7 px and
+  a 19 px box of the bright part, stepped in sixths of 72).
+
+The haze's wide blur is read from the screen's mipmaps (a 5 x 5 grid of 4 px cells) and bloom's wide box from a
+3 px grid, instead of the film's exact box sums: the same widths at a fraction of the reads. The bloom's source
+takes the haze at each sample by the same depth map, with the blurred colour of the pixel being finished.

@@ -18,6 +18,7 @@ var _light := ShipRoomKorvanLight.new()
 var life: ShipRoomKorvanLife
 var back: ShipRoomKorvanBack
 var front: ShipRoomKorvanFront
+var air: ShipRoomKorvanAir
 var _shown := -1
 
 
@@ -39,10 +40,13 @@ func _build() -> void:
 	back = ShipRoomKorvanBack.new(life)
 	life.on(under)
 	back.build_edits()
+	air = ShipRoomKorvanAir.new(life)
+	air.build_under(under)
 	back.build()
 	front = ShipRoomKorvanFront.new(life)
 	life.on(above)
 	front.build()
+	air.build_post(above)
 	_tick(0.0)
 
 
@@ -133,3 +137,4 @@ func _tick(_dt: float) -> void:
 	life.clear_all()
 	back.draw(f, float(f) / 30.0, float(_light.u[&"lk"]))
 	front.draw(f, float(f) / 30.0)
+	air.draw(float(f) / 30.0, _light.u)
