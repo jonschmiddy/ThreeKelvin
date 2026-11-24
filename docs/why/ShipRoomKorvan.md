@@ -1,0 +1,72 @@
+# ShipRoomKorvan
+
+## light
+
+Korvan's Parts depot is lit exactly as its approved film (`tk-scratch/shipselect/life2/korvan/r18/mix18.mp4`,
+Jon, Nov 24) was. The film's light model (`core.py`) is ported to `ship_room_korvan.gdshader`, and every field
+it stepped is exported offline from the film's own code (`tk-scratch/shipselect/port/korvan/export.py`), so
+the game reads the very same stepped values:
+
+- the static light is each wall tube's stepped cone (top, middle and low rows of tubes, 24 in all) times its own
+  weight this frame, the rails' stripes on the top and middle cones, and the floor's even overhead light; the
+  crane's load keeps the lamps off the wall under it;
+- the moving light goes into the film's four buffers: `dyn` (the wall and floor), `dobj` (things standing up),
+  `dsh` (the hulls) and floor-only pools. Point lights are worked out in the shader as the film's
+  `core.point` (six steps, the outer quarter of each dithered) or, below a round shape, round 18's twelve
+  ordered-dithered levels; the burner's, the door's, the arc's and the ladder lights' fields are the film's,
+  each scaled by one number a frame;
+- a lit pixel is `core.shade`: the brightest channel is how much light, the ratios its colour, strong light
+  washing over dark paint, times the film's gain 1.45;
+- the emissive goes on over the lit room, each tube's and the door lamps' following their weight;
+- posts take the stands' own light (`stand_light x 0.9 x WORK`) plus the moving light, lit on the side facing a
+  work light (`shadows6.side_lit`) and backlit by the loading door (`door7.stand_backlight`);
+- hulls take mix18's `hull_light`: the berth lamps' ship field times a stepped row light (lit top, a hard
+  terminator a little below the middle, the floor's bounce on the belly), plus `dsh`, capped at 0.98.
+
+The floor is the film's code-drawn plate grid (round 18 laid it after `stands5.rebuild`): flat plates, straight
+joins, a rivet at each plate corner, no painted cracks.
+
+## clock
+
+The film is a seamless 30 s loop at 30 fps, and the room runs on its clock: the room's time is snapped to the
+film's frames (`f = round(t x 30) mod 900`, `t = f / 30`) and every plan, event and light is the film's own
+function of that time, so the room plays the film's 30 frames a second and wraps where the film wrapped (its
+seam was measured as close as one frame's step). Python's `round` is half-to-even and the film placed things
+with it, so the port does too (`pyround`).
+
+Everything the film drew from numpy's generator (`core.rngk`: a lamp's dips and stutters, the arc's strength
+and ragged pixels, the burner's rim and flicker, sparks' throws, the heat shimmer's rows, the burnt part's
+embers, the drones' prop blur) is not re-rolled: `export.py data` writes those draws into `film.json` per frame
+or per tenth of a second, so the game shows the very same ones. Anything worked out without the generator
+(walks, eases, swings, door and burn curves) is ported as code.
+
+## life
+
+The film's life is ported from its own code (mix18.py and what it imports or execs): the same plans, paces,
+poses, timings and positions, each piece drawn where and when the film drew it, in the film's order (behind
+the hulls in `under`, in front of them in `above`). A piece is a `ShipRoomKorvanPaint` layer that is cleared
+and redrawn each film frame from rects and sprite regions, and lit the way the film lit it: a sprite at its own
+pixels under the object light (`blit(light=L + k)`), at one point of it (`shade_at`), code-drawn colours times
+a clamped light level (`kl_at`), the room's light for the film's albedo edits (the hoist block, the door panel,
+the heat shimmer), or as drawn for what burns. Contact shadows are multiplies (`core.contact`), glows and beams
+adds. The code-drawn pieces (the lift risen to the seam, the forklift, the crane's parts and trolley, the
+drones, the corridor, the tinted crew) are exported once into `atlas.png`; the Yard's own crew strips are read
+from the Yard's art.
+
+## air
+
+The film's air (`hero.py`, mix18's `post_light` and `_finish`) is in two places, as the film laid it:
+
+- behind the hulls, added over the room: each wall tube's shaft at its own tube's weight (the shafts never
+  overlap, so one field and an index of whose it is), the berth lamps' shafts down onto the hulls' tops (the
+  crane's load cuts them under it), the door's shaft while it is open, and the 900 dust motes, each on its own
+  slow loop and lit only where a shaft is;
+- over everything under the banners, one pass reading the screen: the worn deck's sheen (what is bright over
+  each line where things meet the floor, mirrored, blurred a pixel, stepped in sixths of 48), the haze (the
+  room blurred 21 px wide, dimmed, mixed in by the film's stepped depth map: thick high on the far wall, clear on
+  the near floor, light on hulls and stands, and only 0.17 on the crane so it stays crisp) and bloom (a 7 px and
+  a 19 px box of the bright part, stepped in sixths of 72).
+
+The haze's wide blur is read from the screen's mipmaps (a 5 x 5 grid of 4 px cells) and bloom's wide box from a
+3 px grid, instead of the film's exact box sums: the same widths at a fraction of the reads. The bloom's source
+takes the haze at each sample by the same depth map, with the blurred colour of the pixel being finished.
