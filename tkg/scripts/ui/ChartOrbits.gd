@@ -143,8 +143,10 @@ func _build() -> void:
 	var tilt: float = SystemViewS.TILT
 	var c0: Vector2 = layout.bary if twin else Vector2.ZERO
 	var ext := 10.0
-	for b in layout.bodies:
-		ext = maxf(ext, (b.host_at(t) - c0).length() + b.orbit)
+	# fitted to what is drawn: a contact's orbit (an event, left out) framed the pair as two dots
+	for d in marks:
+		var bd := _body_of(d)
+		ext = maxf(ext, (bd.host_at(t) - c0).length() + bd.orbit)
 	for p in layout.stars():
 		ext = maxf(ext, (layout.star_pos(p, t) - c0).length())
 	var k := minf((W - 12.0) / (2.0 * ext), (H - 10.0) / (2.0 * ext * tilt))

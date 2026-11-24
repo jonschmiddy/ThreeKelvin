@@ -215,7 +215,7 @@ func run(tree: SceneTree) -> void:
 	tree.quit()
 
 
-## `dest=dwarf|red|neutron|twin|near|neartwin|neardwarf`: picks a system of that kind to photograph its orbit map
+## `dest=dwarf|red|neutron|twin|near|neartwin|split|neardwarf`: picks a system of that kind to photograph its orbit map
 ## (`ChartOrbits`), sensed ones first; a picked one out of sight is marked sensed and says so.
 func _dest(_tree: SceneTree, want: String) -> void:
 	var sc := Router.current as StarchartScreen
@@ -259,6 +259,10 @@ static func _dest_fits(n: MapGen.MapNode, want: String) -> bool:
 			return n.type == MapGen.NodeType.SYSTEM and n.index != Run.at and Run.reachable(n) 				and not Run.too_deep_only(Run.node_at(), n)
 		"neartwin":
 			return _dest_fits(n, "twin") and _dest_fits(n, "near")
+		"split":
+			# a pair with a world round one sun only
+			return _dest_fits(n, "twin") and SystemLayout.of(n).bodies.any(
+				func(b: SystemLayout.Body) -> bool: return b.host_id != -9 and b.kind != &"contact")
 		"neardwarf":
 			return n.star == MapGen.Star.ORDINARY and not n.twin and _dest_fits(n, "near")
 	return false
