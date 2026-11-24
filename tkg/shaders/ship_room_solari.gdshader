@@ -8,6 +8,7 @@ render_mode unshaded;
 //   2  a hull: core2's key from the furnace wall, the room's hull lights, the floor's bounce, the rim
 //      only where the outline faces a light, the brass catching the fire; the hall's air 1/12 over it
 //   3  a thing in front of the hulls (the lamp tech, the carriers, the welder): rgb x m
+//   (1 and 3: a pixel of alpha 0.5 burns unlit, 0.25 multiplies by its red, 0.75 takes the gain)
 //   4  a post: as 1, with the hall's air 1/12 over it
 // Why: docs/why/ShipRoomSolari.md#light
 
@@ -154,6 +155,16 @@ void fragment() {
 		if (mode == 2) {
 			vec3 rgb = hull_lit(TEXTURE, c, UV, TEXTURE_PIXEL_SIZE);
 			COLOR = vec4(hazed(rgb, fp, 1.0 / 12.0), c.a);
+		} else if ((mode == 1 || mode == 3) && c.a > 0.15 && c.a < 0.85) {
+			// a painted pixel's alpha says what it is: 0.5 burns unlit, 0.25 darkens what is
+			// under it by its red, 0.75 is lit with the room's gain in front of the hulls
+			if (c.a < 0.35) {
+				COLOR = vec4(0.0, 0.0, 0.0, 1.0 - c.r);
+			} else if (c.a < 0.6) {
+				COLOR = vec4(c.rgb, 1.0);
+			} else {
+				COLOR = vec4(clamp(c.rgb * light_m(fp) * lamp_k * 1.7, 0.0, 1.0), 1.0);
+			}
 		} else {
 			vec3 m = light_m(fp) * lamp_k;
 			vec3 rgb = c.rgb * m * (mode == 3 ? 1.0 : 1.7);

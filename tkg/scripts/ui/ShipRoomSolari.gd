@@ -13,7 +13,9 @@ const ARC := Color(0.72, 0.85, 1.0)
 const MAX_POOLS := 32
 const MAX_HULL_LIGHTS := 20
 const FOOT_ROW := 207
-enum Mode { ROOM, BACK, HULL, FRONT, POST }
+enum Mode { ROOM, BACK, HULL, FRONT, POST, AIR, BLOOM }
+const SHADERS := {Mode.AIR: preload("res://shaders/ship_room_solari_air.gdshader"),
+	Mode.BLOOM: preload("res://shaders/ship_room_solari_bloom.gdshader")}
 
 var mats: Dictionary[int, ShaderMaterial] = {}
 var _fields: Image = null
@@ -23,6 +25,25 @@ var _sol: Dictionary = {}
 var _pools: Array[PackedFloat32Array] = []
 var _hull_lights: Array[PackedFloat32Array] = []
 var _pour_w := PackedFloat32Array([0, 0, 0, 0, 0, 0])
+var bed: ShipRoomSolariBed
+var crew: ShipRoomSolariCrew
+var fx: ShipRoomSolariFx
+var _layers: Array[Layer] = []
+
+
+## A layer of the room's life: it paints itself with `paint` each frame.
+class Layer extends Control:
+	var paint: Callable
+
+	func _init(p: Callable, mat: Material) -> void:
+		paint = p
+		material = mat
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		size = Vector2(ShipRoom.W, ShipRoom.H)
+		texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+	func _draw() -> void:
+		paint.call(self)
 
 
 func hull_amb() -> float:
@@ -59,7 +80,7 @@ func _build() -> void:
 		_fields.decompress()
 	for m: int in Mode.values():
 		var mat := ShaderMaterial.new()
-		mat.shader = preload("res://shaders/ship_room_solari.gdshader")
+		mat.shader = SHADERS.get(m, preload("res://shaders/ship_room_solari.gdshader"))
 		mat.set_shader_parameter(&"mode", m)
 		mat.set_shader_parameter(&"albedo", tex(id, "albedo.png"))
 		mat.set_shader_parameter(&"emissive", tex(id, "emissive.png"))
@@ -71,7 +92,37 @@ func _build() -> void:
 		mats[m] = mat
 	# the room's own picture replaces the package's
 	(under.get_child(0) as ColorRect).material = mats[Mode.ROOM]
+	bed = ShipRoomSolariBed.new(self)
+	crew = ShipRoomSolariCrew.new(self)
+	fx = ShipRoomSolariFx.new(self)
+	_add_layer(under, func(ci: CanvasItem) -> void: bed.paint(ci, t, crew), mats[Mode.BACK])
+	_add_layer(under, func(ci: CanvasItem) -> void: fx.paint(ci, t), null)
+	_screen(under, Mode.AIR)
+	_add_layer(under, func(ci: CanvasItem) -> void: fx.paint_dust(ci, t), null)
+	_add_layer(above, func(ci: CanvasItem) -> void: crew.paint_front(ci, t), mats[Mode.FRONT])
+	var add := CanvasItemMaterial.new()
+	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_add_layer(above, func(ci: CanvasItem) -> void: crew.paint_beam_light(ci, t), add)
+	_screen(above, Mode.BLOOM)
 	_light()
+
+
+func _add_layer(parent: Control, p: Callable, mat: Material) -> void:
+	var l := Layer.new(p, mat)
+	parent.add_child(l)
+	_layers.append(l)
+
+
+## A full-frame pass reading what is drawn under it (a fresh copy of the screen first).
+func _screen(parent: Control, m: Mode) -> void:
+	var bb := BackBufferCopy.new()
+	bb.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	parent.add_child(bb)
+	var r := ColorRect.new()
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.size = Vector2(W, H)
+	r.material = mats[m]
+	parent.add_child(r)
 
 
 ## The material a thing drawn in the room uses: BACK into the albedo, FRONT over the hulls.
@@ -79,9 +130,13 @@ func material_for(m: Mode) -> ShaderMaterial:
 	return mats[m]
 
 
-func _tick(_dt: float) -> void:
+func _tick(dt: float) -> void:
 	_light()
 	_bounce()
+	fx.step(t, dt)
+	crew.step(t, dt)
+	for l in _layers:
+		l.queue_redraw()
 
 
 # ------------------------------------------------------------------ this frame's light (show18.frame)
@@ -92,7 +147,7 @@ func _pool(c: Vector4, b: Vector4, col: Color, steady: float, breath: float = 1.
 		col.r * steady, col.g * steady, col.b * steady, steady, breath, 1.0 if no_ring else 0.0]))
 
 
-func _hull_light(x: float, y: float, r: float, col: Color, s: float) -> void:
+func hull_light(x: float, y: float, r: float, col: Color, s: float) -> void:
 	if _hull_lights.size() < MAX_HULL_LIGHTS:
 		_hull_lights.append(PackedFloat32Array([x, y, r, col.r * s, col.g * s, col.b * s]))
 
@@ -112,7 +167,7 @@ func _light() -> void:
 		fk.append(k)
 		lip.append(maxf(fl, roar) if i == 1 else fl)
 		efl.append(maxf(fl, 1.5 * roar) if i == 1 else fl)
-		_hull_light(C.TAPS[i], 120, 300, FIRE, 0.30 * 0.55 * k)
+		hull_light(C.TAPS[i], 120, 300, FIRE, 0.30 * 0.55 * k)
 		var u := C.u_of(i, t)
 		var pk := C.pour_k(u)
 		pk_max = maxf(pk_max, pk)
@@ -132,11 +187,11 @@ func _light() -> void:
 		door_b = [0.93, 0.97, 1.0][int(C.hash1([5, int(t * 8.0)]) * 3.0)]
 		_pool(Vector4(C.TAPS[1], 100, 190, 130), Vector4(0.3, 0, 0, 0), WHITE_HEAT, 1.35 * op, door_b, true)
 		door_k = clampi(int(roundf(op * 6.0)), 1, 5)
-		_hull_light(C.TAPS[1], 120, 560, WHITE_HEAT, op * door_b)
+		hull_light(C.TAPS[1], 120, 560, WHITE_HEAT, op * door_b)
 	var dxp := int(roundf(tl / C.LOOP * (W + 120) - 60))
 	_pool(Vector4(dxp, 66, 12, 18), Vector4(0.4, 0, 0, 0), Color(0.8, 0.9, 1.0), 0.35)
 	var tired := fposmod(t, 7.3)
-	var crew := _crew_light()
+	var cl := _crew_light()
 	for m: ShaderMaterial in mats.values():
 		m.set_shader_parameter(&"t_room", t)
 		m.set_shader_parameter(&"lamp_k", lamp_k)
@@ -150,8 +205,9 @@ func _light() -> void:
 		m.set_shader_parameter(&"door_b", door_b)
 		m.set_shader_parameter(&"tired_b", 0.35 if tired < 0.12 or (tired > 3.1 and tired < 3.18) else 1.0)
 		m.set_shader_parameter(&"brass", 0.45 + 0.5 * pk_max + 0.7 * op)
-		for k: StringName in crew:
-			m.set_shader_parameter(k, crew[k])
+		m.set_shader_parameter(&"beam_op", op)
+		for k: StringName in cl:
+			m.set_shader_parameter(k, cl[k])
 	_send_lists()
 
 
@@ -160,7 +216,7 @@ func _bay_light(j: int, u: float, pk: float, gutter: float) -> void:
 	var tx := float(C.TAPS[j])
 	if pk > 0.0:
 		_pool(Vector4(tx, 160, 46, 34), Vector4(0.3, 0, 0, 0), FIRE, 1.15 * pk, gutter, true)
-		_hull_light(tx, 172, 330, FIRE, 0.75 * pk * 1.15 * pk * gutter)
+		hull_light(tx, 172, 330, FIRE, 0.75 * pk * 1.15 * pk * gutter)
 		var n := C.fill_of(u)
 		var yl := C.IN1 - n + 1 if n > 0 else C.IN1
 		_pool(Vector4(tx, yl, 16, 9), Vector4(0.4, 0, 0, 0), WHITE_HEAT, 0.6 * pk,
@@ -171,7 +227,7 @@ func _bay_light(j: int, u: float, pk: float, gutter: float) -> void:
 		_pool(Vector4(tx, 166, 30, 18), Vector4(0.35, 0, 0, 0), col, 0.5 * hs)
 		_pool(Vector4(tx, FOOT_ROW + 4, 54, 12), Vector4(0.35, 0.6, FOOT_ROW, 400), WARM, 0.35 * hs)
 		if hs > 0.5:
-			_hull_light(tx, 175, 220, WARM, 0.35 * hs * 0.35 * hs)
+			hull_light(tx, 175, 220, WARM, 0.35 * hs * 0.35 * hs)
 	if C.jib_moving(u):
 		var js := C.jib_state(u)
 		var jx := C.jib_tip_x(j, js.phi)
@@ -185,8 +241,9 @@ func _bay_light(j: int, u: float, pk: float, gutter: float) -> void:
 
 ## The welder's arc, the fettler's grinder, the lamp tech's lamp and who walks through the light.
 func _crew_light() -> Dictionary[StringName, Variant]:
-	return {&"arc_i": -1, &"arc_w": 0.0, &"grind_w": 0.0, &"tech_i": -1,
-		&"people": PackedVector4Array([Vector4.ZERO, Vector4.ZERO, Vector4.ZERO])}
+	if crew == null:
+		return {&"people": PackedVector4Array([Vector4.ZERO, Vector4.ZERO, Vector4.ZERO])}
+	return crew.light_state(t, self)
 
 
 func _send_lists() -> void:
@@ -289,3 +346,16 @@ func _pool_at(p: Vector2, q: PackedFloat32Array) -> float:
 	if q[7] > q[6] and (p.y < q[6] or p.y >= q[7]):
 		f = 0.0
 	return f
+
+
+## The light multiplier m at a frame pixel on the CPU (no breath): the steam's and the spray's tint.
+func m_at(x: int, y: int) -> Vector3:
+	var l3 := l3_at(x, y)
+	var l := maxf(l3.x, maxf(l3.y, l3.z))
+	var q := floorf(l * 6.0 + 0.5) / 6.0
+	var tq := minf(q, 1.0) if l >= 0.25 else l
+	var ov := minf(q - 1.0, 0.35) if l >= 0.25 and q > 1.0 else 0.0
+	var tr := l3 / maxf(l, 1e-6)
+	var amb := Vector3(1.0, 0.84, 0.72) * 0.10
+	var m := amb * (1.0 - tq) + (Vector3.ONE - 0.45 * (Vector3.ONE - tr)) * tq
+	return m + ov * 0.3 * m

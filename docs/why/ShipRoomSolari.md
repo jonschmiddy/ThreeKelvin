@@ -42,3 +42,31 @@ splash, sparks, the fill rising), the full mould white-yellow to 5 s, a crust an
 quench 15-17 s from the fixed nozzle on the bed's lip (spray and round steam puffs), the jib 19-25.5 s lifting the
 plate onto the bay's stack, then the mould waits empty. Every state is a pure function of the clock, as in the film,
 so the loop wraps without a seam.
+
+## crew
+
+Round 13 (Jon: "The people here doing jobs here... makes no sense") replaced the lever tappers and the bellows hand
+with plate handlers whose every move has its effect in front of you: per bay, out of the nearest wall-foot door with
+an empty trolley; last cycle's chalked plate slid off the stack onto it; the new plate steadied down onto the stack as
+the jib lowers it, and chalked; the trolley pushed out through the door. Round 14 (Jon: "all the people working in
+the background are floating") put every wall-foot figure, stack and trolley wheel on the floor line, row 212, where the
+wall's skirting meets the tiles, each with a contact shadow, and walked the handlers at their own sprite's pace and
+step (t_loader 7.8 px/s, 1.5 px), so their feet stay planted. Arms are 1 px lines, level or plumb, and reach up only to
+a plate already down at chest height. Bay 1's stack is out of the picture, so nobody works there.
+
+In front of the hulls: the lamp tech walks the heavy's belly, stopping at three spots to shine his lamp up on it
+(Korvan's flashlight: a raised arm, a cone that ends where it meets the plating, a stepped spot there); the fettler
+grinds on his ladder at the light hull's nose in bursts; the welder works on his lift under the medium, its arc a
+small area light; two carriers cross the front lane. Each casts its shadow in the pours' and the roar's light, and has
+a contact shadow on the floor.
+
+## fx
+
+The film's particles are deterministic: each is born at a time on a hashed schedule that wraps the loop and is
+simulated from its birth (`show.Emitter`, 90 Hz; `engine.Particles`, 120 Hz). The game steps the same births and the
+same physics incrementally each frame, so a particle is where the film's would be give or take a frame's step; it
+never simulates a particle twice. The pours throw splash sparks off the metal's surface; the hot moulds and the
+furnaces drift embers up; furnace 2's roar throws embers and spill; a plate landing on its stack clanks dust off it.
+The quench sprays from the fixed nozzle on the bed's lip in an arc into the mould, and its steam rolls up the wall in
+round, lobed puffs with a denser core and a thinner rim (round 15: never the old dither squares), lit warm from the
+plate below and by the room.
