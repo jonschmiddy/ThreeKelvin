@@ -6,7 +6,7 @@
 `dump=` writes each game's deal (depth 3, sensors 1, seed 5) as the page names it, the stream's draws
 after the deal, its canvas at the start, and its canvas after the scripted run's moves but the last
 and the frames the page's loop draws them on. This runs the prototype's own file (`proto/`, copied
-from tk-scratch/science/minigames/phone/src, Nov 18; the comet games' `comet_*.js` from tk-scratch/science/comet/games, Nov 21-22) as Jon approved it re-laid out and in the one UI
+from tk-scratch/science/minigames/phone/src, Nov 18; the comet games' `comet_*.js` from tk-scratch/science/comet/games, Nov 21-25) as Jon approved it re-laid out and in the one UI
 kit (`layout/`, Nov 20) in the installed Chrome on that same deal, its
 clock held, the same moves sent as pointer and key events, counts the pixels that differ and writes
 <dir>/<id>_<frame>_compare.png: prototype, game, and the differing pixels in red, at 4x.
@@ -52,9 +52,10 @@ GAMES = {
     "skim": ("comet_a", ",r=ctx.rng;", ",r=ctx.rng;"),
     "flick": ("comet_h", ",r=ctx.rng;", ",r=ctx.rng;"),
     "geyser": ("comet_i", ",r=ctx.rng;", ",r=ctx.rng;"),
+    "touchdown": ("comet_g", ",r=ctx.rng;", ",r=ctx.rng;"),
 }
-# The comet games were written in the kit (tk-scratch/science/comet, Nov 21-22): no layout swaps.
-KIT_ONLY = {"skim", "flick", "geyser"}
+# The comet games were written in the kit (tk-scratch/science/comet, Nov 21-25): no layout swaps.
+KIT_ONLY = {"skim", "flick", "geyser", "touchdown"}
 
 # The layouts (fit2 for Beams and Spectrum, fit3, fit4, the kit) are in layout/: `layout.page_js`.
 
@@ -90,13 +91,18 @@ DRIVER = """
   const stage=document.createElement('div');document.body.appendChild(stage);
   window.__reg.mount(stage,{depth:3,sensors:1,seed:data.seed,rng,done(){}});
   const cv=stage.querySelector('canvas');
-  if((gid==='fourkelvin'||gid==='tuning'||gid==='skim'||gid==='flick'||gid==='geyser')&&window.__raf){window.__now=1000;window.__raf(1000)}
+  if((gid==='fourkelvin'||gid==='tuning'||gid==='skim'||gid==='flick'||gid==='geyser'||gid==='touchdown')&&window.__raf){window.__now=1000;window.__raf(1000)}
   const start=cv.toDataURL();
   const r=cv.getBoundingClientRect();
   const codes={w:'KeyW',a:'KeyA',d:'KeyD'};
+  let held=0;
   const send=e=>{
     if(e.k==='key'||e.k==='keyup'){window.dispatchEvent(new KeyboardEvent(e.k==='key'?'keydown':'keyup',{code:codes[e.key]}));return}
     const at={clientX:r.left+e.p[0]*r.width/cv.width,clientY:r.top+e.p[1]*r.height/cv.height,pointerId:1,bubbles:true};
+    // Touchdown reads which button (b: 2 the right) and which are held, as a browser sends them
+    if(gid==='touchdown'){const bit=e.b===2?2:1;
+      if(e.k==='down')held|=bit;else if(e.k==='up')held&=~bit;
+      at.button=e.k==='move'?-1:(e.b===2?2:0);at.buttons=held}
     cv.dispatchEvent(new PointerEvent(e.k==='down'?'pointerdown':e.k==='move'?'pointermove':'pointerup',at));
   };
   // an event with `f` is sent just before frame f (a pilot that played each frame); the rest first

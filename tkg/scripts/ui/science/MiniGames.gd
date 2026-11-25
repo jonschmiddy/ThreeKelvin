@@ -11,7 +11,7 @@ static var enabled := true
 ## the site whose source pays the haul.
 static var force: Dictionary = {}
 ## Every ported game (the dev flag opens any).
-const ORDER: Array[StringName] = [&"coolant", &"centrifuge", &"icecore", &"pulsar", &"tray", &"anomaly", &"beams", &"spectrum", &"fourkelvin", &"torch", &"leak", &"sling", &"tuning", &"seismic", &"corescan", &"culture", &"dock", &"skim", &"flick", &"geyser"]
+const ORDER: Array[StringName] = [&"coolant", &"centrifuge", &"icecore", &"pulsar", &"tray", &"anomaly", &"beams", &"spectrum", &"fourkelvin", &"torch", &"leak", &"sling", &"tuning", &"seismic", &"corescan", &"culture", &"dock", &"skim", &"flick", &"geyser", &"touchdown"]
 ## The games by the site they are played at (Jon, Nov 18, page 6pDoF6JJ9CGLB8xiD4ytoQ). LAB games
 ## go with any site; Centrifuge is both LIFE and LAB. Only rock sites exist today (a reading at a
 ## world, a belt or a comet): they deal ROCK and LAB, unless the site has its own deal (`OWN`).
@@ -25,9 +25,10 @@ const LAB: Array[StringName] = [&"coolant", &"tray", &"centrifuge"]
 
 
 ## A SITE'S OWN DEAL, in place of its group's and the lab's. A comet deals Ice Core or one of the
-## comet games Jon picked (Nov 21, "C"; Skim, then Flick and Geyser on Nov 22): a new pick joins COMET.
+## comet games Jon picked (Nov 21, "C"; Skim, then Flick and Geyser on Nov 22, Touchdown on Nov 25): a
+## new pick joins COMET.
 ## Why: docs/why/MiniGame.md#a-sites-own-deal
-const COMET: Array[StringName] = [&"icecore", &"skim", &"flick", &"geyser"]
+const COMET: Array[StringName] = [&"icecore", &"skim", &"flick", &"geyser", &"touchdown"]
 const OWN: Dictionary[StringName, Array] = {&"comet": COMET}
 
 
@@ -92,6 +93,8 @@ static func make(id: StringName) -> MiniGame:
 			return GameFlick.new()
 		&"geyser":
 			return GameGeyser.new()
+		&"touchdown":
+			return GameTouchdown.new()
 	return null
 
 

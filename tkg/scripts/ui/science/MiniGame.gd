@@ -86,8 +86,20 @@ func glass_down(p: Vector2i) -> void:
 	down(p)
 
 
+## The right button on the glass, pressed or let go: a press puts the start card away too (any
+## press does). Only Touchdown reads it (its brake).
+func glass_alt(p: Vector2i, pressed: bool) -> void:
+	if pressed:
+		told = true
+	alt(p, pressed)
+
+
 ## Pointer at canvas pixel p (may lie off the canvas while a drag holds it).
 func down(_p: Vector2i) -> void:
+	pass
+
+
+func alt(_p: Vector2i, _pressed: bool) -> void:
 	pass
 
 

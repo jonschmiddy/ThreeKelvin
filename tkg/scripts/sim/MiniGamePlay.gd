@@ -207,7 +207,7 @@ func _send(d: DeskScene, e: Dictionary) -> void:
 		d._gui_input(mv)
 		return
 	var ev := InputEventMouseButton.new()
-	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.button_index = MOUSE_BUTTON_RIGHT if int(e.get("b", 0)) == 2 else MOUSE_BUTTON_LEFT
 	ev.pressed = e.k == "down"
 	ev.position = at
 	d._gui_input(ev)

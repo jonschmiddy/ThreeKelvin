@@ -39,6 +39,8 @@ func _run() -> void:
 	_site_deals()
 	if _games().has(&"tray"):
 		_prefetch()
+	if _games().has(&"touchdown"):
+		_careless()
 	for id in _games():
 		var t0 := Time.get_ticks_msec()
 		for d in range(1, 6):
@@ -156,6 +158,8 @@ func _deal(id: StringName, d: int, sens: int, s: int) -> Dictionary:
 			return GameFlick.gen(r, d, sens)
 		&"geyser":
 			return GameGeyser.gen(r, d)
+		&"touchdown":
+			return GameTouchdown.gen(r, d, sens)
 	return {}
 
 
@@ -183,6 +187,9 @@ static func send(g: MiniGame, e: Dictionary) -> void:
 	var p: Vector2 = e.p
 	g.pf = p
 	var q := Vector2i(p.floor())
+	if int(e.get("b", 0)) == 2:
+		g.glass_alt(q, e.k == "down")
+		return
 	match String(e.k):
 		"down":
 			g.glass_down(q)
@@ -261,18 +268,23 @@ func _dump(dir: String) -> void:
 ## on their second.
 const DUMP_RAF := {&"beams": [1100.0], &"spectrum": [1400.0], &"icecore": [1100.0], &"tray": [1100.0], &"anomaly": [1100.0], &"pulsar": [1100.0],
 	&"leak": [1000.0, 1050.0], &"torch": [1000.0, 1050.0], &"fourkelvin": [1000.0], &"tuning": [1100.0], &"sling": [1100.0], &"seismic": [1600.0], &"corescan": [1100.0],
-	&"culture": [1100.0], &"dock": [1000.0, 1050.0], &"skim": SKIM_RAF, &"flick": COMET_RAF, &"geyser": COMET_RAF}
+	&"culture": [1100.0], &"dock": [1000.0, 1050.0], &"skim": SKIM_RAF, &"flick": COMET_RAF, &"geyser": COMET_RAF,
+	&"touchdown": LONG_RAF}
 ## The comet games fly frames 1/16 s apart, a step an exact binary fraction so both clocks agree: Skim
-## a second of them after its first press, Flick and Geyser two, their pilots playing every frame.
+## a second of them after its first press, Flick and Geyser two, their pilots playing every frame;
+## Touchdown three, its pilot's first second on the start card.
 const SKIM_RAF := [1062.5, 1125.0, 1187.5, 1250.0, 1312.5, 1375.0, 1437.5, 1500.0, 1562.5, 1625.0, 1687.5, 1750.0, 1812.5, 1875.0, 1937.5, 2000.0]
 const SKIM_TICKS := [0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625, 0.0625]
 const COMET_RAF := SKIM_RAF + [2062.5, 2125.0, 2187.5, 2250.0, 2312.5, 2375.0, 2437.5, 2500.0, 2562.5, 2625.0, 2687.5, 2750.0, 2812.5, 2875.0, 2937.5, 3000.0]
 const COMET_TICKS := SKIM_TICKS + SKIM_TICKS
-const COMET_PAGES: Array[StringName] = [&"skim", &"flick", &"geyser"]
-const STEPPED: Array[StringName] = [&"flick", &"geyser"]
+const LONG_RAF := COMET_RAF + [3062.5, 3125.0, 3187.5, 3250.0, 3312.5, 3375.0, 3437.5, 3500.0, 3562.5, 3625.0, 3687.5, 3750.0, 3812.5, 3875.0, 3937.5, 4000.0]
+const LONG_TICKS := COMET_TICKS + SKIM_TICKS
+const COMET_PAGES: Array[StringName] = [&"skim", &"flick", &"geyser", &"touchdown"]
+const STEPPED: Array[StringName] = [&"flick", &"geyser", &"touchdown"]
 const DUMP_TICKS := {&"beams": [0.1], &"spectrum": [0.4], &"icecore": [0.1], &"tray": [0.1], &"anomaly": [0.1], &"pulsar": [0.1],
 	&"leak": [0.0, 0.05], &"torch": [0.0, 0.05], &"fourkelvin": [0.0], &"tuning": [0.1], &"sling": [0.1], &"seismic": [0.6], &"corescan": [0.1],
-	&"culture": [0.1], &"dock": [0.0, 0.05], &"skim": SKIM_TICKS, &"flick": COMET_TICKS, &"geyser": COMET_TICKS}
+	&"culture": [0.1], &"dock": [0.0, 0.05], &"skim": SKIM_TICKS, &"flick": COMET_TICKS, &"geyser": COMET_TICKS,
+	&"touchdown": LONG_TICKS}
 
 
 ## Deals into `r`, leaving it where the game's own deal left its stream.
@@ -312,7 +324,7 @@ func _deal_into(id: StringName, r: RandomNumberGenerator) -> void:
 			GameCulture.gen(r, 3)
 		&"dock":
 			GameDock.gen(3, 1, r)
-		&"skim", &"flick", &"geyser":
+		&"skim", &"flick", &"geyser", &"touchdown":
 			# the comet pages deal in their own mounts, so their draws start where the stream does
 			pass
 
@@ -377,7 +389,7 @@ func _haul() -> void:
 
 
 ## WHICH GAMES EACH SITE DEALS, printed: a comet deals Ice Core or a comet game Jon picked (Nov 21,
-## "C"; Skim, Flick, Geyser), every other site `pool(ROCK)`, as before.
+## "C"; Skim, Flick, Geyser, Touchdown), every other site `pool(ROCK)`, as before.
 ## Why: docs/why/MiniGame.md#a-sites-own-deal
 func _site_deals() -> void:
 	var rock := MiniGames.pool(MiniGames.ROCK)
@@ -394,9 +406,9 @@ func _site_deals() -> void:
 	for i in 64:
 		var id: StringName = comet[Rng.derive(&"minigame", i).randi() % comet.size()]
 		dealt[id] = int(dealt.get(id, 0)) + 1
-	var want: Array[StringName] = [&"icecore", &"skim", &"flick", &"geyser"]
+	var want: Array[StringName] = [&"icecore", &"skim", &"flick", &"geyser", &"touchdown"]
 	var each := want.all(func(id: StringName) -> bool: return dealt.has(id))
-	_h._ok("a comet deals Ice Core, Skim, Flick or Geyser and nothing else, each over 64 systems (%s; dealt %s)" % [", ".join(comet), str(dealt)],
+	_h._ok("a comet deals Ice Core, Skim, Flick, Geyser or Touchdown and nothing else, each over 64 systems (%s; dealt %s)" % [", ".join(comet), str(dealt)],
 		comet == want and dealt.size() == want.size() and each)
 
 
@@ -420,16 +432,27 @@ func _tell(id: StringName) -> void:
 		var b := MiniKit.told_at
 		var esc := MiniKit.told_icons.any(func(k: String) -> bool: return k.contains("ESC"))
 		var want := MiniPix.new(px.w, px.h)
-		MiniKit.tell(want, MiniKit.told_text, MiniKit.told_icons, MiniKit.told_t, b.position.y)
+		var own := id in OWN_CARD
+		if own:
+			GameTouchdown.card(want, MiniKit.told_t)
+		else:
+			MiniKit.tell(want, MiniKit.told_text, MiniKit.told_icons, MiniKit.told_t, b.position.y)
 		var same := want.img.get_region(b).get_data() == px.img.get_region(b).get_data()
 		var quiet := 0
-		for y in range(b.position.y + 20, b.position.y + 25):
-			for x in range(b.position.x + 26, b.position.x + 26 + MiniKit.tw(MiniKit.GIVE)):
+		# the give-up line: the kit's second line, or the last of an own card's
+		var gy := b.position.y + (b.size.y - 9 if own else 20)
+		for y in range(gy, gy + 5):
+			for x in range(b.position.x, b.end.x):
 				quiet += 1 if px.img.get_pixel(x, y).is_equal_approx(MiniKit.LABEL) else 0
-		if esc or not same or quiet == 0 or b.size.y != MiniKit.TELL_H:
+		if esc or not same or quiet == 0 or (b.size.y != MiniKit.TELL_H and not own):
 			ok = false
 			why += " d%d%s%s%s" % [d, " ESC on line 1" if esc else "", "" if same else " card not the kit's", "" if quiet > 0 else " no TO GIVE UP"]
 	_h._ok("%s: the start card has its ESC TO GIVE UP line under the game's own, line 1 no ESC, at every depth%s" % [id, why], ok)
+
+
+## The games with their own start card, its last line ESC TO GIVE UP: Touchdown's names two buttons.
+## Why: docs/why/MiniGame.md#touchdown
+const OWN_CARD: Array[StringName] = [&"touchdown"]
 
 
 ## Where a click on each game's glass hits nothing playable: the header band's top-left corner (glass
@@ -439,10 +462,10 @@ func _tell(id: StringName) -> void:
 const EMPTY := Vector2(1.5, 1.5)
 const ANY_PRESS := {&"anomaly": ["started"], &"fourkelvin": ["mode"], &"tray": ["started"], &"centrifuge": ["acted", "_icon_t"],
 	&"seismic": ["touched"], &"culture": ["touched"], &"skim": ["started", "ax", "ay"], &"flick": ["started", "ptr_x", "ptr_y"],
-	&"geyser": ["started", "ptr_x"]}
+	&"geyser": ["started", "ptr_x"], &"touchdown": ["started", "aim_x", "aim_y", "aim_in"]}
 ## The games whose clock that press starts: their twins part from there, so they are held at the click.
 ## The comet games' press starts their clock (Skim's takes hold of the tether where it lands).
-const CLOCK_STARTS: Array[StringName] = [&"anomaly", &"fourkelvin", &"skim", &"flick", &"geyser"]
+const CLOCK_STARTS: Array[StringName] = [&"anomaly", &"fourkelvin", &"skim", &"flick", &"geyser", &"touchdown"]
 
 
 ## Any click on the glass puts the start card away (Jon, Nov 20: Ice Core's card hid ONE UPSIDE DOWN
@@ -632,6 +655,34 @@ func _give_up(id: StringName) -> void:
 	_card_checks(id, sh, false, "SLAG", 0)
 
 
+## A CARELESS LANDING FAILS: Touchdown's pilot steering as ever but never braking, 50 seeds at each
+## depth (sensors 0 to 5 in turn). From depth 2 none lands; at depth 1 a strong sensor's safe speed
+## lets a fall land (the page's tuning), but never at the top tier. Why: docs/why/MiniGame.md#touchdown
+func _careless() -> void:
+	for d in range(1, 6):
+		var landed := 0
+		var top := 0
+		var ends := {}
+		var best := 0.0
+		for s in range(1, 51):
+			var g := _mount(&"touchdown", d, s % 6, s) as GameTouchdown
+			for k in STEPS_MAX:
+				if _score >= 0.0:
+					break
+				for e in TouchdownPilot.act(g, true):
+					send(g, e)
+				g.tick(STEP)
+			ends[g.end_text] = int(ends.get(g.end_text, 0)) + 1
+			best = maxf(best, _score)
+			landed += 1 if _score >= 0.5 else 0
+			top += 1 if ScienceHaul.tier_of(_score, d) >= mini(4, 2 + (d - 1) / 2) else 0
+		print("touchdown careless depth %d: %s, best %.2f" % [d, str(ends), best])
+		if d == 1:
+			_h._ok("touchdown depth 1: no brake, never the top tier on 50 seeds (%d landed, best %.2f)" % [landed, best], top == 0)
+		else:
+			_h._ok("touchdown depth %d: no brake, no landing on 50 seeds (best %.2f)" % [d, best], landed == 0)
+
+
 ## Where a perfect run cannot always fill the bar: Geyser at sector 5, whose jets burn too briefly
 ## and hop too far for every deal to be filled (the page tunes a clean sector 3 run to about fill it).
 ## Why: docs/why/MiniGame.md#geyser
@@ -657,8 +708,14 @@ static func _send_glass(sh: MiniShell, e: Dictionary) -> void:
 		"keyup":
 			sh.key(e.key, false)
 		"down":
+			if int(e.get("b", 0)) == 2:
+				sh.press_alt((e.p as Vector2) + Vector2(sh.at), true)
+				return
 			sh.press((e.p as Vector2) + Vector2(sh.at))
 		"move":
 			sh.motion((e.p as Vector2) + Vector2(sh.at))
 		"up":
+			if int(e.get("b", 0)) == 2:
+				sh.press_alt((e.p as Vector2) + Vector2(sh.at), false)
+				return
 			sh.release((e.p as Vector2) + Vector2(sh.at))

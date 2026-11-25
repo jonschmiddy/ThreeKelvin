@@ -80,6 +80,8 @@ static func puzzle(g: MiniGame) -> Dictionary:
 			p = js((g as GameFlick).P)
 		&"geyser":
 			p = {vents = js((g as GameGeyser).vents)}
+		&"touchdown":
+			p = js((g as GameTouchdown).P)
 	return p
 
 
