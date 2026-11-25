@@ -123,11 +123,59 @@ static var _cache_key := 0
 
 ## Worked out once a galaxy: `at()` asks per system and FIT is not free.
 static func clouds() -> Array:
-	var key := [Run.galaxy_seed, Run.galaxy_spin, Run.galaxy, int(placement), keep_core].hash()
+	var key := _key()
 	if key != _cache_key or _cache.is_empty():
 		_cache = _build()
 		_cache_key = key
 	return _cache.duplicate()
+
+
+static func _key() -> int:
+	return [Run.galaxy_seed, Run.galaxy_spin, Run.galaxy, int(placement), keep_core].hash()
+
+
+## A supernova remnant is centred on its pulsar, wherever the map put it (Nov 22, Jon: the
+## no-islands pass pulled a dwarf's pulsar to its shell's rim). Derived from the map, never stored.
+## Why: docs/why/NebulaField.md#shells-follow-pulsars
+const FOLLOW := 0.15
+
+static func follow_pulsars(nodes: Array) -> void:
+	var fresh := _build()
+	# Each pulsar to the nearest shell's centre, so a shell with none of its own never
+	# jumps onto a neighbour's; then each shell to the nearest pulsar it was given.
+	var to := {}
+	for n in nodes:
+		var nn: MapGen.MapNode = n
+		if nn.type != MapGen.NodeType.PULSAR:
+			continue
+		var near := -1
+		var best := FOLLOW
+		for ci in fresh.size():
+			var cl: Cloud = fresh[ci]
+			if cl.kind == Kind.REMNANT and nn.gal.distance_to(cl.pos) < best:
+				best = nn.gal.distance_to(cl.pos)
+				near = ci
+		if near >= 0 and (not to.has(near) or best < (to[near] as Vector2).distance_to((fresh[near] as Cloud).pos)):
+			to[near] = nn.gal
+	for ci: int in to:
+		(fresh[ci] as Cloud).pos = to[ci]
+	_cache = fresh
+	_cache_key = _key()
+
+
+## The clouds as rolled, no shell moved: `MapGen.generate` starts from these.
+static func unshift() -> void:
+	_cache = _build()
+	_cache_key = _key()
+
+
+## The remnant whose pulsar sits at `p`, or null: the shell `follow_pulsars` would move with it.
+static func shell_of(p: Vector2) -> Cloud:
+	for raw in clouds():
+		var cl: Cloud = raw
+		if cl.kind == Kind.REMNANT and cl.pos.distance_to(p) < 0.001:
+			return cl
+	return null
 
 static func _build() -> Array:
 	var g: Dictionary = Run.galaxy

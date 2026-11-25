@@ -69,6 +69,7 @@ func run() -> void:
 		if map.is_empty():
 			unreachable.append("seed %d produced no map" % Rng.forced)
 			continue
+		_islands_of(map)
 
 		# Stations are rarer and spaced (Jon, Nov 3): none within a bare drive's jump of another.
 		var here_st := _stations(map)
@@ -188,9 +189,82 @@ func run() -> void:
 	_chart_words()
 	if not "nokinds" in OS.get_cmdline_user_args():
 		_every_kind(int(_arg_of("kindseeds", str(KIND_SEEDS))))
+	_islands_verdict()
 	Rng.forced = 0
 	_labels()
 	verdict("maptest")
+
+
+## NO ISLANDS (Nov 22): every system in the slowest ship's reach of the start, and able
+## to fly on to the core from there, over every galaxy this run rolls (`-- maptest noislands`
+## switches `MapGen._join_islands` off, to count what it saves).
+## Why: docs/why/MapTest.md#no-islands
+var _galaxies := 0
+var _islands := 0
+var _island_at: Array[String] = []
+var _dead := 0
+var _dead_at: Array[String] = []
+var _moved := 0
+var _moved_in := 0
+var _moved_most := 0.0
+var _shell_bad: Array[String] = []
+
+
+func _shell_spots() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for raw in NebulaField.clouds():
+		out.append((raw as NebulaField.Cloud).pos)
+	return out
+
+
+func _islands_of(map: Array) -> void:
+	_galaxies += 1
+	var kind := GalaxyGen.type_name(Run.galaxy_kind)
+	var isl := MapGen.islands(map)
+	_islands += isl.size()
+	if not isl.is_empty():
+		_island_at.append("seed %d (%s): %d, %s ring %d first" % [Rng.forced, kind, isl.size(),
+			MapGen.star_name(map[isl[0]]), (map[isl[0]] as MapGen.MapNode).layer])
+	var back := MapGen.core_reach(map)
+	var dead := 0
+	for raw in map:
+		var n: MapGen.MapNode = raw
+		if n.type != MapGen.NodeType.CORE and not back.has(n.index):
+			dead += 1
+	_dead += dead
+	if dead > 0:
+		_dead_at.append("seed %d (%s): %d" % [Rng.forced, kind, dead])
+	# A remnant's shell on its pulsar, and the same again when worked out from the map alone
+	# as a load does (`NebulaField.follow_pulsars`).
+	var shells := _shell_spots()
+	NebulaField.follow_pulsars(map)
+	if shells != _shell_spots():
+		_shell_bad.append("seed %d (%s): the shells moved when read off the map" % [Rng.forced, kind])
+	for raw in map:
+		var p: MapGen.MapNode = raw
+		if p.type == MapGen.NodeType.PULSAR and NebulaField.shell_of(p.gal) == null:
+			_shell_bad.append("seed %d (%s): %s is off its shell's centre" % [Rng.forced, kind, MapGen.star_name(p)])
+	if MapGen.islands_joined > 0:
+		_moved += MapGen.islands_joined
+		_moved_in += 1
+		_moved_most = maxf(_moved_most, MapGen.islands_arc)
+
+
+func _islands_verdict() -> void:
+	print("  ISLANDS (radius %.3f): %d in %d galaxies; the pass moved %d systems in %d, the furthest %.3f"
+		% [MapGen.fly_radius(), _islands, _galaxies, _moved, _moved_in, _moved_most])
+	_ok("no galaxy holds a system the slowest ship cannot reach (%d in %d galaxies)"
+		% [_islands, _galaxies], _galaxies > 0 and _islands == 0)
+	for w in _island_at.slice(0, 8):
+		_fail("islands: " + w)
+	_ok("and from every system the slowest ship can fly on to the core (%d dead ends)" % _dead,
+		_galaxies > 0 and _dead == 0)
+	for w in _dead_at.slice(0, 8):
+		_fail("dead ends: " + w)
+	_ok("every pulsar sits at its supernova shell's centre, and a load puts every shell back (%d wrong)"
+		% _shell_bad.size(), _galaxies > 0 and _shell_bad.is_empty())
+	for w in _shell_bad.slice(0, 8):
+		_fail(w)
 
 
 ## STATIONS A GALAXY under S3 (Jon, Nov 3): the bounds every pinned galaxy
@@ -370,6 +444,7 @@ func _every_kind(seeds: int) -> void:
 			Run.galaxy = GalaxyGen.roll(k)
 			Run.galaxy_spin = Rng.world.randf() * TAU
 			Run.map = MapGen.generate(Run.MAP_CANVAS)
+			_islands_of(Run.map)
 			var hops := _slowest_path(Run.map)
 			if hops < 0:
 				stuck.append("%s seed %d" % [GalaxyGen.type_name(k), sd])

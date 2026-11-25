@@ -893,6 +893,76 @@ core is out of reach:
 A galaxy that was already crossable is not touched (one walk, no moves).
 ```
 
+## No islands
+
+Above `static var islands_joined := 0` (Nov 22, the plan Jon approved):
+
+```text
+The flyable-core walk promised a route to the core and nothing else, so a
+galaxy could hold systems the ship sees on its chart and can never reach:
+an island, further than a jump from everything reached. Jumps are
+symmetric (RunState.reachable_from), so no ship ever gets there. A job
+board posted work at them (ContractTest, seed 23 at tier 0: a FETCH at a
+layer-0 station with no route), and a ship that reached one on a
+thruster and then lost the thruster was stuck there.
+
+A DEAD END is as stuck: a system reached only by a jump OUT from three or
+more rings in (outward is never too deep), with nothing within a jump it
+may fly to under the two-ring rule. Seed 22 at tier 0 had one: a rim
+system whose only neighbour sat three rings in. Arrive there from that
+neighbour and the slowest ship can never leave; after the island moves
+alone, 41 spiral galaxies in 300 still held 100 of them.
+
+So after the pulsars (which move to their shells' centres, and could
+strand a system or be stranded) and before the stations, twins and pulsar
+marks (which read where systems are), the same walk the core repair flies
+is run twice, out from the start and back from the core, and every system
+not on both (not "good") is moved:
+  - round its own ring, so its depth, danger and ring are what they were
+    (a pulsar, which stands at its shell's centre and on no ring, is pulled
+    straight toward the reached system instead, the least distance, and
+    its supernova shell moves with it, so it stays at the centre:
+    docs/why/NebulaField.md#shells-follow-pulsars. In the dwarfs every
+    island was a pulsar dragged to a cloud past the galaxy's edge; turning
+    one round a ring took it up to 1.4 out of its shell, and pulling it
+    alone left it on the shell's rim, which Jon asked about, Nov 22. Its
+    spot is one where the moved shell takes no other system into its gas
+    or out of it. After a pulsar moves, every system's gas is read again,
+    which also mends the flag of a pulsar `_seed_pulsars` moved, read
+    before it moved);
+  - the least turn that puts it inside the slowest ship's jump of a good
+    system, a legal hop BOTH ways under the two-ring rule (so it is reached
+    and can leave), aimed a little inside that jump so the walk's margin
+    holds. Moving a system that is not good never takes another off the
+    good set: anything reached through it could not reach the core either;
+  - into the first of three depths in that window that is clear of every
+    other system (80% of the spread's own gap), so a moved system does not
+    land on another; if none is clear, the shallowest;
+  - one island a pass, the cheapest first, and the walk again, because a
+    cluster of islands usually comes in behind its first member.
+A galaxy with no island costs one walk and moves nothing. Nothing here
+draws from Rng.world, so no later roll moves.
+
+Measured over seeds 1-300 at every tier, the slowest ship's radius
+(0.171), before the pass: the spiral tiers (0-3) 122-123 galaxies in 300
+with an island, about 370 islands, mostly on the rim ring (Magellanic
+Irregular, Anemic, Grand-Design, Interacting Pair); the disc and ball
+tiers none; the dwarf tier 47, every one a pulsar. Counting dead ends
+too, 127 spiral galaxies in 300 and the same 47 dwarfs. After: no island
+and no dead end at any tier (3,300 galaxies). The pass moves about 300
+systems in 127 spiral galaxies of 300 and 50 pulsars in 47 dwarfs; in the
+median galaxy it touches, the furthest move is 0.07 (a ring gap is 0.062)
+and the furthest anywhere 0.27 (a pulsar 0.09).
+
+Why the islands matter even to a fast ship: thrust only ever adds to the
+jump (thrust_reach is floored at 1.0), so a ship that reached an island on
+a thruster and then took it off (uninstall works anywhere) or swapped to a
+hull with less thrust had nothing in reach; the chart's check_stranded then
+ended the run as "Adrift. The tank ran dry between stars." With every
+system on the slowest ship's walk, that cannot happen, and `-- maptest`
+also checks that every system can fly on to the core at that radius.
+```
+
 ## Pulsar neighbours
 
 Above `static func _mark_pulsar_neighbours(nodes: Array) -> void:`:

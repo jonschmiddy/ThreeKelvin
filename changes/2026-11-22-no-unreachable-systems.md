@@ -1,0 +1,1 @@
+- **Fixed** — every system on the star chart can now be flown to, so no job sends you to a place you can never reach.

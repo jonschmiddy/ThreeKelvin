@@ -97,6 +97,17 @@ shelf, a pulsar's one thing is its beam, the start is quiet on purpose and
 the core is a boss. A fetch used to land on a station a quarter of the time,
 where there was nothing to see, and a hunt needed a fight already rolled
 there -- which was gone if you had won it before you signed.
+
+ONLY WHERE A SHIP CAN FLY FROM HERE (Nov 22). ContractTest's seed 23 at
+tier 0 posted a FETCH at a system no jump reached. MapGen's no-islands pass
+now keeps every system on the slowest ship's walk, so on a new map this
+removes nothing; it stays as the backstop for a map that pass did not make
+(a save from before it keeps its positions). Measured from the posting
+station, where the ship stands to read the board, and at the slowest ship's
+radius (`MapGen.reach_of`), not the reader's: a board is derived from where
+it is, so two ships with different thrusters read the same one, and a target
+the slowest ship can reach every ship can. `OptionTable.place` asks the same
+of a planted quest.
 ```
 
 ## Posting the goal
