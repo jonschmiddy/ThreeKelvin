@@ -312,8 +312,12 @@ func describe_rich(live: int = -1,
 	var out := describe(live)
 	# Each term is its own hover target (`[url]`, T2): the one under the pointer (`lit`) goes the
 	# game's highlight colour, a paying one green, the rest ICE.
-	for t in terms:
-		out = out.replace(t, keyword_markup(t, hot.has(t), t == lit))
+	# Tokens first, markup second, so a short term never rewrites inside a long one's tags.
+	for i in terms.size():
+		out = out.replace(String(terms[i]), "\u0001%d\u0002" % i)
+	for i in terms.size():
+		var t := String(terms[i])
+		out = out.replace("\u0001%d\u0002" % i, keyword_markup(t, hot.has(t), t == lit))
 	# The value goes green with its keyword, up to the next period, or the number looks still owed.
 	for t in hot:
 		var tag := keyword_markup(t, true, t == lit) + " "

@@ -43,11 +43,13 @@ func _run() -> void:
 	_tree = get_tree()
 	await _frames(2)
 	_pure()
+	_markup()
 	_glitch_rules()
 	await _box()
 	await _readout()
 	await _local_tags()
 	await _chart()
+	await _gallery_words()
 	await _words()
 	h.verdict("tagtest")
 	_tree.quit(h.code())
@@ -436,19 +438,22 @@ func _words() -> void:
 		return
 	var term := String((v.card.keywords()[0] as Array)[0])
 	var meaning := String((v.card.keywords()[0] as Array)[1])
-	_ok("the word is a hover target on the card ([url=%s])" % term, v._body.text.contains("[url=%s]" % term)
-		and v._body.mouse_filter == Control.MOUSE_FILTER_PASS)
+	_ok("the word is a hover target on the card ([url=%s]), the card hears it, the text takes no mouse" % term,
+		v._body.text.contains("[url=%s]" % term) and v._body.mouse_filter == Control.MOUSE_FILTER_IGNORE
+		and v.mouse_filter != Control.MOUSE_FILTER_IGNORE)
 	var at_word := Vector2(4.0, 4.0)
 	_ok("the word is found under the pointer by measure (%s -> \"%s\"), nothing off the text" % [str(at_word), v.word_at(at_word)],
 		v.word_at(at_word) == term and v.word_at(Vector2(v._body.size.x - 2.0, 36.0)) == "")
 	var mm := InputEventMouseMotion.new()
-	mm.position = at_word
-	v._body.gui_input.emit(mm)
+	mm.position = v._body.position + at_word
+	v.gui_input.emit(mm)
 	await _frames(2)
 	_ok("a motion over the word lights it", v.lit_word == term and sc.word_tag() != null)
-	v._body.mouse_exited.emit()
+	var off := InputEventMouseMotion.new()
+	off.position = CardView.Z_ART.get_center()
+	v.gui_input.emit(off)
 	await _frames(2)
-	_ok("leaving the text puts it out", v.lit_word == "" and sc.word_tag() == null)
+	_ok("leaving the text for the picture puts it out", v.lit_word == "" and sc.word_tag() == null)
 	sc._on_card_hovered(v, true)
 	await _secs(1.2)
 	_ok("resting on the card opens no whole-card readout", sc.word_tag() == null
@@ -477,3 +482,296 @@ func _words() -> void:
 	v._on_hover_out()
 	await _frames(2)
 	_ok("leaving the card takes the tag with it", sc.word_tag() == null and v.lit_word == "")
+	await _held_hand_word(sc, v)
+
+
+## EVERY CARD'S MARKUP (Bank the Fire, Nov 24, "BRACE FROM HEAT]BRACE FROM HEAT[/URL]"): under the
+## tags the words are `describe()`, each [url] wraps its own word once. Why: docs/why/TagTest.md#markup
+func _markup() -> void:
+	print("\n--- every card's keyword markup")
+	var cards: Array[CardData] = []
+	for k in DB.modules:
+		for c in (DB.modules[k] as ModuleData).cards:
+			cards.append(c)
+	for row in DB.MALFUNCTIONS:
+		var mc := DB.malfunction(row[0])
+		if mc != null:
+			cards.append(mc)
+	var marks := 0
+	var forms := 0
+	var bad: PackedStringArray = []
+	var digit := RegEx.create_from_string("[0-9\\x{1}\\x{2}]")
+	for c in cards:
+		var terms := PackedStringArray()
+		for raw in c.keywords():
+			var t := String((raw as Array)[0])
+			terms.append(t)
+			if digit.search(t) != null:
+				marks += 1
+		# Plain, every clause paying, a live number, and each word lit with its clause paying.
+		var tries: Array = [[-1, PackedStringArray(), ""], [-1, terms, ""]]
+		if c.damage > 0:
+			tries.append([c.damage + 2, terms, ""])
+		for t in terms:
+			tries.append([-1, PackedStringArray([t]), t])
+		for one in tries:
+			forms += 1
+			var why := _markup_fault(c, int(one[0]), one[1], String(one[2]))
+			if why != "" and bad.size() < 6:
+				bad.append("%s %s: %s" % [c.name, str(one), why])
+	for b in bad:
+		print("    " + b)
+	_ok("no keyword holds a digit or a token's mark (%d)" % marks, marks == 0)
+	_ok("%d cards, %d forms: every [url] closed round its own word, no token left, the words are describe()"
+		% [cards.size(), forms], bad.is_empty() and cards.size() > 100)
+	for nm: String in ["Bank the Fire", "Shroud", "Corona"]:
+		var c := _card_named(cards, nm)
+		if not _ok("%s is in the game" % nm, c != null):
+			continue
+		var rich := c.describe_rich()
+		var fault := _markup_fault(c, -1, PackedStringArray(), "")
+		print("    %s: %s" % [nm, rich])
+		_ok("%s: \"%s\" whole, one [url=Brace from heat] (%s)" % [nm, c.describe(), fault],
+			fault == "" and rich.count("[url=Brace from heat]") == 1)
+	var bank := _card_named(cards, "Bank the Fire")
+	if bank != null:
+		var paid := bank.describe_rich(-1, PackedStringArray(["Brace"]))
+		_ok("a paying Brace still finds its tag after the tokens: its 6 goes green",
+			paid.contains(CardData.keyword_markup("Brace", true, false) + " [color=#7fb89a]6[/color]")
+			and paid.count("[url=Brace]") == 1)
+
+
+static func _card_named(cards: Array[CardData], nm: String) -> CardData:
+	for c in cards:
+		if c.name == nm:
+			return c
+	return null
+
+
+## What is wrong with one form of a card's markup, or "".
+func _markup_fault(c: CardData, live: int, hot: PackedStringArray, lit: String) -> String:
+	var rich := c.describe_rich(live, hot, lit)
+	if rich.contains("\u0001") or rich.contains("\u0002"):
+		return "a token left"
+	var opens := rich.count("[url=")
+	if opens != rich.count("[/url]"):
+		return "%d [url= for %d [/url]" % [opens, rich.count("[/url]")]
+	var whole := RegEx.create_from_string(
+		"\\[url=([^\\]]*)\\]\\[u\\]\\[color=#[0-9a-f]{6}\\]([^\\[]*)\\[/color\\]\\[/u\\]\\[/url\\]")
+	var wrapped := 0
+	for m in whole.search_all(rich):
+		if m.get_string(1) != m.get_string(2):
+			return "[url=%s] round \"%s\"" % [m.get_string(1), m.get_string(2)]
+		wrapped += 1
+	if wrapped != opens:
+		return "%d of %d [url] round a plain word" % [wrapped, opens]
+	var words := RegEx.create_from_string("\\[[^\\]]*\\]").sub(rich, "", true)
+	if words != c.describe(live):
+		return "the words read \"%s\"" % words
+	return ""
+
+
+# ------------------------------------------------------------------ the GUI's hover, by hand
+
+## The hover chain the GUI would hold now, leaf first.
+var _chain: Array[Control] = []
+
+
+## Headless keeps no GUI hover, so the GUI's part is done here for a pointer at `p` (global) over
+## `root`: hit, chain to the first STOP, exits, enters, the motion. Why: docs/why/TagTest.md#gui-by-hand
+func _gui_point(root: Control, p: Vector2) -> void:
+	var chain: Array[Control] = []
+	var c := _hit(root, p)
+	while c != null:
+		var f := _filter_of(c)
+		if f != Control.MOUSE_FILTER_IGNORE:
+			chain.append(c)
+		if f == Control.MOUSE_FILTER_STOP or c.top_level:
+			break
+		c = c.get_parent_control()
+	var was: Array[Control] = []
+	for o in _chain:
+		if is_instance_valid(o) and o.is_inside_tree():
+			was.append(o)
+	_chain = chain
+	for o in was:
+		if not chain.has(o):
+			o.notification(Control.NOTIFICATION_MOUSE_EXIT)
+			o.mouse_exited.emit()
+	for i in range(chain.size() - 1, -1, -1):
+		if is_instance_valid(chain[i]) and chain[i].is_inside_tree() and not was.has(chain[i]):
+			# The notification is the control's own hover state; the GUI sends the signal itself.
+			chain[i].notification(Control.NOTIFICATION_MOUSE_ENTER)
+			chain[i].mouse_entered.emit()
+	for h in chain:
+		if not is_instance_valid(h) or not h.is_inside_tree():
+			break
+		var mm := InputEventMouseMotion.new()
+		mm.position = h.get_global_transform().affine_inverse() * p
+		mm.global_position = p
+		h.gui_input.emit(mm)
+
+
+## The control the GUI would hit at `p`: later children first, a clip hides, IGNORE passes through.
+static func _hit(n: Node, p: Vector2) -> Control:
+	if n is Window:
+		return null
+	if n is CanvasItem and not (n as CanvasItem).visible:
+		return null
+	var c := n as Control
+	if c != null and c.clip_contents and not _inside(c, p):
+		return null
+	for i in range(n.get_child_count() - 1, -1, -1):
+		var hit := _hit(n.get_child(i), p)
+		if hit != null:
+			return hit
+	if c != null and _filter_of(c) != Control.MOUSE_FILTER_IGNORE and _inside(c, p):
+		return c
+	return null
+
+
+static func _inside(c: Control, p: Vector2) -> bool:
+	return Rect2(Vector2.ZERO, c.size).has_point(c.get_global_transform().affine_inverse() * p)
+
+
+## The filter the GUI reads: IGNORE under a DISABLED `mouse_behavior_recursive`, the engine's own sum.
+static func _filter_of(c: Control) -> int:
+	return c.get_mouse_filter_with_override()
+
+
+## A point (global) in the middle of the first keyword on the card's text, or INF.
+static func _word_spot(cv: CardView) -> Vector2:
+	var body := cv._body
+	var hits: Array[Vector2] = []
+	var term := ""
+	for y in range(1, int(body.size.y), 2):
+		for x in range(1, int(body.size.x), 2):
+			var t := cv.word_at(Vector2(x, y))
+			if t != "" and (term == "" or t == term):
+				term = t
+				hits.append(Vector2(x, y))
+	if hits.is_empty():
+		return Vector2.INF
+	return body.get_global_transform() * hits[hits.size() >> 1]
+
+
+## Every CardView under `n`, in tree order.
+static func _views_under(n: Node, out: Array[CardView]) -> void:
+	for ch in n.get_children():
+		if ch is CardView:
+			out.append(ch as CardView)
+		_views_under(ch, out)
+
+
+## The pointer held on `at` for 60 frames, a motion each frame: what moved, what went dark, what
+## left. `seen` should keep the hover; `shown` gives the card the eye is on.
+func _hold(root: Control, at: Vector2, seen: CardView, shown: Callable) -> Dictionary:
+	var rec := {exits = 0, enters = 0, swaps = 0, moved = 0, dark = 0}
+	var on_exit := func() -> void: rec.exits += 1
+	var on_enter := func() -> void: rec.enters += 1
+	seen.mouse_exited.connect(on_exit)
+	seen.mouse_entered.connect(on_enter)
+	var first := shown.call() as CardView
+	var term: String = first.lit_word if first != null else ""
+	var rect: Rect2 = first.get_global_rect() if first != null else Rect2()
+	var body: Rect2 = first._body.get_global_rect() if first != null else Rect2()
+	var was := ""
+	for i in 60:
+		_gui_point(root, at)
+		await _tree.process_frame
+		var now := shown.call() as CardView
+		var line: String = "no card up"
+		if now != null:
+			line = "card %s body %s lit \"%s\"" % [str(now.get_global_rect()), str(now._body.get_global_rect()),
+				now.lit_word]
+		if line != was:
+			print("    frame %d: %s (exits %d, enters %d)" % [i, line, rec.exits, rec.enters])
+			was = line
+		if now == null or now != first:
+			rec.swaps += 1
+		elif not now.get_global_rect().is_equal_approx(rect) or not now._body.get_global_rect().is_equal_approx(body):
+			rec.moved += 1
+		if now == null or now.lit_word != term or term == "":
+			rec.dark += 1
+	seen.mouse_exited.disconnect(on_exit)
+	seen.mouse_entered.disconnect(on_enter)
+	rec.term = term
+	return rec
+
+
+## A WORD HELD ON THE GALLERY'S RISEN CARD (Nov 24, "hovering over the underlined words makes
+## the card vibrate"): one copy, still, its word lit. Why: docs/why/TagTest.md#held-word
+func _gallery_words() -> void:
+	print("\n--- a word held on the card gallery")
+	Router.show_cards()
+	await _frames(10)
+	var g := Router.current as CardGalleryScreen
+	if not _ok("the card gallery is up", g != null):
+		return
+	var views: Array[CardView] = []
+	_views_under(g, views)
+	var v: CardView = null
+	for cv in views:
+		var box := cv.get_parent_control()
+		while box != null and not (box is ScrollContainer):
+			box = box.get_parent_control()
+		if not cv.card.keywords().is_empty() and box != null \
+				and box.get_global_rect().encloses(cv.get_global_rect().grow(-1.0)):
+			v = cv
+			break
+	if not _ok("a card with a keyword in the gallery's view", v != null):
+		return
+	_chain.clear()
+	_gui_point(g, v.get_global_rect().get_center())
+	await _secs(0.4)
+	var pop := g.risen()
+	var hit := _hit(g, v.get_global_rect().get_center())
+	if not _ok("pointing at %s raises its copy (the pointer hit %s, its chain %s)" % [v.card.name,
+			str(g.get_path_to(hit)) if hit != null else "nothing", str(_chain.map(func(x: Control) -> String: return x.get_class()))],
+			pop != null):
+		return
+	var at := _word_spot(pop)
+	if not _ok("a keyword found on the copy (%s)" % str(at), at != Vector2.INF and v.get_global_rect().has_point(at)):
+		return
+	_gui_point(g, at)
+	await _frames(2)
+	var rec := await _hold(g, at, v, func() -> CardView: return g.risen())
+	_ok("held 60 frames on \"%s\" of %s: one copy (%d swaps), still (%d frames moved), lit every frame (%d dark), the card kept (%d exits, %d enters)"
+		% [rec.term, v.card.name, rec.swaps, rec.moved, rec.dark, rec.exits, rec.enters],
+		rec.swaps == 0 and rec.moved == 0 and rec.dark == 0 and rec.exits == 0 and rec.enters == 0)
+	# The page's top corner, by its heading: no card there.
+	_gui_point(g, g.get_global_rect().position + Vector2(2.0, 2.0))
+	await _frames(2)
+	_ok("pointed away, the copy goes", g.risen() == null)
+	_chain.clear()
+
+
+## The same hold on a card in the hand, after its lift: the lift stays, the word stays lit, its
+## tag stays up, and the card never hears the pointer leave.
+func _held_hand_word(sc: SectorScreen, v: CardView) -> void:
+	print("\n--- a word held on a card in the hand")
+	_chain.clear()
+	# The card's left edge: a neighbour to its right may lie over its middle until it is raised.
+	var r := v.get_global_rect()
+	var heard := [0]
+	var on_hover := func(_v: CardView, e: bool) -> void: heard[0] += 1 if e else 0
+	v.hovered.connect(on_hover)
+	_gui_point(sc, Vector2(r.position.x + 4.0, r.get_center().y))
+	await _secs(0.4)
+	v.hovered.disconnect(on_hover)
+	_ok("the card hears the pointer arrive (%d), lifted if playable (%s -> %s)" % [heard[0], str(r.position), str(v.get_global_rect().position)],
+		heard[0] == 1 and (not v.playable or v.get_global_rect().position.y < r.position.y))
+	var at := _word_spot(v)
+	if not _ok("a keyword found on the lifted card (%s)" % str(at), at != Vector2.INF):
+		return
+	_gui_point(sc, at)
+	await _frames(2)
+	var tag := sc.word_tag()
+	var rec := await _hold(sc, at, v, func() -> CardView: return v)
+	_ok("held 60 frames on \"%s\" of %s: still (%d frames moved), lit every frame (%d dark), the card kept (%d exits, %d enters)"
+		% [rec.term, v.card.name, rec.moved, rec.dark, rec.exits, rec.enters],
+		rec.moved == 0 and rec.dark == 0 and rec.exits == 0 and rec.enters == 0)
+	_ok("its tag up the whole time, the same one", tag != null and sc.word_tag() == tag)
+	_gui_point(sc, Vector2(2.0, 2.0))
+	await _frames(2)
+	_chain.clear()

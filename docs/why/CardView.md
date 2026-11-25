@@ -626,3 +626,40 @@ is under the point, and the keyword whose span holds that character is the
 word. The [url] markup stays, as the harness and the hints read it as "a
 word that can be pointed at".
 ```
+
+## One hover target
+
+Above `func point_at(p: Vector2) -> void:`:
+
+```text
+THE CARD IS THE ONLY HOVER TARGET (Nov 24). From T2 (Nov 9) to Nov 24 the
+body was a hover target of its own, MOUSE_FILTER_PASS, with its own
+gui_input and mouse_exited. Every copy of a card that a caller made deaf
+with `mouse_filter = IGNORE` (the gallery's risen card, a part's tooltip,
+the pile list, the ship screen's readout) still had a body that took the
+mouse, because IGNORE on a Control says nothing about its children.
+
+The dev card gallery showed it first. Pointing at the words on the risen
+copy put the pointer on that copy's body. The grid card under it heard
+mouse_exited, the gallery cleared the copy, the grid card heard
+mouse_entered, and the gallery raised a new copy from the grid card's spot.
+That ran once per motion, and Jon saw the card shake ("hovering over the
+underlined words makes the card vibrate").
+
+Now the body is IGNORE. The card's own gui_input passes each motion to
+`point_at`, which measures the word under it (`word_at`, in the body's own
+coordinates). A card with IGNORE is deaf, words and all. Leaving the text
+for the rest of the card measures "" and puts the word out, which is what
+the body's mouse_exited did. A carried card lights nothing.
+```
+
+Inside `setup()`, above `body.mouse_filter = Control.MOUSE_FILTER_IGNORE`:
+
+```text
+The card used to set `mouse_behavior_recursive = MOUSE_BEHAVIOR_ENABLED`
+on itself, for the body's hover to count as the card's own. That setting
+also overrides a parent's MOUSE_BEHAVIOR_DISABLED (the station's sliding
+deck pages, a transfer panel that is not live), so a card in a disabled
+page still took the mouse. It went with the body's hover. The card now
+inherits from its parent as every other control does.
+```

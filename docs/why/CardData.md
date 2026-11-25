@@ -285,6 +285,11 @@ being underlined on the same edit.
 
 Longest first. "Brace from heat" contains "Brace", and replacing the short
 one first would leave markup inside the long one.
+Longest-first was not enough on its own (Bank the Fire, Nov 24): the long
+term's markup is "[url=Brace from heat]...Brace from heat...", which still
+contains "Brace", so the next pass rewrote inside it and the card showed
+"Brace from heat]Brace from heat[/url]". Terms now go to numbered tokens in
+one pass and become markup in a second, so no replacement sees another's tags.
 `live` is what the card will ACTUALLY throw per hit right now -- see
 `Combat.card_output`. -1 means "print what the card was printed with", which
 is what every caller outside a fight passes.
