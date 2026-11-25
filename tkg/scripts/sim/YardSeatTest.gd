@@ -12,6 +12,19 @@ const LEVELS := {"unclaimed": MapGen.Development.UNCLAIMED, "outpost": MapGen.De
 ## (x 126-168) sinks its pair 8. Why: docs/why/YardSeatTest.md#sink-limit
 const SINK_MAX := 8
 
+## Where each tarp's drawn emblem is (centre x, centre y, px a mark unit), measured off the art (Nov 24);
+## the stencilled ones are `TarpMark.AT`'s. Why: docs/why/TarpMark.md#stencil
+const DRAWN_MARKS := {
+	"solari_light": [90, 54, 3], "solari_medium": [145, 67, 4], "solari_heavy": [154, 81, 5],
+	"probate_medium": [121, 65, 4], "probate_heavy": [150, 78, 5],
+	"redline_light": [90, 54, 3], "redline_medium": [61, 63, 4], "redline_heavy": [152, 79, 5],
+	"verity_light": [89, 54, 3], "verity_medium": [148, 65, 4], "verity_heavy": [151, 78, 5],
+	"cygnet_light": [89, 53, 3], "cygnet_medium": [146, 68, 4], "cygnet_heavy": [151, 78, 5],
+}
+## Of an emblem's pixels, at least this share sit further toward the mark colour than nine in ten of the
+## cloth round it: the drawn marks measure 0.59 to 0.88, Calyx's tarps without a stencil 0.03 to 0.13.
+const MARK_SHARE := 0.45
+
 var harness := Harness.new()
 
 
@@ -121,11 +134,71 @@ func _front() -> void:
 			var tag := "posts %s %s tarp" % [m, HullData.weight_name(w)]
 			if not _ok("%s: a tarp on two posts" % tag, s._tarp != null and s._tarp.image != null and s.post_x.size() == 2):
 				continue
-			var path := s._tarp.texture.resource_path
+			var path := s._tarp.file
 			_ok("%s: the manufacturer's own tarp, else Solari's (%s)" % [tag, path.get_file()],
 				path.get_file() == "%s_%s.png" % [m, YardStandSet.TARP_WEIGHT[w]] or path.get_file().begins_with("solari_"))
 			_post_rule(s, tag, false)
+			if m != &"korvan":
+				_emblem_on(s, m, tag)
 	front.free()
+
+
+## Each locked tarp shows its manufacturer's emblem (Jon, Nov 24: "The Calyx Biosystems logo isn't on these
+## ships"): on the yard's art and on the Old hangar's wind texture, which is what the hangar draws.
+func _emblem_on(s: YardStandSet, m: StringName, tag: String) -> void:
+	var stem := s._tarp.file.get_file().get_basename()
+	var at: Array = TarpMark.AT.get(stem, DRAWN_MARKS.get(stem, []))
+	if not _ok("%s: where its emblem is, known (%s)" % [tag, stem], at.size() >= 3 and stem.begins_with(String(m))):
+		return
+	var share := mark_share(s._tarp.image, TarpMark.art_rect(s._tarp.image, 0), m, at)
+	_ok("%s: its %s emblem is on the cloth (share %.2f)" % [tag, m, share], share >= MARK_SHARE)
+	var wind := s._tarp.wind.get_image() if s._tarp.wind != null else null
+	if not _ok("%s: the Old hangar's wind texture" % tag, wind != null):
+		return
+	var ws := mark_share(wind, TarpMark.art_rect(wind, YardStandSet.Tarp.WIND_PAD), m, at)
+	_ok("%s: and in the Old hangar's wind (share %.2f)" % [tag, ws], ws >= MARK_SHARE)
+
+
+## The share of the emblem's opaque pixels further along the mark colour's direction (from the mean of the
+## cloth round it, a unit's margin) than the ring's 90th percentile.
+static func mark_share(img: Image, art: Rect2i, m: StringName, at: Array) -> float:
+	var u := int(at[2])
+	var cells := TarpMark.cells_of(m, Vector2i(int(at[0]), int(at[1])), u)
+	var lo := Vector2i(1 << 20, 1 << 20)
+	var hi := -lo
+	for p: Vector2i in cells:
+		lo = lo.min(p)
+		hi = hi.max(p)
+	var inside: Array[Vector3] = []
+	var ring: Array[Vector3] = []
+	var mo := Vector3.ZERO
+	for y in range(lo.y - u, hi.y + u + 1):
+		for x in range(lo.x - u, hi.x + u + 1):
+			if x < 0 or y < 0 or x >= art.size.x or y >= art.size.y:
+				continue
+			var c := img.get_pixel(art.position.x + x, art.position.y + y)
+			if c.a8 < 255:
+				continue
+			if cells.has(Vector2i(x, y)):
+				inside.append(Vector3(c.r, c.g, c.b))
+			else:
+				ring.append(Vector3(c.r, c.g, c.b))
+				mo += Vector3(c.r, c.g, c.b)
+	if inside.is_empty() or ring.is_empty():
+		return 0.0
+	mo /= float(ring.size())
+	var mc: Color = (DB.manufacturers[m] as ManufacturerData).colour
+	var d := (Vector3(mc.r, mc.g, mc.b) - mo).normalized()
+	var along := PackedFloat32Array()
+	for c in ring:
+		along.append((c - mo).dot(d))
+	along.sort()
+	var q := along[int(along.size() * 0.9)]
+	var n := 0
+	for c in inside:
+		if (c - mo).dot(d) > q:
+			n += 1
+	return float(n) / float(inside.size())
 
 
 ## One berth against the rule, measured off the pictures where they stand in the frame.

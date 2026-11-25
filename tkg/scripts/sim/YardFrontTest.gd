@@ -88,15 +88,28 @@ func _banner_cloth(cs: ChassisSelect) -> void:
 	_ok("clicks under a banner, on the wall and the band, pick nothing", cs.manufacturer() == &"korvan" and cs.open())
 
 
-## A ??? set with nothing picked: no LAUNCH until a tarp is clicked, then grey by the lock line.
+## A ??? set's tarps answer nothing (Jon, Nov 24): the arrow, no tooltip, no hover, and a click on one picks
+## nothing and brings no LAUNCH. Why: docs/why/ChassisSelect.md#tarps-are-not-ships
 func _tarp_click(cs: ChassisSelect) -> void:
 	var solari: YardBanner = cs._yard.banners[1]
 	await _click(cs, solari.global_position + Vector2(YardBanner.MARGIN + 24, 50))
 	_ok("a ??? banner with nothing picked: tarps, the lock line, no LAUNCH", not cs.open()
 		and _band_says(cs, "LOCKED MANUFACTURER") and not cs._band.key.visible)
-	await _click(cs, _mid(cs._yard.set_of(HullData.Weight.MEDIUM)))
-	_ok("a click on a tarp brings LAUNCH up grey beside the lock line", cs._band.key.visible
-		and cs._band.key.disabled and _band_says(cs, Unlocks.lock_line(&"solari").to_upper()) and cs._picked < 0)
+	var tarp: YardStandSet = cs._yard.set_of(HullData.Weight.MEDIUM)
+	var on := _spot(tarp, true)
+	if not _ok("the medium tarp has cloth to point at", on.x >= 0.0 and tarp._has_point(on - tarp.position)):
+		return
+	_ok("a tarp shows the arrow, not the hand, and has no tooltip",
+		tarp.mouse_default_cursor_shape == Control.CURSOR_ARROW and tarp.tooltip_text == "")
+	await _enter(tarp)
+	await Harness.frames(_tree, 12)
+	_ok("pointing at a tarp does nothing: no hover, no blur, the band as it was (hover %d, blur %.2f)"
+		% [cs._yard.hover_w, cs._yard._k], not tarp.hover and cs._hover < 0 and cs._yard.hover_w < 0
+		and cs._yard._k == 0.0 and _band_says(cs, "LOCKED MANUFACTURER") and not cs._band.key.visible)
+	await _enter(null)
+	await _click(cs, on)
+	_ok("a click on a tarp picks nothing and brings no LAUNCH", cs._picked < 0 and not cs._band.key.visible
+		and _band_says(cs, Unlocks.lock_line(&"solari").to_upper()))
 	_fit(cs, "a tarp clicked")
 	await _click(cs, cs._yard.banners[0].global_position + Vector2(YardBanner.MARGIN + 24, 50))
 	_ok("Korvan's banner again: nothing picked, LAUNCH hidden", cs.open() and cs._picked < 0 and not cs._band.key.visible)
@@ -154,10 +167,15 @@ func _locked(cs: ChassisSelect) -> void:
 	cs._launch()
 	cs._band.key.pressed.emit()
 	_ok("pressing LAUNCH under a locked set does nothing", Router.current == was)
-	await _enter(cs._yard.set_of(HullData.Weight.LIGHT))
-	_ok("pointing at a tarp keeps the lock line", _band_says(cs, "LOCKED MANUFACTURER") and not cs.launchable())
+	var light: YardStandSet = cs._yard.set_of(HullData.Weight.LIGHT)
+	await _enter(light)
+	_ok("pointing at a tarp keeps the lock line and hovers nothing", _band_says(cs, "LOCKED MANUFACTURER")
+		and not cs.launchable() and cs._yard.hover_w < 0)
 	_fit(cs, "a locked manufacturer")
 	await _enter(null)
+	await _click(cs, _spot(light, true))
+	_ok("a click on a tarp is not away: the carried pick stays, LAUNCH grey", cs._picked == int(HullData.Weight.MEDIUM)
+		and cs._band.key.visible and cs._band.key.disabled)
 	var korvan: YardBanner = cs._yard.banners[0]
 	await _click(cs, korvan.global_position + Vector2(YardBanner.MARGIN + 24, 50))
 	_ok("Korvan's banner brings the ships, its depot and the pick back", cs.manufacturer() == &"korvan" and cs.open()

@@ -99,6 +99,9 @@ func _launch() -> void:
 	var top := 0.0
 	var right := 0.0
 	var sunk := 0
+	var below := -9999
+	var slot_max := 0
+	var slot_after := -1
 	var lamps0 := cs._yard.room.lamp_k
 	var lamps_moved := 0
 	var light_jump := 0.0
@@ -124,6 +127,13 @@ func _launch() -> void:
 		top = minf(top, berth.position.y - y0)
 		right = maxf(right, berth.position.x - x0)
 		sunk = maxi(sunk, berth.retract)
+		below = maxi(below, post_overrun(berth))
+		var open := 0
+		for wl: YardStandSet.Well in berth._wells:
+			open += wl.opened()
+		slot_max = maxi(slot_max, open)
+		if slot_after < 0 and _t - t0 > ShipLift.SINK_FROM + ShipLift.SINK_S + 0.1:
+			slot_after = open
 		if cs._yard.room.lamp_k != lamps0:
 			lamps_moved += 1
 		var lv := lift.plume.light_level()
@@ -134,6 +144,12 @@ func _launch() -> void:
 		await _tree.process_frame
 	_ok("it rises off its stands (%.0f px), the stands sink (%d rows), the smoke rolls (%d puffs)" % [-top, sunk, smoke],
 		top <= -40.0 and sunk >= 40 and smoke >= 20)
+	# (Jon, Nov 24: "the stands go through the floor") Why: docs/why/ShipRoom.md#posts-sink-into-wells
+	_ok("no post draws a row below its feet in any frame of the launch (at worst %d rows past)" % below,
+		below <= 0 and berth._wells.size() == 2)
+	_ok("they go all the way in (%d of %d rows): each well opens round its post (%d rows open at most) and has closed once it is in (%d)"
+		% [sunk, berth.feet - berth.post_top, slot_max, slot_after],
+		sunk >= berth.feet - berth.post_top and slot_max >= 2 and slot_after == 0)
 	# (Jon's F1: no flicker -- the hall's lamps hold, the engines' light eases)
 	_ok("the hall's lamps hold steady through the lift (%d frames moved), and its own light eases (at most %.3f a frame)" % [
 		lamps_moved, light_jump], lamps_moved == 0 and light_jump <= 0.12)
@@ -260,3 +276,16 @@ func _left_behind(lift: ShipLift, extra: Array) -> bool:
 		if float(l[0]) - float(l[2]) < edge:
 			return true
 	return false
+
+
+## How many rows past its feet the lowest drawn row of a berth's standing posts reaches (0 or less: none),
+## counting the texture's own rows, so a clip that does not hold still fails.
+static func post_overrun(s: YardStandSet) -> int:
+	var worst := -9999
+	for tr in s._posts:
+		if not tr.visible or tr.texture == null:
+			continue
+		var top := s.position.y + tr.position.y
+		var rows := maxf(float(tr.texture.get_height()), tr.size.y)
+		worst = maxi(worst, int(ceilf(top + rows)) - s.feet)
+	return worst

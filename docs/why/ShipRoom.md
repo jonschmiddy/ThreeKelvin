@@ -29,6 +29,31 @@ where `k > 0.35` and ordered-dithered (4x4 Bayer on the frame's grid) in its rim
 fixed Jon's "weird shadow under stand", a near-rectangular block. It is baked once when the posts are placed and
 drawn as a multiply over the room, under the stands.
 
+## posts-sink-into-wells
+
+Jon, Nov 24: "Launching from the ship picker makes the stands go through the floor." LAUNCH sinks the picked
+berth's posts 52 rows (`ShipLift.SINK_PX`, from 0.7 s over 0.8 s). Each post was a `TextureRect` meant to be cut
+at its feet by shrinking its height under `clip_contents`, but a `TextureRect`'s minimum size is its texture's
+(`EXPAND_KEEP_SIZE`), so the height never shrank: the whole post slid down past the floor row, over the floor's
+fade and the band. Now a post draws an `AtlasTexture` of its own top rows, as many as still stand above the floor
+row (`EXPAND_IGNORE_SIZE`, so the rect follows), and nothing is drawn below its feet, clip or not.
+
+So it reads as going into the deck, not behind it, each post gets a well when LAUNCH starts (`YardStandSet.Well`):
+
+- **The slot.** A dark band round the foot, two px wider than the post, opening a row at a time as the post starts
+  down and closing a row at a time as its last rows go in (`min(3, sunk, standing)`). It multiplies the floor by
+  about 0.3, so it is the floor plate's own tone, darker, in any room's light.
+- **The lip.** One row under the slot, its near edge, lit a little (added), as a plate edge catching the lamps.
+- **The contact shadow.** The berth's shadows leave the room's baked picture (`lift_contacts`) and each well
+  draws its post's own (`contact_sprite`, the same ellipse dithered on the frame's grid, so the hand-over is
+  invisible), stepped down in depth and darkness with the post's standing share, gone when it is.
+
+The posts now go all the way in: the lift's 52 sink rows are scaled to each post's own height (76 to 94 rows on
+Korvan's berths), on the same beat, so every slot opens, takes its post and closes. At 52 rows a stub of 24 to 42
+rows was left standing, with nothing to close over. Every room's launch goes through `YardFront.lift_off`, so Korvan's and
+Solari's are the same; the Old hangar has no launch. `ShipLiftTest` checks every frame of a launch that no post
+draws a row below its feet.
+
 ## posts-clear-the-guns
 
 PORT.md's stand rule (Jon, Nov 22: "The stands go through the guns?" and "Why are the clamps over the ship?").

@@ -49,6 +49,8 @@ var post_top: int = 0
 ## The belly guns' spans (with their margin) the posts keep clear of, in frame columns.
 var guns: Array[Vector2i] = []
 var _posts: Array[TextureRect] = []
+## The wells the posts sink into on LAUNCH (`sink_into_floor`), one a post; none at rest.
+var _wells: Array[Well] = []
 ## Rows the posts have sunk into the floor (`ShipLift`, as the hull lifts off).
 var retract: int = 0:
 	set(v):
@@ -75,12 +77,16 @@ func setup(r: ShipRoom, w: HullData.Weight, hull: HullData, kit: Array[ModuleDat
 	_tarp = null
 	mounts = null
 	_posts.clear()
+	_wells.clear()
 	post_x.clear()
 	retract = 0
 	lifted = false
 	position = Vector2.ZERO
 	size = Vector2.ZERO
 	feet = int(ShipRoom.FEET[w])
+	# a locked manufacturer's tarps are not ships: the arrow over them, and no hover or click (Jon, Nov 24)
+	# Why: docs/why/ChassisSelect.md#tarps-are-not-ships
+	mouse_default_cursor_shape = Control.CURSOR_ARROW if tarped else Control.CURSOR_POINTING_HAND
 	if hull != null:
 		_stand_hull(hull, kit)
 	else:
@@ -299,7 +305,13 @@ func _build_posts(over: Image) -> void:
 		if over != null:
 			_contact_line(img, over, at, px)
 		var tr := TextureRect.new()
-		tr.texture = ImageTexture.create_from_image(img)
+		# its standing rows only, so a sinking post draws nothing under its feet
+		# Why: docs/why/ShipRoom.md#posts-sink-into-wells
+		var rows := AtlasTexture.new()
+		rows.atlas = ImageTexture.create_from_image(img)
+		rows.region = Rect2(0, 0, img.get_width(), img.get_height())
+		tr.texture = rows
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		tr.stretch_mode = TextureRect.STRETCH_KEEP
@@ -336,15 +348,42 @@ func _sink_posts() -> void:
 	pin_posts()
 
 
-## The posts where they stand in the frame, however the berth has moved (a launch flies it).
+## LAUNCH: the posts go down into the floor (Jon, Nov 24: "the stands go through the floor"), each into a well
+## at its foot that takes its contact shadow from the room's picture. Why: docs/why/ShipRoom.md#posts-sink-into-wells
+func sink_into_floor() -> void:
+	if not _wells.is_empty() or room == null or _posts.is_empty():
+		return
+	room.lift_contacts(self)
+	for x in post_x:
+		var w := Well.new()
+		w.setup(x, post_w, feet)
+		add_child(w)
+		move_child(w, 0)
+		_wells.append(w)
+	pin_posts()
+
+
+## The lift's sink (`ShipLift.SINK_PX` at its end) as this berth's rows: the posts' whole height, so they go in.
+func sink_rows(rows: int) -> int:
+	return ceili(float(rows) / ShipLift.SINK_PX * float(feet - post_top))
+
+
+## The posts where they stand in the frame, however the berth has moved (a launch flies it): each draws only
+## its rows still over its feet, and its well (if sinking) opens, takes it and closes.
 func pin_posts() -> void:
+	var h0 := feet - post_top
+	var h := clampi(h0 - retract, 0, h0)
 	for i in _posts.size():
 		var tr := _posts[i]
 		if is_instance_valid(tr) and i < post_x.size():
-			var h := maxi(0, feet - post_top - retract)
 			tr.position = Vector2(post_x[i], post_top + retract) - position
-			tr.size.y = h
+			tr.size = Vector2(post_w, h)
+			var at := tr.texture as AtlasTexture
+			if at != null:
+				at.region = Rect2(0, 0, post_w, maxi(1, h))
 			tr.visible = h > 0
+	for w in _wells:
+		w.pose(position, h, h0, retract)
 
 
 ## Grow the control to cover a frame rect, keeping every child where it stands in the frame.
@@ -359,9 +398,9 @@ func _frame_to(at: Vector2i, sz: Vector2i) -> void:
 
 
 func _stand_tarp(manufacturer: StringName) -> void:
-	var tx := load(tarp_file(manufacturer, weight)) as Texture2D
 	_tarp = Tarp.new()
-	_tarp.setup(tx, float(TARP_DELAY[weight]), float(TARP_SEED[weight]))
+	_tarp.file = tarp_file(manufacturer, weight)
+	_tarp.setup(TarpMark.texture(_tarp.file), float(TARP_DELAY[weight]), float(TARP_SEED[weight]))
 	var bb := _tarp.image.get_used_rect() if _tarp.image != null else Rect2i()
 	# the tarps sit hem over the stand tops (PORT.md: hem 34/34/30)
 	var at := Vector2i(int(ShipRoom.CENTRE[weight]) - (bb.position.x + bb.end.x) / 2,
@@ -415,20 +454,24 @@ func on_ink(at: Vector2) -> bool:
 	return img.get_pixel(q.x, q.y).a8 >= 128
 
 
+## A click on a hull picks it; one on a tarp is taken and does nothing (not even the click away).
 func _gui_input(e: InputEvent) -> void:
 	var mb := e as InputEventMouseButton
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 		accept_event()
+		if tarped:
+			return
 		Audio.click()
 		pressed.emit()
 
 
+## A tarp never hovers; leaving always clears, so a hover held over a set that became tarps ends.
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_MOUSE_ENTER:
+	if what == NOTIFICATION_MOUSE_ENTER and not tarped:
 		hover = true
 		Audio.hover()
 		hovered.emit(true)
-	elif what == NOTIFICATION_MOUSE_EXIT:
+	elif what == NOTIFICATION_MOUSE_EXIT and hover:
 		hover = false
 		hovered.emit(false)
 
@@ -453,6 +496,69 @@ func drop_tarp() -> void:
 		_tarp.drop()
 
 
+## A post's well in the floor on LAUNCH: a dark slot round its foot that opens as it starts down and closes
+## as it goes in, a 1 px lit lip on its near edge, and its contact shadow, shrinking as it sinks.
+## Why: docs/why/ShipRoom.md#posts-sink-into-wells
+class Well extends Control:
+	## The slot's rows when open, and the shadow's steps from none to the room's own.
+	const SLOT := 3
+	const STEPS := 6
+	## The slot multiplies the floor (its own tone, darker); the lip adds a little light.
+	const SLOT_TONE := Color(0.3, 0.3, 0.32)
+	const LIP_LIGHT := Color(0.1, 0.09, 0.07)
+	var x := 0
+	var w := 0
+	var feet := 0
+	var _steps: Array[Texture2D] = []
+	var _shadow: TextureRect
+	var _slot: ColorRect
+	var _lip: ColorRect
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func setup(px: int, pw: int, f: int) -> void:
+		x = px
+		w = pw
+		feet = f
+		for i in STEPS + 1:
+			_steps.append(ImageTexture.create_from_image(ShipRoom.contact_sprite(x, w, feet, float(i) / STEPS)))
+		_shadow = TextureRect.new()
+		_shadow.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		_shadow.position = Vector2(ShipRoom.contact_origin(x, feet))
+		_part(_shadow, CanvasItemMaterial.BLEND_MODE_MUL)
+		_slot = ColorRect.new()
+		_slot.color = SLOT_TONE
+		_slot.position = Vector2(x - 1, feet - 1)
+		_part(_slot, CanvasItemMaterial.BLEND_MODE_MUL)
+		_lip = ColorRect.new()
+		_lip.color = LIP_LIGHT
+		_part(_lip, CanvasItemMaterial.BLEND_MODE_ADD)
+
+	func _part(c: Control, blend: CanvasItemMaterial.BlendMode) -> void:
+		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = blend
+		c.material = m
+		add_child(c)
+
+	## The berth at `at` (it flies on LAUNCH; the well stays put), `h` of the post's `h0` rows still standing.
+	func pose(at: Vector2, h: int, h0: int, sunk: int) -> void:
+		position = -at
+		_shadow.texture = _steps[clampi(roundi(float(h) / float(maxi(1, h0)) * STEPS), 0, STEPS)]
+		_shadow.size = _shadow.texture.get_size()
+		var open := mini(SLOT, mini(sunk, h))
+		_slot.visible = open > 0
+		_lip.visible = open > 0
+		_slot.size = Vector2(w + 2, open)
+		_lip.position = Vector2(x - 1, feet - 1 + open)
+		_lip.size = Vector2(w + 2, 1)
+
+	## The slot's open rows now (0 shut).
+	func opened() -> int:
+		return int(_slot.size.y) if _slot.visible else 0
+
+
 ## THE TARP: the art posed row by row in whole pixels. It falls from twelve
 ## rows up, lands, sags, springs back and settles; at rest, every few seconds,
 ## the hall's air ripples the loose hem sideways while the body never moves.
@@ -463,6 +569,8 @@ class Tarp extends Control:
 	## The wind eases in over this long once the tarp has settled.
 	const WIND_IN := 0.6
 	var texture: Texture2D
+	## The art's file (the texture may be a stencilled copy, `TarpMark`, with no path of its own).
+	var file := ""
 	var image: Image
 	var tex_w: int = 0
 	var tex_h: int = 0

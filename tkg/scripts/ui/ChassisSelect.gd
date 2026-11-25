@@ -54,8 +54,6 @@ var _yard: YardFront
 var _band: YardBand
 ## The weight the pointer is on, or -1: its facts show while it is.
 var _hover: int = -1
-## A tarp was clicked under this locked set: LAUNCH shows, grey.
-var _tarp_tried: bool = false
 ## The open banners' hulls not yet handed to the worker (`_bake_ahead`).
 var _to_bake: Array[HullData] = []
 ## LAUNCH pressed: it never fires twice.
@@ -130,24 +128,20 @@ func launchable() -> bool:
 func _select(i: int) -> void:
 	_sel = i
 	_hover = -1
-	_tarp_tried = false
 	if open() and _picked >= 0:
 		_refit()
 	_yard.show_set(manufacturer(), open(), _tier)
 	_yard.set_picked(_picked)
 	_show_band()
-	# The blurb alone: the band and the hull already say its size (Jon, Nov 11).
+	# The blurb alone: the band and the hull already say its size (Jon, Nov 11). A tarp says nothing:
+	# the band holds the lock line. Why: docs/why/ChassisSelect.md#tarps-are-not-ships
 	for s: YardStandSet in _yard.sets.values():
-		s.tooltip_text = Widgets.tip(WEIGHT_BLURB[int(s.weight)]) \
-			if open() else Widgets.tip(Unlocks.lock_line(manufacturer()))
+		s.tooltip_text = Widgets.tip(WEIGHT_BLURB[int(s.weight)]) if open() else ""
 
 
-## A click on a hull picks it: it is the ship until another is clicked.
-## A tarp's click picks nothing, but brings LAUNCH up grey beside the lock line.
+## A click on a hull picks it: it is the ship until another is clicked. A tarp is not a ship.
 func _pick_weight(w: HullData.Weight) -> void:
 	if not open():
-		_tarp_tried = true
-		_show_band()
 		return
 	_picked = int(w)
 	_refit()
@@ -169,10 +163,9 @@ func _gui_input(e: InputEvent) -> void:
 
 
 func deselect() -> void:
-	if _picked < 0 and not _tarp_tried:
+	if _picked < 0:
 		return
 	_picked = -1
-	_tarp_tried = false
 	_yard.set_picked(-1)
 	_show_band()
 
@@ -212,7 +205,7 @@ func _show_band() -> void:
 		_band.show_ship(m, shown == _picked, _yard.tie_point(shown as HullData.Weight), launchable())
 	else:
 		_band.show_rest()
-	_band.arm(_picked >= 0 or (_tarp_tried and not open()))
+	_band.arm(_picked >= 0)
 
 
 func _launch() -> void:
