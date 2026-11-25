@@ -122,6 +122,11 @@ func _hoses(s: YardStandSet) -> void:
 ## whole frames at 30 fps, and a steady lamp hums +-3 %.
 ## Why: docs/why/ShipRoomOld.md#the-lamp
 static func lamp_at(u: float) -> float:
+	return lamp_step(u) * (1.0 + 0.018 * sin(TAU * 3.0 * u / LOOP) + 0.012 * sin(TAU * 7.0 * u / LOOP + 1.0))
+
+
+## The lamp's step `u` into the loop, without the steady hum: 0 out, under 1 a flicker or a stutter, 1 lit.
+static func lamp_step(u: float) -> float:
 	for o: Array in OFFS:
 		var t0 := float(o[0])
 		var ln := float(o[1])
@@ -137,7 +142,12 @@ static func lamp_at(u: float) -> float:
 		var k := int(roundf((u - float(b[0])) * FPS))
 		if k >= 0 and k < steps.size():
 			f = float(steps[k])
-	return f * (1.0 + 0.018 * sin(TAU * 3.0 * u / LOOP) + 0.012 * sin(TAU * 7.0 * u / LOOP + 1.0))
+	return f
+
+
+## The lamp as it is drawn this frame (its schedule times a launch's beat): what its hum follows.
+func level() -> float:
+	return _level
 
 
 func _tick(_dt: float) -> void:

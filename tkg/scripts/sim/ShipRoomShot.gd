@@ -3,7 +3,7 @@ extends Node
 ## The ship-select rooms as a player meets them, to lay beside the approved films:
 ## `room=korvan|solari|old at=0,5,10 out=<dir> [pick=medium] [film=S] [set=calyx]`, with `--fixed-fps 30`
 ## so the room's clock steps as the films' did; needs a window (render.sh). docs/tests.md.
-## Banners: `bt=` `strip=1` `state=1` `banners=off` `events=<json>` `perf=1` `dev=1`; a lift: `launch=1`, `sink=1` (docs/tests.md).
+## Banners: `bt=` `strip=1` `state=1` `banners=off` `events=<json>` `perf=1` `dev=1`; a lift: `launch=1`, `sink=1`; the hangar hall: `hallprobe=1` (docs/tests.md).
 
 var _out := ""
 var _events: Array = []
@@ -64,6 +64,9 @@ func _run() -> void:
 		print("  %-6s thing %s posts %s top %d feet %d guns %s" % [HullData.weight_name(w), s.thing, s.post_x,
 			s.post_top, s.feet, s.guns])
 	var film := float(Harness.arg("film", "0"))
+	# `hallprobe=1`: the hangar's hall measured instead of the room (`HangarSound.probe`)
+	if Harness.arg("hallprobe") == "1":
+		HangarSound.shared().probe()
 	if film > 0.0:
 		var t0 := y.room.t
 		while y.room.t - t0 < film:

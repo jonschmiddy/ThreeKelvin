@@ -311,6 +311,14 @@ static func _handle(j: int, u: float, ue: float, tail: bool, o: Handling) -> voi
 				h.flip = not h.flip
 
 
+## Bay j's trolley on its handling clock `ue` (0 to 60: the cycle it is loaded in and the push out after):
+## its x, or NAN while it is in the doorway.
+static func trolley_at(j: int, ue: float) -> float:
+	var o := Handling.new()
+	_handle(j, fposmod(ue, C.LOOP), ue, ue >= C.LOOP, o)
+	return o.trolleys[0].x if not o.trolleys.is_empty() else NAN
+
+
 static func chalk_top(_j: int, u: float) -> bool:
 	return u >= 25.4 or u < 16.0
 

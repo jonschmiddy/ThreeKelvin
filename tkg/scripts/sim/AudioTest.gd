@@ -69,11 +69,10 @@ func run(tree: SceneTree) -> void:
 	Audio.music_state(&"yard")
 	await _settle()
 	_ok("the yard stops the title cue (plays '%s')" % Audio.cue(), Audio.cue() == &"")
-	Audio.room(Audio.YARD_ROOM)
-	_ok("and plays the yard's bed as the room, at 0 dB", Audio._room_now == Audio.YARD_ROOM
-			and Audio._room != null and Audio._room.playing and Audio._room.stream != null
-			and is_equal_approx(float(Audio.ROOM_LEVELS[Audio.YARD_ROOM]), 0.0))
-	Audio.room(&"")
+	# its rooms play their own beds (`HangarSound`, Jon's Nov 25 picks): no room tone under them
+	var hull_pick := ChassisSelect.new()
+	_ok("and has no room tone of its own", not Audio.ROOM_LEVELS.has(&"yard_bed") and Router._room_for(hull_pick) == &"")
+	hull_pick.free()
 
 	# Read as a table, not by driving a run: the layer bands are arithmetic.
 	_ok("five tiers over %d layers, %d apiece"
