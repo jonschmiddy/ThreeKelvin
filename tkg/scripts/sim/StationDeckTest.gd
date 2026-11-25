@@ -346,8 +346,13 @@ func _chart() -> void:
 	var jump := slot.get_global_rect()
 	var screen_h: float = ch.get_viewport_rect().size.y
 	print("    chart rows end at %.0f, JUMP %.0f to %.0f of %.0f" % [rows_bottom, jump.position.y, jump.end.y, screen_h])
-	_ok("chart: the blurb is off with a star picked, the rows down to danger, fuel and warnings (%d)" % ch._rows.get_child_count(),
-		not ch._dest_blurb.visible and ch._rows.get_child_count() <= 2 + MapGen.hazards(here).size())
+	# (in sensor range the star's own rows stand over them, as TagTest counts them)
+	var star_rows := 0
+	if StarchartScreen.orbits_shown(here, here):
+		star_rows = 5 + (1 if ch._orbits.twin else 0) + (1 if here.type == MapGen.NodeType.PULSAR else 0)
+	_ok("chart: the blurb is off with a star picked, the rows down to danger, fuel and warnings (%d, %d the star's)" % [
+		ch._rows.get_child_count(), star_rows],
+		not ch._dest_blurb.visible and ch._rows.get_child_count() <= 2 + MapGen.hazards(here).size() + star_rows)
 	_ok("chart: JUMP (docked, UNDOCK FIRST in its place) is on screen and below the rows",
 		slot.is_visible_in_tree() and jump.end.y <= screen_h + 0.5 and jump.position.y >= rows_bottom - 0.5)
 

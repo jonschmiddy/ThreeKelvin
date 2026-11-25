@@ -193,6 +193,28 @@ func part_rects_canvas() -> Array[Rect2]:
 	return out
 
 
+## Each gun's picture and its rect in canvas pixels: the ship-select stands keep their
+## posts clear of the guns' own pixels, not their boxes (`YardStandSet.belly_guns`).
+func gun_pictures_canvas() -> Array[Array]:
+	var out: Array[Array] = []
+	if _view == null:
+		return out
+	_place()
+	var c0 := _view.canvas_to_local(Vector2.ZERO)
+	var px := float(_view._k)
+	var k := part_mag()
+	for s in _spots:
+		var m: ModuleData = s.held
+		if not shows(m):
+			continue
+		var g := gun_for(m, s.slot)
+		if g == null or g.tex == null:
+			continue
+		var r := part_rect(m, s.slot, s.at, k)
+		out.append([Rect2((r.position - c0) / px, r.size / px), g.tex.get_image()])
+	return out
+
+
 ## Whatever is on hardpoint `i` of `slot`, on whichever ship this is drawing.
 func _held(slot: ModuleData.Slot, i: int) -> ModuleData:
 	if ship == null:
@@ -398,7 +420,9 @@ func gun_for(m: ModuleData, slot: ModuleData.Slot) -> ShipGun:
 	var h: HullData = ship if ship != null else Run.hull
 	if h == null or m.mount < 0 or m.mount >= h.gun_sides.size():
 		return null
-	return ShipGun.of(m.id, h.gun_sides[m.mount])
+	# An unbranded gun is drawn in the hull manufacturer's colours; a branded one keeps its own.
+	# Why: docs/why/ShipGun.md#manufacturer-drawn-yard-guns
+	return ShipGun.of(m.id, h.gun_sides[m.mount], h.manufacturer if m.manufacturer == &"" else &"")
 
 
 ## A gun at full size; hovered, on its plate's ground and edge as the hold icon would be.

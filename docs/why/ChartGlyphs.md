@@ -13,6 +13,8 @@ hellbender:B you:A party:A".
   start       B  a flag planted: where the run began
   station     A  the sector's DOCK, an arrow into a bay
   pulsar      A  a spinning star throwing two beams, its middle open
+                 (redrawn Nov 22, Jon: the bow "is weird"; now a bright point
+                 throwing two beams on one diagonal, fading out)
   core        A  the sector's black hole in its ring (MapGlyphs &"core", shared)
   quest       A  the sector's map pin (MapGlyphs &"quest", shared), standing on its star
   hellbender  B  a skull with burning eyes: danger must be obvious at a glance

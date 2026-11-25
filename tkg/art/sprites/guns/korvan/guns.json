@@ -1,0 +1,50 @@
+{
+ "beam": {
+  "belly": {
+   "anchor": [
+    23,
+    0
+   ],
+   "file": "beam_belly.png"
+  },
+  "top": {
+   "anchor": [
+    23,
+    23
+   ],
+   "file": "beam_top.png"
+  }
+ },
+ "slug": {
+  "belly": {
+   "anchor": [
+    15,
+    0
+   ],
+   "file": "slug_belly.png"
+  },
+  "top": {
+   "anchor": [
+    15,
+    21
+   ],
+   "file": "slug_top.png"
+  }
+ },
+ "torch": {
+  "belly": {
+   "anchor": [
+    5,
+    0
+   ],
+   "file": "torch_belly.png"
+  },
+  "top": {
+   "anchor": [
+    5,
+    18
+   ],
+   "file": "torch_top.png"
+  }
+ }
+}

@@ -4003,10 +4003,10 @@ func _clean(pl: FlightPlan, strict: bool, st: Dictionary, i: int) -> bool:
 		var tk := pl.t0 + k * pl.sdt
 		# on the last of the approach to a place that itself sits near the star, the
 		# margin gives way to the place's own distance (never into the disc)
-		var kc := keep_clear()
+		var kc := maxf(keep_clear(), MapGravity.lens_of(L))
 		if (n - k) * pl.sdt < 0.6:
 			var ep: Vector3 = pl.end.get("p", q)
-			kc = maxf(minf(kc, Vector2(ep.x, ep.z).length() - 16.0), L.star_r + 8.0)
+			kc = maxf(minf(kc, Vector2(ep.x, ep.z).length() - 16.0), maxf(L.star_r + 8.0, MapGravity.lens_of(L)))
 		if Vector2(q.x, q.z).length() < kc and not (i < 0 and (n - k) * pl.sdt < 0.4):
 			if why:
 				print("    unclean: the star at %.2f s, r %.0f" % [k * pl.sdt, Vector2(q.x, q.z).length()])

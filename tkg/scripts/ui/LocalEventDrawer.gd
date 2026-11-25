@@ -494,8 +494,6 @@ func open(i: int) -> void:
 	head.add_child(later)
 	_box.add_child(head)
 	var words := String(o.get("body", ""))
-	if EncounterDrawer.option_state(node, i).kind == &"left":
-		words = "You walked away from this. It is still open. " + words
 	var cards := _choice_cards(i, o)
 	var lane := HBoxContainer.new()
 	lane.add_theme_constant_override("separation", 10)
@@ -631,8 +629,6 @@ static func place_name(n: MapGen.MapNode, i: int) -> String:
 ## The event on your own ship (`ShipChoices`): the event tag, then the choices on its parts.
 func _ship_event(i: int, o: Dictionary) -> void:
 	var words := String(o.get("body", ""))
-	if EncounterDrawer.option_state(node, i).kind == &"left":
-		words = "You walked away from this. It is still open. " + words
 	put_off = false
 	_ship_play(_on_ship().event(String(o.get("title", "")).to_upper(), _tags(o),
 		EncounterDrawer.tag_colour(o), words), &"event")

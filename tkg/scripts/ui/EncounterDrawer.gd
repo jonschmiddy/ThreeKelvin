@@ -326,21 +326,20 @@ static func opens_fight(c: Dictionary) -> bool:
 
 static func quiet_lines(n: MapGen.MapNode) -> Array:
 	if Run.dead:
-		return ["The ship is lost. The run is over.", "SUMMARY"]
+		return ["The ship is lost.", "SUMMARY"]
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
 		if not Router.at_hellbender(n):
-			return ["The Hellbender is anchored past the last orbit, its holds glowing with what it has taken. It blocks the rest of this system. Fly out to it to engage.", TO_SECTOR]
-		return ["The Hellbender is anchored here, its holds glowing with what it has taken. It blocks the rest of this system.",
-			"ENGAGE THE HELLBENDER"]
+			return ["Fly out to the Hellbender to fight it.", TO_SECTOR]
+		return ["", "ENGAGE THE HELLBENDER"]
 	match n.type:
 		MapGen.NodeType.STATION:
 			# (docks only at the station itself, dock:A; elsewhere the map, to fly there)
 			if not Router.at_station(n):
-				return ["A hab ring turns slowly, lights on. It trades, repairs and refuels, all paid from your one balance. " + Router.DOCK_AWAY, TO_SECTOR]
-			return ["A hab ring turns slowly, lights on. It trades, repairs and refuels, all paid from your one balance.", "DOCK"]
+				return [Router.DOCK_AWAY, TO_SECTOR]
+			return ["", "DOCK"]
 		MapGen.NodeType.SYSTEM:
 			if n.eaten:
-				return ["The Hellbender stripped this system first. The cuts are still fresh.", TO_SECTOR]
+				return ["The Hellbender got here first and took it all.", TO_SECTOR]
 			# The list says what is here; this line only says where you are.
 			var left := 0
 			for i in n.options.size():
@@ -348,24 +347,24 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 					left += 1
 			if n.cleared or left <= 0:
 				# Ruling 7: an empty list only means you took it all, a small subtraction.
-				return ["There is nothing left here for you.", TO_SECTOR]
-			return ["This system still has events open.", TO_SECTOR]
+				return ["Nothing is left in this system.", TO_SECTOR]
+			return ["Some events here are still open.", TO_SECTOR]
 		MapGen.NodeType.PULSAR:
 			if n.cleared:
-				return ["You have already harvested the beam here.",
+				return ["You've already taken fuel from this beam.",
 					TO_SECTOR]
-			return ["A neutron star turns here eleven times a second. Its wind is the densest fuel in the galaxy. To scoop it you must fly close, where the beam cooks you through the hull.",
+			return ["Each pass through the beam adds fuel, hull damage and heat.",
 				"FLY THE BEAM"]
 		MapGen.NodeType.START:
-			return ["Open space, with the reactor running. The core is far in from here.", TO_SECTOR]
+			return ["Head for the core at the center of the galaxy.", TO_SECTOR]
 		# The core waits for the party; the line above the button must name what pressing does.
 		MapGen.NodeType.CORE:
 			if n.cleared:
-				return ["The core is open. Its guard is gone.", TO_SECTOR]
+				return ["The Custodian is dead and the core is open.", TO_SECTOR]
 			if n.fled:
-				return ["You broke off. It still guards the core.", TO_SECTOR]
+				return ["The Custodian is still guarding the core.", TO_SECTOR]
 			if not Router.at_custodian(n):
-				return ["The core fills the viewport. The Custodian guards it from the edge of the disc. Fly out to it to engage.", TO_SECTOR]
-			return ["The core fills the viewport. The Custodian still guards it.", "ENGAGE"]
+				return ["Fly out to the Custodian to fight it.", TO_SECTOR]
+			return ["", "ENGAGE"]
 		_:
 			return ["", TO_SECTOR]

@@ -139,6 +139,13 @@ partner's fight says so; a slow host is waited for, not fought around, and
 an answer that lands after SAVE & EXIT is left again.
 
 
+## unit_orbitpreviewtest
+
+Jon, Nov 22, the destination panel B: a picked system on the star chart shows a
+small map of its orbits. It is read off SystemLayout.of before a visit, so it must
+be what the sector map draws on arrival, and reading it must move nothing. The
+reasoning is in docs/why/OrbitPreviewTest.md.
+
 ## unit_wrecksitetest
 
 Jon, Oct 14: "each planet or POI you can visit should contain its own

@@ -1,0 +1,198 @@
+{
+ "size": [
+  960,
+  540
+ ],
+ "wall_foot": 207,
+ "light_gain": 1.0,
+ "berths": {
+  "light": {
+   "centre": 200,
+   "apart": 84,
+   "feet": 372,
+   "seat": 295,
+   "posts": [
+    158,
+    242
+   ]
+  },
+  "medium": {
+   "centre": 776,
+   "apart": 108,
+   "feet": 372,
+   "seat": 295,
+   "posts": [
+    722,
+    830
+   ]
+  },
+  "heavy": {
+   "centre": 480,
+   "apart": 180,
+   "feet": 334,
+   "seat": 267,
+   "posts": [
+    390,
+    570
+   ]
+  }
+ },
+ "stand_posts": [
+  {
+   "berth": "heavy",
+   "file": "stand_heavy_post0.png",
+   "x": 371,
+   "y": 280,
+   "w": 39,
+   "h": 54
+  },
+  {
+   "berth": "heavy",
+   "file": "stand_heavy_post1.png",
+   "x": 551,
+   "y": 280,
+   "w": 39,
+   "h": 54
+  },
+  {
+   "berth": "light",
+   "file": "stand_light_post0.png",
+   "x": 139,
+   "y": 302,
+   "w": 39,
+   "h": 70
+  },
+  {
+   "berth": "light",
+   "file": "stand_light_post1.png",
+   "x": 223,
+   "y": 302,
+   "w": 39,
+   "h": 70
+  },
+  {
+   "berth": "medium",
+   "file": "stand_medium_post0.png",
+   "x": 703,
+   "y": 312,
+   "w": 39,
+   "h": 60
+  },
+  {
+   "berth": "medium",
+   "file": "stand_medium_post1.png",
+   "x": 811,
+   "y": 312,
+   "w": 39,
+   "h": 60
+  }
+ ],
+ "saddle_over_hull": [],
+ "contact_shadows": [
+  {
+   "x0": 369,
+   "x1": 411,
+   "feet": 334,
+   "length": 6,
+   "dark": 0.5
+  },
+  {
+   "x0": 549,
+   "x1": 591,
+   "feet": 334,
+   "length": 6,
+   "dark": 0.5
+  },
+  {
+   "x0": 137,
+   "x1": 179,
+   "feet": 372,
+   "length": 6,
+   "dark": 0.5
+  },
+  {
+   "x0": 221,
+   "x1": 263,
+   "feet": 372,
+   "length": 6,
+   "dark": 0.5
+  },
+  {
+   "x0": 701,
+   "x1": 743,
+   "feet": 372,
+   "length": 6,
+   "dark": 0.5
+  },
+  {
+   "x0": 809,
+   "x1": 851,
+   "feet": 372,
+   "length": 6,
+   "dark": 0.5
+  }
+ ],
+ "stand_measure": [
+  {
+   "tag": "old A",
+   "berth": "heavy",
+   "post_x": 390,
+   "hull_underside": 284,
+   "stand_top": 280,
+   "stand_feet": 334,
+   "stand_h": 54,
+   "plumb_px": 0.0
+  },
+  {
+   "tag": "old A",
+   "berth": "heavy",
+   "post_x": 570,
+   "hull_underside": 291,
+   "stand_top": 280,
+   "stand_feet": 334,
+   "stand_h": 54,
+   "plumb_px": 0.0
+  },
+  {
+   "tag": "old A",
+   "berth": "light",
+   "post_x": 158,
+   "hull_underside": 315,
+   "stand_top": 302,
+   "stand_feet": 372,
+   "stand_h": 70,
+   "plumb_px": 1.0
+  },
+  {
+   "tag": "old A",
+   "berth": "light",
+   "post_x": 242,
+   "hull_underside": 306,
+   "stand_top": 302,
+   "stand_feet": 372,
+   "stand_h": 70,
+   "plumb_px": 1.0
+  },
+  {
+   "tag": "old A",
+   "berth": "medium",
+   "post_x": 722,
+   "hull_underside": 319,
+   "stand_top": 312,
+   "stand_feet": 372,
+   "stand_h": 60,
+   "plumb_px": 0.5
+  },
+  {
+   "tag": "old A",
+   "berth": "medium",
+   "post_x": 830,
+   "hull_underside": 316,
+   "stand_top": 312,
+   "stand_feet": 372,
+   "stand_h": 60,
+   "plumb_px": 0.5
+  }
+ ],
+ "life": "see PORT.md (life) and life/crew_meta.json; the sprites are the game's Yard sprites, copied into life/"
+}

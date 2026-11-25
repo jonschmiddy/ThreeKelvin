@@ -26,8 +26,9 @@ const EXIT_CLEAR := 190.0
 const PLUME_AT := 0.15
 const SINK_FROM := 0.7
 const SINK_S := 0.8
-## How far the stands sink (front row px) and the rise (front row px, by weight).
-const SINK_PX := 52.0
+## How far the stands' columns sink into their bases (front row rows; their bases never move),
+## and the rise (front row px, by weight). Why: docs/why/ShipLift.md#stands-sink-and-rise
+const SINK_ROWS := 12
 const RISE_PX := {HullData.Weight.LIGHT: 50.0, HullData.Weight.MEDIUM: 46.0, HullData.Weight.HEAVY: 72.0}
 ## The landing, s from its start (Jon, Nov 12: "come in higher, hover over the
 ## stands, and then slowly descend"): in high on the mains, slowing to a hover over
@@ -39,6 +40,9 @@ const LAND_SETTLE_S := 0.25
 const LAND_S := LAND_FLY_S + LAND_HOVER_S + LAND_DOWN_S + LAND_SETTLE_S
 const LAND_JETS_AT := 1.8
 const LAND_PLUME_AT := 2.1
+## Landing, the stands start down in their bases and come up as it slows over them: from the
+## belly jets, over the sink's own `SINK_S`, up as the hover begins (Jon, Nov 25).
+const RAISE_FROM := LAND_JETS_AT
 
 ## The main engines pushing the hull sideways start (`on`) and stop, and how fast
 ## it is going across (px/s, signed): for the thruster layer under the lift's sound.
@@ -108,6 +112,7 @@ static func on_deck(sc: YardScene, v: ShipView, at: Vector2, in_px: float) -> Sh
 	L.plume_k = 0.8
 	L.ceiling_y = 64.0
 	L.sink = func(rows: int) -> void: sc.sink_mine = rows
+	# (landing, they are down from the first frame: `StationScreen.ladder_cam_begin`)
 	v.position = at
 	L.lamps = lamps_of(sc.light, float(YardScene.W))
 	L.setup(v, sc, sc._ships.get_index())
@@ -118,6 +123,11 @@ static func on_deck(sc: YardScene, v: ShipView, at: Vector2, in_px: float) -> Sh
 ## landing comes in and hovers with the hull's top on this row.
 const DECK_K := 0.75
 const DECK_LAND_TOP_Y := 100.0
+
+
+## Rows a lift of size `kk` sinks its stands' columns at most (the deck's: 9).
+static func sunk_rows(kk: float) -> int:
+	return roundi(float(SINK_ROWS) * kk)
 
 
 ## Off the picture by here, and the front door's whole lift.
@@ -274,9 +284,9 @@ func lift_at(t: float) -> void:
 	_pose()
 
 
-## THE LANDING at `t` s (`LAND_S` long): in high on the mains, a hover over the
-## stands on the jets with a bob and the smoke building, a slow descent with the
-## smoke rolling out as it nears the floor, and the stands take the weight.
+## THE LANDING at `t` s (`LAND_S` long): in high on the mains, the stands rising to
+## meet it, a hover over them on the jets with a bob and the smoke building, a slow
+## descent with the smoke rolling out as it nears the floor, and the stands take the weight.
 func land_at(t: float) -> void:
 	_begin(t)
 	var hover_at := LAND_FLY_S
@@ -314,6 +324,9 @@ func land_at(t: float) -> void:
 	plume.strength = 0.3 + 0.55 * near
 	if t >= LAND_PLUME_AT and not plume.fired():
 		plume.fire()
+	# the stands come up out of their bases as it slows over them, the sink run back
+	# Why: docs/why/ShipLift.md#stands-sink-and-rise
+	_sink(1.0 - clampf((t - RAISE_FROM) / SINK_S, 0.0, 1.0))
 	_shake(t, 1.0 if t > hover_at and t < touch_at else 0.0)
 	if t >= touch_at and not _touched:
 		_touched = true
@@ -460,9 +473,10 @@ func _pose() -> void:
 	_jets.queue_redraw()
 
 
+## The stands' columns `e` of the way down into their bases (0 up, 1 `SINK_ROWS` at this lift's size).
 func _sink(e: float) -> void:
 	if sink.is_valid():
-		sink.call(int(floorf(e * SINK_PX * k)))
+		sink.call(roundi(e * float(sunk_rows(k))))
 
 
 func _set_engines(th: int) -> void:

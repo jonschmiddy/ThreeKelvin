@@ -831,3 +831,4 @@ Above `if _palette_mat != null:`:
 frame: the cloud's own `r_flare` is fed only when the worlds' shadows are cast
 again, so a flare's few seconds come and go between two of those)
 ```
+

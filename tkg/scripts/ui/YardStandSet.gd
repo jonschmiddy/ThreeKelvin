@@ -1,33 +1,43 @@
 class_name YardStandSet
 extends Control
 
-## One display berth on the front door: a hull on two of the yard's stands, or a
-## locked manufacturer's tarp. The hull (or tarp) is what you click; the stands
-## are scenery, drawn by depth with the crew (`paint_stands`).
-## Why: docs/why/ChassisSelect.md#banner-yard
+## One berth on the ship-select screen: a hull on two of its room's posts, or a locked
+## manufacturer's tarp. The hull (or tarp) is what you click; the posts stand behind it, placed by
+## PORT.md's rule (clear of the belly guns, both level, tucked behind the belly).
+## Why: docs/why/ShipRoom.md#posts-clear-the-guns
 
 signal pressed
 signal hovered(on: bool)
 
 const WEIGHTS := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
-## Each locked manufacturer's own tarp (Jon, Nov 12), drawn over the Korvan hulls: one canvas
-## per weight for every manufacturer, its left edge from the hull's, and the row inside it
-## that lies on the hull's belly row.
-const TARP_DIR := "tarps/%s_%s.png"
+## Each locked manufacturer's own tarp (Jon, Nov 12); one with none of its own wears Solari's.
+const TARP_DIR := "res://art/sprites/station/yard/tarps/%s_%s.png"
 const TARP_WEIGHT := {HullData.Weight.LIGHT: "light", HullData.Weight.MEDIUM: "medium", HullData.Weight.HEAVY: "heavy"}
-const TARP_ANCHOR := {HullData.Weight.LIGHT: Vector2i(3, 76), HullData.Weight.MEDIUM: Vector2i(4, 89),
-	HullData.Weight.HEAVY: Vector2i(6, 108)}
 ## The tarps drop one after another, the heavy first, and each hem ripples on its own clock.
 const TARP_DELAY := {HullData.Weight.HEAVY: 0.0, HullData.Weight.MEDIUM: 0.18, HullData.Weight.LIGHT: 0.36}
 const TARP_SEED := {HullData.Weight.HEAVY: 0.0, HullData.Weight.MEDIUM: 1.4, HullData.Weight.LIGHT: 2.9}
 const TARP_LIFT := 12
+## A post is 39 wide, centred on its column; a gun's span keeps 3 px either side clear of it.
+const POST_HALF := 19
+const GUN_MARGIN := 3
+## A post seats on the median underside over its column +-8, all 17 present, 12 in from the hull's ends.
+const SEAT_REACH := 8
+const END_IN := 12
+## The pair keeps at least this share of the berth's old spread.
+const MIN_SPREAD := 0.8
+## A post's saddle and cradle: its top rows, kept whole when it is cut or grown.
+const POST_HEAD := 41
+const SHAFT_ROW := 47
+## A post's bolted base (its plate and the housing the column stands in): its bottom rows, the same 18 in all
+## three rooms' pictures. LAUNCH lowers the rest `ShipLift.SINK_ROWS` into it. Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
+const POST_BASE := 18
 
 var weight: HullData.Weight = HullData.Weight.MEDIUM
-var scene: YardScene
+var room: ShipRoom
 var tarped: bool = false
-## The hull (or tarp) box in hall pixels: the click area and what the band ties to.
+## The hull (or tarp) box in frame pixels: the click area and what the band ties to.
 var thing: Rect2i
-## The stands' feet row.
+## The posts' feet row.
 var feet: int = 0
 var hover: bool = false
 
@@ -35,20 +45,21 @@ var _view: ShipView = null
 ## The weapons drawn on the hull (`YardMounts.mount`), or null under a tarp.
 var mounts: MountPoints = null
 var _tarp: Tarp = null
-var _x0: int = 0
-var _belly: int = 0
-var _hull_w: int = 0
-var _stand_x: Array[int] = []
-## The stands' top row and picture: fixed by the berth (`YardSlot`), whatever stands on them.
-var _stand_top: int = 0
-var _stand_img: Image = null
-var _stand_tex: ImageTexture = null
-## The stand's seat row and how far the hull was let down past it.
-var seat: int = 0
-var sink: int = 0
-## Rows the stands have sunk into the floor (`ShipLift`, as the hull lifts off).
-var retract: int = 0
-## Off its stands (`ShipLift`): the floor lamps are baked again without it.
+## Each post's left column, their width and their (level) top row.
+var post_x: Array[int] = []
+var post_w: int = 39
+var post_top: int = 0
+## The belly guns' spans (with their margin) the posts keep clear of, in frame columns.
+var guns: Array[Vector2i] = []
+## Each post's saddle and column (`_posts`, it sinks) and its base (`_bases`, it never moves, drawn over the column).
+var _posts: Array[TextureRect] = []
+var _bases: Array[TextureRect] = []
+## Rows the posts' columns have sunk into their bases (`ShipLift`, as the hull lifts off).
+var retract: int = 0:
+	set(v):
+		retract = v
+		_sink_posts()
+## Off its posts (`ShipLift`).
 var lifted := false
 
 
@@ -57,208 +68,364 @@ func _init() -> void:
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 
-## Stand `hull` here, or the weight's tarp when `hull` is null (the tarp sits
-## where Korvan's hull would, which the tarps were cut for).
-func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData, manufacturer: StringName = &"solari") -> void:
-	scene = sc
+## Stand `hull` with its launch `kit` here, or the weight's tarp when `hull` is null.
+func setup(r: ShipRoom, w: HullData.Weight, hull: HullData, kit: Array[ModuleData], manufacturer: StringName) -> void:
+	room = r
 	weight = w
 	tarped = hull == null
 	for c in get_children():
+		remove_child(c)
 		c.queue_free()
 	_view = null
 	_tarp = null
 	mounts = null
-	feet = YardSlot.feet(w)
-	# the hull's ink, to sit it on the stands
-	var probe := ShipView.new()
-	# a hull on stands: no idle flame, no running lights
-	probe._engines_off = true
-	probe.setup_preview(frame if hull == null else hull, 0, 1)
-	var img := probe.canvas()
-	var ink := _ink(img)
-	_hull_w = maxi(1, ink.size.x)
-	var top := _seat_stands(probe, img, ink)
-	_belly = top + ink.size.y
-	position = Vector2(_x0 - 24, top)
-	size = Vector2(_hull_w + 48, feet - top)
+	_posts.clear()
+	_bases.clear()
+	post_x.clear()
+	retract = 0
+	lifted = false
+	position = Vector2.ZERO
+	size = Vector2.ZERO
+	feet = int(ShipRoom.FEET[w])
+	# a locked manufacturer's tarps are not ships: the arrow over them, and no hover or click (Jon, Nov 24)
+	# Why: docs/why/ChassisSelect.md#tarps-are-not-ships
+	mouse_default_cursor_shape = Control.CURSOR_ARROW if tarped else Control.CURSOR_POINTING_HAND
 	if hull != null:
-		_view = probe
-		_view.position = Vector2(_x0 - ink.position.x, top - ink.position.y) - position
-		_view.size = Vector2(img.get_width(), img.get_height())
-		_view.material = scene._mats[YardPaint.SHIP]
-		_view.self_modulate = YardScene.HULL_TINT
-		scene._parent_material(_view)
-		add_child(_view)
-		thing = Rect2i(_x0, top, _hull_w, ink.size.y)
+		_stand_hull(hull, kit)
 	else:
-		probe.free()
-		_tarp = Tarp.new()
-		_tarp.setup(scene.tex(tarp_file(manufacturer, w)), float(TARP_DELAY[w]), float(TARP_SEED[w]))
-		var a: Vector2i = TARP_ANCHOR[w]
-		var at := Vector2i(_x0 - a.x, _belly - a.y)
-		_tarp.position = Vector2(at.x - 4, at.y - TARP_LIFT) - position
-		_tarp.material = scene._mats[YardPaint.SHIP]
-		add_child(_tarp)
-		thing = Rect2i(at.x, at.y, _tarp.tex_w, _tarp.tex_h)
-		# the control reaches up to where the tarp falls from
-		var grow := float(top - (at.y - TARP_LIFT))
-		if grow > 0.0:
-			position.y -= grow
-			size.y += grow
-			for c in get_children():
-				(c as Control).position.y += grow
+		_stand_tarp(manufacturer)
+
+
+func _stand_hull(hull: HullData, kit: Array[ModuleData]) -> void:
+	var v := ShipView.new()
+	# a hull on stands: no idle flame, no running lights
+	v._engines_off = true
+	v.setup_preview(hull, 0, 1)
+	var body := v.canvas()
+	var b := belly_of(body)
+	# the belly's median row two under the seat, the body's middle on the berth's (PORT.md, "Hulls")
+	var at := Vector2i(int(ShipRoom.CENTRE[weight]) - b.y, int(ShipRoom.SEAT[weight]) + 2 - b.x)
+	var ink := body.get_used_rect()
+	thing = Rect2i(at + ink.position, ink.size)
+	_frame_to(at, Vector2i(body.get_width(), body.get_height()))
+	v.position = Vector2(at) - position
+	v.size = Vector2(body.get_width(), body.get_height())
+	v.material = room.hull_material()
+	v.set_instance_shader_parameter(&"rows", Vector2(thing.position.y, thing.end.y - 1))
+	_view = v
+	add_child(v)
+	mounts = YardMounts.mount(v, hull, kit)
+	var under := undersides(body, at.x, at.y)
+	var pics: Array = mounts.gun_pictures_canvas() if mounts != null else []
+	guns = belly_guns(body, at, under, pics)
+	_place_posts(under, room.tuck(), _hull_with_guns(body, at, pics))
+	v.move_to_front()
+
+
+## Where a hull meets its posts: (the median lowest row over its middle half, its columns' middle).
+static func belly_of(img: Image) -> Vector2i:
+	var r := img.get_used_rect()
+	var x0 := r.position.x
+	var x1 := r.end.x - 1
+	var low: Array[int] = []
+	for c in range(x0 + (x1 - x0) / 4, x1 - (x1 - x0) / 4):
+		for y in range(r.end.y - 1, r.position.y - 1, -1):
+			if img.get_pixel(c, y).a8 > 0:
+				low.append(y)
+				break
+	if low.is_empty():
+		return Vector2i(r.end.y - 1, (x0 + x1) / 2)
+	low.sort()
+	var n := low.size()
+	var med := low[n / 2] if n % 2 == 1 else int(floorf((low[n / 2 - 1] + low[n / 2]) / 2.0))
+	return Vector2i(med, (x0 + x1) / 2)
+
+
+## Per frame column, the lowest opaque row of `img` with its top left at (`x`, `top`); -1 where none.
+static func undersides(img: Image, x: int, top: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	out.resize(ShipRoom.W)
+	out.fill(-1)
+	for c in img.get_width():
+		var X := x + c
+		if X < 0 or X >= ShipRoom.W:
+			continue
+		for y in range(img.get_height() - 1, -1, -1):
+			if img.get_pixel(c, y).a8 > 0:
+				out[X] = top + y
+				break
+	return out
+
+
+## The guns' pixels that hang below the body's median underside less 6 rows, each run of
+## four columns or more with a 3 px margin, in frame columns.
+## Why: docs/why/ShipRoom.md#posts-clear-the-guns
+static func belly_guns(body: Image, at: Vector2i, under: PackedInt32Array, pics: Array) -> Array[Vector2i]:
+	var vals: Array[int] = []
+	for v in under:
+		if v >= 0:
+			vals.append(v - at.y)
+	vals.sort()
+	var mid := vals[vals.size() / 2] if not vals.is_empty() else body.get_height()
+	var low := PackedByteArray()
+	low.resize(body.get_width())
+	for p: Array in pics:
+		_mark_low(body, p[0], p[1], mid - 6, low)
+	var spans: Array[Vector2i] = []
+	var start := -1
+	for x in body.get_width() + 1:
+		var on := x < body.get_width() and low[x] == 1
+		if on and start < 0:
+			start = x
+		elif not on and start >= 0:
+			if x - 1 - start >= 3:
+				spans.append(Vector2i(at.x + start - GUN_MARGIN, at.x + x - 1 + GUN_MARGIN))
+			start = -1
+	return spans
+
+
+## The columns where gun `img` (drawn in canvas rect `r`) has a pixel off the body from row `from` down.
+static func _mark_low(body: Image, r: Rect2, img: Image, from: int, low: PackedByteArray) -> void:
+	if img == null or r.size.x <= 0.0 or r.size.y <= 0.0:
+		return
+	var sx := float(img.get_width()) / r.size.x
+	var sy := float(img.get_height()) / r.size.y
+	for y in range(maxi(int(r.position.y), from), int(r.end.y)):
+		for x in range(int(r.position.x), int(r.end.x)):
+			if x < 0 or x >= body.get_width() or low[x] == 1:
+				continue
+			var gx := int((x - r.position.x) * sx)
+			var gy := int((y - r.position.y) * sy)
+			if gx < 0 or gy < 0 or gx >= img.get_width() or gy >= img.get_height() or img.get_pixel(gx, gy).a8 == 0:
+				continue
+			if y >= 0 and y < body.get_height() and body.get_pixel(x, y).a8 > 0:
+				continue
+			low[x] = 1
+
+
+## The hull with its guns' pixels on it, for the posts' contact line.
+static func _hull_with_guns(body: Image, at: Vector2i, pics: Array) -> Image:
+	var m := body.duplicate() as Image
+	if m.get_format() != Image.FORMAT_RGBA8:
+		m.convert(Image.FORMAT_RGBA8)
+	for p: Array in pics:
+		var r: Rect2 = p[0]
+		var img: Image = p[1]
+		if img == null:
+			continue
+		var g := img.duplicate() as Image
+		g.convert(Image.FORMAT_RGBA8)
+		if Vector2i(r.size) != g.get_size() and r.size.x >= 1.0 and r.size.y >= 1.0:
+			g.resize(int(r.size.x), int(r.size.y), Image.INTERPOLATE_NEAREST)
+		m.blend_rect(g, Rect2i(Vector2i.ZERO, g.get_size()), Vector2i(r.position))
+	m.set_meta(&"at", at)
+	return m
+
+
+## The two posts by the rule: the clear pair nearest the berth's old posts, both level.
+## Why: docs/why/ShipRoom.md#posts-clear-the-guns
+func _place_posts(under: PackedInt32Array, tuck: int, over: Image) -> void:
+	var c0 := int(ShipRoom.CENTRE[weight])
+	var half := int(ShipRoom.APART[weight]) / 2
+	var old := [c0 - half, c0 + half]
+	var x0 := -1
+	var x1 := -1
+	for x in ShipRoom.W:
+		if under[x] >= 0:
+			x1 = x
+			if x0 < 0:
+				x0 = x
+	var cands: Array[int] = []
+	for c in range(x0 + END_IN, x1 - END_IN + 1):
+		if _clear(c) and seat_at(under, c) >= 0:
+			cands.append(c)
+	var spread0 := float(old[1] - old[0])
+	var best := [-1, -1, -1]
+	for a in cands:
+		for b in cands:
+			if float(b - a) < maxf(2.0 * POST_HALF + 4.0, MIN_SPREAD * spread0):
+				continue
+			var cost := absi(a - old[0]) + absi(b - old[1])
+			if best[0] < 0 or cost < best[0]:
+				best = [cost, a, b]
+	if best[0] < 0:
+		# never a post through a gun: say which hull and span, and stand it at the old spots
+		push_error("ship room: no pair of posts clears the %s's belly guns %s" % [HullData.weight_name(weight), guns])
+		best = [0, old[0], old[1]]
+	post_top = mini(seat_at(under, best[1]), seat_at(under, best[2])) - tuck
+	post_x.assign([int(best[1]) - POST_HALF, int(best[2]) - POST_HALF])
+	_build_posts(over)
+
+
+func _clear(c: int) -> bool:
+	for g in guns:
+		if not (c + POST_HALF < g.x or c - POST_HALF > g.y):
+			return false
+	return true
+
+
+## The median underside over a post's column +-8, or -1 unless all 17 columns have one.
+static func seat_at(under: PackedInt32Array, c: int) -> int:
+	var v: Array[int] = []
+	for x in range(c - SEAT_REACH, c + SEAT_REACH + 1):
+		if x >= 0 and x < under.size() and under[x] >= 0:
+			v.append(under[x])
+	if v.size() < 2 * SEAT_REACH + 1:
+		return -1
+	v.sort()
+	return v[v.size() / 2]
+
+
+## A post `h` rows tall from the room's tallest: its head kept, the shaft cut or repeated.
+static func post_rows(src: Image, h: int) -> Image:
+	var w := src.get_width()
+	var out := Image.create(w, maxi(1, h), false, Image.FORMAT_RGBA8)
+	var rest := src.get_height() - POST_HEAD
+	var need := h - POST_HEAD
+	out.blit_rect(src, Rect2i(0, 0, w, mini(POST_HEAD, h)), Vector2i.ZERO)
+	if need <= 0:
+		return out
+	if need <= rest:
+		out.blit_rect(src, Rect2i(0, src.get_height() - need, w, need), Vector2i(0, POST_HEAD))
+		return out
+	var grow := need - rest
+	for k in grow:
+		out.blit_rect(src, Rect2i(0, SHAFT_ROW, w, 1), Vector2i(0, POST_HEAD + k))
+	out.blit_rect(src, Rect2i(0, POST_HEAD, w, rest), Vector2i(0, POST_HEAD + grow))
+	return out
+
+
+## The posts behind the hull: never a pixel over it, and a 1 px dark line where they meet
+## its underside (with its guns), x0.45 (Jon, Nov 22: "Why are the clamps over the ship?").
+## Each is two pieces: its saddle and column, and its bolted base over them, which never moves.
+func _build_posts(over: Image) -> void:
+	var src := room.post_image()
+	if src == null:
+		return
+	post_w = src.get_width()
+	var at: Vector2i = over.get_meta(&"at", Vector2i.ZERO) if over != null else Vector2i.ZERO
+	var h0 := feet - post_top
+	for px in post_x:
+		var img := post_rows(src, h0)
+		if over != null:
+			_contact_line(img, over, at, px)
+		var tex := ImageTexture.create_from_image(img)
+		_posts.append(_post_piece(tex, Rect2(0, 0, post_w, h0 - POST_BASE)))
+		_bases.append(_post_piece(tex, Rect2(0, h0 - POST_BASE, post_w, POST_BASE)))
+	_frame_to(Vector2i(post_x.min(), post_top), Vector2i(post_x.max() + post_w - post_x.min(), h0))
+	pin_posts()
+
+
+## One piece of a post: `rows` of its picture, drawn at their own size and nothing more.
+## Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
+func _post_piece(tex: Texture2D, rows: Rect2) -> TextureRect:
+	var piece := AtlasTexture.new()
+	piece.atlas = tex
+	piece.region = rows
+	var tr := TextureRect.new()
+	tr.texture = piece
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP
+	tr.clip_contents = true
+	tr.material = room.thing_material()
+	add_child(tr)
+	return tr
+
+
+## The post's pixels in the first row under the hull (with its kit), column by column, x0.45.
+func _contact_line(img: Image, over: Image, at: Vector2i, px: int) -> void:
+	for c in img.get_width():
+		var ox := px + c - at.x
+		if ox < 0 or ox >= over.get_width():
+			continue
+		var last := -1
+		for y in range(over.get_height() - 1, -1, -1):
+			if over.get_pixel(ox, y).a8 > 0:
+				last = y
+				break
+		var r := at.y + last + 1 - post_top
+		if last >= 0 and r >= 0 and r < img.get_height():
+			var p := img.get_pixel(c, r)
+			if p.a8 > 0:
+				img.set_pixel(c, r, Color(p.r * 0.45, p.g * 0.45, p.b * 0.45, p.a))
+
+
+## Rows sunk: each column drawn lower and cut where it meets its base.
+func _sink_posts() -> void:
+	pin_posts()
+
+
+## The posts where they stand in the frame, however the berth has moved (a launch flies it): each base on its
+## feet, and over it each column `retract` rows lower, drawing only its rows above the base's top
+## (`YardStands.sunk_post`, as the deck's stands). Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
+func pin_posts() -> void:
+	var cut := YardStands.sunk_post(post_w, feet - post_top, POST_BASE, retract)
+	var h := int(cut[1].size.y)
+	for i in mini(_posts.size(), post_x.size()):
+		var at := Vector2(post_x[i], post_top) - position
+		var tr := _posts[i]
+		if is_instance_valid(tr):
+			tr.position = at + cut[1].position
+			tr.size = cut[1].size
+			(tr.texture as AtlasTexture).region = Rect2(cut[0].position, Vector2(post_w, maxi(1, h)))
+			tr.visible = h > 0
+		var base := _bases[i]
+		if is_instance_valid(base):
+			base.position = at + cut[3].position
+			base.size = cut[3].size
+
+
+## Grow the control to cover a frame rect, keeping every child where it stands in the frame.
+func _frame_to(at: Vector2i, sz: Vector2i) -> void:
+	var r := Rect2(position, size) if size != Vector2.ZERO else Rect2(Vector2(at), Vector2.ZERO)
+	var n := r.merge(Rect2(Vector2(at), Vector2(sz)))
+	var d := n.position - position
+	for c in get_children():
+		(c as Control).position -= d
+	position = n.position
+	size = n.size
+
+
+func _stand_tarp(manufacturer: StringName) -> void:
+	_tarp = Tarp.new()
+	_tarp.file = tarp_file(manufacturer, weight)
+	_tarp.setup(TarpMark.texture(_tarp.file), float(TARP_DELAY[weight]), float(TARP_SEED[weight]))
+	var bb := _tarp.image.get_used_rect() if _tarp.image != null else Rect2i()
+	# the tarps sit hem over the stand tops (PORT.md: hem 34/34/30)
+	var at := Vector2i(int(ShipRoom.CENTRE[weight]) - (bb.position.x + bb.end.x) / 2,
+		int(ShipRoom.SEAT[weight]) + int(ShipRoom.HEM[weight]) - bb.end.y)
+	thing = Rect2i(at, Vector2i(_tarp.tex_w, _tarp.tex_h))
+	_frame_to(Vector2i(at.x - 4, at.y - TARP_LIFT), Vector2i(_tarp.tex_w + 8, _tarp.tex_h + TARP_LIFT + 12))
+	_tarp.material = room.hull_material()
+	_tarp.set_instance_shader_parameter(&"rows", Vector2(at.y + bb.position.y, at.y + bb.end.y - 1))
+	add_child(_tarp)
+	guns.clear()
+	if _tarp.image != null:
+		_place_posts(undersides(_tarp.image, at.x, at.y), room.tuck(), null)
+	_tarp.position = Vector2(at.x - 4, at.y - TARP_LIFT) - position
+	_tarp.move_to_front()
 
 
 ## The manufacturer's tarp for this weight (one with none of its own wears Solari's).
 static func tarp_file(manufacturer: StringName, w: HullData.Weight) -> String:
 	var f := TARP_DIR % [String(manufacturer), String(TARP_WEIGHT[w])]
-	return f if ResourceLoader.exists(YardScene.DIR + f) else TARP_DIR % ["solari", String(TARP_WEIGHT[w])]
+	return f if ResourceLoader.exists(f) else TARP_DIR % ["solari", String(TARP_WEIGHT[w])]
 
 
-## The berth's two stands where `YardSlot` puts them, the same for every
-## manufacturer, and the hull slid and let down onto them as the Shipyard deck
-## seats one (Jon, Nov 11: "floating above"; Nov 12: "the stands don't line up").
-## Returns the hull's top row; sets `_x0`, `seat` and `sink`.
-## Why: docs/why/ChassisSelect.md#fixed-berths
-func _seat_stands(v: ShipView, img: Image, ink: Rect2i) -> int:
-	var st: Dictionary = ((YardScene.doc().get("art", {}) as Dictionary).get("stands", {}) as Dictionary).get("city", {})
-	var si := scene._stand_image(st)
-	var rects := YardSlot.stand_rects(weight)
-	_stand_x.clear()
-	for r in rects:
-		_stand_x.append(r.position.x)
-	_stand_top = rects[0].position.y
-	seat = int(st.get("seat", 0))
-	sink = 0
-	_stand_img = null
-	_stand_tex = null
-	_x0 = int(YardSlot.CENTRE[weight]) - ink.size.x / 2
-	if si == null:
-		return _stand_top + seat - 1 - ink.size.y
-	var s := YardSlot.stand_size(weight)
-	_stand_img = scene._sized(YardSlot.shrink_width(si, s.x), st, s.y)
-	_stand_tex = ImageTexture.create_from_image(_stand_img)
-	var under := PackedInt32Array()
-	under.resize(ink.size.x)
-	for x in ink.size.x:
-		under[x] = -1
-		for y in range(ink.size.y - 1, -1, -1):
-			if img.get_pixel(ink.position.x + x, ink.position.y + y).a8 >= 128:
-				under[x] = y
-				break
-	var r := YardSlot.seat(under, ink.size.x, YardStands.hull_mass_x(img, ink), scene.stand_cap(_stand_img, seat), seat,
-		YardStands.hanging(v, img, ink, under), _stand_x)
-	_x0 = r[0]
-	sink = r[2]
-	# the higher cradle's seat under the belly's row cmin, the hull let down `sink` past it
-	return _stand_top + seat - 1 + sink - r[1]
-
-
-## The stands on the floor, in the hall's depth order (`YardFrontLife`), as
-## the Shipyard deck draws its stands (`YardScene._draw_ships`): the one stand
-## shadow Jon passed for every stand, the stand lit as the deck lights a ship.
-## Why: docs/why/ChassisSelect.md#lit-as-the-shipyard
-func paint_stands(P: YardPaint) -> void:
-	if _stand_tex == null:
-		return
-	var sw := _stand_img.get_width()
-	var sh: Dictionary = (YardScene.doc().get("art", {}) as Dictionary).get("stand_shadow", {})
-	var shadow := scene.tex(String(sh.get("picture", "stand_shadow.png")))
-	for sx in _stand_x:
-		if shadow != null:
-			# (placed by the stand's middle: the heavy's stands are narrower than the picture's 46)
-			P.use(YardPaint.PLAIN)
-			P.tex(shadow, Vector2(float(sx) + float(sw - YardSlot.STAND_W) * 0.5 + float(sh.get("x", -20)), float(feet) + float(sh.get("y", -4))))
-		P.use(YardPaint.SHIP)
-		var shh := _stand_img.get_height()
-		if retract < shh:
-			P.tex(_stand_tex, Vector2(sx, _stand_top + retract), Rect2(0, 0, sw, shh - retract))
-
-
-## The hull's (or the tarp's) pixels as a hull in `map` (RGBA8 bytes, `w` wide),
-## where the floor lamps look for what stands in their way (`YardFrontPools`); returns their box.
-func hull_into(map: PackedByteArray, w: int) -> Rect2i:
-	# (a hull lifting off throws no shadow on its berth's floor any more)
-	if lifted:
-		return Rect2i()
-	if _view != null:
-		var c := _view.canvas()
-		return _stamp(map, w, c, _ink(c), Vector2i(_x0, thing.position.y), 0, true)
-	if _tarp != null and _tarp.image != null:
-		return _stamp(map, w, _tarp.image, Rect2i(Vector2i.ZERO, _tarp.image.get_size()), thing.position, 0, true)
-	return Rect2i()
-
-
-## The hull's (or tarp's) pixels into the light's ship map (R a hull, G a stand),
-## at their hall places, as RGBA8 bytes `map` `w` wide; returns the box the hull's went in.
-func mask_into(map: PackedByteArray, w: int) -> Rect2i:
-	var si := _stand_img
-	if si != null:
-		for sx in _stand_x:
-			_stamp(map, w, si, Rect2i(Vector2i.ZERO, si.get_size()), Vector2i(sx, _stand_top), 1, false)
-	if _view != null:
-		var c := _view.canvas()
-		return _stamp(map, w, c, _ink(c), Vector2i(_x0, thing.position.y), 0, true)
-	if _tarp != null and _tarp.image != null:
-		return _stamp(map, w, _tarp.image, Rect2i(Vector2i.ZERO, _tarp.image.get_size()), thing.position, 0, true)
-	return Rect2i()
-
-
-## `src`'s solid pixels (alpha 128 up) as opaque 255 in channel `ch` (0 R, 1 G), in bytes:
-## `get_pixel` and `set_pixel` took 15 ms a banner. A stand (`over` false) never covers a hull.
-static func _stamp(map: PackedByteArray, w: int, src: Image, ink: Rect2i, at: Vector2i, ch: int, over: bool) -> Rect2i:
-	var s := src
-	if s.get_format() != Image.FORMAT_RGBA8:
-		s = src.duplicate() as Image
-		s.convert(Image.FORMAT_RGBA8)
-	var sd := s.get_data()
-	var sw := s.get_width()
-	var h := map.size() / (4 * w)
-	var lo := Vector2i(w, h)
-	var hi := Vector2i(-1, -1)
-	for y in ink.size.y:
-		var Y := at.y + y
-		if Y < 0 or Y >= h:
-			continue
-		var si := ((ink.position.y + y) * sw + ink.position.x) * 4 + 3
-		for x in ink.size.x:
-			var X := at.x + x
-			if sd[si + x * 4] < 128 or X < 0 or X >= w:
-				continue
-			var o := (Y * w + X) * 4
-			if over or map[o] == 0:
-				map[o] = 255 if ch == 0 else 0
-				map[o + 1] = 255 if ch == 1 else 0
-				map[o + 2] = 0
-				map[o + 3] = 255
-				lo = Vector2i(mini(lo.x, X), mini(lo.y, Y))
-				hi = Vector2i(maxi(hi.x, X), maxi(hi.y, Y))
-	return Rect2i(lo, hi - lo + Vector2i.ONE) if hi.x >= 0 else Rect2i()
-
-
-## The box of a picture's opaque pixels.
-static func _ink(img: Image) -> Rect2i:
-	if img == null:
-		return Rect2i()
-	var r := img.get_used_rect()
-	return r
-
-
-## Where the band's tie line meets this berth: the heavy's on its left stand,
-## clear of the crew between its stands; the others at the hull's middle.
+## Where the band's words tie to this berth: the hull's middle at its posts' feet.
 func tie_point() -> Vector2:
-	var heavy := weight == HullData.Weight.HEAVY and not _stand_x.is_empty()
-	var x := _stand_x[0] + YardSlot.stand_size(weight).x / 2 if heavy else thing.position.x + thing.size.x / 2
-	return Vector2(x, feet - 2)
+	return Vector2(thing.position.x + thing.size.x / 2, feet - 2)
 
 
-## Only the hull's or the tarp's own pixels are the thing: the stands, the air and
+## Only the hull's or the tarp's own pixels are the thing: the posts, the air and
 ## the box's empty corners are "away", where a click clears the pick (Jon, Nov 11).
 func _has_point(p: Vector2) -> bool:
 	return on_ink(p + position)
 
 
-## Is the hall point `at` on the hull's (or the settled tarp's) opaque pixels?
+## Is the frame point `at` on the hull's (or the settled tarp's) opaque pixels?
 func on_ink(at: Vector2) -> bool:
 	if not thing.has_point(Vector2i(at)):
 		return false
@@ -278,34 +445,38 @@ func on_ink(at: Vector2) -> bool:
 	return img.get_pixel(q.x, q.y).a8 >= 128
 
 
+## A click on a hull picks it; one on a tarp is taken and does nothing (not even the click away).
 func _gui_input(e: InputEvent) -> void:
 	var mb := e as InputEventMouseButton
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 		accept_event()
+		if tarped:
+			return
 		Audio.click()
 		pressed.emit()
 
 
+## A tarp never hovers; leaving always clears, so a hover held over a set that became tarps ends.
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_MOUSE_ENTER:
+	if what == NOTIFICATION_MOUSE_ENTER and not tarped:
 		hover = true
 		Audio.hover()
 		hovered.emit(true)
-	elif what == NOTIFICATION_MOUSE_EXIT:
+	elif what == NOTIFICATION_MOUSE_EXIT and hover:
 		hover = false
 		hovered.emit(false)
 
 
 ## The lit material the sharp copy over the blur draws with.
 func sharp_material() -> Material:
-	return scene._mats[YardPaint.SHIP]
+	return room.hull_material() if room != null else null
 
 
-## The hull or the tarp alone, drawn into `ci` at its own place on the hall:
-## the sharp copy the hover lays over the blurred yard.
+## The hull or the tarp alone, drawn into `ci` at its own place on the frame:
+## the sharp copy the hover lays over the blurred room.
 func draw_sharp(ci: CanvasItem, origin: Vector2) -> void:
 	if _view != null:
-		ci.draw_texture_rect(_view.texture, Rect2(_view.global_position - origin, _view.size), false, YardScene.HULL_TINT)
+		ci.draw_texture_rect(_view.texture, Rect2(_view.global_position - origin, _view.size), false)
 	elif _tarp != null:
 		_tarp.paint(ci, _tarp.global_position - origin)
 
@@ -319,13 +490,22 @@ func drop_tarp() -> void:
 ## THE TARP: the art posed row by row in whole pixels. It falls from twelve
 ## rows up, lands, sags, springs back and settles; at rest, every few seconds,
 ## the hall's air ripples the loose hem sideways while the body never moves.
+## A room may give it wind instead (`set_wind`): its material moves the cloth.
 class Tarp extends Control:
+	## A wind texture's margin round the art, each side and below.
+	const WIND_PAD := 6
+	## The wind eases in over this long once the tarp has settled.
+	const WIND_IN := 0.6
 	var texture: Texture2D
+	## The art's file (the texture may be a stencilled copy, `TarpMark`, with no path of its own).
+	var file := ""
 	var image: Image
 	var tex_w: int = 0
 	var tex_h: int = 0
 	var delay: float = 0.0
 	var seed_s: float = 0.0
+	## The room's wind texture (the art padded by WIND_PAD, its hold field under it), or null.
+	var wind: Texture2D = null
 	var _u: float = -1.0
 	var _dropping: bool = false
 	var _last_key := ""
@@ -350,9 +530,18 @@ class Tarp extends Control:
 		_u = -delay
 		_dropping = true
 
+	## Draw the cloth from a room's wind texture: its material ripples it in place (Old hangar).
+	func set_wind(t: Texture2D) -> void:
+		wind = t
+		queue_redraw()
+
+	## How much of the wind the cloth takes: none while it drops, easing in once it has settled.
+	func wind_k() -> float:
+		return clampf((maxf(_u, 0.0) - 0.56) / WIND_IN, 0.0, 1.0)
+
 	func _process(dt: float) -> void:
 		_u += dt
-		var key := str(pose())
+		var key := str(pose()) + (str(snappedf(wind_k(), 0.02)) if wind != null else "")
 		if key != _last_key:
 			_last_key = key
 			queue_redraw()
@@ -388,19 +577,28 @@ class Tarp extends Control:
 		var flutter := float(p[3])
 		var ox := at.x + 4.0
 		var oy := at.y + TARP_LIFT
+		# with wind, the rows come from the wind texture (art WIND_PAD in), its draw colour saying how much wind
+		var tx := wind if wind != null else texture
+		var sx := float(WIND_PAD) if wind != null else 0.0
 		if lift != 0.0 or stretch != 0.0 or sag != 0.0:
+			var still := Color(0.0, 1.0, 1.0, 1.0) if wind != null else Color.WHITE
 			var last_y := -1000
 			for r in tex_h:
 				var f := float(r) / float(maxi(1, tex_h - 1))
 				var y := r + int(round(lift - stretch * (1.0 - f) + sag * f * f))
-				var row := Rect2(0, r, tex_w, 1)
+				var row := Rect2(sx, r, tex_w, 1)
 				# a row that leaves a gap under the one above fills it with itself
 				while last_y > -1000 and last_y + 1 < y:
 					last_y += 1
-					ci.draw_texture_rect_region(texture, Rect2(ox, oy + last_y, tex_w, 1), row)
+					ci.draw_texture_rect_region(tx, Rect2(ox, oy + last_y, tex_w, 1), row, still)
 				if y > last_y:
-					ci.draw_texture_rect_region(texture, Rect2(ox, oy + y, tex_w, 1), row)
+					ci.draw_texture_rect_region(tx, Rect2(ox, oy + y, tex_w, 1), row, still)
 					last_y = y
+			return
+		if wind != null:
+			var pad := float(WIND_PAD)
+			var box := Vector2(tex_w + 2.0 * pad, tex_h + pad)
+			ci.draw_texture_rect_region(wind, Rect2(Vector2(ox - pad, oy), box), Rect2(Vector2.ZERO, box), Color(wind_k(), 1.0, 1.0, 1.0))
 			return
 		var hem := maxi(0, tex_h - 12)
 		ci.draw_texture_rect_region(texture, Rect2(ox, oy, tex_w, hem), Rect2(0, 0, tex_w, hem))

@@ -100,10 +100,12 @@ static func stand_image(st: Dictionary, _stand_cache: Dictionary) -> Image:
 	return _stand_cache[name]
 
 
-## A stand made h tall by repeating a row, or cutting rows where the sides match best.
+## A stand made h tall by repeating a row, or cutting rows where the sides match best; its meta
+## `base` is how many of its bottom rows are the picture's bolted base (`st.base`) as it came out.
 static func sized(si: Image, st: Dictionary, h: int, level: String, dial: Dictionary) -> Image:
 	var w := si.get_width()
 	var sh := si.get_height()
+	var base := clampi(int(st.get("base", 0)), 0, sh)
 	if h >= sh:
 		var row := int(st.get("row", int(floorf(float(sh) * 0.6))))
 		var extra := h - sh
@@ -111,6 +113,7 @@ static func sized(si: Image, st: Dictionary, h: int, level: String, dial: Dictio
 		for y in h:
 			var sy := y if y <= row else (row if y <= row + extra else y - extra)
 			out.blit_rect(si, Rect2i(0, sy, w, 1), Vector2i(0, y))
+		out.set_meta(&"base", base + (extra if row >= sh - base else 0))
 		return out
 	var n := sh - h
 	var cut: Array = st.get("cut", [0, sh])
@@ -137,4 +140,19 @@ static func sized(si: Image, st: Dictionary, h: int, level: String, dial: Dictio
 	var out2 := Image.create(w, h, false, Image.FORMAT_RGBA8)
 	out2.blit_rect(si, Rect2i(0, 0, w, best_a), Vector2i.ZERO)
 	out2.blit_rect(si, Rect2i(0, best_a + n, w, sh - best_a - n), Vector2i(0, best_a))
+	# (a cut reaching into the base takes those rows out of it)
+	out2.set_meta(&"base", base - maxi(0, best_a + n - maxi(best_a, sh - base)))
 	return out2
+
+
+## A stand `h` rows tall whose bottom `base` rows are its bolted base, its column sunk `rows` into
+## it: [the column's rows, where they draw, the base's rows, where it draws], in the stand's own
+## pixels (its top left at rest is 0,0). The base never moves and is drawn over the column; the
+## column draws only its rows above the base's top. The hull pick's posts and the deck's stands.
+## Why: docs/why/ShipLift.md#stands-sink-and-rise
+static func sunk_post(w: int, h: int, base: int, rows: int) -> Array[Rect2]:
+	var top := clampi(h - base, 0, h)
+	var r := clampi(rows, 0, top)
+	var col := float(top - r)
+	var out: Array[Rect2] = [Rect2(0, 0, w, col), Rect2(0, r, w, col), Rect2(0, top, w, h - top), Rect2(0, top, w, h - top)]
+	return out

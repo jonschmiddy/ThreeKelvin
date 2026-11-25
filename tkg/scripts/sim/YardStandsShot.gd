@@ -64,16 +64,8 @@ func _shot(name: String) -> void:
 	print("  wrote %s/%s.png (%dx%d)" % [_out, name, img.get_width(), img.get_height()])
 
 
-## The floor lamps' light under each hull against beside its berth: the hulls'
-## shadows in the pools, measured off the baked pools.
+## Where each berth's posts stand and how tall, as the rule placed them.
 func _shadows(y: YardFront) -> void:
-	var L := y.scene.light
 	for w: HullData.Weight in y.sets:
 		var s: YardStandSet = y.sets[w]
-		var f := s.feet - 6
-		var under := 0.0
-		var beside := 0.0
-		for dx in range(-20, 21, 4):
-			under += L.bay_at(s.thing.position.x + s.thing.size.x / 2 + dx, f)
-			beside += maxf(L.bay_at(s.thing.position.x - 70 + dx, f), L.bay_at(s.thing.end.x + 70 + dx, f))
-		print("  pools %-6s under the hull %.2f, beside the berth %.2f" % [HullData.weight_name(w), under / 11.0, beside / 11.0])
+		print("  posts %-6s at %s top %d feet %d, guns %s" % [HullData.weight_name(w), s.post_x, s.post_top, s.feet, s.guns])

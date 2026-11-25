@@ -52,7 +52,7 @@ func fill(n: MapGen.MapNode) -> void:
 	var doors: Array = []
 	card = false
 	if Run.dead:
-		line = "The ship is lost. The run is over."
+		line = "The ship is lost."
 		doors = [["SUMMARY", Router.show_game_over]]
 		card = true
 	elif Router.final_loot:

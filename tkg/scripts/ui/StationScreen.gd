@@ -2573,8 +2573,7 @@ func ladder_cam_begin(_other: int, seam: int, design: String) -> void:
 	var rail_x := NAN
 	if _rail != null and is_instance_valid(_rail):
 		rail_x = _rail.position.x
-	# (3B: from off the picture -- past the yard's own hall run on to the left --
-	# so the yard is seen empty first, and your ship comes in)
+	# (3B: from off the picture, past the yard's hall run on to the left: the yard seen empty, then your ship)
 	var past := YardScene.EDGE_W + 8.0 if design == "B" else 0.0
 	_lad = {"pos": _mine_view.position, "rail_x": rail_x, "out": going,
 		"off": _mine_view.position.x + float(_mine_view.size.x) + 24.0 + past, "design": design}
@@ -2583,6 +2582,7 @@ func ladder_cam_begin(_other: int, seam: int, design: String) -> void:
 		_rail.modulate.a = 0.0
 	if _scene != null:
 		_scene.hide_mine = true
+		_scene.sink_mine = 0 if going else ShipLift.sunk_rows(ShipLift.DECK_K)  # (landing: down till `land_at` raises them)
 		_scene.queue_redraw()
 
 
@@ -2594,11 +2594,10 @@ func ladder_cam(k: float) -> void:
 		return
 	# The hull enters over the last 70% of the way, slowing, then settles onto its stands.
 	var q := clampf((1.0 - k) / 0.7 - (0.3 / 0.7), 0.0, 1.0) if k < 1.0 else 0.0
-	# (3B: the ladder gives the yard its own stretch after the pan, all of it
-	# the flight in)
-	if String(_lad.get("design", "")) == "B":
-		q = clampf(1.0 - k, 0.0, 1.0)
+	# (3B: the ladder gives the yard its own stretch after the pan, all of it the flight in)
 	var b_motion := String(_lad.get("design", "")) == "B"
+	if b_motion:
+		q = clampf(1.0 - k, 0.0, 1.0)
 	# (3B: the ladder shapes the one motion -- `q` is already where it is)
 	var fly := q if b_motion else 1.0 - pow(1.0 - q, 3.0)
 	var settle := clampf((q - 0.7) / 0.3, 0.0, 1.0)
@@ -2730,6 +2729,7 @@ func ladder_cam_end() -> void:
 		_mine_view.position = _lad.pos
 	if _scene != null and is_instance_valid(_scene):
 		_scene.hide_mine = false
+		_scene.sink_mine = _scene.sink_mine if bool(_lad.get("out", false)) else 0  # (a landing cut short: stands up)
 		_scene.queue_redraw()
 	var rx := float(_lad.rail_x)
 	_lad = {}

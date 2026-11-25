@@ -925,7 +925,7 @@ func _rebuild_drawer(n: MapGen.MapNode) -> void:
 		return
 	_size_drawer(n)
 	if Run.dead:
-		_drawer_simple("The ship is lost. The run is over.", "SUMMARY")
+		_drawer_simple("The ship is lost.", "SUMMARY")
 		return
 	# THE CORE WON, ITS BODY STILL SHUT: one line, and the body the one thing
 	# to do -- no jump, no way off (`Router.final_loot`).

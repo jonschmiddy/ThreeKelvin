@@ -294,7 +294,7 @@ func _build() -> void:
 	_neigh_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_neigh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_neigh_scroll.add_child(_neigh)
-	right.add_child(_neigh_scroll)
+	_build_star_box(right)
 	_jump = Widgets.button("JUMP", _on_jump)
 	_jump_plate(_jump)
 	right.add_child(_jump)
@@ -406,10 +406,10 @@ const PRIMER_W := 460
 ## Two of the three lines were wrong: one promised what `can_jump_to` forbids, one inverted.
 ## Why: docs/why/StarchartScreen.md#primer-legend-text
 const PRIMER_LEGEND: Array[String] = [
-	"A system's colour is its star: pale is ordinary, red and blue are rarer.",
-	"You fly as far as THRUSTER REACH, and two rings deeper a jump at most. You see as far as SENSOR RANGE. Past your sight a jump is refused: NOT SCANNED.",
-	"Each row shows danger, then fuel. Full danger beside empty fuel is a cheap, deadly jump.",
-	"Danger has five steps: EASY, ROUGH, HARD, BRUTAL and LETHAL. A more dangerous system offers more.",
+	"Pale stars are common, and red and blue ones are rare.",
+	"You can jump as far as THRUSTER REACH and two rings deeper, but only inside SENSOR RANGE.",
+	"Each row shows how dangerous the system is and how much fuel it takes to get there.",
+	"Danger runs from EASY to LETHAL, and the harder ones pay more.",
 ]
 
 ## A star inside the reach ring is refused on its FUEL row: a jump goes two rings deeper at most.
@@ -435,21 +435,21 @@ func _primer_cost() -> Array[String]:
 	var dens: float = float(Run.galaxy.get("density", 1.0))
 	# Sentences, not rows: this is the galaxy talking, and 'Tight.' lost the good half.
 	if reach >= 1.08:
-		out.append("A wide disc. The crossings are long, and each one costs fuel.")
+		out.append("Systems are far apart, and each jump costs a lot of fuel.")
 	elif reach <= 0.85:
-		out.append("A tight disc. Systems sit close together, so a tank goes further here.")
+		out.append("Systems sit close together, so fuel goes further.")
 	if dens >= 1.15:
-		out.append("It has many systems. There are more places to stop than you can afford.")
+		out.append("There are more systems here than one tank can visit.")
 	elif dens <= 0.80:
-		out.append("It has few systems. Some stretches have nothing in them.")
+		out.append("There are few systems, with long empty gaps between them.")
 	# `hop_distance` divides y by squash, so fuel follows round distance, not drawn distance.
 	# Measured on a Lenticular: the same drawn gap costs 3 fuel sideways and 6 vertically.
 	# Why: docs/why/StarchartScreen.md#squash-anisotropy
 	var sq: float = float(Run.galaxy.get("squash", 1.0))
 	if sq < 0.5:
-		out.append("It is steeply tilted, so the chart misleads on distance. A gap up or down costs far more than the same gap sideways.")
+		out.append("The galaxy is tilted, so a jump up or down costs more fuel than it looks on the chart.")
 	if out.is_empty():
-		out.append("It is ordinary to cross, with no unusual distances or gaps.")
+		out.append("Distances here are normal.")
 	return out
 
 
@@ -564,6 +564,7 @@ func _refresh() -> void:
 	_quest_marks()
 
 	if _selected < 0:
+		_show_list(true)
 		_fill_neighbours(here)
 		# Two different nothings: nothing chosen, versus nothing possible.
 		if _anywhere_to_go():
@@ -572,14 +573,12 @@ func _refresh() -> void:
 			_class("%s - %s" % [
 				Run.galaxy_name, GalaxyGen.type_name(Run.galaxy_kind).to_upper()])
 			_blurb(GalaxyGen.blurb(Run.galaxy_kind))
-			# The count stays: blanking it left the start of a run with a list and no number above.
-			# Why: docs/why/StarchartScreen.md#neighbour-count-hint
 		else:
 			_dest_name.text = "NOWHERE"
 			_class("")
-			_blurb("No jump you can afford. The tank is dry.")
+			_blurb("Not enough fuel to reach any system.")
 			# Not repeated here, as the header already said it: the same sentence twice.
-			_hint.text = ""
+			_say("")
 		_lock_jump()
 		return
 
@@ -600,7 +599,8 @@ func _refresh() -> void:
 		# Said plainly rather than left as four blank rows. An absence the player
 		# can read is information; an absence they have to notice is a bug.
 		_rows.add_child(_row("SURVEY", "NONE"))
-		_hint.text = "They gave you a position and nothing else."
+		_say("")
+		_fill_star(t, here)
 		_jump.disabled = not Run.can_jump_to(t)
 		_jump_to.text = MapGen.star_name(t) if not _jump.disabled else ""
 		_berth_lock()
@@ -617,7 +617,7 @@ func _refresh() -> void:
 	# Q1, Nov 9). The panel keeps what decides the jump: danger, fuel, warnings.
 	# Why: docs/why/StarchartScreen.md#jump-plate
 	_blurb("")
-	_rows.add_child(_danger_row(t.danger))
+	_star_head(t, here)
 
 	# Out of range is a different answer from "cannot afford it", and quoting a
 	# price for a jump the drive cannot make at all is the wrong answer twice.
@@ -646,8 +646,8 @@ func _refresh() -> void:
 	for i in hz.size():
 		_rows.add_child(_row("WARNING" if i == 0 else "", hz[i], _WARN))
 
-	# Names what is in reach: a bare count left you hunting the chart for the places.
-	_fill_neighbours(here)
+	# The star's orbits and facts take the list's place (Jon, Nov 22, B).
+	_fill_star(t, here)
 
 	# Two different reasons a jump is impossible, and they need different words:
 	# no route at all, versus a route you cannot currently pay for.
@@ -752,12 +752,11 @@ func _fill_neighbours(here: MapGen.MapNode) -> void:
 			return rx < ry
 		return MapGen.hop_distance(here, x) < MapGen.hop_distance(here, y))
 	if near.is_empty():
-		_hint.text = "Nothing in range. The tank is too low to reach anything."
+		_say("Not enough fuel to reach any system.")
 		return
-	# Only the count: it decides farm or dive before a row is read; the rest was rows read aloud.
+	# No IN RANGE count over the list (Jon, Nov 22: "You can remove the In range").
 	# Why: docs/why/StarchartScreen.md#neighbour-count-hint
-	_hint.text = "IN RANGE - %d SYSTEM%s" % [
-		near.size(), "" if near.size() == 1 else "S"]
+	_say("")
 	for n in near:
 		_neigh.add_child(_neighbour_row(n))
 	# Nothing set here: `custom_minimum_size` is a demand, and pushed JUMP off screen.
@@ -871,6 +870,133 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 		MapGen.tier_name(n.danger), cost]
 	return b
 
+## A PICKED STAR (Jon, Nov 22): under its name the star itself, then one list of its facts with
+## DANGER, FUEL and WARNING, then what is in it over its orbit map, where the in-range list stands
+## with nothing picked. Why: docs/why/ChartOrbits.md#what-it-shows
+var _star_pic: Control
+var _star_box: VBoxContainer
+var _orbits: ChartOrbits
+var _star_counts: Label
+## The beam's line, the pulsar card's own words (`SystemPanel`), beside the WARNING it explains.
+const BEAM_LINE := "Each pass through the beam adds fuel, hull damage and heat."
+const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
+## The picture's height, and each sun's drawn radius by kind (the map's own `STAR_R` order).
+const PIC_H := 52
+const PIC_R := {SystemLayout.StarKind.RED: 21.0, SystemLayout.StarKind.BLUE: 15.0}
+const PIC_R_SUN := 12.0
+
+
+## The list's box, then the star's box under it in the same slack; the picture over the rows.
+func _build_star_box(right: VBoxContainer) -> void:
+	right.add_child(_neigh_scroll)
+	_star_pic = Control.new()
+	_star_pic.name = "StarPicture"
+	_star_pic.custom_minimum_size = Vector2(228, PIC_H)
+	_star_pic.clip_contents = true
+	_star_pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_star_pic.visible = false
+	right.add_child(_star_pic)
+	right.move_child(_star_pic, _rows.get_index())
+	_star_box = VBoxContainer.new()
+	_star_box.name = "StarBox"
+	_star_box.add_theme_constant_override("separation", 3)
+	_star_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_star_box.visible = false
+	# the counts over the orbit map (Jon, Nov 23)
+	_star_counts = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
+	_star_counts.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_star_counts.custom_minimum_size = Vector2(228, 0)
+	_star_box.add_child(_star_counts)
+	_orbits = ChartOrbits.new()
+	_star_box.add_child(_orbits)
+	right.add_child(_star_box)
+
+
+## The picture and the star's own rows, then DANGER (the first of the jump's rows).
+func _star_head(t: MapGen.MapNode, here: MapGen.MapNode) -> void:
+	var on := orbits_shown(t, here)
+	_star_pic.visible = on
+	if on:
+		_orbits.show_system(t)
+		_paint_star(t)
+		_rows.add_child(_row("STAR", _orbits.fact("kind"), _orbits.star_col.lightened(0.15)))
+		for k in [["RADIUS", "radius"], ["MASS", "mass"], ["TEMP", "temp"], ["LUMINOSITY", "lum"]]:
+			_rows.add_child(_row(k[0], _orbits.fact(k[1])))
+		if _orbits.twin:
+			_rows.add_child(_row(MapGen.BINARY, ChartOrbits.second_sun(), ChartOrbits.SUN_B))
+	_rows.add_child(_danger_row(t.danger))
+
+
+## The star as the sector map paints it (`SunView`, a pair's two placed as `SystemPanel._twin_head`
+## places them). A pulsar is drawn in the chart's style instead: its map painter is a
+## 480 x 320 animated box tied to the map's rect and sky flash, not a portrait.
+func _paint_star(t: MapGen.MapNode) -> void:
+	Widgets.clear(_star_pic)
+	var L := _orbits.layout
+	var mid := Vector2(114, PIC_H / 2)
+	if L.star == SystemLayout.StarKind.PULSAR:
+		var pp := ChartOrbits.PulsarPic.new()
+		pp.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_star_pic.add_child(pp)
+		pp.setup(MapGlyphs.boost(_orbits.star_col, ChartGlyphs.NODE_LIFT), mid.round())
+		return
+	var kind := _orbits.kind_name()
+	var r0: float = PIC_R.get(L.star, PIC_R_SUN)
+	for s in L.stars():
+		var sv: Node2D = SunViewS.new()
+		var r := r0
+		var at := mid
+		if L.twin:
+			r = PIC_R_SUN * L.star_radius(s) / maxf(L.star_r, 1.0)
+			at += Vector2(34 if s == SystemLayout.STAR_B else -30, 0)
+		sv.position = at.round()
+		_star_pic.add_child(sv)
+		sv.call("setup", kind, t.index, r, s == SystemLayout.STAR_B)
+		sv.call("set_fade", r + 7.0, Vector2(44, 24))
+
+
+## The list with nothing picked, the star's box with one picked; never both.
+func _show_list(on: bool) -> void:
+	_neigh_scroll.visible = on
+	_star_box.visible = not on
+	if on:
+		_star_pic.visible = false
+	if not on:
+		_say("")
+
+
+## Only inside SENSOR RANGE (or where you are): NOT SCANNED and POSITION ONLY show nothing.
+static func orbits_shown(t: MapGen.MapNode, here: MapGen.MapNode) -> bool:
+	if t == null or t.type == MapGen.NodeType.CORE:
+		return false
+	if Run.known_only_by_contract(t.index):
+		return false
+	return t.sensed or (here != null and t.index == here.index)
+
+
+func _fill_star(t: MapGen.MapNode, here: MapGen.MapNode) -> void:
+	_show_list(false)
+	var on := orbits_shown(t, here)
+	_star_pic.visible = on
+	for c in _star_box.get_children():
+		(c as Control).visible = on
+	if not on:
+		return
+	if t.type == MapGen.NodeType.PULSAR:
+		var l := UITheme.body(BEAM_LINE, UITheme.CHILL, UITheme.FS_SMALL)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(228, 0)
+		_rows.add_child(l)
+	_star_counts.text = ChartOrbits.counts(_orbits.marks)
+	_star_counts.visible = _star_counts.text != ""
+
+
+## The line over the list, hidden when it says nothing so it gives its row back.
+func _say(s: String) -> void:
+	_hint.text = s
+	_hint.visible = s != ""
+
+
 ## Hazard red, warmer than THEM (an enemy's colour), so a warning wins over the cold blues.
 const _WARN := UITheme.LEAVE
 
@@ -907,15 +1033,28 @@ func _row(key: String, value: String, colour: Color = UITheme.CHILL) -> Control:
 ## Gauge plus the word: a player learns BRUTAL once and can read every system against it.
 func _danger_row(danger: int) -> Control:
 	var row := _gauge_row("DANGER", danger, MicroGauge.Mode.DANGER)
-	row.add_child(UITheme.body(" " + MapGen.tier_name(danger),
-		_WARN if danger >= 7 else UITheme.COLD, UITheme.FS_SMALL))
+	row.add_child(_word_slot(MapGen.tier_name(danger), _WARN if danger >= 7 else UITheme.COLD))
 	return row
 
 ## Fuel in the same boxes as danger, at the same count, so the two rows read as
 ## one comparison: what it costs against what it costs you.
 func _fuel_row(cost: int, afford: bool) -> Control:
-	return _gauge_row("FUEL", cost,
+	var row := _gauge_row("FUEL", cost,
 		MicroGauge.Mode.FUEL if afford else MicroGauge.Mode.UNAFFORDABLE)
+	# its cost in danger's slot, so both rows' boxes start and end together (Jon, Nov 23: "X FUEL")
+	row.add_child(_word_slot("%d FUEL" % cost, UITheme.COLD if afford else _WARN))
+	return row
+
+## The word after a gauge, in a slot as wide as the widest danger word or fuel cost.
+func _word_slot(word: String, colour: Color) -> Label:
+	var l := UITheme.body(word, colour, UITheme.FS_SMALL)
+	var f := l.get_theme_font("font")
+	var w := 0.0
+	for t in MapGen.TIER_NAMES + ["%d FUEL" % MapGen.DANGER_MAX]:
+		w = maxf(w, f.get_string_size(" " + t, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x)
+	l.custom_minimum_size = Vector2(ceilf(w), 0)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	return l
 
 func _gauge_row(key: String, value: int, mode: MicroGauge.Mode) -> Control:
 	var row := HBoxContainer.new()

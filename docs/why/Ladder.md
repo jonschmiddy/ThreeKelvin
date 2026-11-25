@@ -71,3 +71,25 @@ best + 1 dim and dead (a click on it is refused with the denied sound). The pick
 remembered across opens (`LaunchBox.last_tier`) and clamped to what is open; the
 seed field behaves as it did. A fresh profile still skips the box
 (`LauncherScreen.fresh_profile`) and launches at tier 0.
+
+## Tier 0 spirals
+
+Jon, Nov 21: "When launching into a game at tier 0, the galaxy is not always a
+spiral?" The roll kept its rule and the rule was loose: tier 0 took every kind
+`ChartSky.form_of` draws with arms, and two of those nine are irregulars, the
+Magellanic Irregular (one arm off a bar) and the Irregular (no clear shape). About
+one tier 0 run in four flew one, with IRREGULAR on the chart's card. The co-op join,
+a save, a typed seed and the fresh-profile launch all reach the same roll; the
+title's galaxy is its own any-kind roll and is replaced by the run's at NEW RUN.
+
+Jon picked A (sheet in `tk-scratch/spiral-tier0/`): tier 0 flies `TIER0_KINDS`, the
+spiral form without the two irregulars, named so the list is read, not inferred. Then
+he dropped the Flocculent Spiral too (named a spiral, but no arms at the chart's
+opening zoom). The Interacting Pair (two arms, not named one) stays. Six kinds; tiers
+1 to 3 still fly all nine.
+
+`roll_kind` keeps its one draw among the form's kinds and draws again only when it
+lands off the list, so every seed whose first draw was already a listed kind keeps
+its world; only the seeds that drew one of the three move. `LaunchTierTest`'s sweep
+checks the list (Jon's six, each a real kind of the spiral form), 300 seeds rolling only
+listed kinds, the kept first draws, and the chart naming the kind rolled.

@@ -3,33 +3,33 @@ extends Control
 
 ## One manufacturer's banner on the front door's gantry (Jon's W2 v10, Nov 10):
 ## long cloth on a rod, the name high up, the emblem under it, a forked foot.
-## Clicking it picks the manufacturer. The sway is a whole-pixel shear of the
-## cloth, more at the foot than the head, so it steps rather than glides.
-## Why: docs/why/ChassisSelect.md#banner-yard
+## Clicking it picks the manufacturer. The cloth hangs and moves in `YardCloth` (Jon, Nov 24, the
+## banner page: "The movement is PERFECT"); this is its click target, at rest, and its picture.
+## Why: docs/why/YardBanner.md#cloth
 
 signal pressed
 
 const BW := 48
 ## A third longer than the mockup's 76 (Jon, Nov 11: "the banners can be longer").
 const CLOTH := 100
-## The cloth's lighting bands: lit head, mid, shaded foot (the 76-row cloth's 22 and 48).
-const HEAD_ROWS := 22
-const MID_ROWS := 64
-## The margin a posed cloth needs either side of the rod for its shear.
+## The click rect's margin either side of the cloth (the rod's overhang).
 const MARGIN := 4
 const TRUSS_Y := 18
 const ROD_Y := 34
-## The biggest shear at the foot, in pixels: nine poses, -4 to 4.
-const SWAY_PX := 4
-const STEEL := Color8(74, 82, 96)
-const CHAIN := Color8(118, 112, 96)
+## The cloths' three flat bands' first rows, and the ??? cloths as the films hang them.
+const HEAD_END := 22
+const MID_END := 86
+## The ??? cloth (Jon, Nov 24): dark grey in the three lighting bands, its marks light grey.
 const LOCKED_FIELD := Color8(38, 40, 48)
-const LOCKED_INK := Color8(104, 110, 124)
-const LAMP := Vector3(1.0, 0.93, 0.82)
-## The hall's ceiling lamps, and the first one again where the hall is continued.
-const LAMPS := [100.0, 256.0, 411.0, 570.0, 727.0, 866.0]
-## Each banner's own period and phase, so no two sway together.
-const SWAY := [[4.0, 0.0], [4.4, 1.1], [3.7, 2.3], [4.2, 3.4], [3.9, 4.6], [4.6, 5.5], [3.8, 0.7]]
+const LOCKED_INK := Color8(168, 173, 184)
+## The name on a light field (Verity's, Calyx's) is dark ink; the emblem keeps the manufacturer's colour.
+const DARK_INK := Color8(34, 24, 14)
+## Korvan's grey with orange marks and a trim along its foot; Solari's amber with dark marks (Jon, Nov 24):
+## head, mid, foot, ink, outline, trim.
+const MANUFACTURER_CLOTH := {
+	&"korvan": [Color8(126, 132, 142), Color8(106, 112, 122), Color8(86, 90, 98), Color8(224, 136, 46), Color8(20, 22, 26), true],
+	&"solari": [Color8(236, 160, 52), Color8(214, 140, 42), Color8(178, 112, 32), Color8(44, 26, 12), Color8(40, 22, 10), false],
+}
 ## The game's emblems (`CardView.draw_emblem`), as rects in mark units, for the cloth's pixels.
 const EMBLEM := {
 	&"korvan": [[-4.5, -5, 9, 2], [-3.5, -1, 7, 2], [-2.5, 3, 5, 2]],
@@ -45,30 +45,22 @@ var index: int = 0
 var manufacturer: StringName = &""
 ## Named and marked, or a ??? cloth.
 var open: bool = true
-## The hall x of the rod's left end (the cloth's left edge).
+## The frame x of the rod's left end (the cloth's left edge).
 var hall_x: int = 0
 var hover: bool = false
-## Dimmed with the hall when a locked set is shown.
-var gloom: float = 1.0
+## The flat cloth (bands, marks, outline, trim), 48 x 100, before its material (`YardClothTex`).
+var cloth: Image = null
 
-var _poses: Array[ImageTexture] = []
-var _rings: Array[ImageTexture] = []
-var _k: int = 0
-var _t: float = 0.0
-var _period: float = 4.0
-var _phase: float = 0.0
-var _font: Font
-var _light_head: float = 1.0
-var _light_mid: float = 1.0
+## Flat cloths by manufacturer and lock: built once a session, not once a visit.
+static var _cloths := {}
 
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	_font = UITheme.pixel_font()
 
 
-## Build the cloth once for this manufacturer, open or locked, and its nine poses.
+## Build the cloth once for this manufacturer, open or locked.
 func setup(i: int, m: StringName, is_open: bool, x: int) -> void:
 	index = i
 	manufacturer = m
@@ -76,99 +68,107 @@ func setup(i: int, m: StringName, is_open: bool, x: int) -> void:
 	hall_x = x
 	position = Vector2(x - MARGIN, TRUSS_Y)
 	size = Vector2(BW + 2 * MARGIN, ROD_Y - TRUSS_Y + 4 + CLOTH)
-	var sw: Array = SWAY[i % SWAY.size()]
-	_period = float(sw[0])
-	_phase = float(sw[1])
 	var md: ManufacturerData = DB.manufacturers.get(m)
-	var name := DB.short_name(md.name).to_upper() if md != null else String(m).to_upper()
-	tooltip_text = Widgets.tip("%s\n%s" % [md.name if open else "????", md.identity]) if md != null else ""
+	tooltip_text = Widgets.tip("%s
+%s" % [md.name if open else "????", md.identity]) if md != null else ""
 	if not open:
-		tooltip_text += Widgets.tip("\n\n%s" % Unlocks.lock_line(m))
-	_bake(md, name)
-	queue_redraw()
+		tooltip_text += Widgets.tip("
+
+%s" % Unlocks.lock_line(m))
+	cloth = flat_cloth(m, open)
 
 
-## The cloth's pixels: the field in folds, a lit edge and a shaded one, the rule
-## under the name, the emblem; lit from the lamp over it, brighter at the head.
-func _bake(md: ManufacturerData, _name: String) -> void:
-	var field: Color = md.field if (open and md != null) else LOCKED_FIELD
-	var mark: Color = md.colour if md != null else UITheme.CHILL
+## The cloth in code (Jon, Nov 24: "weird artifacts"): three flat bands, the emblem and the name (or the
+## ??? marks) in the pixel font, a 1 px outline round the silhouette (forked foot included), Korvan's trim.
+## Why: docs/why/YardBanner.md#cloth
+static func flat_cloth(m: StringName, is_open: bool) -> Image:
+	var key := cloth_key(m, is_open)
+	if _cloths.has(key):
+		return _cloths[key]
+	var md: ManufacturerData = DB.manufacturers.get(m)
+	var bands := _bands(LOCKED_FIELD)
+	var outline := _scaled(LOCKED_FIELD, 0.35)
+	var trim := false
+	var ink := LOCKED_INK
+	var word_ink := LOCKED_INK
+	if is_open and md != null:
+		var mc: Array = MANUFACTURER_CLOTH.get(m, [])
+		if mc.is_empty():
+			bands = _bands(md.field)
+			outline = _scaled(md.field, 0.2)
+			ink = md.colour
+			var light := md.field.r8 + md.field.g8 + md.field.b8 > 1.76 * 255.0
+			word_ink = DARK_INK if light else md.colour
+		else:
+			bands.assign([mc[0], mc[1], mc[2]])
+			ink = mc[3]
+			word_ink = ink
+			outline = mc[4]
+			trim = mc[5]
 	var img := Image.create(BW, CLOTH, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
-	var lowest := PackedInt32Array()
-	lowest.resize(BW)
 	for r in CLOTH:
+		var c: Color = bands[0] if r < HEAD_END else (bands[1] if r < MID_END else bands[2])
+		for x in BW:
+			if _inside(x, r):
+				img.set_pixel(x, r, c)
+	if is_open and md != null:
+		_emblem(img, m, ink)
+		YardClothTex.word(img, DB.short_name(md.name).to_upper(), UITheme.FS_SMALL, 7, word_ink)
+	else:
+		YardClothTex.word(img, "???", UITheme.FS_SMALL, 7, ink)
+		YardClothTex.word(img, "???", UITheme.FS_HEAD, 30, ink)
+	var edge := _outline(img, outline)
+	if trim:
+		_trim(img, edge, Color8(int(ink.r8 * 0.9), int(ink.g8 * 0.9), int(ink.b8 * 0.9)))
+	_cloths[key] = img
+	return img
+
+
+## Every ??? cloth is the same cloth.
+static func cloth_key(m: StringName, is_open: bool) -> String:
+	return String(m) if is_open else "???"
+
+
+## The game's emblem (`CardView.draw_emblem`), in mark units of two pixels, round row 36.
+static func _emblem(img: Image, m: StringName, ink: Color) -> void:
+	var rects: Array = EMBLEM.get(m, [[-3.5, -3.5, 7, 7]])
+	for e: Array in rects:
+		var x0 := int(round(BW / 2.0 + float(e[0]) * 2.0))
+		var y0 := int(round(36.0 + float(e[1]) * 2.0))
+		for yy in int(float(e[3]) * 2.0):
+			for xx in int(float(e[2]) * 2.0):
+				var px := x0 + xx
+				var py := y0 + yy
+				if px >= 0 and px < BW and py >= 0 and py < CLOTH:
+					img.set_pixel(px, py, ink)
+
+
+## Korvan's thin orange line just inside its forked foot's edge.
+static func _trim(img: Image, edge: PackedByteArray, col: Color) -> void:
+	for x in BW:
+		var low := -1
+		for r in CLOTH:
+			if _inside(x, r):
+				low = r
+		var rb := low - 1
+		if rb > 60 and edge[rb * BW + x] == 0:
+			img.set_pixel(x, rb, col)
+
+
+## The silhouette's own edge pixels in `col` (not the top, which meets the rod); returns which.
+static func _outline(img: Image, col: Color) -> PackedByteArray:
+	var e := PackedByteArray()
+	e.resize(BW * CLOTH)
+	for r in range(1, CLOTH):
 		for x in BW:
 			if not _inside(x, r):
 				continue
-			var k := 1.0
-			if x <= 7: k = 1.12
-			elif x >= 9 and x <= 16: k = 0.96
-			elif x >= 18 and x <= 25: k = 1.06
-			elif x >= 30 and x <= 37: k = 0.9
-			elif x >= 40: k = 0.8
-			if x == 0: k = 1.3
-			elif x == BW - 1: k = 0.55
-			img.set_pixel(x, r, _sc(field, k))
-			lowest[x] = r
-	for x in BW:
-		img.set_pixel(x, lowest[x], _sc(field, 0.55))
-	for x in range(6, BW - 6):
-		img.set_pixel(x, 18, _sc(field, 0.7))
-	if open:
-		var rects: Array = EMBLEM.get(manufacturer, [[-3.5, -3.5, 7, 7]])
-		for e: Array in rects:
-			var x0 := int(round(BW / 2.0 + float(e[0]) * 2.0))
-			var y0 := int(round(36.0 + float(e[1]) * 2.0))
-			for yy in int(float(e[3]) * 2.0):
-				for xx in int(float(e[2]) * 2.0):
-					var px := x0 + xx
-					var py := y0 + yy
-					if px >= 0 and px < BW and py >= 0 and py < CLOTH:
-						img.set_pixel(px, py, mark)
-	# the lamp over it, in four steps head to foot
-	var cx := float(hall_x + BW / 2)
-	var near := 0.0
-	for lx: float in LAMPS:
-		near = maxf(near, exp(-pow((cx - lx) / 85.0, 2.0)))
-	var bl := 0.82 + 0.3 * near
-	_light_head = _quant(bl * 1.08)
-	_light_mid = _quant(bl * 0.85)
-	for r in CLOTH:
-		var f := float(r)
-		var v: float
-		var head_r := float(HEAD_ROWS)
-		var mid_r := float(MID_ROWS)
-		if f < head_r: v = lerpf(bl * 1.15, bl * 0.95, f / head_r)
-		elif f < mid_r: v = lerpf(bl * 0.95, bl * 0.7, (f - head_r) / (mid_r - head_r))
-		else: v = lerpf(bl * 0.7, bl * 0.45, (f - mid_r) / float(CLOTH - 1 - MID_ROWS))
-		var q := _quant(v)
-		for x in BW:
-			var c := img.get_pixel(x, r)
-			if c.a == 0.0:
-				continue
-			img.set_pixel(x, r, Color(minf(1.0, c.r * q * (0.92 + 0.08 * LAMP.x)),
-				minf(1.0, c.g * q * (0.92 + 0.08 * LAMP.y)), minf(1.0, c.b * q * (0.92 + 0.08 * LAMP.z)), 1.0))
-	_poses.clear()
-	_rings.clear()
-	for k in range(-SWAY_PX, SWAY_PX + 1):
-		var posed := Image.create(BW + 2 * MARGIN, CLOTH, false, Image.FORMAT_RGBA8)
-		posed.fill(Color(0, 0, 0, 0))
-		for r in CLOTH:
-			posed.blit_rect(img, Rect2i(0, r, BW, 1), Vector2i(MARGIN + shear(k, r), r))
-		_poses.append(ImageTexture.create_from_image(posed))
-		var ring := Image.create(BW + 2 * MARGIN, CLOTH, false, Image.FORMAT_RGBA8)
-		ring.fill(Color(0, 0, 0, 0))
-		for r in CLOTH:
-			for x in BW + 2 * MARGIN:
-				if posed.get_pixel(x, r).a > 0.15:
-					ring.set_pixel(x, r, UITheme.MARK)
-		_rings.append(ImageTexture.create_from_image(ring))
-
-
-## Whole pixels: row r of the cloth moves round(k * (r/h)^1.5), nothing at the rod.
-static func shear(k: int, r: int) -> int:
-	return int(round(float(k) * pow(float(r) / float(CLOTH - 1), 1.5)))
+			var inner := r + 1 < CLOTH and _inside(x, r + 1) and x > 0 and _inside(x - 1, r) 				and x < BW - 1 and _inside(x + 1, r)
+			if not inner:
+				e[r * BW + x] = 1
+				img.set_pixel(x, r, col)
+	return e
 
 
 ## The forked foot: full width to ten rows from the foot, then two flaps meeting at the notch.
@@ -179,35 +179,39 @@ static func _inside(x: int, r: int) -> bool:
 	return float(x) <= 24.0 * d or float(x) >= 47.0 - 23.0 * d
 
 
-static func _sc(c: Color, k: float) -> Color:
-	return Color(minf(1.0, c.r * k), minf(1.0, c.g * k), minf(1.0, c.b * k), 1.0)
+## A field's three lighting bands (the banner page's make_cloths): the head lifted 15 % (at most 22 a
+## channel), the body itself, the foot at 82 %.
+static func _bands(f: Color) -> Array[Color]:
+	var head := Color8(mini(f.r8 + 22, even(f.r8 * 1.15)), mini(f.g8 + 22, even(f.g8 * 1.15)), mini(f.b8 + 22, even(f.b8 * 1.15)))
+	var out: Array[Color] = [head, Color8(f.r8, f.g8, f.b8), _scaled(f, 0.82)]
+	return out
 
 
-## Five light levels, as the mockup stepped the cloth.
-static func _quant(v: float) -> float:
-	return clampf(floorf(v * 5.0 + 0.5) / 5.0, 0.2, 1.4)
+static func _scaled(c: Color, k: float) -> Color:
+	return Color8(clampi(even(c.r8 * k), 0, 255), clampi(even(c.g8 * k), 0, 255), clampi(even(c.b8 * k), 0, 255))
 
 
-func _process(delta: float) -> void:
-	_t += delta
-	var k := int(round(float(SWAY_PX) * sin(TAU * _t / _period + _phase)))
-	if k != _k:
-		_k = k
-		queue_redraw()
+## Rounded half to even, as the page's Python and its Uint8ClampedArray round.
+static func even(v: float) -> int:
+	var f := floorf(v)
+	var d := v - f
+	if d > 0.5 or (d == 0.5 and int(f) % 2 != 0):
+		return int(f) + 1
+	return int(f)
 
 
-## Only the cloth is the thing, as it hangs this frame: not the chains, the air
-## beside it, or anything below its foot, which once picked from the floor (Jon, Nov 11).
+## Only the cloth is the thing, as it hangs at rest: not the chains, the air beside it, or anything
+## below its foot, which once picked from the floor (Jon, Nov 11). Its moving picture never moves this.
 func _has_point(p: Vector2) -> bool:
-	return on_cloth(p, _k)
+	return on_cloth(p)
 
 
-## Is `p` (in this control) on the cloth posed `k`, forked foot and all?
-static func on_cloth(p: Vector2, k: int) -> bool:
+## Is `p` (in this control) on the cloth at rest, forked foot and all?
+static func on_cloth(p: Vector2) -> bool:
 	var r := int(floorf(p.y)) - (ROD_Y - TRUSS_Y + 4)
 	if r < 0 or r >= CLOTH:
 		return false
-	var x := int(floorf(p.x)) - MARGIN - shear(k, r)
+	var x := int(floorf(p.x)) - MARGIN
 	return x >= 0 and x < BW and _inside(x, r)
 
 
@@ -223,49 +227,5 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_MOUSE_ENTER:
 		hover = true
 		Audio.hover()
-		queue_redraw()
 	elif what == NOTIFICATION_MOUSE_EXIT:
 		hover = false
-		queue_redraw()
-
-
-func _draw() -> void:
-	if _poses.is_empty():
-		return
-	var g := Color(gloom, gloom, gloom, 1.0)
-	# the rig: two chains from the truss, the rod
-	var rod_y := float(ROD_Y - TRUSS_Y)
-	for cx: float in [MARGIN + 6.0, MARGIN + BW - 6.0]:
-		draw_rect(Rect2(cx, 0, 1, rod_y), CHAIN * g, true)
-	draw_rect(Rect2(0, rod_y, BW + 2 * MARGIN, 4), _sc(STEEL, 0.9) * g, true)
-	draw_rect(Rect2(0, rod_y, BW + 2 * MARGIN, 1), _sc(STEEL, 1.4) * g, true)
-	var at := Vector2(0, rod_y + 4)
-	var pi := _k + SWAY_PX
-	if hover:
-		# the mark: a two pixel ring round the cloth's own silhouette
-		for dy in range(-2, 3):
-			for dx in range(-2, 3):
-				if dx == 0 and dy == 0:
-					continue
-				draw_texture(_rings[pi], at + Vector2(dx, dy))
-	var bright := 1.18 if hover else 1.0
-	draw_texture(_poses[pi], at, Color(bright * gloom, bright * gloom, bright * gloom, 1.0))
-	# the words are drawn over the posed cloth: the name rides the rod, which never shears
-	var md: ManufacturerData = DB.manufacturers.get(manufacturer)
-	var light := _light_head * bright * gloom
-	if open and md != null:
-		var dark := md.field.r + md.field.g + md.field.b > 1.76
-		var ink: Color = Color8(34, 24, 14) if dark else md.colour
-		_word(DB.short_name(md.name).to_upper(), UITheme.FS_SMALL, at.y + 7.0 + shear(_k, 7), ink * Color(light, light, light, 1.0))
-	else:
-		_word("???", UITheme.FS_SMALL, at.y + 7.0 + shear(_k, 7), LOCKED_INK * Color(light, light, light, 1.0))
-		var mid := _light_mid * bright * gloom
-		_word("???", UITheme.FS_HEAD, at.y + 30.0 + shear(_k, 38), LOCKED_INK * Color(mid, mid, mid, 1.0))
-
-
-## A word centred on the cloth, its top at `top`, in the pixel font's own ascent.
-func _word(s: String, px: int, top: float, col: Color) -> void:
-	var w := _font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
-	var asc := _font.get_ascent(px)
-	var x := floorf(MARGIN + (BW - w) / 2.0 + 0.5)
-	draw_string(_font, Vector2(x, floorf(top + asc + 0.5)), s, HORIZONTAL_ALIGNMENT_LEFT, -1, px, col)

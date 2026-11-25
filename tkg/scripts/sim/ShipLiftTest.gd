@@ -1,8 +1,9 @@
 extends Node
 
 ## THE HEAVY LIFT (`ShipLift`, Jon's L1, Nov 12) on the front door's LAUNCH and the
-## deck's UNDOCK: each runs to its end and lands where it should, LAUNCH once, no
-## click on the hall meanwhile, reduced motion a cut. Headless, `--fixed-fps 60`.
+## deck's UNDOCK and DOCK: each runs to its end and lands where it should, LAUNCH once, no
+## click on the hall meanwhile, reduced motion a cut; the stands sink and rise every frame
+## with their bases still. Headless, `--fixed-fps 60`.
 ## Why: docs/why/ShipLift.md#test
 
 var _tree: SceneTree
@@ -99,7 +100,11 @@ func _launch() -> void:
 	var top := 0.0
 	var right := 0.0
 	var sunk := 0
-	var lamps0 := cs._yard.scene.light.lamp_gain.duplicate()
+	var below := -9999
+	var bases0 := base_rects(berth)
+	var feet := berth.feet
+	var bases_moved := 0
+	var lamps0 := cs._yard.room.lamp_k
 	var lamps_moved := 0
 	var light_jump := 0.0
 	var light_prev := -1.0
@@ -113,7 +118,7 @@ func _launch() -> void:
 		if Router.current != cs:
 			landed_at = _t - t0
 			break
-		if _t - t0 > ShipLift.exit_s() + 0.1 and _left_behind(lift, cs._yard.scene):
+		if _t - t0 > ShipLift.exit_s() + 0.1 and _left_behind(lift, cs._yard.room.extra):
 			left_lit += 1
 		if flame_at < 0.0 and lift.view._thrust_now() >= 0:
 			flame_at = _t - t0
@@ -124,7 +129,10 @@ func _launch() -> void:
 		top = minf(top, berth.position.y - y0)
 		right = maxf(right, berth.position.x - x0)
 		sunk = maxi(sunk, berth.retract)
-		if cs._yard.scene.light.lamp_gain != lamps0:
+		below = maxi(below, post_overrun(berth))
+		if base_rects(berth) != bases0:
+			bases_moved += 1
+		if cs._yard.room.lamp_k != lamps0:
 			lamps_moved += 1
 		var lv := lift.plume.light_level()
 		if light_prev >= 0.0:
@@ -132,8 +140,14 @@ func _launch() -> void:
 		light_prev = lv
 		smoke = maxi(smoke, lift.plume.puffs())
 		await _tree.process_frame
-	_ok("it rises off its stands (%.0f px), the stands sink (%d rows), the smoke rolls (%d puffs)" % [-top, sunk, smoke],
-		top <= -40.0 and sunk >= 40 and smoke >= 20)
+	# (Jon, Nov 24: "the stands go through the floor", then "sink only a little", "the bases must not move")
+	# Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
+	_ok("it rises off its stands (%.0f px), the columns sink a little (%d rows), the smoke rolls (%d puffs)" % [-top, sunk, smoke],
+		top <= -40.0 and sunk == ShipLift.SINK_ROWS and smoke >= 20)
+	_ok("no column draws a row into its base or below the floor in any frame (at worst %d rows past the base's top)" % below,
+		below <= 0)
+	_ok("the bases never move, on their feet (%d frames moved, %s)" % [bases_moved, bases0],
+		bases_moved == 0 and bases0.size() == 2 and bases0.all(func(r: Rect2) -> bool: return int(r.end.y) == feet))
 	# (Jon's F1: no flicker -- the hall's lamps hold, the engines' light eases)
 	_ok("the hall's lamps hold steady through the lift (%d frames moved), and its own light eases (at most %.3f a frame)" % [
 		lamps_moved, light_jump], lamps_moved == 0 and light_jump <= 0.12)
@@ -222,42 +236,164 @@ func _undock() -> void:
 	var until := -1.0
 	var left_lit := 0
 	var t_lift := -1.0
+	var deck := StandWatch.new()
 	for i in 1500:
 		await _tree.process_frame
 		if Router.current == st and is_instance_valid(st) and st._heavy != null:
 			if t_lift < 0.0:
 				t_lift = _t
-			if _t - t_lift > StationScreen.undock_elev_s() + ShipLift.exit_s() + 0.1 and _left_behind(st._heavy, st._scene):
+			if _t - t_lift > StationScreen.undock_elev_s() + ShipLift.exit_s() + 0.1 and _left_behind(st._heavy, st._scene.life.extra if st._scene.life != null else []):
 				left_lit += 1
 			used = true
 			right = maxf(right, st._mine_view.position.x - rest.x)
 			top = minf(top, st._mine_view.position.y - rest.y)
-			sunk = maxi(sunk, st._scene.sink_mine)
+			sunk = maxi(sunk, deck.see(st._scene))
 			smoke = maxi(smoke, st._heavy.plume.puffs())
 		if until < 0.0 and Router.current is SectorScreen and not ZoomLadder.busy():
 			until = _t - t0
 			break
 	_ok("UNDOCK runs the shared lift on the deck", used)
 	_ok("off the yard, nothing of it is left at the edge (%d frames lit)" % left_lit, left_lit == 0)
-	_ok("off its stands (%.0f px up), the stands sink (%d rows), the smoke rolls (%d puffs), and away to the RIGHT (%.0f px)" % [
-		-top, sunk, smoke, right], top <= -25.0 and sunk >= 25 and smoke >= 20 and right > 200.0)
+	# (Jon, Nov 25: "For taking off, it should look just like the new ship picker launch")
+	# Why: docs/why/ShipLift.md#stands-sink-and-rise
+	_ok("off its stands (%.0f px up), the columns sink a little into their bases (%d rows, the deck's %d), the smoke rolls (%d puffs), and away to the RIGHT (%.0f px)" % [
+		-top, sunk, ShipLift.sunk_rows(ShipLift.DECK_K), smoke, right],
+		top <= -25.0 and sunk == ShipLift.sunk_rows(ShipLift.DECK_K) and smoke >= 20 and right > 200.0)
+	deck.verdict(h, "UNDOCK")
 	_ok("it lands on LOCAL undocked (%.2f s; the yard's part %.2f s)" % [until, ZoomLadder.UNDOCK_YARD_S],
 		until > ZoomLadder.UNDOCK_YARD_S and Router.current is SectorScreen and not Router.docked)
+	await _land()
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
+
+
+## DOCK onto the Shipyard deck, the undock run back (Jon, Nov 25: "they should be down at first and come
+## up as the ship approaches"): down from the first frame, up as it slows over them, before it touches down.
+## Why: docs/why/ShipLift.md#stands-sink-and-rise
+func _land() -> void:
+	var full := ShipLift.sunk_rows(ShipLift.DECK_K)
+	var up_at := ShipLift.RAISE_FROM + ShipLift.SINK_S
+	var touch_at := ShipLift.LAND_FLY_S + ShipLift.LAND_HOVER_S + ShipLift.LAND_DOWN_S
+	Router.show_station()
+	var deck := StandWatch.new()
+	var first := -1
+	var early_up := 0
+	var late_down := 0
+	var went_down := 0
+	var part := 0
+	var at_touch := -1
+	var dip := false
+	var prev := full
+	var flown := 0
+	for i in 1500:
+		await _tree.process_frame
+		var st := Router.current as StationScreen
+		if st != null and is_instance_valid(st) and st._scene != null and not st._lad.is_empty() and not bool(st._lad.out):
+			var s := deck.see(st._scene)
+			var yt := float(st._lad.get("yard_t", -INF))
+			if first < 0:
+				first = s
+			if yt < ShipLift.RAISE_FROM and s != full:
+				early_up += 1
+			if yt >= up_at and s != 0:
+				late_down += 1
+			if s > prev:
+				went_down += 1
+			if s > 0 and s < full:
+				part += 1
+			if yt >= touch_at and at_touch < 0:
+				at_touch = s
+			if yt > -INF:
+				flown += 1
+			if st._heavy != null and yt >= touch_at and yt < touch_at + ShipLift.LAND_SETTLE_S * 0.5 and st._heavy.offset().y >= 1.0:
+				dip = true
+			prev = s
+		if Router.current is StationScreen and Router.docked and not ZoomLadder.busy():
+			break
+	var st2 := Router.current as StationScreen
+	if not _ok("DOCK flies the landing onto the deck (%d frames on the yard's clock)" % flown, flown > 60 and st2 != null):
+		return
+	_ok("the stands are down in their bases from the landing's first frame (%d rows, the deck's %d), and stay down until %.2f s (%d frames up early)" % [
+		first, full, ShipLift.RAISE_FROM, early_up], first == full and early_up == 0)
+	_ok("they come up as it comes in, never going back down (%d frames part way up, %d frames down again)" % [part, went_down],
+		part >= 3 and went_down == 0)
+	_ok("fully up by %.2f s, before the hover ends and well before touchdown at %.2f s (%d frames still down after; %d rows down at touchdown)" % [
+		up_at, touch_at, late_down, at_touch], up_at <= ShipLift.LAND_FLY_S + ShipLift.LAND_HOVER_S and late_down == 0 and at_touch == 0)
+	_ok("and they take its weight with a pixel's give", dip)
+	deck.verdict(h, "DOCK")
+	_ok("docked, the stands up (%d rows down)" % st2._scene.sink_mine, Router.docked and st2._scene.sink_mine == 0)
+
+
+## Your ship's stands on the deck as `YardScene.stand_pieces` draws them, frame by frame: how far the
+## columns are down, whether one drew a row into its base, whether a base moved off its feet.
+class StandWatch:
+	var bases0: Array[Rect2] = []
+	var floor_y := 0
+	var base_rows := 99
+	var frames := 0
+	var moved := 0
+	var over := -9999
+
+	## How far down your stands' columns are this frame (rows).
+	func see(sc: YardScene) -> int:
+		var ps := sc.stand_pieces(0)
+		var bases: Array[Rect2] = []
+		var sunk := 0
+		for p: Array in ps:
+			var col: Rect2 = p[2]
+			var base: Rect2 = p[4]
+			bases.append(base)
+			base_rows = mini(base_rows, int((p[3] as Rect2).size.y))
+			sunk = maxi(sunk, int((p[3] as Rect2).position.y - (p[1] as Rect2).size.y))
+			if col.size.y > 0.0:
+				over = maxi(over, int(ceilf(col.end.y - base.position.y)))
+		if frames == 0:
+			bases0 = bases
+			floor_y = int(sc.placed[0].get("floor", -1)) if not sc.placed.is_empty() else -1
+		elif bases != bases0:
+			moved += 1
+		frames += 1
+		return sunk
+
+	func verdict(hh: Harness, what: String) -> void:
+		hh._ok("%s: every stand has a bolted base (%d rows at least) on the floor (%s, floor %d)" % [what, base_rows, bases0, floor_y],
+			bases0.size() == 2 and base_rows >= 15 and bases0.all(func(r: Rect2) -> bool: return int(r.end.y) == floor_y))
+		hh._ok("%s: the bases never move (%d of %d frames moved), and no column draws a row into its base (at worst %d rows past its top)" % [
+			what, moved, frames, over], frames > 0 and moved == 0 and over <= 0)
 
 
 ## Anything of the lift still lit on the picture once the hull is off it: its flame,
 ## the jets' or nozzle's light, or a small light it put in the yard's light (one
 ## still easing out past the picture's right edge, with the hull, is not on it).
-func _left_behind(lift: ShipLift, sc: YardScene) -> bool:
+func _left_behind(lift: ShipLift, extra: Array) -> bool:
 	if lift.view._thrust_now() >= 0 or lift.lit() > 0:
 		return true
 	var edge := float(lift.host.size.x)
 	var lit: Array = lift.plume.lights()
-	if sc.life != null:
-		lit.append_array(sc.life.extra)
+	lit.append_array(extra)
 	for l: Array in lit:
 		if float(l[0]) - float(l[2]) < edge:
 			return true
 	return false
+
+
+## How many rows past its base's top the lowest drawn row of a berth's standing columns reaches (0 or less:
+## none), counting the texture's own rows, so a clip that does not hold still fails.
+static func post_overrun(s: YardStandSet) -> int:
+	var worst := -9999
+	for tr in s._posts:
+		if not tr.visible or tr.texture == null:
+			continue
+		var top := s.position.y + tr.position.y
+		var rows := maxf(float(tr.texture.get_height()), tr.size.y)
+		worst = maxi(worst, int(ceilf(top + rows)) - (s.feet - YardStandSet.POST_BASE))
+	return worst
+
+
+## Each post's base as drawn in the frame (its rect and its texture's rows).
+static func base_rects(s: YardStandSet) -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for b in s._bases:
+		var at := s.position + b.position
+		out.append(Rect2(at, Vector2(b.size.x, maxf(b.size.y, float(b.texture.get_height())))))
+	return out

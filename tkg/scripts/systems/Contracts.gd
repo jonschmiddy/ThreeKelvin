@@ -445,90 +445,90 @@ static func _voice(manufacturer: StringName, kind: ContractData.Kind, place: Str
 const _LINES := {
 	&"korvan": {
 		ContractData.Kind.FETCH: [
-			"A crew ran the tank dry at {PLACE} and left a mount on the rock rather than the fuel to move it. It is Korvan. Bring it back.",
-			"Inventory says a part is at {PLACE}. Inventory has said so for some time. Go and make inventory correct.",
+			"Bring back the Korvan mount a crew left at {PLACE}.",
+			"Pick up the part our inventory lists at {PLACE}.",
 		],
 		ContractData.Kind.HUNT: [
-			"Something at {PLACE} is shooting at our haulers. It has been asked to stop.",
-			"There is a contact at {PLACE}. Remove it. There is no second part to this.",
+			"Something at {PLACE} keeps shooting at our haulers.",
+			"Destroy the contact at {PLACE}.",
 		],
 		ContractData.Kind.HEAT: [
-			"Standing order. Dock at any of our yards carrying {N} heat and we will take it off you at the posted rate.",
+			"Bring {N} heat to any Korvan yard.",
 		],
 	},
 	&"solari": {
 		ContractData.Kind.FETCH: [
-			"There is a Forge part sitting cold at {PLACE}. That offends me personally. Fetch it.",
-			"Somebody abandoned good hardware at {PLACE} because they were afraid of it. Go and be less afraid.",
+			"A Forge part has gone cold at {PLACE}, and we want it back.",
+			"Someone left good hardware at {PLACE}.",
 		],
 		ContractData.Kind.HUNT: [
-			"The thing at {PLACE} runs cold and thinks that makes it clever. Correct it.",
-			"Contact at {PLACE}. Aim something at it. Heat is only waste if you fail to aim it.",
+			"Destroy the contact running cold at {PLACE}.",
+			"Burn the contact at {PLACE}.",
 		],
 		ContractData.Kind.HEAT: [
-			"Come in hot. {N} on the hull, any Forge yard, and do not vent on the approach like a coward.",
+			"Arrive at any Forge yard with {N} heat still on the hull.",
 		],
 	},
 	&"probate": {
 		ContractData.Kind.FETCH: [
-			"Filing says the contents of {PLACE} are ours. The contents disagree by being at {PLACE}. Retrieve.",
-			"Item at {PLACE}. Combine holds the claim. Recovery is billable at the rate below.",
+			"The Combine has a claim on what is at {PLACE}.",
+			"Bring back the Combine's item from {PLACE}.",
 		],
 		ContractData.Kind.HUNT: [
-			"A hostile at {PLACE} is sitting on a claim we filed first. Clear the claim.",
-			"Contact at {PLACE}. It becomes salvage when it stops moving. Make it salvage.",
+			"A hostile is sitting on a Combine claim at {PLACE}.",
+			"Disable the contact at {PLACE} so it can be salvaged.",
 		],
 		ContractData.Kind.HEAT: [
-			"Thermal, {N} units, delivered to any Combine yard. Weighed on arrival. Paid on the weight.",
+			"Deliver {N} heat to any Combine yard, paid by weight.",
 		],
 	},
 	&"redline": {
 		ContractData.Kind.FETCH: [
-			"Package at {PLACE}. Don't open it, don't scan it, don't ask. Bring it here.",
-			"Left something at {PLACE} in a hurry. Would rather it came back. Would rather not say why.",
+			"Bring the package at {PLACE} here without opening it.",
+			"We left something at {PLACE} and want it back, no questions asked.",
 		],
 		ContractData.Kind.HUNT: [
-			"Someone at {PLACE} knows a name they shouldn't. They'll stop knowing it if you're quick.",
-			"Contact at {PLACE}. No serials on it. There won't be any afterwards either.",
+			"Someone at {PLACE} knows too much.",
+			"Remove the unmarked contact at {PLACE}.",
 		],
 		ContractData.Kind.HEAT: [
-			"{N} on the hull, any of our doors, cash, no receipt. We pay over the posted rate. Don't tell anyone we do.",
+			"Bring {N} heat to any of our doors for cash over the posted rate.",
 		],
 	},
 	&"verity": {
 		ContractData.Kind.FETCH: [
-			"A commission of ours is at {PLACE}, unattended. The Company maintains what it sold. Recover it and we will resume doing so.",
-			"An owner failed to return from {PLACE}. The obligation did not lapse. The hardware is still there.",
+			"A piece we built is sitting alone at {PLACE}.",
+			"An owner never came back from {PLACE}, and the hardware is still there.",
 		],
 		ContractData.Kind.HUNT: [
-			"There is something at {PLACE} interfering with a client. It is to be discouraged, thoroughly and once.",
+			"Something at {PLACE} is bothering one of our clients.",
 		],
 		ContractData.Kind.HEAT: [
-			"We will accept {N} units of banked thermal at any atelier. The rate is not negotiable and has never needed to be.",
+			"Bring {N} heat to any atelier.",
 		],
 	},
 	&"cygnet": {
 		ContractData.Kind.FETCH: [
-			"A unit at {PLACE} has stopped reporting. Retrieve the housing. The literature does not require you to look inside it.",
-			"There is hardware at {PLACE}. It is expected. Bring it in.",
+			"Bring back the housing of the unit that went quiet at {PLACE}.",
+			"Collect the hardware waiting at {PLACE}.",
 		],
 		ContractData.Kind.HUNT: [
-			"The contact at {PLACE} is destroying units faster than they return. Resolve it.",
+			"The contact at {PLACE} is destroying our units.",
 		],
 		ContractData.Kind.HEAT: [
-			"Deliver {N}. Any yard. No party will be present and none is required to be.",
+			"Deliver {N} heat to any Cygnet yard.",
 		],
 	},
 	&"calyx": {
 		ContractData.Kind.FETCH: [
-			"A specimen was left at {PLACE} without supervision. It is still under warranty. Collect it carefully.",
-			"There is cultured hardware at {PLACE}, unfed, for some time now. Retrieve it. Do not feed it.",
+			"Collect the specimen left at {PLACE}.",
+			"Retrieve the cultured hardware at {PLACE}.",
 		],
 		ContractData.Kind.HUNT: [
-			"Something at {PLACE} is eating our specimens. Every contract has a clause about that.",
+			"Something at {PLACE} is eating our samples.",
 		],
 		ContractData.Kind.HEAT: [
-			"{N} units of thermal, any Calyx yard. The cultures take it better than the vaults do.",
+			"Deliver {N} heat to any Calyx yard.",
 		],
 	},
 }

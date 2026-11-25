@@ -73,6 +73,13 @@ static func puzzle(g: MiniGame) -> Dictionary:
 			p = _culture(g as GameCulture)
 		&"dock":
 			p = js((g as GameDock).P)
+		&"skim":
+			# the comet pages deal in their own mounts, from the same draws (`diff.py`)
+			p = js((g as GameSkim).P)
+		&"flick":
+			p = js((g as GameFlick).P)
+		&"geyser":
+			p = {vents = js((g as GameGeyser).vents)}
 	return p
 
 

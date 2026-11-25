@@ -913,7 +913,7 @@ func resolve_current_node() -> void:
 		# Why: docs/why/Router.md#core-arrival
 		MapGen.NodeType.CORE:
 			if n.cleared:
-				Run.log_line("The core is open. Its guard is gone.", &"good")
+				Run.log_line("The Custodian is dead and the core is open.", &"good")
 			else:
 				Run.log_line("The core fills the viewport. The Custodian guards it. Engage when you are ready.", &"big")
 			show_sector()

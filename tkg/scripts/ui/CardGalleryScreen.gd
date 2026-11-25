@@ -10,6 +10,8 @@ const LIFT := 18.0
 
 var _overlay: Control
 var _hot: CardView = null
+## The risen copy of `_hot`: a picture, deaf to the mouse, its words lit from `_hot`'s motions.
+var _pop: CardView = null
 ## Which module granted each view, as the card only carries the module's name.
 var _owner: Dictionary = {}
 
@@ -204,15 +206,21 @@ func _fill(col: VBoxContainer) -> int:
 		col.add_child(flow)
 
 		for row2 in g.rows:
-			var v := CardView.new()
-			v.setup((row2 as Dictionary).card, true, 1)
-			v.mouse_filter = Control.MOUSE_FILTER_PASS
-			v.hovered.connect(_on_hover)
-			flow.add_child(v)
+			flow.add_child(_grid_card((row2 as Dictionary).card))
 			total += 1
 	if groups.is_empty():
 		col.add_child(UITheme.body("NOTHING MATCHES", UITheme.COLD, UITheme.FS_SMALL))
 	return total
+
+
+## One card in the grid: it alone hears the pointer, for itself and for its risen copy.
+func _grid_card(c: CardData) -> CardView:
+	var v := CardView.new()
+	v.setup(c, true, 1)
+	v.mouse_filter = Control.MOUSE_FILTER_PASS
+	v.hovered.connect(_on_hover)
+	v.gui_input.connect(_on_card_input.bind(v))
+	return v
 
 
 func _on_filter(_state: Dictionary) -> void:
@@ -227,10 +235,13 @@ func _on_hover(v: CardView, entered: bool) -> void:
 		if _hot == v:
 			_clear()
 		return
+	# A second enter for the card already up keeps its copy: a rebuild restarts the rise.
+	# Why: docs/why/CardGalleryScreen.md#deaf-copy
+	if _hot == v and is_instance_valid(_pop) and _pop.is_inside_tree():
+		return
 	if _hot != null and _hot != v:
 		_hot.modulate.a = 1.0
-	# The hand's card-hover sound, here too (Jon asked). Only on a NEW card:
-	# the lifted copy can re-send `entered` for the card already out.
+	# The hand's card-hover sound, here too (Jon asked), once per card raised.
 	if _hot != v:
 		Audio.play(&"card_hover", 0.08, 45)
 	_hot = v
@@ -261,10 +272,13 @@ func _on_hover(v: CardView, entered: bool) -> void:
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.add_child(frame)
 
+	# Deaf, words and all: a copy that took the mouse over its words left the card under it,
+	# which cleared the copy and raised it again, once a motion. Why: docs/why/CardGalleryScreen.md#deaf-copy
 	var pop := CardView.new()
 	pop.setup(v.card, true, 1)
 	pop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.add_child(pop)
+	_pop = pop
 
 	# Rises from the card's own spot, as a card blinking
 	# into a higher place reads as a second card.
@@ -295,9 +309,24 @@ func _on_hover(v: CardView, entered: bool) -> void:
 		info.position.y = clampf(pos.y, 2.0,
 			maxf(2.0, size.y - info.size.y - 2.0))
 
+## The pointer over the grid card lights the word on its copy, where the eye is: the copy
+## stands LIFT above it, so the motion is moved onto the copy's own coordinates.
+func _on_card_input(e: InputEvent, v: CardView) -> void:
+	var mm := e as InputEventMouseMotion
+	if mm == null or v != _hot or not is_instance_valid(_pop):
+		return
+	_pop.point_at(_pop.get_global_transform().affine_inverse() * (v.get_global_transform() * mm.position))
+
+
+## The risen copy, for the harness.
+func risen() -> CardView:
+	return _pop if is_instance_valid(_pop) and _pop.is_inside_tree() else null
+
+
 func _clear() -> void:
 	if _hot != null:
 		_hot.modulate.a = 1.0
 	_hot = null
+	_pop = null
 	Widgets.clear(_overlay)
 

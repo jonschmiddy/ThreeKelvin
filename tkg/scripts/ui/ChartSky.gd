@@ -2302,7 +2302,7 @@ func _radiant_safety() -> void:
 	print_verbose("RADIANT the sky's own GPU time: %.2f ms a frame over %d frames" % [avg, _radiant_probe.n])
 	if avg > ChartRadiant.budget_ms() and ((DisplaySettings.render_style == &"radiant" and not DisplaySettings.harness_style()) 			or ChartRadiant.probe_forced()):
 		push_warning("RADIANT measured %.1f ms a frame on this machine; drawing SIMPLIFIED" % avg)
-		Run.log_line("RADIANT is too heavy for this machine, so the star chart is drawn SIMPLIFIED.", &"them")
+		Run.log_line("RADIANT runs too slowly on this machine, so the chart is drawn in SIMPLIFIED.", &"them")
 		# Change from the next picture, not this one: the picture holds its look (Jon).
 		ChartRadiant.fell_back = true
 		DisplaySettings.fall_back_style(&"simplified")

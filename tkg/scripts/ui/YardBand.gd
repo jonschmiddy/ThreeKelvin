@@ -2,8 +2,8 @@ class_name YardBand
 extends Control
 
 ## The front door's info band, straight on the floor under the ships (Jon's
-## band B1, Nov 10: no panel behind it): the facts, a tie line up to the
-## ship's stand, and LAUNCH, a big amber key, shown once a ship is picked.
+## band B1, Nov 10: no panel behind it): the facts and LAUNCH, a big amber key,
+## shown once a ship is picked; no tie line (Jon, Nov 23).
 ## Why: docs/why/ChassisSelect.md#banner-yard
 
 signal launch
@@ -183,15 +183,6 @@ func _centred(s: String, px: int, cx: int, y: int, col: Color) -> Label:
 	_words.add_child(l)
 	return l
 
-
-## The tie line: from the band's top edge up to the ship's stand.
-func _draw() -> void:
-	if tie == Vector2.ZERO:
-		return
-	var y0 := float(BAND.position.y)
-	draw_rect(Rect2(tie.x, tie.y, 1, y0 - tie.y), MINT, true)
-	draw_rect(Rect2(tie.x - 1, tie.y - 1, 3, 3), MINT, true)
-	draw_rect(Rect2(tie.x - 2, y0 - 1, 5, 3), MINT, true)
 
 
 ## THE KEY: a Button, so the hints and the harnesses find LAUNCH by name, drawn

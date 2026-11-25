@@ -121,3 +121,29 @@ One frame later the real height exists. The fade covers the correction,
 and is_instance_valid covers the case where the cursor has already moved
 on and taken this panel with it.
 ```
+
+## Deaf copy
+
+Inside `_on_hover()`, above `var pop := CardView.new()`:
+
+```text
+THE RISEN COPY TAKES NO MOUSE, AND ITS WORDS STILL LIGHT (Nov 24). Jon:
+"In the dev card viewer, hovering over the underlined words makes the card
+vibrate lol". The copy was set IGNORE, but its text box was a hover target
+of its own then (CardView's T2 body, PASS). With the pointer on the copy's
+words, the copy's text box took the hover, so the grid card under it heard
+mouse_exited. `_on_hover` cleared the copy. The grid card heard
+mouse_entered, and a new copy rose from the grid card's spot. Each motion
+ran that loop once, so the card shook between its rest and its lift.
+
+The fix is in CardView (docs/why/CardView.md#one-hover-target): the card
+alone hears the pointer, so the copy set IGNORE is deaf, words and all.
+The grid card keeps the hover the whole time the pointer is on it. Its
+motions are moved onto the copy's coordinates (`_on_card_input`), so the
+word under the pointer lights on the copy, where the eye is, and not on
+the hidden grid card LIFT below it.
+
+A second enter for the card already up returns early. A rebuild would
+restart the rise from the grid card's spot, and repeated, that is the
+same shake.
+```

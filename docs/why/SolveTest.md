@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/sim/SolveTest.gd`, moved out of the code verba
 
 ## Solve sweeps
 
-Above `const SEEDS := [4242, 7, 1999, 31337]`:
+Above `const SEEDS := [9300, 7, 1999, 31337]`:
 
 ```text
 THE AUTOPILOT'S SOLVED FLIGHTS (ruling 20, Oct 30), planned and measured:
@@ -110,7 +110,8 @@ Above `const PHASES := 8`:
 ```text
 the pair-phase sweep's angles round a lap (the review of the plan: 8), and
 in `short` (the gate's run) PHASES_SHORT of them, for the close pair of seed
-7 and the wide one of seed 4242 only: at full size the sweep took the gate's
+7 and the wide one of seed 9300 (4242's until Nov 22, when tier 0 dropped the
+Flocculent Spiral and 4242's world moved) only: at full size the sweep took the gate's
 run from about 170 s to 370 s alone, past its 300 s limit (review 1)
 ```
 
@@ -265,3 +266,18 @@ its plans are made a moment ahead, PLAN_AHEAD or PREVIEW_AHEAD, the
 ship at its own rate until then, and FlightTest's clicks on the drawn
 flight a moment on hold that)
 ```
+
+## Fallback pins
+
+Above `const FALLBACK_PINS := [`:
+
+```text
+The replans read every seventh case, so a fallback flight kept warm where a
+fresh plan arrived sooner could sit unread: read every case on main
+(d3577aa8), six did, from 1.3 ms to 48.6 s later (seed 7 node 28's ring 1
+to keep 3 kept 90.04 s against a fresh 41.41). Their warm path compared the
+two searches' te before either was built (`FlightSolve`, fixed Nov 22:
+docs/why/FlightSolve.md#fallback-kept-by-arrival). These are read always,
+in whichever shard plans them; a label matches every phase of its case.
+```
+

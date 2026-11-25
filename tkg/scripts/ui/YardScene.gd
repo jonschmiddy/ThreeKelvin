@@ -463,7 +463,7 @@ func _stand(v: ShipView, cx: float) -> Dictionary:
 		for L: int in pair["at"]:
 			var J := _sized(si, st, base + cmax - cmin)
 			supports.append({"img": J, "tex": ImageTexture.create_from_image(J),
-				"x": x0 + L, "y": floor_y - J.get_height()})
+				"x": x0 + L, "y": floor_y - J.get_height(), "base": int(J.get_meta(&"base", 0))})
 	v.position = Vector2(x0 - ink.position.x, top - ink.position.y)
 	v.size = Vector2(img.get_width(), img.get_height())
 	return {"x": cx, "x0": x0, "top": top, "w": iw, "h": ih, "bottom": top + belly + 1, "ink": ink,
@@ -938,24 +938,36 @@ func _draw_ships() -> void:
 
 	P.use(YardPaint.SHIP)
 	for i in 2:
-		var S: Dictionary = placed[i]
-		if S.is_empty():
-			continue
-		# (your stands sink into the floor as your ship lifts off them: `ShipLift`)
-		var sk := sink_mine if i == 0 else 0
-		for s: Dictionary in S["supports"]:
-			var st: Texture2D = s["tex"]
-			if sk <= 0:
-				P.tex(st, Vector2(float(s["x"]), float(s["y"])))
-			elif sk < st.get_height():
-				P.tex(st, Vector2(float(s["x"]), float(s["y"]) + float(sk)), Rect2(0, 0, st.get_width(), st.get_height() - sk))
+		for p: Array in stand_pieces(i):
+			for n in [1, 3]:
+				var src: Rect2 = p[n]
+				if src.size.y > 0.0:
+					P.tex(p[0], (p[n + 1] as Rect2).position, src)
 	P.end()
+
+
+## Each stand of berth `i` as drawn, in the hall's pixels: [its texture, the column's rows, where
+## they draw, the base's rows, where it draws]. Your ship's columns sink into their bases as it
+## lifts off and come up out of them as it lands (`sink_mine`, `ShipLift`); the bases never move.
+## Why: docs/why/ShipLift.md#stands-sink-and-rise
+func stand_pieces(i: int) -> Array[Array]:
+	var out: Array[Array] = []
+	var S: Dictionary = placed[i] if i < placed.size() else {}
+	if S.is_empty():
+		return out
+	for s: Dictionary in S["supports"]:
+		var st: Texture2D = s["tex"]
+		var at := Vector2(float(s["x"]), float(s["y"]))
+		var cut := YardStands.sunk_post(st.get_width(), st.get_height(), int(s.get("base", 0)), sink_mine if i == 0 else 0)
+		out.append([st, cut[0], Rect2(at + cut[1].position, cut[1].size), cut[2], Rect2(at + cut[3].position, cut[3].size)])
+	return out
 
 
 ## 16 and 8 px, not the page's 24 and 16: Jon found them too big at 2x. Off while zoomed.
 ## Why: docs/why/YardScene.md#ship-names
 var hide_mine := false
-## Rows your ship's stands have sunk into the floor (`ShipLift`, undocking).
+## Rows your ship's stands' columns have sunk into their bases (`ShipLift`: undocking
+## they go down, landing they start down and come up).
 var sink_mine := 0
 ## And brought back gently once your ship has landed (`StationScreen.ladder_chrome`):
 ## its name and its reflection come up with the yard's UI, not in one frame.

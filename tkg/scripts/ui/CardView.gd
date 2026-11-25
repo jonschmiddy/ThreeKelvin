@@ -76,12 +76,13 @@ func _refresh_body() -> void:
 		_body.text = card.describe_rich(live_output, live_hot, lit_word)
 
 
-## The pointer moving over the text: the keyword under it lights, the one it left goes out.
-func _on_body_input(e: InputEvent) -> void:
-	var mm := e as InputEventMouseMotion
-	if mm == null:
+## The pointer at `p` on the card (its own coordinates): the keyword under it lights, the one
+## it left goes out. The card hears it, not the text. Why: docs/why/CardView.md#one-hover-target
+func point_at(p: Vector2) -> void:
+	if _body == null:
 		return
-	var t := word_at(mm.position)
+	# A carried card's words stay dark: a tag over the enemy hides what you aim at.
+	var t := "" if held else word_at(_body.get_transform().affine_inverse() * p)
 	if t == lit_word:
 		return
 	if lit_word != "":
@@ -161,15 +162,10 @@ func setup(c: CardData, can_play: bool, scale_step: int = 1) -> void:
 	body.fit_content = true
 	body.scroll_active = false
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	# PASS, not IGNORE: the words answer the pointer (T2), and clicks still reach the card.
-	# The card counts the body's hover as its own, so the lift is not lost over the text.
-	body.mouse_filter = Control.MOUSE_FILTER_PASS
+	# IGNORE: the card hears the pointer and finds the word (`point_at`); a hover target of its
+	# own made copies set IGNORE take the mouse. Why: docs/why/CardView.md#one-hover-target
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.meta_underlined = false
-	body.gui_input.connect(_on_body_input)
-	body.mouse_exited.connect(func() -> void:
-		if lit_word != "":
-			_on_word(lit_word, false))
-	mouse_behavior_recursive = Control.MOUSE_BEHAVIOR_ENABLED
 	body.add_theme_font_override("normal_font", UITheme.pixel_font())
 	body.add_theme_font_size_override("normal_font_size", UITheme.FS_SMALL * _s)
 	body.add_theme_color_override("default_color", UITheme.CHILL)
@@ -663,6 +659,10 @@ func set_picking(on: bool) -> void:
 	queue_redraw()
 
 func _on_input(event: InputEvent) -> void:
+	var mm := event as InputEventMouseMotion
+	if mm != null:
+		point_at(mm.position)
+		return
 	var mb := event as InputEventMouseButton
 	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
 		return

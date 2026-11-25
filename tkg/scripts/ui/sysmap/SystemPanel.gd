@@ -426,7 +426,7 @@ func _card_line(i: int, st: Dictionary, o: Dictionary) -> String:
 			return (_c(moved + " · ", UITheme.CHILL) if moved != "" else "") + _c(String(said[1]), UITheme.COLD)
 		&"gone":
 			if String(st.by) == "":
-				return _c("Closed when the other in its set was taken.", UITheme.COLD)
+				return _c("You took the other one in this set.", UITheme.COLD)
 			var who := "you" if String(st.by_who) == "" else String(st.by_who)
 			return _c("Closed when %s took %s." % [who, String(st.by).to_upper()], UITheme.COLD)
 		&"who":
@@ -465,7 +465,7 @@ func _list() -> void:
 			_eyebrow("A HULL, IF YOU WANT IT", UITheme.EMBER)
 			_box.add_child(Widgets.hull_row(Run.found_hull, "TRANSFER", 0, func(what: String, h: Variant) -> void: screen.on_hull(what, h)))
 			var later := Widgets.button("DECIDE LATER", func() -> void: screen.hush_hull())
-			later.tooltip_text = Widgets.tip("Closes this. The hull stays on offer for the rest of the run.")
+			later.tooltip_text = Widgets.tip("You can come back for this hull any time this run.")
 			_box.add_child(later)
 			_gap()
 	# THE STAR HOLDS THE WHOLE SECTOR (Jon: "this panel should also have all
@@ -480,7 +480,7 @@ func _list() -> void:
 	if filter == SystemLayout.COMET and shown.is_empty():
 		pass
 	elif all.is_empty():
-		_eyebrow("NOTHING OUT HERE WANTS YOU")
+		_eyebrow("NO EVENTS HERE")
 	elif narrowed:
 		_eyebrow("ON %s · %d EVENT%s" % [_place_name(filter), shown.size(), "" if shown.size() == 1 else "S"])
 	else:
@@ -491,7 +491,7 @@ func _list() -> void:
 		else:
 			_box.add_child(_card(pair[0], pair[1]))
 	if filter >= 0 and shown.is_empty() and not all.is_empty():
-		_eyebrow("NOTHING HERE WANTS YOU", DIM)
+		_eyebrow("NO EVENTS HERE", DIM)
 	if not narrowed:
 		_satellites()
 	# No SECTOR LOOT button with nothing on the floor (Jon): only pressable things look pressable.
@@ -597,7 +597,7 @@ func _star_head() -> void:
 	_name(v.star_name())
 	_class(v.star_class())
 	_blurb(MapGen.place_line(v.node))
-	var sf: Dictionary = SystemViewS.STAR_FACTS[v.kind]
+	var sf: Dictionary = SystemViewS.star_facts_of(null, v.kind, -1, v.node.index)
 	_row("CLASS", sf.cls)
 	_row("SURFACE", sf.temp)
 	_row("MASS", sf.mass)
@@ -640,7 +640,7 @@ func _twin_head() -> void:
 		_gap(2)
 		_wrap(screen.overlay.star_name_of(s), UITheme.ICE, UITheme.FS_SMALL)
 		_class(screen.overlay.star_class_of(s))
-		var sf: Dictionary = SystemViewS.star_facts_of(L, SystemViewS.KIND_NAMES[L.star_kind_of(s)], s)
+		var sf: Dictionary = SystemViewS.star_facts_of(L, SystemViewS.KIND_NAMES[L.star_kind_of(s)], s, v.node.index)
 		_row("CLASS", sf.cls)
 		_row("SURFACE", sf.temp)
 		_row("MASS", sf.mass)
@@ -741,7 +741,7 @@ func _place_head(i: int) -> void:
 	var top := HBoxContainer.new()
 	top.add_child(UITheme.body("STAR" if b == null else ("WORLD" if b.world != &"" else String(b.kind).to_upper()), UITheme.COLD, UITheme.FS_SMALL))
 	top.add_child(_spacer())
-	top.add_child(_link("SHOW ALL ×", func() -> void: screen.panel_back(), "Every event in the sector"))
+	top.add_child(_link("SHOW ALL ×", func() -> void: screen.panel_back()))
 	_box.add_child(top)
 	if b != null and b.world != &"":
 		var holder := Control.new()
@@ -783,7 +783,7 @@ func _place_head(i: int) -> void:
 			if key == "GRAVITY" and b.gm_frac > 0.0:
 				_row("MASS", mass_line(b.gm_frac, L.twin))
 	else:
-		var sf: Dictionary = SystemViewS.STAR_FACTS[v.kind]
+		var sf: Dictionary = SystemViewS.star_facts_of(null, v.kind, -1, v.node.index)
 		_row("CLASS", sf.cls)
 		_row("SURFACE", sf.temp)
 		_row("MASS", sf.mass)
@@ -798,7 +798,7 @@ func _comet_head() -> void:
 	var top := HBoxContainer.new()
 	top.add_child(UITheme.body("COMET", UITheme.COLD, UITheme.FS_SMALL))
 	top.add_child(_spacer())
-	top.add_child(_link("SHOW ALL ×", func() -> void: screen.panel_back(), "Every event in the sector"))
+	top.add_child(_link("SHOW ALL ×", func() -> void: screen.panel_back()))
 	_box.add_child(top)
 	if c == null:
 		return
@@ -833,17 +833,12 @@ var _spot_opt := -1
 const SPOT_COL: Array[Color] = [UITheme.ICE, UITheme.FLARE, UITheme.BAD]
 const SPOT_PAY: Array[String] = ["1X", "2X", "2.5X"]
 const SPOT_SHORT: Array[String] = ["FAR", "NEAR", "STAR"]
-const SPOT_TIP: Array[String] = [
-	"Far out on its path. A plain reading. Nothing hits the ship.",
-	"Nearer the star. Twice the reading. Rock in the tail hits the hull.",
-	"At the star. Two and a half times the reading. Rock hits the hull, and the heat comes in.",
-]
 
 
 func _spots(i: int) -> void:
 	_spot_btns = []
 	_spot_opt = i
-	_eyebrow("WAIT ON ITS PATH: PICK A SPOT", UITheme.HOT)
+	_eyebrow("PICK A SPOT ON ITS PATH", UITheme.HOT)
 	for k in 3:
 		var b := Button.new()
 		b.name = "Spot%d" % k
@@ -853,7 +848,6 @@ func _spots(i: int) -> void:
 		b.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
 		b.add_theme_color_override("font_color", SPOT_COL[k])
 		b.add_theme_color_override("font_disabled_color", DIM)
-		b.tooltip_text = Widgets.tip(SPOT_TIP[k])
 		var kk := k
 		b.pressed.connect(func() -> void: screen.comet_catch().go_spot(kk, i))
 		b.clip_text = true
@@ -913,22 +907,22 @@ func _card(body: int, bc) -> Control:
 		# of their own holding one sentence and that button.
 		var words: Array
 		if bc == null:
-			words = ["HARVEST THE BEAM", "NEUTRON STAR", "The pulsar's beam sweeps by once a second. Sitting in it gives fuel but costs hull and heat.", "HARVESTED" if n.cleared else "HARVEST", UITheme.TRACTOR, n.cleared]
+			words = ["HARVEST THE BEAM", "NEUTRON STAR", "Each pass through the beam adds fuel, hull damage and heat.", "HARVESTED" if n.cleared else "HARVEST", UITheme.TRACTOR, n.cleared]
 		elif bc.dock:
 			# Only at the station (Jon, Oct 18): elsewhere the card says where to go, DOCK greyed.
 			var there := _ship_at(body) or Router.docked
-			words = ["DOCK", "STATION", "A station is in this orbit. " + ("Its berths are open." if there else Router.DOCK_AWAY), "DOCK", UITheme.ICE, not there]
+			words = ["DOCK", "STATION", "" if there else Router.DOCK_AWAY, "DOCK", UITheme.ICE, not there]
 		elif bc.hellbender:
 			var alive := Run.hellbender_alive() and Run.hellbender_at == n.index
-			words = ["THE HELLBENDER", "CONTACT", "The Hellbender is anchored past the last orbit, its holds glowing with what it has taken. It blocks the rest of this system." if alive else "What is left of the Hellbender drifts past the last orbit.", "ENGAGE" if alive else "BROKEN", UITheme.BAD, not alive]
+			words = ["THE HELLBENDER", "CONTACT", "Nothing past it can be reached until it's destroyed." if alive else "", "ENGAGE" if alive else "BROKEN", UITheme.BAD, not alive]
 		else:
-			words = ["THE CUSTODIAN", "CONTACT", "The Custodian holds station at the edge of the disc. It has guarded the core for a long time.", "ENGAGE", UITheme.BAD, n.cleared or n.fled]
+			words = ["THE CUSTODIAN", "CONTACT", "You have to get past it to reach the core.", "ENGAGE", UITheme.BAD, n.cleared or n.fled]
 		var btn := _small(words[3], func() -> void: screen.take_action(bc), words[5])
 		if bc != null and bc.dock and btn.disabled:
 			btn.tooltip_text = Widgets.tip("DOCK
 
 " + Router.DOCK_AWAY)
-		card.build(words[0], UITheme.ICE, btn, _c(words[1], words[4]), where, _ship_at(body), _c(words[2], UITheme.CHILL), words[4])
+		card.build(words[0], UITheme.ICE, btn, _c(words[1], words[4]), where, _ship_at(body), _c(words[2], UITheme.CHILL) if words[2] != "" else "", words[4])
 		_cards[key] = card
 		return card
 	var i: int = bc.opt
@@ -1021,8 +1015,6 @@ func _event_page(out: Dictionary) -> void:
 			# only why GO can't fly you yet; when it can, GO says so itself
 			# (Jon, Nov 5: "You can remove that here too"); docked, the foot says it
 			_blurb(_locked_line(body), UITheme.COLD)
-		if st.kind == &"left":
-			_blurb("You walked away from this. It is still open.", UITheme.CHILL)
 		_rule()
 		# ONE SENTENCE: the event itself, and its choices, are on LOCAL
 		_blurb(EncounterText.first_sentence(String(o.get("body", ""))), UITheme.CHILL)
@@ -1140,10 +1132,12 @@ class EventCard extends PanelContainer:
 			at.add_child(UITheme.body("YOU · ", UITheme.FLARE, UITheme.FS_SMALL))
 		at.add_child(UITheme.body(where, UITheme.COLD, UITheme.FS_SMALL))
 		_fade.append(mid)
-		var line := _mk_rich(line_bb)
-		line.custom_minimum_size = Vector2(210, 0)
-		col.add_child(line)
-		_fade.append(line)
+		# (no line at all when it says nothing: an empty one still takes a row)
+		if line_bb != "":
+			var line := _mk_rich(line_bb)
+			line.custom_minimum_size = Vector2(210, 0)
+			col.add_child(line)
+			_fade.append(line)
 		dress()
 
 	static func _mk_rich(bb: String) -> RichTextLabel:

@@ -10,6 +10,7 @@ Writes tkg/art/sprites/guns/:
     <id>_<side>.png  the side the gun was drawn for, as drawn, and the other
                      side flipped and relit by relight.py (lit from above)
     guns.json        {id: {side: {file, anchor}}}, read by ShipGun.gd
+    <manufacturer>/         the unbranded guns in that manufacturer's colours, by manufacturer_guns.py
 
 Every gun is shrunk to SCALE of its drawn size first (Jon, Nov 17: "too big"),
 the way the hold icons are: an area shrink on premultiplied colour, hard alpha at
@@ -37,6 +38,7 @@ from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from relight import relight, luma
+import manufacturer_guns
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "sprites", "guns")
@@ -62,7 +64,7 @@ LIGHT_WARM = 25
 INK = 140
 # Flip the spinals (drawn for the belly) onto a top mount too, so every gun with a
 # picture has both sides and none stands on a top mount as its hold icon (Jon, Nov 17:
-# yes, after the placer showed the KH-500 and Widowmaker as hold icons on top).
+# yes, after the placer showed the KH-500 and Widowmanufacturer as hold icons on top).
 FLIP_BELLY_GUNS = True
 
 
@@ -268,6 +270,8 @@ def install(src_dir, keep_others=False):
     io.open(os.path.join(OUT, "guns.json"), "w", encoding="utf-8", newline="\n").write(
         json.dumps(table, indent=1, sort_keys=True) + "\n")
     print("wrote %d guns to %s" % (len(table), os.path.normpath(OUT)))
+    # the manufacturer copies are made from the plain guns, so they follow every install
+    manufacturer_guns.install(table)
 
 
 if __name__ == "__main__":

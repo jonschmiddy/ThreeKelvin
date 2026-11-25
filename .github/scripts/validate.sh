@@ -829,6 +829,22 @@ GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametorch 780 \
 	--headless --path "$PROJECT" -- sheet=MiniGameTest games=torch
 }
 
+unit_minigameskim() {
+step "Skim deals, flies and scores as its prototype"
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigameskim 600 \
+	"Skim deals, flies and scores" \
+	"Skim dealt no comet, an unflyable one, a different one twice, or scored wrong" \
+	--headless --path "$PROJECT" -- sheet=MiniGameTest games=skim
+}
+
+unit_minigamecomet() {
+step "Flick and Geyser deal, fly and score as their prototypes"
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigamecomet 600 \
+	"Flick and Geyser deal, fly and score" \
+	"Flick or Geyser dealt no comet, an unflyable one, a different one twice, or scored wrong" \
+	--headless --path "$PROJECT" -- sheet=MiniGameTest games=flick,geyser
+}
+
 unit_minigametray() {
 step "The sample tray deals, solves and scores as its prototype"
 GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametray 800 \
@@ -1296,6 +1312,13 @@ ALLOW_EXTRA="$GATE_LEAKS|were leaked at exit" gate_sheet wrecksitetest 470 \
 	"a world keeps its wrecks, the next one and the next system have none, and they stay off your hull" \
 	"a wreck shows at a place it did not die at, or on your hull" \
 	--headless --path "$PROJECT" -- sheet=WreckSiteTest
+}
+
+unit_orbitpreviewtest() {
+step "The star chart's orbit map is what the sector map draws on arrival"
+# Jon, Nov 22 (destination panel B): read before a visit, the orbits match the arrival,
+# looking moves nothing, and fog hides them. Why: docs/why/validate.md#unit_orbitpreviewtest
+ALLOW_EXTRA="$GATE_LEAKS|were leaked at exit" gate_sheet orbitpreviewtest 300 	"the orbit map matches every arrival, looking moves nothing, and fog hides it" 	"the orbit map differs from an arrival, or shows through fog" 	--headless --path "$PROJECT" -- sheet=OrbitPreviewTest
 }
 
 unit_stationaheadtest() {
@@ -2639,7 +2662,7 @@ gate_weight() {
 		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;; arrivesidetest) echo 60 ;;
 		sciencesimtest) echo 51 ;; routinetest) echo 28 ;; jumpshadertest) echo 90 ;;
 		meterfittest) echo 76 ;; convoyslidetest) echo 30 ;; stationaheadtest) echo 40 ;;
-		minigametest) echo 300 ;; minigamedials) echo 355 ;; minigameflown) echo 280 ;; minigametorch) echo 440 ;; minigametray) echo 500 ;; minigamesling) echo 470 ;;
+		minigametest) echo 300 ;; minigamedials) echo 355 ;; minigameflown) echo 280 ;; minigametorch) echo 440 ;; minigameskim) echo 200 ;; minigamecomet) echo 200 ;; minigametray) echo 500 ;; minigamesling) echo 470 ;;
 		*) echo 15 ;;
 	esac
 }

@@ -36,6 +36,7 @@ func _run() -> void:
 		Ladder.best_won() == -1 and Ladder.can_pick(0) and not Ladder.can_pick(1))
 	await _box_case()
 	await _forms()
+	await _tier0_sweep()
 	await _record()
 	await _fresh()
 	_finish()
@@ -140,6 +141,76 @@ func _forms() -> void:
 		_ok("a tier %d run flies a %s: %s" % [int(pair[0]), Ladder.FORM_NAME[int(pair[1])], GalaxyGen.type_name(Run.galaxy_kind)],
 			Run.ascension == int(pair[0]) and Ladder.form_of_kind(Run.galaxy_kind) == pair[1])
 	Run.forced_ascension = -1
+	Run.hull = null
+
+
+## TIER 0 IS SPIRALS (Jon's A, Nov 21): `Ladder.TIER0_KINDS` checked, 300 seeds
+## roll only listed kinds, a listed first draw is kept, the chart names the kind.
+## Why: docs/why/Ladder.md#tier-0-spirals
+func _tier0_sweep() -> void:
+	var names: Array[String] = []
+	for k in GalaxyGen.count():
+		names.append(GalaxyGen.type_name(k))
+	var listed := true
+	for nm: String in Ladder.TIER0_KINDS:
+		var k := names.find(nm)
+		if k < 0 or Ladder.form_of_kind(k) != Ladder.Form.SPIRAL:
+			listed = false
+	# Jon's six (Nov 21): the irregulars and the Flocculent Spiral left out
+	var six := ["Grand-Design Spiral", "Barred Spiral", "Multi-Arm Spiral",
+		"Anemic Spiral", "Interacting Pair", "Starburst Spiral"]
+	var same := Ladder.TIER0_KINDS.size() == six.size()
+	for nm: String in six:
+		same = same and nm in Ladder.TIER0_KINDS
+	_ok("tier 0's list is Jon's six spiral-form kinds: %s" % [Ladder.TIER0_KINDS],
+		listed and same and Ladder.kinds_of(0).size() == six.size())
+	# the one draw as it was before the list: among every spiral-form kind
+	var all_spiral := Ladder.kinds_of(1)
+	var kept := 0
+	var moved: Array[int] = []
+	for sd in range(1, 301):
+		var r := RandomNumberGenerator.new()
+		r.seed = sd
+		var was: int = all_spiral[r.randi() % all_spiral.size()]
+		r.seed = sd
+		var now := Ladder.roll_kind(0, r)
+		if GalaxyGen.type_name(was) in Ladder.TIER0_KINDS:
+			if now == was:
+				kept += 1
+			else:
+				moved.append(sd)
+	_ok("a first draw already on the list is kept (%d kept%s)" % [kept,
+		"" if moved.is_empty() else ", moved: %s" % [moved]], moved.is_empty() and kept > 0)
+	Run.forced_ascension = 0
+	var seen := {}
+	var bad: Array[String] = []
+	for sd in range(1, 301):
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		Rng.forced = 0
+		var k := Run.galaxy_kind
+		var nm := GalaxyGen.type_name(k)
+		seen[nm] = int(seen.get(nm, 0)) + 1
+		if Run.ascension != 0 or Ladder.form_of_kind(k) != Ladder.Form.SPIRAL \
+				or ChartSky.form_of(k) != 0 or not nm in Ladder.TIER0_KINDS:
+			if bad.size() < 6:
+				bad.append("seed %d %s" % [sd, nm])
+	print("    tier 0 kinds over 300 seeds: %s" % [seen])
+	_ok("tier 0 over 300 seeds flies a kind on the tier 0 list%s"
+		% ("" if bad.is_empty() else ": " + ", ".join(bad)), bad.is_empty())
+	for sd: int in [4242, 7, 9300]:
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		Rng.forced = 0
+		var want := GalaxyGen.type_name(Run.galaxy_kind).to_upper()
+		Router.show_starchart()
+		await Harness.frames(_tree, 4)
+		_ok("seed %d: the chart names the galaxy the run rolled, %s" % [sd, want],
+			Router.current is StarchartScreen and _says(Router.current, want))
+	Run.forced_ascension = -1
+	# off the chart before the hull goes: it reads the hull every frame
+	Router.show_launcher()
+	await Harness.frames(_tree, 2)
 	Run.hull = null
 
 
