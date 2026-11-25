@@ -60,6 +60,8 @@
     "seat": 7,
     "_seat": "Seat 7 (was 3; Jon, 2026-10-11, B: \"sink every level to the front edge of the saddle's top face\"): the stone slab's top face is rows 1-6, its sides sloping out as it comes toward you, and row 7 is its front edge, where the sides turn straight down into the front face (rows 8-13, the gold flange either side). The hull's lowest pixel lies on row 6, the edge line showing under it.",
     "row": 52,
+    "base": 20,
+    "_base": "Base 20: the bolted foot, rows 68-87 (from the plate's top edge down). Undocking, the column and saddle above it sink into it and it never moves; landing, they come up out of it (Jon, 2026-11-25: \"just like the new ship picker launch\").",
     "cut": [
      30,
      67
@@ -972,6 +974,8 @@
     "seat": 6,
     "_seat": "Seat 6 (was 5; Jon, 2026-10-11, B): the padded saddle's top roll is rows 1-5 and the dark crease on row 6 is its front edge, the front roll (rows 7-13) below it. The hull's lowest pixel lies on row 5, the crease showing under it.",
     "row": 52,
+    "base": 19,
+    "_base": "Base 19: the bolted foot, rows 69-87 (from the plate's top edge down). Undocking, the column and saddle above it sink into it and it never moves; landing, they come up out of it (Jon, 2026-11-25: \"just like the new ship picker launch\").",
     "cut": [
      29,
      64
@@ -1714,6 +1718,8 @@
     "seat": 7,
     "_seat": "Seat 7 (measured 2026-10-11 for Jon's B, unchanged): the top board's face is rows 1-6 and the bright lip on row 7 is its front edge, the lower board (rows 8-13) below. The hull's lowest pixel lies on row 6, the lip showing under it.",
     "row": 62,
+    "base": 25,
+    "_base": "Base 25: the bolted foot, rows 63-87 (from the plate's top edge down). Undocking, the column and saddle above it sink into it and it never moves; landing, they come up out of it (Jon, 2026-11-25: \"just like the new ship picker launch\").",
     "cut": [
      26,
      62
@@ -2394,6 +2400,8 @@
     "seat": 11,
     "_seat": "Seat 11 (was 8; Jon, 2026-10-11, B): the rubber pad (rows 1-5) sits on the cradle block, whose top face is rows 7-10; the white lip on row 11 is its front edge, the block's front face (rows 12-15) below. The hull's lowest pixel lies on row 10, pad and top face behind it, the lip showing under it.",
     "row": 66,
+    "base": 20,
+    "_base": "Base 20: the bolted foot, rows 68-87 (from the plate's top edge down). Undocking, the column and saddle above it sink into it and it never moves; landing, they come up out of it (Jon, 2026-11-25: \"just like the new ship picker launch\").",
     "cut": [
      20,
      70
@@ -3744,6 +3752,8 @@
     "seat": 10,
     "_seat": "Seat 10 (measured 2026-10-11 for Jon's B, unchanged): the blue padded tray's floor is rows 3-9 and the bright rim on row 10 is its front edge, the tray's front (rows 11-15) below. The hull's lowest pixel lies on row 9, the rim showing under it.",
     "row": 66,
+    "base": 19,
+    "_base": "Base 19: the bolted foot, rows 69-87 (from the plate's top edge down). Undocking, the column and saddle above it sink into it and it never moves; landing, they come up out of it (Jon, 2026-11-25: \"just like the new ship picker launch\").",
     "cut": [
      20,
      70

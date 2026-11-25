@@ -29,9 +29,8 @@ const MIN_SPREAD := 0.8
 const POST_HEAD := 41
 const SHAFT_ROW := 47
 ## A post's bolted base (its plate and the housing the column stands in): its bottom rows, the same 18 in all
-## three rooms' pictures. LAUNCH lowers the rest this far into it. Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
+## three rooms' pictures. LAUNCH lowers the rest `ShipLift.SINK_ROWS` into it. Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
 const POST_BASE := 18
-const SINK_ROWS := 12
 
 var weight: HullData.Weight = HullData.Weight.MEDIUM
 var room: ShipRoom
@@ -358,29 +357,24 @@ func _sink_posts() -> void:
 	pin_posts()
 
 
-## The lift's sink (`ShipLift.SINK_PX` at its end) as this berth's rows: a little, `SINK_ROWS`
-## (Jon, Nov 24: "sink only a little", "the bases must not move").
-func sink_rows(rows: int) -> int:
-	return roundi(float(rows) / ShipLift.SINK_PX * float(SINK_ROWS))
-
-
 ## The posts where they stand in the frame, however the berth has moved (a launch flies it): each base on its
-## feet, and over it each column `retract` rows lower, drawing only its rows above the base's top.
-## Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
+## feet, and over it each column `retract` rows lower, drawing only its rows above the base's top
+## (`YardStands.sunk_post`, as the deck's stands). Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
 func pin_posts() -> void:
-	var top := feet - POST_BASE
-	var h := clampi(top - post_top - retract, 0, top - post_top)
+	var cut := YardStands.sunk_post(post_w, feet - post_top, POST_BASE, retract)
+	var h := int(cut[1].size.y)
 	for i in mini(_posts.size(), post_x.size()):
+		var at := Vector2(post_x[i], post_top) - position
 		var tr := _posts[i]
 		if is_instance_valid(tr):
-			tr.position = Vector2(post_x[i], post_top + retract) - position
-			tr.size = Vector2(post_w, h)
-			(tr.texture as AtlasTexture).region = Rect2(0, 0, post_w, maxi(1, h))
+			tr.position = at + cut[1].position
+			tr.size = cut[1].size
+			(tr.texture as AtlasTexture).region = Rect2(cut[0].position, Vector2(post_w, maxi(1, h)))
 			tr.visible = h > 0
 		var base := _bases[i]
 		if is_instance_valid(base):
-			base.position = Vector2(post_x[i], top) - position
-			base.size = Vector2(post_w, POST_BASE)
+			base.position = at + cut[3].position
+			base.size = cut[3].size
 
 
 ## Grow the control to cover a frame rect, keeping every child where it stands in the frame.

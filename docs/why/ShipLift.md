@@ -50,6 +50,14 @@ One takeoff (Jon, Nov 12: "the same for the shipyard and ship selection screen")
 
 `lateral(on, speed)` reports the mains pushing the hull sideways (the takeoff's burn right, the landing's approach until the hover) for the thruster layer under the sound; `lateral_speed` is px/s every frame.
 
+## Stands sink and rise
+
+Jon, Nov 24, on the hull pick's LAUNCH: "sink only a little", "the bases must not move" (`docs/why/ShipRoom.md#posts-sink-into-their-bases`). Then Nov 25, on the Shipyard deck: "For taking off, it should look just like the new ship picker launch. For landing, they should be down at first and come up as the ship approaches. Basically the opposite of launching."
+
+The lift measures the sink in rows of a stand's column, not in pixels of the whole stand: `SINK_ROWS` (12) at the front door's size, `sunk_rows(k)` at the lift's (the deck's 0.75 gives 9). It used to sink `SINK_PX` (52 px, 39 on the deck), which took the deck's whole stand, foot and all, out of sight through the floor. Each host splits its stands the same way (`YardStands.sunk_post`): the bolted base stays on its feet and is drawn over the column, and the column and saddle are drawn that many rows lower, only their rows above the base's top. The front door's posts have an 18-row base in all three rooms; each deck level's stand picture has its own (`base` in yard.json's `stands`, the rows from the plate's top edge down).
+
+Taking off, the columns go down from `SINK_FROM` over `SINK_S`, on both screens. Landing (deck only: the hull pick has no landing), the run back: the stands are down from the move's first frame (`StationScreen.ladder_cam_begin`, so the empty yard fades up with them sunk), and come up from `RAISE_FROM` (the belly jets lighting, 1.8 s) over the same `SINK_S`, at the same rate, so they are full height at 2.6 s, as the hull slows into its hover. That leaves the hover and the 1.6 s descent with the stands standing. The touchdown's one-pixel give is the hull's, and stays. A move cut short (a press) puts them back up (`ladder_cam_end`).
+
 ## Heard
 
 Jon picked LC2 with the LTC layer (Nov 12). The take (`ship_liftoff`) is the sound builder's game cut of LC2 (tk-scratch/yard-launch/sound/final/LC2_game.wav, 5.85 s), levelled to -16 LUFS for its loudest second and carrying its own fade. It starts with the belly jets (`PLUME_AT`, 0.15 s; 0.63 s into the deck's undock pre-roll): from `MAINS_ON` it was "far too late". Under it, the LTC layer is the game's own: `thruster_depart_<weight>` once and `ship_thrust_loop` at `Audio.SHIP_DB`, both from the `lateral` signal at `MAINS_ON`, the loop faded over 0.3 s at the exit. It ships as WAV like every other sound effect (`audio/README.md`: SFX are WAV so they start at once; `Audio.SFX_PATH` loads WAV).
@@ -62,4 +70,4 @@ The crew near the blast walk off from it, whole steps on their own strides; the 
 
 ## Test
 
-`ShipLiftTest`: both screens run the same class to its end, LAUNCH fires once, no click reaches the hall while the ship is in the air, reduced motion cuts, UNDOCK goes right and lands on LOCAL undocked.
+`ShipLiftTest`: both screens run the same class to its end, LAUNCH fires once, no click reaches the hall while the ship is in the air, reduced motion cuts, UNDOCK goes right and lands on LOCAL undocked. The stands are read every frame off what is drawn (the posts' nodes on the front door, `YardScene.stand_pieces` on the deck): the columns sink their rows and no more, never draw into a base, and the bases never move; then a DOCK onto the deck checks the run back (down at first, up by the hover, never down again).

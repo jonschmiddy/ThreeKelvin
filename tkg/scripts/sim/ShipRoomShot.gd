@@ -81,7 +81,7 @@ func _run() -> void:
 		return
 	# `sink=1`: every berth's columns at 0, 6 and 12 rows down (`retract`), a still each: the Old hangar has no launch
 	if Harness.arg("sink") == "1":
-		for r in [0, YardStandSet.SINK_ROWS / 2, YardStandSet.SINK_ROWS]:
+		for r in [0, ShipLift.SINK_ROWS / 2, ShipLift.SINK_ROWS]:
 			for st: YardStandSet in y.sets.values():
 				st.retract = r
 			await RenderingServer.frame_post_draw
