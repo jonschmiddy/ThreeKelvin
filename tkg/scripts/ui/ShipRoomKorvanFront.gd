@@ -50,9 +50,7 @@ func _mk(n: StringName, b: ShipRoomKorvanPaint.Blend = ShipRoomKorvanPaint.Blend
 func build(air: ShipRoomKorvanAir) -> void:
 	air.build_motes()
 	for i in 40:
-		var w := life.paint()
-		w.light(7)
-		_wisps.append(w)
+		_wisps.append(life.paint())
 	_mk(&"bead")
 	_mk(&"bench_sh", P.Blend.MUL)
 	_mk(&"bench").light(0)
@@ -732,16 +730,16 @@ func _wisps_draw(t: float, fr: Dictionary) -> void:
 	var wp := F.weld_pose(tA)
 	var lift_on := func(tb: float) -> bool:
 		return F.weld_pose(fposmod(tb, 10.0)).y == 1
-	used = _wisp_arc(t, Vector2(F.arc_tip(wp.x)), float(fr["arcA"]) if wp.y == 1 else 0.0, lift_on, "71", used)
+	used = _wisp_arc(t, Vector2(F.arc_tip(wp.x)), float(fr["arcA"]) if wp.y == 1 else 0.0, lift_on, "71", used, 0)
 	var sp: Dictionary = (F.K["weld8"] as Array)[0]
 	var st := F.weld_state(sp, t)
 	var weld_on := func(tb: float) -> bool:
 		return F.weld_state(sp, tb).y > 0.5
 	_wisp_arc(t, Vector2(float(sp["tip"][0]), float(sp["tip"][1])), float((fr["arc8"] as Array)[0]) if st.y > 0.5 else 0.0,
-		weld_on, "72", used)
+		weld_on, "72", used, 1)
 
 
-func _wisp_arc(t: float, src: Vector2, lvl: float, on_at: Callable, seed: String, used: int) -> int:
+func _wisp_arc(t: float, src: Vector2, lvl: float, on_at: Callable, seed: String, used: int, si: int) -> int:
 	var draws: Array = F.FX["wisps"][seed]
 	var k_now := int(floorf(t / 0.12))
 	for j in 18:
@@ -756,13 +754,7 @@ func _wisp_arc(t: float, src: Vector2, lvl: float, on_at: Callable, seed: String
 		var cy := src.y - 2.0 + float(r[1]) - 9.0 * age * (1.0 - 0.25 * u)
 		var rad := (1.0 + 2.6 * u) * float(r[3])
 		var dens := 0.8 * pow(1.0 - u, 1.4)
-		var x0 := int(floorf(cx - rad - 1.0))
-		var y0 := int(floorf(cy - rad - 1.0))
-		var x1 := int(ceilf(cx + rad + 1.0))
-		var y1 := int(ceilf(cy + rad + 1.0))
 		var w := _wisps[used]
 		used += 1
-		w.light(7, Vector2(cx, cy), rad, dens, lvl)
-		w.set_instance_shader_parameter(&"lsrc", src)
-		w.rect(x0, y0, x1 - x0, y1 - y0, Color.WHITE)
+		w.wisp(cx, cy, rad, dens, si, lvl)
 	return used

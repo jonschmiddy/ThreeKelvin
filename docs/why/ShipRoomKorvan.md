@@ -105,3 +105,17 @@ film frame (0.8 ms a frame at 60), down from about 7.5 ms. What took the time, a
   clerks, the hoist's chain, the lamp tech's arm and beam by where he aims, the crane's rigging by its swing, moved
   with the trolley);
 - a layer's ops sit in packed arrays, and a light setting or a shader parameter is sent only when it changed.
+
+## instance-slots
+
+Godot keeps every canvas item's instance uniforms in one global buffer (4096 vec4 slots for the whole screen), and
+each instance uniform a shader declares takes a slot on every item drawn with it. The room's life shader declared
+six (rows, lmode, lp, lk4, ladd, lsrc) and the contact shadow two: 172 items used 980 slots, so two Korvan rooms
+alive for one frame (a screen swapped while the old one waits to be freed) filled the buffer and items lost theirs.
+
+Each item now carries everything it needs in ONE slot (`li`): a hull its top and foot rows; a life layer its light
+mode, the door's warm add as one bit and its light point's whole pixel packed into one exact integer, its offset,
+its clamp packed as hundredths, its multiplier; a weld wisp its centre's whole pixel, radius, density and which arc
+(the two arcs' places are plain uniforms), the centre's fraction riding in its rect's colour (the item's origin is
+not usable: batching can bake it into the vertices). A contact shadow packs its darkness with its length. 172
+items now use 172 slots, and the picture is the same to the pixel.

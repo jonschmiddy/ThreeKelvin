@@ -65,13 +65,15 @@ uniform vec2 survey = vec2(0.0);
 uniform vec4 posts[6];
 uniform float hull_amb = 0.6;
 
-instance uniform vec2 rows = vec2(0.0, 1.0);
-instance uniform int lmode = 0;
-instance uniform vec2 lp = vec2(0.0);
-instance uniform vec4 lk4 = vec4(0.0, 0.0, 9.0, 1.0);
-instance uniform vec3 ladd = vec3(0.0);
-// a weld wisp (lmode 7): the arc it rose from
-instance uniform vec2 lsrc = vec2(0.0);
+// Each item's own numbers in ONE instance slot (the global instance buffer is shared by the whole screen):
+//   hull (mode 2): (_, top row, foot row, _)
+//   life: x = lmode + 8 warm + 16 (lp.x + 1024 lp.y), y = k, z = round(lo 100) + 1000 round(hi 100), w = mul;
+//   a wisp (lmode 7): lp is its centre's whole pixel (its rect's colour the fraction), y radius, z density,
+//   w = 2 source + arc level (source 0 the lift's arc, `wisp_src0`, 1 the ladder's, `wisp_src1`)
+// Why: docs/why/ShipRoomKorvan.md#instance-slots
+instance uniform vec4 li = vec4(0.0, 0.0, 1.0, 1.0);
+uniform vec2 wisp_src0 = vec2(0.0);
+uniform vec2 wisp_src1 = vec2(0.0);
 
 varying vec2 fp;
 
@@ -299,6 +301,7 @@ void fragment() {
 		vec4 s = texelFetch(lt7, q, 0) * 255.0 / 96.0;
 		vec3 ls = s.x * 0.72 * lk * WORK + (s.y + s.z) * 0.92 * lk * TUBE;
 		ls *= 1.0 - 0.78 * crane_cm(float(q.x));
+		vec2 rows = li.yz;
 		float u = clamp((float(q.y) - rows.x) / max(1.0, rows.y - rows.x), 0.0, 1.0);
 		float g = u < 0.42 ? 1.0 : (u < 0.5 ? 0.5 : 0.3 + 0.2 * clamp((u - 0.5) / 0.5, 0.0, 1.0));
 		g = step6(g, q);
@@ -308,6 +311,12 @@ void fragment() {
 		COLOR = vec4(shade(c.rgb, L), c.a);
 	} else {
 		vec3 rgb = c.rgb;
+		int code = int(li.x);
+		int lmode = code & 7;
+		vec3 ladd = (code & 8) != 0 ? vec3(40.0, 30.0, 20.0) / 255.0 : vec3(0.0);
+		int pk = code >> 4;
+		vec2 lp = vec2(float(pk & 1023), float(pk >> 10));
+		vec4 lk4 = vec4(li.y, mod(li.z, 1000.0) / 100.0, floor(li.z / 1000.0) / 100.0, li.w);
 		if (lmode == 0) {
 			rgb = shade(rgb, l_obj(q) + lk4.x);
 		} else if (lmode == 1) {
@@ -325,13 +334,15 @@ void fragment() {
 		} else if (lmode == 7) {
 			// a weld wisp (atmos20.wisps): a puff dithered against its coverage, the room's light on grey, the arc's
 			// light near the arc; centre lp, (radius, density, arc level)
-			float d = length(vec2(float(q.x) - lp.x, (float(q.y) - lp.y) * 1.15));
-			float cov = clamp(lk4.x - d + 0.5, 0.0, 1.0) * lk4.y;
+			vec2 cen = lp + c.rg;
+			float d = length(vec2(float(q.x) - cen.x, (float(q.y) - cen.y) * 1.15));
+			float cov = clamp(li.y - d + 0.5, 0.0, 1.0) * li.z;
 			if (bay(q) >= cov) {
 				discard;
 			}
 			vec3 sm = vec3(150.0, 152.0, 160.0) / 255.0;
-			float near = exp(-length(vec2(q) - lsrc) / 14.0) * lk4.z;
+			vec2 lsrc = li.w >= 2.0 ? wisp_src1 : wisp_src0;
+			float near = exp(-length(vec2(q) - lsrc) / 14.0) * (li.w - 2.0 * floor(li.w / 2.0));
 			rgb = min(sm * clamp(l_obj(q), 0.0, 1.6) + vec3(0.70, 0.85, 1.0) * 0.75 * near, vec3(1.0));
 			c.a = 0.65;
 		}

@@ -113,7 +113,7 @@ func _hull_rows(s: YardStandSet) -> void:
 	while not todo.is_empty():
 		var n: Node = todo.pop_back()
 		if n is CanvasItem:
-			(n as CanvasItem).set_instance_shader_parameter(&"rows", rows)
+			(n as CanvasItem).set_instance_shader_parameter(&"li", Vector4(0, rows.x, rows.y, 1))
 		todo.append_array(n.get_children())
 
 
