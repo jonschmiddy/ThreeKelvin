@@ -19,15 +19,17 @@ const ROD_Y := 34
 ## The cloths' three flat bands' first rows, and the ??? cloths as the films hang them.
 const HEAD_END := 22
 const MID_END := 86
-const LOCKED_BANDS := [Color8(26, 27, 33), Color8(22, 22, 27), Color8(19, 19, 23)]
-const LOCKED_OUTLINE := Color8(16, 17, 22)
+## The ??? cloth (Jon, Nov 24): dark grey in the three lighting bands, its marks light grey.
+const LOCKED_FIELD := Color8(38, 40, 48)
+const LOCKED_INK := Color8(168, 173, 184)
+## The name on a light field (Verity's, Calyx's) is dark ink; the emblem keeps the manufacturer's colour.
+const DARK_INK := Color8(34, 24, 14)
 ## Korvan's grey with orange marks and a trim along its foot; Solari's amber with dark marks (Jon, Nov 24):
 ## head, mid, foot, ink, outline, trim.
 const MANUFACTURER_CLOTH := {
 	&"korvan": [Color8(126, 132, 142), Color8(106, 112, 122), Color8(86, 90, 98), Color8(224, 136, 46), Color8(20, 22, 26), true],
 	&"solari": [Color8(236, 160, 52), Color8(214, 140, 42), Color8(178, 112, 32), Color8(44, 26, 12), Color8(40, 22, 10), false],
 }
-const LOCKED_INK := Color8(104, 110, 124)
 ## The game's emblems (`CardView.draw_emblem`), as rects in mark units, for the cloth's pixels.
 const EMBLEM := {
 	&"korvan": [[-4.5, -5, 9, 2], [-3.5, -1, 7, 2], [-2.5, 3, 5, 2]],
@@ -84,18 +86,23 @@ static func flat_cloth(m: StringName, is_open: bool) -> Image:
 	if _cloths.has(key):
 		return _cloths[key]
 	var md: ManufacturerData = DB.manufacturers.get(m)
-	var bands: Array = LOCKED_BANDS
-	var outline := LOCKED_OUTLINE
+	var bands := _bands(LOCKED_FIELD)
+	var outline := _scaled(LOCKED_FIELD, 0.35)
 	var trim := false
 	var ink := LOCKED_INK
+	var word_ink := LOCKED_INK
 	if is_open and md != null:
 		var mc: Array = MANUFACTURER_CLOTH.get(m, [])
 		if mc.is_empty():
-			bands = [_sc(md.field, 1.12), md.field, _sc(md.field, 0.86)]
+			bands = _bands(md.field)
+			outline = _scaled(md.field, 0.2)
 			ink = md.colour
+			var light := md.field.r8 + md.field.g8 + md.field.b8 > 1.76 * 255.0
+			word_ink = DARK_INK if light else md.colour
 		else:
-			bands = [mc[0], mc[1], mc[2]]
+			bands.assign([mc[0], mc[1], mc[2]])
 			ink = mc[3]
+			word_ink = ink
 			outline = mc[4]
 			trim = mc[5]
 	var img := Image.create(BW, CLOTH, false, Image.FORMAT_RGBA8)
@@ -107,10 +114,10 @@ static func flat_cloth(m: StringName, is_open: bool) -> Image:
 				img.set_pixel(x, r, c)
 	if is_open and md != null:
 		_emblem(img, m, ink)
-		YardClothTex.word(img, DB.short_name(md.name).to_upper(), UITheme.FS_SMALL, 7, ink)
+		YardClothTex.word(img, DB.short_name(md.name).to_upper(), UITheme.FS_SMALL, 7, word_ink)
 	else:
 		YardClothTex.word(img, "???", UITheme.FS_SMALL, 7, ink)
-		YardClothTex.word(img, "???", UITheme.FS_HEAD, 30, _sc(ink, 0.85))
+		YardClothTex.word(img, "???", UITheme.FS_HEAD, 30, ink)
 	var edge := _outline(img, outline)
 	if trim:
 		_trim(img, edge, Color8(int(ink.r8 * 0.9), int(ink.g8 * 0.9), int(ink.b8 * 0.9)))
@@ -172,8 +179,25 @@ static func _inside(x: int, r: int) -> bool:
 	return float(x) <= 24.0 * d or float(x) >= 47.0 - 23.0 * d
 
 
-static func _sc(c: Color, k: float) -> Color:
-	return Color(minf(1.0, c.r * k), minf(1.0, c.g * k), minf(1.0, c.b * k), 1.0)
+## A field's three lighting bands (the banner page's make_cloths): the head lifted 15 % (at most 22 a
+## channel), the body itself, the foot at 82 %.
+static func _bands(f: Color) -> Array[Color]:
+	var head := Color8(mini(f.r8 + 22, even(f.r8 * 1.15)), mini(f.g8 + 22, even(f.g8 * 1.15)), mini(f.b8 + 22, even(f.b8 * 1.15)))
+	var out: Array[Color] = [head, Color8(f.r8, f.g8, f.b8), _scaled(f, 0.82)]
+	return out
+
+
+static func _scaled(c: Color, k: float) -> Color:
+	return Color8(clampi(even(c.r8 * k), 0, 255), clampi(even(c.g8 * k), 0, 255), clampi(even(c.b8 * k), 0, 255))
+
+
+## Rounded half to even, as the page's Python and its Uint8ClampedArray round.
+static func even(v: float) -> int:
+	var f := floorf(v)
+	var d := v - f
+	if d > 0.5 or (d == 0.5 and int(f) % 2 != 0):
+		return int(f) + 1
+	return int(f)
 
 
 ## Only the cloth is the thing, as it hangs at rest: not the chains, the air beside it, or anything

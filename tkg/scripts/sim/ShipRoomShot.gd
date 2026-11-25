@@ -3,7 +3,7 @@ extends Node
 ## The ship-select rooms as a player meets them, to lay beside the approved films:
 ## `room=korvan|solari|old at=0,5,10 out=<dir> [pick=medium] [film=S]`, with `--fixed-fps 30`
 ## so the room's clock steps as the films' did; needs a window (render.sh). docs/tests.md.
-## Banners: `bt=` `strip=1` `state=1` `banners=off` `events=<json>` `perf=1` (docs/tests.md).
+## Banners: `bt=` `strip=1` `state=1` `banners=off` `events=<json>` `perf=1` `dev=1` (docs/tests.md).
 
 var _out := ""
 var _events: Array = []
@@ -19,8 +19,9 @@ func _ready() -> void:
 
 func _run() -> void:
 	await Harness.frames(get_tree(), 2)
+	# `dev=1`: developer mode on, every manufacturer's banner open
 	if DevMode.available:
-		DevMode.enabled = false
+		DevMode.enabled = Harness.arg("dev") == "1"
 	# `look=flat`: no tube's curve or scanlines, so a capture lies pixel for pixel on the film
 	if Harness.arg("look") == "flat":
 		DisplaySettings.set_look(DisplaySettings.Look.FLAT)

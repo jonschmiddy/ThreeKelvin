@@ -3,7 +3,7 @@ extends Node
 
 ## THE BANNERS' CLOTH (Jon, Nov 24, on the banner page: "THIS IS EXACTLY WHAT I WANTED ... The movement is
 ## PERFECT"): each banner a 13 x 25 Verlet cloth pinned to a rod that swings on its chains, leaning, turning
-## and folding in the hall's calm air, shoved by the pointer, stirred now and then when nobody points, lit by
+## and folding in the hall's breeze, shoved by the pointer, stirred now and then when nobody points, lit by
 ## the room's own lamps and throwing its shadow on the wall. The cloth runs on the GPU; this sets its forces.
 ## Why: docs/why/YardBanner.md#gpu
 
@@ -21,18 +21,12 @@ const MAX_STEPS := 4
 const T0 := 3.0
 const STRIP := Vector2i(960, 160)
 const WALL := Vector2i(960, ShipRoom.WALL_FOOT + 1)
-## Each banner's own lean and turn (period s, phase) and fold phase: the page's three, then four more alike.
-const LEAN: Array[Vector2] = [Vector2(9.1, 0.0), Vector2(10.4, 2.3), Vector2(8.3, 4.5), Vector2(9.7, 1.2),
-	Vector2(8.8, 3.4), Vector2(10.1, 5.6), Vector2(8.6, 2.8)]
-const TWIST: Array[Vector2] = [Vector2(7.3, 1.9), Vector2(6.4, 4.0), Vector2(8.7, 0.8), Vector2(7.8, 3.1),
-	Vector2(6.9, 5.2), Vector2(8.2, 2.4), Vector2(7.0, 0.3)]
-const PH: Array[float] = [0.0, 2.1, 4.2, 0.9, 3.0, 5.1, 1.6]
-## The page's calm air: lean, twist, fold, breeze, gust.
-const W_LEAN := 30.0
-const W_TWIST := 5.0
-const W_FOLD := 22.0
-const W_BREEZE := 8.0
-const W_GUST := 0.3
+## The page's breezy air, the game's (Jon, Nov 24): lean, twist, fold, breeze, gust.
+const W_LEAN := 76.0
+const W_TWIST := 12.0
+const W_FOLD := 48.0
+const W_BREEZE := 21.0
+const W_GUST := 1.0
 ## The page's gust walks 70 px/s from 40 px left of its strip (frame x 108); it lets go past the last banner.
 const GUST_X0 := 108.0
 ## Loaded only with a renderer: headless (the tests) the cloth's shaders are never compiled.
