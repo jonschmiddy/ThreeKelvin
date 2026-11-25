@@ -3,7 +3,7 @@ extends RefCounted
 
 ## What flies over the lit room before the hulls (show18's after_room): the pours' splash sparks, the
 ## hot moulds' embers, the furnaces' embers, furnace 2's roar throwing embers and spill, the stacks'
-## clank dust, the quench spray and its steam. Particles are born on the film's hashed schedule.
+## clank dust, the quench steam, smoke and motes. Particles are born on the film's hashed schedule.
 ## Why: docs/why/ShipRoomSolari.md#fx
 
 const C := preload("res://scripts/ui/ShipRoomSolariCycle.gd")
@@ -283,7 +283,7 @@ func _spill_v(h: PackedFloat32Array) -> Vector3:
 	return Vector3((h[1] - 0.5) * 80.0, 10.0 + 40.0 * h[2], -10.0 + 40.0 * h[3])
 
 
-## The particles, the quench spray and the steam, in show18's order.
+## The particles and the steam (show18's order), then show21's smoke and motes.
 func paint(ci: CanvasItem, t: float) -> void:
 	var tl := fposmod(t, C.LOOP)
 	dembers.draw(ci, EMBER_COLS, false)
@@ -296,28 +296,9 @@ func paint(ci: CanvasItem, t: float) -> void:
 	spill.draw(ci, SPARK_COLS, true)
 	fembers.draw(ci, EMBER_COLS, false)
 	for j in 6:
-		_hose(ci, j, tl)
-	for j in 6:
 		_steam(ci, j, tl)
-
-
-## Water arcing from the fixed nozzle on the bed's lip up into the mould, lit by the plate and room.
-func _hose(ci: CanvasItem, j: int, tl: float) -> void:
-	var u := C.u_of(j, tl)
-	if u < C.QUENCH.x or u >= C.QUENCH.y:
-		return
-	var s := C.SIDE[j]
-	var T := C.TAPS[j]
-	var sx := float(T + s * 14)
-	var ex := float(T + s * 3)
-	var tk := int(tl * 10.0)
-	for k in 26:
-		var v := fposmod(k / 26.0 + tl * 2.4, 1.0)
-		var px := sx + (ex - sx) * v + (C.hash1([j, k, tk]) - 0.5) * 2.0
-		var py := 175.0 + (166.0 - 175.0) * v - 104.0 * v * (1.0 - v)
-		var m := _m(int(roundf(px)), int(roundf(py)))
-		var c := Color(196.0 / 255.0 * (0.9 + 0.9 * m.x), 220.0 / 255.0 * (0.9 + 0.9 * m.y), 236.0 / 255.0 * (0.9 + 0.9 * m.z))
-		ci.draw_rect(Rect2(roundf(px), roundf(py), 1, 1), c)
+	paint_smoke(ci, t)
+	paint_motes(ci, t, false)
 
 
 ## Quench steam: round puffs with lobed edges, born over the quench, boiling up fast and rolling along
@@ -396,3 +377,82 @@ func paint_dust(ci: CanvasItem, t: float) -> void:
 func _m(x: int, y: int) -> Vector3:
 	var r := _room.get_ref() as ShipRoomSolari
 	return r.m_at(x, y) if r != null else Vector3.ONE
+
+
+# ------------------------------------------------------------------ the foundry's air (show21's atmos.py)
+## Smoke wisps off each pour and each quench, drifting right with the hall's draught, thinning as they rise.
+func paint_smoke(ci: CanvasItem, t: float) -> void:
+	var tl := fposmod(t, C.LOOP)
+	for j in 6:
+		var u := C.u_of(j, tl)
+		var kp := 1.0 if C.pouring(u) else maxf(0.0, 1.0 - (u - C.P_DUR - C.TAIL) / 3.0)
+		var kq := 0.0
+		if u >= C.QUENCH.x and u < C.QUENCH.y:
+			kq = 1.0
+		elif u >= C.QUENCH.y:
+			kq = maxf(0.0, 1.0 - (u - C.QUENCH.y) / 3.0)
+		var k := maxf(kp, 0.8 * kq)
+		if k <= 0.02:
+			continue
+		var seed := 100 + j
+		for i in 22:
+			var age := fposmod(tl - i / 5.0, 5.0)
+			if age >= 4.5:
+				continue
+			var v := age / 4.5
+			var h1 := C.hash1([seed, i, 1])
+			var h2 := C.hash1([seed, i, 2])
+			var rise := (30.0 + 40.0 * h1) * (1.0 - pow(1.0 - v, 1.6))
+			var x := C.TAPS[j] + (h2 - 0.5) * 8.0 + 14.0 * v + 3.0 * sin(age * 1.7 + 6.28 * h1)
+			var y := C.MY0 - 2 - rise
+			var a := 0.24 * k * pow(1.0 - v, 1.3)
+			var m := _m(int(roundf(x)), int(roundf(y)))
+			var lk := clampf((m.x + m.y + m.z) / 3.0, 0.25, 1.4)
+			var col := Color(150.0 / 255.0 * lk, 132.0 / 255.0 * lk, 118.0 / 255.0 * lk)
+			var ps := seed * 1000 + i
+			var e1 := C.hash1([ps, 1])
+			var e2 := C.hash1([ps, 2])
+			var rad := 2.0 + 4.5 * v
+			ci.draw_colored_polygon(_lobed(roundf(x), roundf(y), rad, e1, e2, 1.0), Color(col, 0.35 * a))
+			ci.draw_colored_polygon(_lobed(roundf(x), roundf(y), rad, e1, e2, 0.6),
+				Color(col, 1.0 - (1.0 - a) / maxf(1e-3, 1.0 - 0.35 * a)))
+
+
+static func _lobed(x: float, y: float, rad: float, h1: float, h2: float, k: float) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for i in 20:
+		var th := TAU * i / 20.0
+		var e := rad * k * (1.0 + 0.25 * sin(3.0 * th + 6.28 * h1) + 0.15 * sin(5.0 * th + 6.28 * h2))
+		out.append(Vector2(x + 0.5 + cos(th) * e, y + 0.5 + sin(th) * e))
+	return out
+
+
+## Ember and soot motes rising slowly with a gentle sway, seen only where a real light falls on them;
+## a very few in the front lane's air (`front`), drawn over the hulls.
+func paint_motes(ci: CanvasItem, t: float, front: bool) -> void:
+	var tl := fposmod(t, C.LOOP)
+	for i in 240:
+		if (C.hash1([i, 19]) < 0.06) != front:
+			continue
+		var span := 190.0
+		var v := (1 + int(C.hash1([i, 12]) * 2.0)) * span / C.LOOP
+		var off := C.hash1([i, 17]) * span
+		var y := 395.0 - fposmod(off + v * tl, 60.0) if front \
+			else 30.0 + C.hash1([i, 13]) * 40.0 + span - fposmod(off + v * tl, span)
+		var per: float = [10.0, 15.0, 30.0][int(C.hash1([i, 14]) * 3.0)]
+		var x := C.hash1([i, 11]) * 960.0 + (1.5 + 3.0 * C.hash1([i, 15])) * sin(TAU * tl / per + 6.28 * C.hash1([i, 16]))
+		var xi := int(roundf(x))
+		var yi := int(roundf(y))
+		if xi < 0 or xi >= 960 or yi < 0 or yi >= 540:
+			continue
+		var m := _m(xi, yi)
+		var lv := (m.x + m.y + m.z) / 3.0
+		var k := clampf((lv - 0.45) / 0.6, 0.0, 1.0)
+		if k <= 0.05:
+			continue
+		if C.hash1([i, 18]) < 0.45:
+			var e := 0.55 + 0.45 * k
+			ci.draw_rect(Rect2(xi, yi, 1, 1), Color(e, 170.0 / 255.0 * e, 80.0 / 255.0 * e, 0.75 * k))
+		else:
+			var g := minf(1.2, lv)
+			ci.draw_rect(Rect2(xi, yi, 1, 1), Color(210.0 / 255.0 * g, 190.0 / 255.0 * g, 165.0 / 255.0 * g, 0.45 * k))
