@@ -31,10 +31,7 @@ var contact_mat: ShaderMaterial = null
 ## Op lists already worked out for a state of this layer (`recall`, `remember`): a layer whose picture is a
 ## function of a few numbers (the office's clerks, the hoist's chain) is drawn from them after the first time.
 var _memo: Dictionary = {}
-var _lmode := -1
-var _lp := Vector2(-1, -1)
-var _lk4 := Vector4(-1, -1, -1, -1)
-var _ladd := Vector3(-1, -1, -1)
+var _li := Vector4(-1, -1, -1, -1)
 var _cs := Vector4(-1, -1, -1, -1)
 
 
@@ -55,25 +52,32 @@ func setup(b: Blend, lit: Material) -> void:
 
 
 ## How the film lit this layer: mode 0 the light at its own pixels (+ k), 1 at point p (+ k), 2 colours
-## times clamp(max light at p + k, lo, hi), 3 the room's light, 4 as drawn, 5 a flat light k; then x mul + add.
+## times clamp(max light at p + k, lo, hi), 3 the room's light, 4 as drawn, 5 a flat light k; then x mul + add
+## (add is the door's warm backlight or nothing). All of it in one instance slot (`li`, see the shader).
+## Why: docs/why/ShipRoomKorvan.md#instance-slots
 func light(mode: int, p: Vector2 = Vector2.ZERO, k: float = 0.0, lo: float = 0.0, hi: float = 9.0,
 		mul: float = 1.0, add: Color = Color(0, 0, 0)) -> void:
-	# each set is a call into the renderer: only what changed is sent
-	var lp := Vector2(clampf(p.x, 0, 959), clampf(p.y, 0, 539))
-	var lk4 := Vector4(k, lo, hi, mul)
-	var la := Vector3(add.r, add.g, add.b)
-	if mode != _lmode:
-		_lmode = mode
-		set_instance_shader_parameter(&"lmode", mode)
-	if lp != _lp:
-		_lp = lp
-		set_instance_shader_parameter(&"lp", lp)
-	if lk4 != _lk4:
-		_lk4 = lk4
-		set_instance_shader_parameter(&"lk4", lk4)
-	if la != _ladd:
-		_ladd = la
-		set_instance_shader_parameter(&"ladd", la)
+	var px := int(clampf(p.x, 0, 959))
+	var py := int(clampf(p.y, 0, 539))
+	var code := mode + (8 if add.r > 0.0 else 0) + 16 * (px + 1024 * py)
+	_set_li(Vector4(code, k, roundi(lo * 100.0) + 1000 * roundi(hi * 100.0), mul))
+
+
+## A weld wisp (lmode 7) centred on (cx, cy): the slot holds the centre's whole pixel, the rect's colour its
+## fraction (the shader draws no colour of its own here); src 0 the lift's arc, 1 the ladder welder's.
+func wisp(cx: float, cy: float, rad: float, dens: float, src: int, lvl: float) -> void:
+	var ix := floori(cx)
+	var iy := floori(cy)
+	_set_li(Vector4(7 + 16 * (ix + 1024 * iy), rad, dens, 2.0 * src + clampf(lvl, 0.0, 1.0)))
+	var x0 := floori(cx - rad - 1.0)
+	var y0 := floori(cy - rad - 1.0)
+	rect(x0, y0, ceili(cx + rad + 1.0) - x0, ceili(cy + rad + 1.0) - y0, Color(cx - ix, cy - iy, 0, 1))
+
+
+func _set_li(v: Vector4) -> void:
+	if v != _li:
+		_li = v
+		set_instance_shader_parameter(&"li", v)
 
 
 func clear() -> void:
@@ -179,11 +183,10 @@ func contact(x0: float, x1: float, feet: int, length: int = 6, dark: float = 0.5
 		material = contact_mat
 	var cx := (x0 + x1) / 2.0
 	var rx := maxf(2.0, (x1 - x0) / 2.0 + 3.0)
-	var cs := Vector4(cx, rx, feet, length)
+	var cs := Vector4(cx, rx, feet, length + clampf(dark, 0.0, 0.99))
 	if cs != _cs:
 		_cs = cs
 		set_instance_shader_parameter(&"cs", cs)
-		set_instance_shader_parameter(&"cdark", dark)
 	var a := int(cx - rx) - 1
 	rect(a, feet - 1, int(cx + rx) + 2 - a, length + 2, Color.WHITE)
 

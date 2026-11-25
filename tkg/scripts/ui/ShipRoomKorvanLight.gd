@@ -53,6 +53,10 @@ func build(f: int) -> void:
 	var wp := F.weld_pose(tA)
 	var lvl := float(fr["arcA"]) if wp.y == 1 else 0.0
 	var tip := F.arc_tip(wp.x)
+	# where the weld wisps' arcs are (their light near the arc)
+	u[&"wisp_src0"] = Vector2(tip)
+	var w8: Dictionary = (K["weld8"] as Array)[0]
+	u[&"wisp_src1"] = Vector2(float(w8["tip"][0]), float(w8["tip"][1]))
 	u[&"k_arc_floor"] = _v3(F.ARC, 2.0 * lvl)
 	if lvl > 0.0:
 		_point(120, tip + Vector2i(1, -1), 1.05, F.ARC, 2.3 * lvl, OBJ, 1.0, float(K["tip_x"]))
