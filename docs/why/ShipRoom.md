@@ -29,6 +29,28 @@ where `k > 0.35` and ordered-dithered (4x4 Bayer on the frame's grid) in its rim
 fixed Jon's "weird shadow under stand", a near-rectangular block. It is baked once when the posts are placed and
 drawn as a multiply over the room, under the stands.
 
+## posts-sink-into-their-bases
+
+Jon, Nov 24: "Launching from the ship picker makes the stands go through the floor." LAUNCH sank the picked
+berth's posts 52 rows (`ShipLift.SINK_PX`, from 0.7 s over 0.8 s). Each post was one `TextureRect` meant to be
+cut at its feet by shrinking its height under `clip_contents`, but a `TextureRect`'s minimum size is its
+texture's (`EXPAND_KEEP_SIZE`), so the height never shrank: the whole post, bolted base and all, slid down past
+the floor row, over the floor's fade and the band.
+
+A first fix cut each post at its feet and sank it its whole height into a slot that opened in the floor. Jon then
+asked for less: "sink only a little", and "the bases must not move". Each room's post picture (Korvan's, Solari's,
+the Old hangar's) ends in the same 18 rows: the bolted plate and the housing the column stands in (`POST_BASE`).
+So a post is two pieces now, each an `AtlasTexture` of its own rows drawn at their size (`EXPAND_IGNORE_SIZE`):
+
+- **The base** stays on its feet, never moving, drawn over the column.
+- **The saddle and column** sink `SINK_ROWS` (12) on the lift's beat (the 52-row sink scaled), drawing only their
+  rows above the base's top, like a ram going down into its housing. Nothing of them is drawn inside the base or
+  below the floor, clip or not.
+
+The contact shadows stay as they were. Every room's launch goes through `YardFront.lift_off`, so Korvan's and
+Solari's are the same; the Old hangar has no launch but builds its posts the same way. `ShipLiftTest` checks every
+frame of a launch: the columns sink 12 rows, never draw a row into a base, and the bases never move.
+
 ## posts-clear-the-guns
 
 PORT.md's stand rule (Jon, Nov 22: "The stands go through the guns?" and "Why are the clamps over the ship?").

@@ -81,8 +81,8 @@ func _motes(file: String) -> Control:
 	return c
 
 
-## Each tarp takes its dusty, padded wind texture (`export.py`); a manufacturer with none wears Solari's.
-## Each post gets its dead hose, over the post and under the tarp.
+## Each tarp takes its dusty, padded wind texture (`export.py`), stencilled as its art is (`TarpMark`);
+## a manufacturer with none wears Solari's. Each post gets its dead hose, over the post and under the tarp.
 ## Why: docs/why/ShipRoomOld.md#hoses
 func _placed() -> void:
 	for st: Variant in sets:
@@ -92,9 +92,10 @@ func _placed() -> void:
 		_hoses(s)
 		if s._tarp == null or s._tarp.texture == null:
 			continue
-		var wt := tex(id, "tarps/" + s._tarp.texture.resource_path.get_file())
+		var dir := (DIR % String(id)) + "tarps/"
+		var wt := TarpMark.texture(dir + s._tarp.file.get_file(), YardStandSet.Tarp.WIND_PAD)
 		if wt == null:
-			wt = tex(id, "tarps/solari_%s.png" % YardStandSet.TARP_WEIGHT[s.weight])
+			wt = TarpMark.texture(dir + "solari_%s.png" % YardStandSet.TARP_WEIGHT[s.weight], YardStandSet.Tarp.WIND_PAD)
 		s._tarp.set_wind(wt)
 
 

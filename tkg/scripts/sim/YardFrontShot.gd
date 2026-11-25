@@ -1,7 +1,7 @@
 extends Node
 
 ## Stills of the banner shipyard as a player sees it: rest, picked, pointed at,
-## the tarps, a tarp clicked, and with `dev` every other set's heavy picked.
+## the tarps, a tarp pointed at and clicked (nothing answers), and with `dev` every other set's heavy picked.
 ## `-- sheet=YardFrontShot out=<dir> [dev|nodev]`; needs a window.
 ## `nodev` shows a fresh profile's banners from the editor binary.
 

@@ -550,9 +550,22 @@ nothing else. LAUNCH and, in developer mode, the C B A S grade chips (the
 condition grade to launch on, `_tier_chips`) appear once a ship is picked, in
 place, faded in over 0.18 s through `self_modulate` (the chips' own
 `modulate` marks the picked grade); never slid, as they are things to click.
-Under a locked manufacturer a click on a tarp picks nothing but brings LAUNCH
-up grey beside the lock line, so the way out (win a run) is said where the key
-would be.
+Under a locked manufacturer a pick carried in from an open one still shows
+LAUNCH grey beside the lock line. A click on a tarp used to bring it up too;
+since Nov 24 the tarps answer nothing (Tarps are not ships, below).
+
+## Tarps are not ships
+
+Jon, Nov 24, on a locked Calyx in the Old hangar: "You shouldn't be able to click
+or hover over ships if the manufacturer is [locked]." Until then a tarp hovered
+like a hull (the hand, the hover sound, the blur with the tarp drawn sharp, the
+band tied to it, the lock line as a tooltip) and a click on it brought LAUNCH up
+grey. Now a tarped `YardStandSet` shows the arrow, ignores the pointer coming in
+(a hover held from before still ends when it leaves), has no tooltip, and takes a
+click on its pixels without doing anything: no pick, no sound, and not a click
+away, so a pick carried in from an open manufacturer stays. The banners still click, so
+you can still switch manufacturers, and the band still says LOCKED MANUFACTURER and the
+lock line. `YardFrontTest` drives both.
 
 ## Held blur
 

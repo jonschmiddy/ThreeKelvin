@@ -99,6 +99,10 @@ func _launch() -> void:
 	var top := 0.0
 	var right := 0.0
 	var sunk := 0
+	var below := -9999
+	var bases0 := base_rects(berth)
+	var feet := berth.feet
+	var bases_moved := 0
 	var lamps0 := cs._yard.room.lamp_k
 	var lamps_moved := 0
 	var light_jump := 0.0
@@ -124,6 +128,9 @@ func _launch() -> void:
 		top = minf(top, berth.position.y - y0)
 		right = maxf(right, berth.position.x - x0)
 		sunk = maxi(sunk, berth.retract)
+		below = maxi(below, post_overrun(berth))
+		if base_rects(berth) != bases0:
+			bases_moved += 1
 		if cs._yard.room.lamp_k != lamps0:
 			lamps_moved += 1
 		var lv := lift.plume.light_level()
@@ -132,8 +139,14 @@ func _launch() -> void:
 		light_prev = lv
 		smoke = maxi(smoke, lift.plume.puffs())
 		await _tree.process_frame
-	_ok("it rises off its stands (%.0f px), the stands sink (%d rows), the smoke rolls (%d puffs)" % [-top, sunk, smoke],
-		top <= -40.0 and sunk >= 40 and smoke >= 20)
+	# (Jon, Nov 24: "the stands go through the floor", then "sink only a little", "the bases must not move")
+	# Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
+	_ok("it rises off its stands (%.0f px), the columns sink a little (%d rows), the smoke rolls (%d puffs)" % [-top, sunk, smoke],
+		top <= -40.0 and sunk == YardStandSet.SINK_ROWS and smoke >= 20)
+	_ok("no column draws a row into its base or below the floor in any frame (at worst %d rows past the base's top)" % below,
+		below <= 0)
+	_ok("the bases never move, on their feet (%d frames moved, %s)" % [bases_moved, bases0],
+		bases_moved == 0 and bases0.size() == 2 and bases0.all(func(r: Rect2) -> bool: return int(r.end.y) == feet))
 	# (Jon's F1: no flicker -- the hall's lamps hold, the engines' light eases)
 	_ok("the hall's lamps hold steady through the lift (%d frames moved), and its own light eases (at most %.3f a frame)" % [
 		lamps_moved, light_jump], lamps_moved == 0 and light_jump <= 0.12)
@@ -260,3 +273,25 @@ func _left_behind(lift: ShipLift, extra: Array) -> bool:
 		if float(l[0]) - float(l[2]) < edge:
 			return true
 	return false
+
+
+## How many rows past its base's top the lowest drawn row of a berth's standing columns reaches (0 or less:
+## none), counting the texture's own rows, so a clip that does not hold still fails.
+static func post_overrun(s: YardStandSet) -> int:
+	var worst := -9999
+	for tr in s._posts:
+		if not tr.visible or tr.texture == null:
+			continue
+		var top := s.position.y + tr.position.y
+		var rows := maxf(float(tr.texture.get_height()), tr.size.y)
+		worst = maxi(worst, int(ceilf(top + rows)) - (s.feet - YardStandSet.POST_BASE))
+	return worst
+
+
+## Each post's base as drawn in the frame (its rect and its texture's rows).
+static func base_rects(s: YardStandSet) -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for b in s._bases:
+		var at := s.position + b.position
+		out.append(Rect2(at, Vector2(b.size.x, maxf(b.size.y, float(b.texture.get_height())))))
+	return out

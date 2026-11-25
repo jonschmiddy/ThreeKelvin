@@ -28,6 +28,10 @@ const MIN_SPREAD := 0.8
 ## A post's saddle and cradle: its top rows, kept whole when it is cut or grown.
 const POST_HEAD := 41
 const SHAFT_ROW := 47
+## A post's bolted base (its plate and the housing the column stands in): its bottom rows, the same 18 in all
+## three rooms' pictures. LAUNCH lowers the rest this far into it. Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
+const POST_BASE := 18
+const SINK_ROWS := 12
 
 var weight: HullData.Weight = HullData.Weight.MEDIUM
 var room: ShipRoom
@@ -48,8 +52,10 @@ var post_w: int = 39
 var post_top: int = 0
 ## The belly guns' spans (with their margin) the posts keep clear of, in frame columns.
 var guns: Array[Vector2i] = []
+## Each post's saddle and column (`_posts`, it sinks) and its base (`_bases`, it never moves, drawn over the column).
 var _posts: Array[TextureRect] = []
-## Rows the posts have sunk into the floor (`ShipLift`, as the hull lifts off).
+var _bases: Array[TextureRect] = []
+## Rows the posts' columns have sunk into their bases (`ShipLift`, as the hull lifts off).
 var retract: int = 0:
 	set(v):
 		retract = v
@@ -75,12 +81,16 @@ func setup(r: ShipRoom, w: HullData.Weight, hull: HullData, kit: Array[ModuleDat
 	_tarp = null
 	mounts = null
 	_posts.clear()
+	_bases.clear()
 	post_x.clear()
 	retract = 0
 	lifted = false
 	position = Vector2.ZERO
 	size = Vector2.ZERO
 	feet = int(ShipRoom.FEET[w])
+	# a locked manufacturer's tarps are not ships: the arrow over them, and no hover or click (Jon, Nov 24)
+	# Why: docs/why/ChassisSelect.md#tarps-are-not-ships
+	mouse_default_cursor_shape = Control.CURSOR_ARROW if tarped else Control.CURSOR_POINTING_HAND
 	if hull != null:
 		_stand_hull(hull, kit)
 	else:
@@ -288,29 +298,41 @@ static func post_rows(src: Image, h: int) -> Image:
 
 ## The posts behind the hull: never a pixel over it, and a 1 px dark line where they meet
 ## its underside (with its guns), x0.45 (Jon, Nov 22: "Why are the clamps over the ship?").
+## Each is two pieces: its saddle and column, and its bolted base over them, which never moves.
 func _build_posts(over: Image) -> void:
 	var src := room.post_image()
 	if src == null:
 		return
 	post_w = src.get_width()
 	var at: Vector2i = over.get_meta(&"at", Vector2i.ZERO) if over != null else Vector2i.ZERO
+	var h0 := feet - post_top
 	for px in post_x:
-		var img := post_rows(src, feet - post_top)
+		var img := post_rows(src, h0)
 		if over != null:
 			_contact_line(img, over, at, px)
-		var tr := TextureRect.new()
-		tr.texture = ImageTexture.create_from_image(img)
-		tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tr.stretch_mode = TextureRect.STRETCH_KEEP
-		tr.clip_contents = true
-		tr.material = room.thing_material()
-		add_child(tr)
-		_posts.append(tr)
-	_frame_to(Vector2i(post_x.min(), post_top), Vector2i(post_x.max() + post_w - post_x.min(), feet - post_top))
-	for i in _posts.size():
-		_posts[i].position = Vector2(post_x[i], post_top) - position
-		_posts[i].size = Vector2(post_w, feet - post_top)
+		var tex := ImageTexture.create_from_image(img)
+		_posts.append(_post_piece(tex, Rect2(0, 0, post_w, h0 - POST_BASE)))
+		_bases.append(_post_piece(tex, Rect2(0, h0 - POST_BASE, post_w, POST_BASE)))
+	_frame_to(Vector2i(post_x.min(), post_top), Vector2i(post_x.max() + post_w - post_x.min(), h0))
+	pin_posts()
+
+
+## One piece of a post: `rows` of its picture, drawn at their own size and nothing more.
+## Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
+func _post_piece(tex: Texture2D, rows: Rect2) -> TextureRect:
+	var piece := AtlasTexture.new()
+	piece.atlas = tex
+	piece.region = rows
+	var tr := TextureRect.new()
+	tr.texture = piece
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP
+	tr.clip_contents = true
+	tr.material = room.thing_material()
+	add_child(tr)
+	return tr
 
 
 ## The post's pixels in the first row under the hull (with its kit), column by column, x0.45.
@@ -331,20 +353,34 @@ func _contact_line(img: Image, over: Image, at: Vector2i, px: int) -> void:
 				img.set_pixel(c, r, Color(p.r * 0.45, p.g * 0.45, p.b * 0.45, p.a))
 
 
-## Rows sunk into the floor: each post drawn lower and cut at its feet.
+## Rows sunk: each column drawn lower and cut where it meets its base.
 func _sink_posts() -> void:
 	pin_posts()
 
 
-## The posts where they stand in the frame, however the berth has moved (a launch flies it).
+## The lift's sink (`ShipLift.SINK_PX` at its end) as this berth's rows: a little, `SINK_ROWS`
+## (Jon, Nov 24: "sink only a little", "the bases must not move").
+func sink_rows(rows: int) -> int:
+	return roundi(float(rows) / ShipLift.SINK_PX * float(SINK_ROWS))
+
+
+## The posts where they stand in the frame, however the berth has moved (a launch flies it): each base on its
+## feet, and over it each column `retract` rows lower, drawing only its rows above the base's top.
+## Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
 func pin_posts() -> void:
-	for i in _posts.size():
+	var top := feet - POST_BASE
+	var h := clampi(top - post_top - retract, 0, top - post_top)
+	for i in mini(_posts.size(), post_x.size()):
 		var tr := _posts[i]
-		if is_instance_valid(tr) and i < post_x.size():
-			var h := maxi(0, feet - post_top - retract)
+		if is_instance_valid(tr):
 			tr.position = Vector2(post_x[i], post_top + retract) - position
-			tr.size.y = h
+			tr.size = Vector2(post_w, h)
+			(tr.texture as AtlasTexture).region = Rect2(0, 0, post_w, maxi(1, h))
 			tr.visible = h > 0
+		var base := _bases[i]
+		if is_instance_valid(base):
+			base.position = Vector2(post_x[i], top) - position
+			base.size = Vector2(post_w, POST_BASE)
 
 
 ## Grow the control to cover a frame rect, keeping every child where it stands in the frame.
@@ -359,9 +395,9 @@ func _frame_to(at: Vector2i, sz: Vector2i) -> void:
 
 
 func _stand_tarp(manufacturer: StringName) -> void:
-	var tx := load(tarp_file(manufacturer, weight)) as Texture2D
 	_tarp = Tarp.new()
-	_tarp.setup(tx, float(TARP_DELAY[weight]), float(TARP_SEED[weight]))
+	_tarp.file = tarp_file(manufacturer, weight)
+	_tarp.setup(TarpMark.texture(_tarp.file), float(TARP_DELAY[weight]), float(TARP_SEED[weight]))
 	var bb := _tarp.image.get_used_rect() if _tarp.image != null else Rect2i()
 	# the tarps sit hem over the stand tops (PORT.md: hem 34/34/30)
 	var at := Vector2i(int(ShipRoom.CENTRE[weight]) - (bb.position.x + bb.end.x) / 2,
@@ -415,20 +451,24 @@ func on_ink(at: Vector2) -> bool:
 	return img.get_pixel(q.x, q.y).a8 >= 128
 
 
+## A click on a hull picks it; one on a tarp is taken and does nothing (not even the click away).
 func _gui_input(e: InputEvent) -> void:
 	var mb := e as InputEventMouseButton
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 		accept_event()
+		if tarped:
+			return
 		Audio.click()
 		pressed.emit()
 
 
+## A tarp never hovers; leaving always clears, so a hover held over a set that became tarps ends.
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_MOUSE_ENTER:
+	if what == NOTIFICATION_MOUSE_ENTER and not tarped:
 		hover = true
 		Audio.hover()
 		hovered.emit(true)
-	elif what == NOTIFICATION_MOUSE_EXIT:
+	elif what == NOTIFICATION_MOUSE_EXIT and hover:
 		hover = false
 		hovered.emit(false)
 
@@ -463,6 +503,8 @@ class Tarp extends Control:
 	## The wind eases in over this long once the tarp has settled.
 	const WIND_IN := 0.6
 	var texture: Texture2D
+	## The art's file (the texture may be a stencilled copy, `TarpMark`, with no path of its own).
+	var file := ""
 	var image: Image
 	var tex_w: int = 0
 	var tex_h: int = 0

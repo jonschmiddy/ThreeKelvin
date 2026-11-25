@@ -1,9 +1,9 @@
 extends Node
 
 ## The ship-select rooms as a player meets them, to lay beside the approved films:
-## `room=korvan|solari|old at=0,5,10 out=<dir> [pick=medium] [film=S]`, with `--fixed-fps 30`
+## `room=korvan|solari|old at=0,5,10 out=<dir> [pick=medium] [film=S] [set=calyx]`, with `--fixed-fps 30`
 ## so the room's clock steps as the films' did; needs a window (render.sh). docs/tests.md.
-## Banners: `bt=` `strip=1` `state=1` `banners=off` `events=<json>` `perf=1` `dev=1` (docs/tests.md).
+## Banners: `bt=` `strip=1` `state=1` `banners=off` `events=<json>` `perf=1` `dev=1`; a lift: `launch=1`, `sink=1` (docs/tests.md).
 
 var _out := ""
 var _events: Array = []
@@ -46,7 +46,9 @@ func _run() -> void:
 		cs._select([0, 1, 2][k % 3])
 		for f in 20:
 			await get_tree().process_frame
-	cs._select(0 if room == "korvan" else 1)
+	# `set=calyx`: that manufacturer's banner instead (a locked one's tarps in the Old hangar)
+	var firm := Harness.arg("set", "")
+	cs._select(maxi(0, DB.STARTABLE.find(StringName(firm))) if firm != "" else (0 if room == "korvan" else 1))
 	# (should the record still not open it, its set stands in its room anyway)
 	if room == "solari" and cs._yard.room.id != &"solari":
 		cs._yard.show_set(&"solari", true, 0)
@@ -71,6 +73,20 @@ func _run() -> void:
 		return
 	if Harness.arg("perf") == "1":
 		await _perf(y)
+		get_tree().quit()
+		return
+	if Harness.arg("launch") == "1":
+		await _launch_shots(cs, room)
+		get_tree().quit()
+		return
+	# `sink=1`: every berth's columns at 0, 6 and 12 rows down (`retract`), a still each: the Old hangar has no launch
+	if Harness.arg("sink") == "1":
+		for r in [0, YardStandSet.SINK_ROWS / 2, YardStandSet.SINK_ROWS]:
+			for st: YardStandSet in y.sets.values():
+				st.retract = r
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			_shot("%s_sink_%02d" % [room, r])
 		get_tree().quit()
 		return
 	if Harness.arg("bt") != "":
@@ -170,6 +186,26 @@ func _perf(y: YardFront) -> void:
 	for i in vps.size():
 		print("  perf %-5s cpu %.3f ms gpu %.3f ms" % [["sim", "lit", "wall"][i], cpu[i] / frames, gpu[i] / frames])
 	print("  perf YardCloth._process %.3f ms a frame, %d fps" % [proc / frames / 1000.0, Engine.get_frames_per_second()])
+
+
+## `launch=1` (with `pick=`): LAUNCH, and a still every `every=0.1` s of the lift's own clock until the hull
+## is off and the posts are in (`ShipLift.SINK_FROM` + `SINK_S` + 0.3 s at least), for the posts' wells.
+func _launch_shots(cs: ChassisSelect, room: String) -> void:
+	var y := cs._yard
+	var every := float(Harness.arg("every", "0.1"))
+	var until := float(Harness.arg("until", str(ShipLift.SINK_FROM + ShipLift.SINK_S + 0.3)))
+	cs._launch()
+	if y.lift == null:
+		print("shiproomshot: no lift (nothing picked, or reduced motion)")
+		return
+	var k := 0
+	while Router.current == cs and y.lift != null and y._lift_t <= until + 1e-4:
+		if y._lift_t >= k * every - 1e-4:
+			await RenderingServer.frame_post_draw
+			_shot("%s_launch_%05.2f" % [room, k * every])
+			k += 1
+		await get_tree().process_frame
+	print("shiproomshot: %d launch stills" % k)
 
 
 ## A new run's hull pick, once its room is up.
