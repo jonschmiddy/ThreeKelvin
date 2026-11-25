@@ -217,11 +217,12 @@ was weird").
 
 Jon ruled C on Nov 21: "only the new comet game once you've picked it, with another, and also
 Ice Core." Ice Core (ice cores; its tell is STACK THE LAYERS IN ORDER) dealt alone until his
-comet picks were ported; since Nov 22 a comet deals Ice Core, Skim, Flick or Geyser (`OWN` and
-its list `COMET`, where a later pick joins), the deal's first draw picking one. Every other site deals as before.
+comet picks were ported; since Nov 22 a comet deals Ice Core, Skim, Flick or Geyser, and since
+Nov 25 Touchdown too (`OWN` and its list `COMET`, where a later pick joins), the deal's first draw
+picking one. Every other site deals as before.
 The deal still draws from `Rng.derive(&"minigame", index)` in the same order, so no other site's
 deal moves. The comet's haul stays mining: its readings are of ice and rock, the rock group's.
-`MiniGameTest._site_deals` prints what each site deals and checks a comet deals those four
+`MiniGameTest._site_deals` prints what each site deals and checks a comet deals those five
 (`MiniGames.COMET`) and nothing else, each turning up over 64 systems.
 
 ## Coolant
@@ -465,6 +466,50 @@ The plain rule (arrive as the next jet is ready, never leave while the old one i
 11 deals in 20 at sector 5; leaving 0.8 s sooner, 20 in 30; the planner, 144 of 150 (the rest 0.91
 to 0.94). At sectors 1 to 4 it fills every one of 150. `MiniGameTest` holds Geyser at sector 5 to 9
 deals in 10 filled and none under 0.9 (`NEAR_FULL`), every other game and sector to all of them.
+
+## Touchdown
+
+Jon's fourth comet pick (Nov 25: comet G; `tk-scratch/science/comet/games/comet_g.js`, its film
+`films/comet_g.mp4`). A probe comes in fast at a lumpy turning nucleus with one flat patch of ice.
+The left button pushes toward the pointer, about the pull's size, so it steers but cannot stop the
+fall; the right button (Jon, Nov 22: "a right click to slow the approach") fires a brake out of the
+probe's front that cancels the motion toward the nucleus and leaves sideways motion free. Slower
+than the safe speed on the ice lands; faster bounces (each bounce costs a quarter); twice the safe
+speed breaks the probe. Depth turns the nucleus faster, shrinks the patch, pulls harder, brings the
+probe in faster, weakens the brake and cuts the fuel; from depth 3 a gas vent beside the patch
+puffs. From depth 4 the ice moves faster than the safe speed, so a landing matches it sideways.
+Sensors raise the safe speed, from 2 draw the path the probe is on, and from 4 add fuel.
+
+The right button is the only one any mini game reads besides the left: `DeskScene._to_game` passes it
+to `MiniShell.press_alt`, then `MiniGame.glass_alt`, which puts the start card away as any press
+does and calls the game's `alt`. A scripted event carries `b = 2` for it. The start card is the
+page's own (two mouse icons, one per button, then ESC TO GIVE UP), since the kit's has one line of
+controls; `GameTouchdown.card` draws it and records it as the kit's tell is recorded, and
+`MiniGameTest._tell` holds it to that drawing (`OWN_CARD`).
+
+A port step for step, as the other comet games: the deal is the page's own draws in its order, the
+clock starts at 1 s for the blinks (`NOW0`), and the parts that never change are drawn once (the
+sun's limb, the stars and the coma's haze, which the page redraws every frame under everything
+else), with each nucleus pixel's distance and angle and the texture hash per body cell kept in
+tables. The motes and puffs move only when drawn, as on the page. Its dump flies three seconds with
+the pilot playing every frame, its first second on the start card, and `diff.py` sends the right
+button and the held buttons as a browser does (a move carries button -1, which the page's chord
+handler needs).
+
+`TouchdownPilot` works in the nucleus's turning frame. Sideways it wants a speed toward the patch's
+middle (the lesser of a planned 30% of the thruster's push and a linear gain), matching the ground,
+and pulses the main thruster along the ground to give it. Down, it holds the brake whenever it falls
+faster than a speed that shrinks with height (half the brake's spare push planned on, 0.6 px/s at
+the ground), toward a hover 8 px over the ice until it sits over the middle, or clear of the rock
+when off the patch. Planned at half the thruster it ran dry before touchdown on about 1 deal in 100
+at depth 5 (fuel is the depth's real limit there); at 30% it lands every one of 400 deals at each
+depth at the top tier, with 1.5% fuel left at worst at depth 5 (measured on a Python copy of the
+physics, then in `MiniGameTest`).
+
+The same pilot never braking (`MiniGameTest._careless`) breaks the probe at every depth from 2. At
+depth 1 with sensors 3 or more the safe speed (10 plus 0.8 a point) is above an unbraked fall's,
+so about half those falls land on the ice at 0.68 (uncommon): the page's tuning, kept; the check
+there is that no fall reaches the top tier.
 
 ## The camera games on the whole glass
 

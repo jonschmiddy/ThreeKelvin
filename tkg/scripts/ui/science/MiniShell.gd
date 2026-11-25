@@ -41,6 +41,8 @@ const SFX := {
 	&"flick": {&"grab": [&"mg_tray_slide", 0.0], &"throw": [&"mg_sling_launch", 0.0], &"knock": [&"mg_sling_hit", 0.0],
 		&"bank": [&"mg_icecore_place", 0.0], &"miss": [&"mg_tomo_crack", 0.0], &"hit": [&"mg_fourk_bump", 0.0], &"win": [&"mg_win", 0.3]},
 	&"geyser": {&"hum": [&"mg_torch_torch", 0.0], &"hit": [&"mg_fourk_bump", 0.0], &"win": [&"mg_win", 0.3]},
+	&"touchdown": {&"hum": [&"mg_fourk_thrust", 0.0], &"brake": [&"mg_torch_torch", 0.0], &"hit": [&"mg_fourk_bump", 0.0],
+		&"land": [&"mg_dock_dock", 0.0], &"puff": [&"mg_dock_puff", 0.0], &"win": [&"mg_win", 0.3]},
 }
 const SFX_PATH := "res://assets/audio/sfx/%s.wav"
 ## The reward waits for the win (its peak, 1.283 s in) or, with none, 1.1 s after the end.
@@ -164,6 +166,14 @@ func release(gf: Vector2) -> void:
 	if playing():
 		game.pf = gf - Vector2(at)
 		game.up(Vector2i(gf.floor()) - at)
+		_take_asked()
+
+
+## The right button at glass point `gf`, pressed or let go.
+func press_alt(gf: Vector2, pressed: bool) -> void:
+	if playing():
+		game.pf = gf - Vector2(at)
+		game.glass_alt(Vector2i(gf.floor()) - at, pressed)
 		_take_asked()
 
 

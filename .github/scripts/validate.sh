@@ -845,6 +845,14 @@ GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigamecomet 600 \
 	--headless --path "$PROJECT" -- sheet=MiniGameTest games=flick,geyser
 }
 
+unit_minigametouchdown() {
+step "Touchdown deals, lands and scores as its prototype; a landing without the brake fails"
+GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametouchdown 600 \
+	"Touchdown deals, lands and scores" \
+	"Touchdown dealt no comet, a different one twice, one its pilot could not land, a careless landing that won, or scored wrong" \
+	--headless --path "$PROJECT" -- sheet=MiniGameTest games=touchdown
+}
+
 unit_minigametray() {
 step "The sample tray deals, solves and scores as its prototype"
 GATE_LABEL=minigametest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet minigametray 800 \
@@ -2662,7 +2670,7 @@ gate_weight() {
 		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;; arrivesidetest) echo 60 ;;
 		sciencesimtest) echo 51 ;; routinetest) echo 28 ;; jumpshadertest) echo 90 ;;
 		meterfittest) echo 76 ;; convoyslidetest) echo 30 ;; stationaheadtest) echo 40 ;;
-		minigametest) echo 300 ;; minigamedials) echo 355 ;; minigameflown) echo 280 ;; minigametorch) echo 440 ;; minigameskim) echo 200 ;; minigamecomet) echo 200 ;; minigametray) echo 500 ;; minigamesling) echo 470 ;;
+		minigametest) echo 300 ;; minigamedials) echo 355 ;; minigameflown) echo 280 ;; minigametorch) echo 440 ;; minigameskim) echo 200 ;; minigamecomet) echo 200 ;; minigametouchdown) echo 200 ;; minigametray) echo 500 ;; minigamesling) echo 470 ;;
 		*) echo 15 ;;
 	esac
 }

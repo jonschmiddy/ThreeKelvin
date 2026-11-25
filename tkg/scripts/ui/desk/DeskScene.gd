@@ -227,6 +227,8 @@ func _to_game(e: InputEvent) -> void:
 			game.press(g)
 		else:
 			game.release(g)
+	elif mb != null and mb.button_index == MOUSE_BUTTON_RIGHT:
+		game.press_alt(g, mb.pressed)
 	elif mb != null and mb.pressed and (mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN):
 		game.wheel(1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1)
 	elif e is InputEventMouseMotion:

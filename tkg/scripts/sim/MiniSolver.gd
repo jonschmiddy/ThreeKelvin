@@ -3,7 +3,8 @@ extends RefCounted
 
 ## A scripted player for every ported mini game, playing a perfect run through the game's own input:
 ## each tick `act` hands back the events to send now ({k: down, move, up, key or keyup; p: the canvas
-## point; key}), which the caller sends straight in, onto the glass or onto the screen.
+## point; key; b: 2 for the right button}), which the caller sends straight in, onto the glass or
+## onto the screen.
 ## Why: docs/why/MiniGame.md#tests
 
 var plan: Array[Dictionary] = []
@@ -43,7 +44,7 @@ static func for_game(g: MiniGame) -> MiniSolver:
 			s.plan = _corescan(g as GameCoreScan)
 		&"culture":
 			s.plan = _culture(g as GameCulture)
-		&"fourkelvin", &"torch", &"dock", &"skim", &"flick", &"geyser":
+		&"fourkelvin", &"torch", &"dock", &"skim", &"flick", &"geyser", &"touchdown":
 			s._dyn = String(g.id())
 	return s
 
@@ -62,6 +63,8 @@ func act(g: MiniGame, dt: float) -> Array[Dictionary]:
 		return FlickPilot.act(g as GameFlick)
 	if _dyn == "geyser":
 		return GeyserPilot.act(g as GameGeyser)
+	if _dyn == "touchdown":
+		return TouchdownPilot.act(g as GameTouchdown)
 	var out: Array[Dictionary] = []
 	_wait -= dt
 	while _i < plan.size() and _wait <= 0.0:
