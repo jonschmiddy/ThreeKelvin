@@ -32,10 +32,10 @@ const LEVEL_TRIM := {&"korvan": -2.3, &"solari": -3.0, &"old": 1.5}
 const CRISP := {
 	&"A": {dark_k = 1.0, damp = 0.5, shelf = 0.5, hall_db = 0.0, mud = 0.0, pres = 0.0, air = 0.0,
 		trim = {}},
-	&"B1": {dark_k = 0.7, damp = 0.35, shelf = 0.71, hall_db = -1.5, mud = -1.0, pres = 1.5, air = 2.0,
-		trim = {}},
-	&"B2": {dark_k = 0.4, damp = 0.2, shelf = 1.0, hall_db = -3.0, mud = -2.0, pres = 3.0, air = 4.0,
-		trim = {}},
+	&"B1": {dark_k = 0.93, damp = 0.4, shelf = 0.6, hall_db = -1.0, mud = -1.0, pres = 2.0, air = 2.0,
+		trim = {&"korvan": 0.54, &"solari": 0.58, &"old": 0.45}},
+	&"B2": {dark_k = 0.85, damp = 0.3, shelf = 0.8, hall_db = -2.0, mud = -2.0, pres = 4.0, air = 4.0,
+		trim = {&"korvan": 0.78, &"solari": 0.79, &"old": 0.81}},
 }
 const CRISP_DEFAULT := &"B1"
 ## The bus EQ's bands each `CRISP` lift goes on (`AudioEffectEQ21`'s, by index).

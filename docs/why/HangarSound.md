@@ -120,6 +120,16 @@ holds three levels he picks between by ear: A is the page mixes, B1 a bit crispe
 by capture, so a level is never just louder. The level comes from the command line (`hangarcrisp=B2`), else
 `[audio] hangar_crisp` in settings.cfg, else `CRISP_DEFAULT` (B1 until Jon picks); `set_crisp` switches it live.
 
+A first try (darkness x0.7 and x0.4) lifted Korvan's 4-8 kHz 11 and 17 dB and Old's 2 and 4: the darkness is
+the big lever in the rooms with deep crews and does nothing in Old, so the levels lean on the bus EQ and only
+nudge the darkness (x0.93, x0.85). Nov 25 captures, 30 s each, share of 20 Hz-16 kHz, at A's LUFS to 0.01 dB:
+
+| | page mix | A | B1 | B2 |
+|---|---|---|---|---|
+| Korvan 2-8 / 4-8 kHz | -23.1 / -30.8 | -22.9 / -30.3 | -19.7 / -25.5 | -16.5 / -20.8 |
+| Solari | -22.7 / -28.1 | -21.5 / -27.3 | -18.2 / -22.7 | -15.0 / -18.4 |
+| Old | -34.3 / -48.1 | -33.6 / -46.5 | -31.4 / -44.0 | -29.1 / -41.7 |
+
 ## baked-cues
 
 Working a room's cues out of its life samples its predicates every 60th of a second over the lap and halves each
