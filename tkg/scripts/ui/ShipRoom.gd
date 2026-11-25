@@ -200,43 +200,20 @@ static func contact_shadows(s: Array) -> Image:
 	return img
 
 
-## LAUNCH sinks berth `s`'s posts: their shadows leave the room's picture (each post's well carries its own).
-## Why: docs/why/ShipRoom.md#posts-sink-into-wells
-func lift_contacts(s: YardStandSet) -> void:
-	_shadows.texture = ImageTexture.create_from_image(contact_shadows(sets.filter(func(o: Variant) -> bool: return o != s)))
-
-
-## Where one post's own contact shadow image (`contact_sprite`) sits in the frame.
-static func contact_origin(x: int, feet: int) -> Vector2i:
-	return Vector2i(x - 12, feet - 1)
-
-
-## One post's contact shadow on its own, `k` of its depth and darkness (1 is the room's own, 0 none), as a
-## multiply image at `contact_origin`, dithered on the frame's grid so it matches the room's pixel for pixel.
-static func contact_sprite(x: int, post_w: int, feet: int, k: float) -> Image:
-	var o := contact_origin(x, feet)
-	var img := Image.create(post_w + 24, 8, false, Image.FORMAT_RGBA8)
-	img.fill(Color(1, 1, 1, 1))
-	if k > 0.0:
-		_contact(img, x - 2, x + post_w + 2, feet, maxi(1, roundi(6.0 * k)), 0.5 * k, o)
-	return img
-
-
-## The ellipse into `img`, whose top left is frame point `o`.
-static func _contact(img: Image, x0: int, x1: int, feet: int, length: int, dark: float, o := Vector2i.ZERO) -> void:
+static func _contact(img: Image, x0: int, x1: int, feet: int, length: int, dark: float) -> void:
 	var cx := (x0 + x1) / 2.0
 	var rx := maxf(2.0, (x1 - x0) / 2.0 + 3.0)
 	var ry := float(length)
 	for dy in range(-1, length + 1):
 		var y := feet + dy
-		if y < maxi(0, o.y) or y >= mini(H, o.y + img.get_height()):
+		if y < 0 or y >= H:
 			continue
-		for x in range(maxi(maxi(0, o.x), int(cx - rx) - 1), mini(mini(W, o.x + img.get_width()), int(cx + rx) + 2)):
+		for x in range(maxi(0, int(cx - rx) - 1), mini(W, int(cx + rx) + 2)):
 			var r := sqrt(pow((x - cx) / rx, 2.0) + pow((dy + 1) / (ry + 1.0), 2.0))
 			var k := clampf(1.0 - r, 0.0, 1.0)
 			var on := k > 0.35 or (k > 0.0 and bayer4(x, y) < k / 0.35)
 			if not on:
 				continue
 			var f := 1.0 - dark * clampf(0.45 + k, 0.0, 1.0)
-			var c := img.get_pixel(x - o.x, y - o.y)
-			img.set_pixel(x - o.x, y - o.y, Color(c.r * f, c.g * f, c.b * f, 1.0))
+			var c := img.get_pixel(x, y)
+			img.set_pixel(x, y, Color(c.r * f, c.g * f, c.b * f, 1.0))

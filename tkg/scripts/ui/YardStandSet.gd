@@ -28,6 +28,10 @@ const MIN_SPREAD := 0.8
 ## A post's saddle and cradle: its top rows, kept whole when it is cut or grown.
 const POST_HEAD := 41
 const SHAFT_ROW := 47
+## A post's bolted base (its plate and the housing the column stands in): its bottom rows, the same 18 in all
+## three rooms' pictures. LAUNCH lowers the rest this far into it. Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
+const POST_BASE := 18
+const SINK_ROWS := 12
 
 var weight: HullData.Weight = HullData.Weight.MEDIUM
 var room: ShipRoom
@@ -48,10 +52,10 @@ var post_w: int = 39
 var post_top: int = 0
 ## The belly guns' spans (with their margin) the posts keep clear of, in frame columns.
 var guns: Array[Vector2i] = []
+## Each post's saddle and column (`_posts`, it sinks) and its base (`_bases`, it never moves, drawn over the column).
 var _posts: Array[TextureRect] = []
-## The wells the posts sink into on LAUNCH (`sink_into_floor`), one a post; none at rest.
-var _wells: Array[Well] = []
-## Rows the posts have sunk into the floor (`ShipLift`, as the hull lifts off).
+var _bases: Array[TextureRect] = []
+## Rows the posts' columns have sunk into their bases (`ShipLift`, as the hull lifts off).
 var retract: int = 0:
 	set(v):
 		retract = v
@@ -77,7 +81,7 @@ func setup(r: ShipRoom, w: HullData.Weight, hull: HullData, kit: Array[ModuleDat
 	_tarp = null
 	mounts = null
 	_posts.clear()
-	_wells.clear()
+	_bases.clear()
 	post_x.clear()
 	retract = 0
 	lifted = false
@@ -294,35 +298,41 @@ static func post_rows(src: Image, h: int) -> Image:
 
 ## The posts behind the hull: never a pixel over it, and a 1 px dark line where they meet
 ## its underside (with its guns), x0.45 (Jon, Nov 22: "Why are the clamps over the ship?").
+## Each is two pieces: its saddle and column, and its bolted base over them, which never moves.
 func _build_posts(over: Image) -> void:
 	var src := room.post_image()
 	if src == null:
 		return
 	post_w = src.get_width()
 	var at: Vector2i = over.get_meta(&"at", Vector2i.ZERO) if over != null else Vector2i.ZERO
+	var h0 := feet - post_top
 	for px in post_x:
-		var img := post_rows(src, feet - post_top)
+		var img := post_rows(src, h0)
 		if over != null:
 			_contact_line(img, over, at, px)
-		var tr := TextureRect.new()
-		# its standing rows only, so a sinking post draws nothing under its feet
-		# Why: docs/why/ShipRoom.md#posts-sink-into-wells
-		var rows := AtlasTexture.new()
-		rows.atlas = ImageTexture.create_from_image(img)
-		rows.region = Rect2(0, 0, img.get_width(), img.get_height())
-		tr.texture = rows
-		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tr.stretch_mode = TextureRect.STRETCH_KEEP
-		tr.clip_contents = true
-		tr.material = room.thing_material()
-		add_child(tr)
-		_posts.append(tr)
-	_frame_to(Vector2i(post_x.min(), post_top), Vector2i(post_x.max() + post_w - post_x.min(), feet - post_top))
-	for i in _posts.size():
-		_posts[i].position = Vector2(post_x[i], post_top) - position
-		_posts[i].size = Vector2(post_w, feet - post_top)
+		var tex := ImageTexture.create_from_image(img)
+		_posts.append(_post_piece(tex, Rect2(0, 0, post_w, h0 - POST_BASE)))
+		_bases.append(_post_piece(tex, Rect2(0, h0 - POST_BASE, post_w, POST_BASE)))
+	_frame_to(Vector2i(post_x.min(), post_top), Vector2i(post_x.max() + post_w - post_x.min(), h0))
+	pin_posts()
+
+
+## One piece of a post: `rows` of its picture, drawn at their own size and nothing more.
+## Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
+func _post_piece(tex: Texture2D, rows: Rect2) -> TextureRect:
+	var piece := AtlasTexture.new()
+	piece.atlas = tex
+	piece.region = rows
+	var tr := TextureRect.new()
+	tr.texture = piece
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP
+	tr.clip_contents = true
+	tr.material = room.thing_material()
+	add_child(tr)
+	return tr
 
 
 ## The post's pixels in the first row under the hull (with its kit), column by column, x0.45.
@@ -343,47 +353,34 @@ func _contact_line(img: Image, over: Image, at: Vector2i, px: int) -> void:
 				img.set_pixel(c, r, Color(p.r * 0.45, p.g * 0.45, p.b * 0.45, p.a))
 
 
-## Rows sunk into the floor: each post drawn lower and cut at its feet.
+## Rows sunk: each column drawn lower and cut where it meets its base.
 func _sink_posts() -> void:
 	pin_posts()
 
 
-## LAUNCH: the posts go down into the floor (Jon, Nov 24: "the stands go through the floor"), each into a well
-## at its foot that takes its contact shadow from the room's picture. Why: docs/why/ShipRoom.md#posts-sink-into-wells
-func sink_into_floor() -> void:
-	if not _wells.is_empty() or room == null or _posts.is_empty():
-		return
-	room.lift_contacts(self)
-	for x in post_x:
-		var w := Well.new()
-		w.setup(x, post_w, feet)
-		add_child(w)
-		move_child(w, 0)
-		_wells.append(w)
-	pin_posts()
-
-
-## The lift's sink (`ShipLift.SINK_PX` at its end) as this berth's rows: the posts' whole height, so they go in.
+## The lift's sink (`ShipLift.SINK_PX` at its end) as this berth's rows: a little, `SINK_ROWS`
+## (Jon, Nov 24: "sink only a little", "the bases must not move").
 func sink_rows(rows: int) -> int:
-	return ceili(float(rows) / ShipLift.SINK_PX * float(feet - post_top))
+	return roundi(float(rows) / ShipLift.SINK_PX * float(SINK_ROWS))
 
 
-## The posts where they stand in the frame, however the berth has moved (a launch flies it): each draws only
-## its rows still over its feet, and its well (if sinking) opens, takes it and closes.
+## The posts where they stand in the frame, however the berth has moved (a launch flies it): each base on its
+## feet, and over it each column `retract` rows lower, drawing only its rows above the base's top.
+## Why: docs/why/ShipRoom.md#posts-sink-into-their-bases
 func pin_posts() -> void:
-	var h0 := feet - post_top
-	var h := clampi(h0 - retract, 0, h0)
-	for i in _posts.size():
+	var top := feet - POST_BASE
+	var h := clampi(top - post_top - retract, 0, top - post_top)
+	for i in mini(_posts.size(), post_x.size()):
 		var tr := _posts[i]
-		if is_instance_valid(tr) and i < post_x.size():
+		if is_instance_valid(tr):
 			tr.position = Vector2(post_x[i], post_top + retract) - position
 			tr.size = Vector2(post_w, h)
-			var at := tr.texture as AtlasTexture
-			if at != null:
-				at.region = Rect2(0, 0, post_w, maxi(1, h))
+			(tr.texture as AtlasTexture).region = Rect2(0, 0, post_w, maxi(1, h))
 			tr.visible = h > 0
-	for w in _wells:
-		w.pose(position, h, h0, retract)
+		var base := _bases[i]
+		if is_instance_valid(base):
+			base.position = Vector2(post_x[i], top) - position
+			base.size = Vector2(post_w, POST_BASE)
 
 
 ## Grow the control to cover a frame rect, keeping every child where it stands in the frame.
@@ -494,69 +491,6 @@ func draw_sharp(ci: CanvasItem, origin: Vector2) -> void:
 func drop_tarp() -> void:
 	if _tarp != null:
 		_tarp.drop()
-
-
-## A post's well in the floor on LAUNCH: a dark slot round its foot that opens as it starts down and closes
-## as it goes in, a 1 px lit lip on its near edge, and its contact shadow, shrinking as it sinks.
-## Why: docs/why/ShipRoom.md#posts-sink-into-wells
-class Well extends Control:
-	## The slot's rows when open, and the shadow's steps from none to the room's own.
-	const SLOT := 3
-	const STEPS := 6
-	## The slot multiplies the floor (its own tone, darker); the lip adds a little light.
-	const SLOT_TONE := Color(0.3, 0.3, 0.32)
-	const LIP_LIGHT := Color(0.1, 0.09, 0.07)
-	var x := 0
-	var w := 0
-	var feet := 0
-	var _steps: Array[Texture2D] = []
-	var _shadow: TextureRect
-	var _slot: ColorRect
-	var _lip: ColorRect
-
-	func _init() -> void:
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	func setup(px: int, pw: int, f: int) -> void:
-		x = px
-		w = pw
-		feet = f
-		for i in STEPS + 1:
-			_steps.append(ImageTexture.create_from_image(ShipRoom.contact_sprite(x, w, feet, float(i) / STEPS)))
-		_shadow = TextureRect.new()
-		_shadow.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		_shadow.position = Vector2(ShipRoom.contact_origin(x, feet))
-		_part(_shadow, CanvasItemMaterial.BLEND_MODE_MUL)
-		_slot = ColorRect.new()
-		_slot.color = SLOT_TONE
-		_slot.position = Vector2(x - 1, feet - 1)
-		_part(_slot, CanvasItemMaterial.BLEND_MODE_MUL)
-		_lip = ColorRect.new()
-		_lip.color = LIP_LIGHT
-		_part(_lip, CanvasItemMaterial.BLEND_MODE_ADD)
-
-	func _part(c: Control, blend: CanvasItemMaterial.BlendMode) -> void:
-		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var m := CanvasItemMaterial.new()
-		m.blend_mode = blend
-		c.material = m
-		add_child(c)
-
-	## The berth at `at` (it flies on LAUNCH; the well stays put), `h` of the post's `h0` rows still standing.
-	func pose(at: Vector2, h: int, h0: int, sunk: int) -> void:
-		position = -at
-		_shadow.texture = _steps[clampi(roundi(float(h) / float(maxi(1, h0)) * STEPS), 0, STEPS)]
-		_shadow.size = _shadow.texture.get_size()
-		var open := mini(SLOT, mini(sunk, h))
-		_slot.visible = open > 0
-		_lip.visible = open > 0
-		_slot.size = Vector2(w + 2, open)
-		_lip.position = Vector2(x - 1, feet - 1 + open)
-		_lip.size = Vector2(w + 2, 1)
-
-	## The slot's open rows now (0 shut).
-	func opened() -> int:
-		return int(_slot.size.y) if _slot.visible else 0
 
 
 ## THE TARP: the art posed row by row in whole pixels. It falls from twelve

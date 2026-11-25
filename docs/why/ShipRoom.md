@@ -29,30 +29,27 @@ where `k > 0.35` and ordered-dithered (4x4 Bayer on the frame's grid) in its rim
 fixed Jon's "weird shadow under stand", a near-rectangular block. It is baked once when the posts are placed and
 drawn as a multiply over the room, under the stands.
 
-## posts-sink-into-wells
+## posts-sink-into-their-bases
 
-Jon, Nov 24: "Launching from the ship picker makes the stands go through the floor." LAUNCH sinks the picked
-berth's posts 52 rows (`ShipLift.SINK_PX`, from 0.7 s over 0.8 s). Each post was a `TextureRect` meant to be cut
-at its feet by shrinking its height under `clip_contents`, but a `TextureRect`'s minimum size is its texture's
-(`EXPAND_KEEP_SIZE`), so the height never shrank: the whole post slid down past the floor row, over the floor's
-fade and the band. Now a post draws an `AtlasTexture` of its own top rows, as many as still stand above the floor
-row (`EXPAND_IGNORE_SIZE`, so the rect follows), and nothing is drawn below its feet, clip or not.
+Jon, Nov 24: "Launching from the ship picker makes the stands go through the floor." LAUNCH sank the picked
+berth's posts 52 rows (`ShipLift.SINK_PX`, from 0.7 s over 0.8 s). Each post was one `TextureRect` meant to be
+cut at its feet by shrinking its height under `clip_contents`, but a `TextureRect`'s minimum size is its
+texture's (`EXPAND_KEEP_SIZE`), so the height never shrank: the whole post, bolted base and all, slid down past
+the floor row, over the floor's fade and the band.
 
-So it reads as going into the deck, not behind it, each post gets a well when LAUNCH starts (`YardStandSet.Well`):
+A first fix cut each post at its feet and sank it its whole height into a slot that opened in the floor. Jon then
+asked for less: "sink only a little", and "the bases must not move". Each room's post picture (Korvan's, Solari's,
+the Old hangar's) ends in the same 18 rows: the bolted plate and the housing the column stands in (`POST_BASE`).
+So a post is two pieces now, each an `AtlasTexture` of its own rows drawn at their size (`EXPAND_IGNORE_SIZE`):
 
-- **The slot.** A dark band round the foot, two px wider than the post, opening a row at a time as the post starts
-  down and closing a row at a time as its last rows go in (`min(3, sunk, standing)`). It multiplies the floor by
-  about 0.3, so it is the floor plate's own tone, darker, in any room's light.
-- **The lip.** One row under the slot, its near edge, lit a little (added), as a plate edge catching the lamps.
-- **The contact shadow.** The berth's shadows leave the room's baked picture (`lift_contacts`) and each well
-  draws its post's own (`contact_sprite`, the same ellipse dithered on the frame's grid, so the hand-over is
-  invisible), stepped down in depth and darkness with the post's standing share, gone when it is.
+- **The base** stays on its feet, never moving, drawn over the column.
+- **The saddle and column** sink `SINK_ROWS` (12) on the lift's beat (the 52-row sink scaled), drawing only their
+  rows above the base's top, like a ram going down into its housing. Nothing of them is drawn inside the base or
+  below the floor, clip or not.
 
-The posts now go all the way in: the lift's 52 sink rows are scaled to each post's own height (76 to 94 rows on
-Korvan's berths), on the same beat, so every slot opens, takes its post and closes. At 52 rows a stub of 24 to 42
-rows was left standing, with nothing to close over. Every room's launch goes through `YardFront.lift_off`, so Korvan's and
-Solari's are the same; the Old hangar has no launch. `ShipLiftTest` checks every frame of a launch that no post
-draws a row below its feet.
+The contact shadows stay as they were. Every room's launch goes through `YardFront.lift_off`, so Korvan's and
+Solari's are the same; the Old hangar has no launch but builds its posts the same way. `ShipLiftTest` checks every
+frame of a launch: the columns sink 12 rows, never draw a row into a base, and the bases never move.
 
 ## posts-clear-the-guns
 

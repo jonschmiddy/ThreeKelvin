@@ -3,7 +3,7 @@ extends Node
 ## The ship-select rooms as a player meets them, to lay beside the approved films:
 ## `room=korvan|solari|old at=0,5,10 out=<dir> [pick=medium] [film=S] [set=calyx]`, with `--fixed-fps 30`
 ## so the room's clock steps as the films' did; needs a window (render.sh). docs/tests.md.
-## Banners: `bt=` `strip=1` `state=1` `banners=off` `events=<json>` `perf=1` `dev=1`; a lift: `launch=1` (docs/tests.md).
+## Banners: `bt=` `strip=1` `state=1` `banners=off` `events=<json>` `perf=1` `dev=1`; a lift: `launch=1`, `sink=1` (docs/tests.md).
 
 var _out := ""
 var _events: Array = []
@@ -77,6 +77,16 @@ func _run() -> void:
 		return
 	if Harness.arg("launch") == "1":
 		await _launch_shots(cs, room)
+		get_tree().quit()
+		return
+	# `sink=1`: every berth's columns at 0, 6 and 12 rows down (`retract`), a still each: the Old hangar has no launch
+	if Harness.arg("sink") == "1":
+		for r in [0, YardStandSet.SINK_ROWS / 2, YardStandSet.SINK_ROWS]:
+			for st: YardStandSet in y.sets.values():
+				st.retract = r
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			_shot("%s_sink_%02d" % [room, r])
 		get_tree().quit()
 		return
 	if Harness.arg("bt") != "":
