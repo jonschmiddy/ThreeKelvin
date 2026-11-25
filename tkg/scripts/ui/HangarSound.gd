@@ -26,6 +26,22 @@ const COMP_RATIO := 1.3165
 const COMP_DETECT := {&"korvan": 6.0, &"solari": 12.0, &"old": 2.0}
 ## A trim on every room after its capture was measured against its approved mix.
 const LEVEL_TRIM := {&"korvan": -2.3, &"solari": -3.0, &"old": 1.5}
+## How crisp the rooms sound (Jon, Nov 25: "maybe even less muddy"): A the page mixes, B1 a bit crisper, B2
+## clearly; each loudness-matched to A. `hangarcrisp=` or settings.cfg `[audio] hangar_crisp` picks one live.
+## Why: docs/why/HangarSound.md#crispness
+const CRISP := {
+	&"A": {dark_k = 1.0, damp = 0.5, shelf = 0.5, hall_db = 0.0, mud = 0.0, pres = 0.0, air = 0.0,
+		trim = {}},
+	&"B1": {dark_k = 0.7, damp = 0.35, shelf = 0.71, hall_db = -1.5, mud = -1.0, pres = 1.5, air = 2.0,
+		trim = {}},
+	&"B2": {dark_k = 0.4, damp = 0.2, shelf = 1.0, hall_db = -3.0, mud = -2.0, pres = 3.0, air = 4.0,
+		trim = {}},
+}
+const CRISP_DEFAULT := &"B1"
+## The bus EQ's bands each `CRISP` lift goes on (`AudioEffectEQ21`'s, by index).
+const EQ_MUD := [6, 7, 8, 9]
+const EQ_PRES := [12, 13, 14, 15, 16]
+const EQ_AIR := [17, 18, 19, 20]
 ## The banner push (B2, every room) beside the rooms, as the page played it; the faders' defaults differ.
 const BANNER := &"hangar_banner"
 
@@ -33,6 +49,8 @@ const BANNER := &"hangar_banner"
 static var record := false
 static var _shared: HangarSound = null
 static var _data: Dictionary[String, Variant] = {}
+## The crispness in use (a `CRISP` key); "" until first asked.
+static var crisp: StringName = &""
 
 var plan: HangarCues.Plan = null
 var room: ShipRoom = null
@@ -176,6 +194,7 @@ static func _master_bus() -> int:
 	sh.gain = 0.5
 	AudioServer.add_bus_effect(h, sh)
 	AudioServer.set_bus_volume_db(h, HALL_DB)
+	_apply_crisp()
 	return idx
 
 
@@ -195,12 +214,76 @@ static func _voice_bus(n: String, to: StringName) -> StringName:
 	return StringName(n)
 
 
+# ------------------------------------------------------------------ crispness
+## The crispness in use: the command line's `hangarcrisp=`, else settings.cfg's, else CRISP_DEFAULT.
+static func crisp_level() -> StringName:
+	if crisp == &"":
+		var c := ""
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("hangarcrisp="):
+				c = a.substr(12)
+		if c == "":
+			var cfg := ConfigFile.new()
+			if cfg.load(DisplaySettings.path) == OK:
+				c = str(cfg.get_value("audio", "hangar_crisp", ""))
+		crisp = StringName(c) if CRISP.has(StringName(c)) else CRISP_DEFAULT
+	return crisp
+
+
+static func crisp_set() -> Dictionary[StringName, Variant]:
+	var out: Dictionary[StringName, Variant] = {}
+	var d: Dictionary = CRISP[crisp_level()]
+	for k: Variant in d:
+		out[StringName(str(k))] = d[k]
+	return out
+
+
+## Switch the crispness now (the buses retuned; voices take it at their next start or frame).
+func set_crisp(level: StringName) -> void:
+	if not CRISP.has(level):
+		return
+	crisp = level
+	if _live:
+		_apply_crisp()
+		if room != null:
+			_set_room_bus(room.id)
+
+
+## The crispness onto the made buses: the bus EQ's lifts and the hall's tone and level.
+static func _apply_crisp() -> void:
+	var c := crisp_set()
+	var idx := AudioServer.get_bus_index("Hangar")
+	var h := AudioServer.get_bus_index("HangarHall")
+	if idx < 0 or h < 0:
+		return
+	var eq := AudioServer.get_bus_effect(idx, 0) as AudioEffectEQ21
+	var g: Array = data().get("eq21", [])
+	for b in mini(g.size(), eq.get_band_count()):
+		var add := 0.0
+		if b in EQ_MUD:
+			add = float(c.mud)
+		elif b in EQ_PRES:
+			add = float(c.pres)
+		elif b in EQ_AIR:
+			add = float(c.air)
+		eq.set_band_gain_db(b, float(g[b]) + add)
+	(AudioServer.get_bus_effect(h, 0) as AudioEffectReverb).damping = float(c.damp)
+	(AudioServer.get_bus_effect(h, 1) as AudioEffectHighShelfFilter).gain = float(c.shelf)
+	AudioServer.set_bus_volume_db(h, HALL_DB + float(c.hall_db))
+
+
+## A voice's darkness at this crispness.
+static func dk(dark: float) -> float:
+	return dark * float(crisp_set().dark_k)
+
+
 func _set_room_bus(id: StringName) -> void:
 	if not _live:
 		return
 	var r: Dictionary = (data().get("rooms", {}) as Dictionary).get(String(id), {})
 	var idx := _master_bus()
-	AudioServer.set_bus_volume_db(idx, float(r.get("gain_db", -11.0)) + float(LEVEL_TRIM.get(id, 0.0)))
+	AudioServer.set_bus_volume_db(idx, float(r.get("gain_db", -11.0)) + float(LEVEL_TRIM.get(id, 0.0))
+		+ float((crisp_set().trim as Dictionary).get(id, 0.0)))
 	var c := AudioServer.get_bus_effect(idx, 1) as AudioEffectCompressor
 	if c != null:
 		c.threshold = float(r.get("thr_rms_db", -23.0)) + float(COMP_DETECT.get(id, 2.0))
@@ -440,7 +523,7 @@ func _fire(c: HangarCues.Cue, at: float, occ: Vector4, t: float) -> void:
 	var raw := c.k >= 0
 	var dist := (-2.0 if c.hero else -7.0) * d
 	var wet := (WET_HERO if c.hero else WET_BASE) + 0.35 * minf(d, 1.0)
-	var dark := 0.0 if raw else minf(1.0, c.dark + 0.25 * minf(d, 1.0))
+	var dark := 0.0 if raw else dk(minf(1.0, c.dark + 0.25 * minf(d, 1.0)))
 	var rel := c.gain + dist + occ.z
 	var from := 0.0
 	if c.kind == HangarCues.Kind.SHOT and c.sync == HangarCues.Sync.HIT and float(fi.get("hit", 0.0)) > 0.15:
@@ -542,8 +625,8 @@ func _layers(t: float) -> void:
 			continue
 		v.level = float(ly.level.call(t)) if ly.level.is_valid() else 1.0
 		var x := float(ly.at_x.call(t)) if ly.at_x.is_valid() else ly.x
-		var pan_db := _route(v, x, ly.pan_k, ly.dark)
-		v.dry_db = ly.gain + REF - float(file_info(ly.file).get("loud", -20.0)) + dark_comp(ly.file, ly.dark) + pan_db
+		var pan_db := _route(v, x, ly.pan_k, dk(ly.dark))
+		v.dry_db = ly.gain + REF - float(file_info(ly.file).get("loud", -20.0)) + dark_comp(ly.file, dk(ly.dark)) + pan_db
 		v.wet_db = v.dry_db + linear_to_db(maxf(ly.wet, 1e-4))
 		if ly.synced and _live and v.dry.playing:
 			var want := fposmod(t, float(file_info(ly.file).get("len", 30.0)))
@@ -578,13 +661,13 @@ func _beds(t: float) -> void:
 			_start(v, f, fposmod(h01("%s|bedoff|%d" % [plan.room, s]) * ln + (t - a), ln), 1.0, t)
 			v.id = &"bed"
 			v.rate = 0.0
-			_route(v, 480.0, 0.0, 0.1)
+			_route(v, 480.0, 0.0, dk(0.1))
 			_bed_seg[w] = s
 		var r_in := clampf((t - a) / xf, 0.0, 1.0)
 		var r_out := clampf((b - t) / xf, 0.0, 1.0)
 		v.env = sin(r_in * PI / 2.0) * sin(r_out * PI / 2.0) if t - a < xf or b - t < xf else 1.0
 		v.level = drift
-		v.dry_db = REF - float(file_info(f).get("loud", -20.0)) + dark_comp(f, 0.1)
+		v.dry_db = REF - float(file_info(f).get("loud", -20.0)) + dark_comp(f, dk(0.1))
 		v.wet_db = v.dry_db + linear_to_db(WET_BASE * 0.6)
 
 

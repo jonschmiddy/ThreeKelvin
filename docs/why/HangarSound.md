@@ -110,6 +110,16 @@ down at the cutoff, no ringing. The game first used one `AudioEffectLowPassFilte
 octave with a bump below the cutoff: Jon's Nov 25 captures were 10 to 13 dB down at 4-8 kHz against the approved
 mixes ("muddy, not as crisp"). Each voice bus now has two `FILTER_6DB` stages at Q 0.707, the mixer's response.
 
+## crispness
+
+Jon, Nov 25, on the captures that matched the page mixes: "maybe even less muddy sound for all three". `CRISP`
+holds three levels he picks between by ear: A is the page mixes, B1 a bit crisper, B2 clearly crisper. Each sets
+`dark_k` (every voice's darkness scaled, so the depth low-pass sits higher), the hall's `damp`ing and its 5 kHz
+`shelf` (a brighter tail) and its level `hall_db` (less wash), and dB added to the bus EQ's bands: `mud` at
+175-500 Hz, `pres` at 1.4-5.6 kHz, `air` from 8 kHz. `trim` holds each room's loudness (LUFS) to A's, measured
+by capture, so a level is never just louder. The level comes from the command line (`hangarcrisp=B2`), else
+`[audio] hangar_crisp` in settings.cfg, else `CRISP_DEFAULT` (B1 until Jon picks); `set_crisp` switches it live.
+
 ## baked-cues
 
 Working a room's cues out of its life samples its predicates every 60th of a second over the lap and halves each
