@@ -241,7 +241,7 @@ func lift_off(w: int, shake: Control, done: Callable) -> ShipLift:
 	L.rise = float(ShipLift.RISE_PX[s.weight])
 	L.exit_px = float(W) + ShipLift.EXIT_CLEAR - float(s.thing.position.x)
 	# the columns sink a little into their bases, which stay put (Jon, Nov 24)
-	L.sink = func(rows: int) -> void: s.retract = s.sink_rows(rows)
+	L.sink = func(rows: int) -> void: s.retract = rows
 	L.shake_node = shake
 	L.shake_rest = shake.position
 	# (out under the ceiling, in front of the banners' rods)

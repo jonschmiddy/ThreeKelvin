@@ -43,7 +43,7 @@ the Old hangar's) ends in the same 18 rows: the bolted plate and the housing the
 So a post is two pieces now, each an `AtlasTexture` of its own rows drawn at their size (`EXPAND_IGNORE_SIZE`):
 
 - **The base** stays on its feet, never moving, drawn over the column.
-- **The saddle and column** sink `SINK_ROWS` (12) on the lift's beat (the 52-row sink scaled), drawing only their
+- **The saddle and column** sink `ShipLift.SINK_ROWS` (12) on the lift's beat (`YardStands.sunk_post`, shared with the deck), drawing only their
   rows above the base's top, like a ram going down into its housing. Nothing of them is drawn inside the base or
   below the floor, clip or not.
 
