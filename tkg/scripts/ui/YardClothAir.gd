@@ -17,6 +17,10 @@ var fb := Vector4.ZERO
 var fc := Vector4.ZERO
 
 var _bx := PackedFloat32Array()
+## Each banner's lean and turn (period s, phase) and fold phase: the page's seven-banner hall (its MAKERS7).
+var _lean: Array[Vector2] = []
+var _twist: Array[Vector2] = []
+var _ph := PackedFloat32Array()
 var _n := 0
 var _span := 0.0
 var _kick := PackedFloat32Array()
@@ -59,6 +63,10 @@ func setup(bx: PackedFloat32Array, n: int) -> void:
 	_bx = bx
 	_n = n
 	_span = (bx[n - 1] - bx[mini(2, n - 1)]) / 70.0 if n > 0 else 0.0
+	for i in 7:
+		_lean.append(Vector2(8.3 + fmod(i * 1.37, 2.6), fmod(i * 2.1, TAU)))
+		_twist.append(Vector2(6.4 + fmod(i * 0.97, 2.5), fmod(i * 1.3 + 0.8, TAU)))
+		_ph.append(fmod(i * 2.1, TAU))
 	_kick.resize(7)
 	_kdx.resize(7)
 	_kdy.resize(7)
@@ -109,10 +117,10 @@ func _gust(t: float, cx: float) -> float:
 
 ## Banner `b`'s forces at `t` (the page's step before its integration): into `fa`, `fb`, `fc`.
 func forces(b: int, t: float) -> void:
-	var ph := YardCloth.PH[b]
+	var ph := _ph[b]
 	var ge := _gust(t, _bx[b] + CW / 2.0) * YardCloth.W_GUST
-	var ln := YardCloth.LEAN[b]
-	var tw := YardCloth.TWIST[b]
+	var ln := _lean[b]
+	var tw := _twist[b]
 	var lean := YardCloth.W_LEAN * sin(TAU * t / ln.x + ln.y) + YardCloth.W_BREEZE * 1.2 * breeze(t, ph) + 45.0 * ge
 	var twist := YardCloth.W_TWIST * sin(TAU * t / tw.x + tw.y)
 	var bz := YardCloth.W_BREEZE * breeze(t * 0.8 + 3.0, ph + 1.0) + 16.0 * ge

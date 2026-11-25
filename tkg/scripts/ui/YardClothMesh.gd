@@ -14,28 +14,33 @@ const CH := YardBanner.CLOTH
 static var _made := {}
 
 
-## The atlas of the hall's cloths (48 px a banner; alpha 255 cloth, 128 a painted mark, 0 none) and
-## each banner's rows' field colours (one column a banner).
+## The atlas of the hall's cloths (48 px a banner; alpha 255 cloth, 128 a painted mark, 192 an accent
+## thread, 0 none) and, beside it, each pixel's field colour (the rims' colour).
 static func atlas(banners: Array[YardBanner], n: int) -> Array[ImageTexture]:
 	var img := Image.create(CW * 7, CH, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
-	var fld := Image.create(7, CH, false, Image.FORMAT_RGBA8)
+	var fld := Image.create(CW * 7, CH, false, Image.FORMAT_RGBA8)
 	fld.fill(Color(0, 0, 0, 1))
 	for b in n:
-		var bn := banners[b]
-		var key := YardBanner.cloth_key(bn.manufacturer, bn.open)
-		if not _made.has(key):
-			_made[key] = YardClothTex.make(bn.cloth)
-		var m: YardClothTex.Made = _made[key]
+		var m := made(banners[b])
 		var d := m.data.get_data()
 		for y in CH:
-			fld.set_pixel(b, y, Color8(m.field[y * 3], m.field[y * 3 + 1], m.field[y * 3 + 2]))
 			for x in CW:
 				var t := y * CW + x
 				if d[t * 4 + 3] == 0:
 					continue
-				img.set_pixel(b * CW + x, y, Color8(d[t * 4], d[t * 4 + 1], d[t * 4 + 2], 128 if m.ink[t] != 0 else 255))
+				var a := YardClothTex.A_INK if m.ink[t] != 0 else (YardClothTex.A_GOLD if m.gold[t] != 0 else YardClothTex.A_CLOTH)
+				img.set_pixel(b * CW + x, y, Color8(d[t * 4], d[t * 4 + 1], d[t * 4 + 2], a))
+				fld.set_pixel(b * CW + x, y, Color8(m.field[t * 3], m.field[t * 3 + 1], m.field[t * 3 + 2]))
 	return [ImageTexture.create_from_image(img), ImageTexture.create_from_image(fld)]
+
+
+## A banner's cloth in its material, made once a session.
+static func made(bn: YardBanner) -> YardClothTex.Made:
+	var key := YardBanner.cloth_key(bn.manufacturer, bn.open)
+	if not _made.has(key):
+		_made[key] = YardClothTex.make(bn.cloth, key)
+	return _made[key]
 
 
 ## Every banner's grid as triangles (the page's eachTri), UV = (i, j + 25 b) naming the node.

@@ -127,7 +127,8 @@ static func light_at(r: Room, w: Vector3, n: Vector3, v: float) -> Vector3:
 			att = 1.0 / (1.0 + d2 * L.ir2)
 		att *= L.vw.x + L.vw.y * v / CH
 		var nl := n.dot(l)
-		var k := maxf(0.0, (nl + L.wrap) / (1.0 + L.wrap)) + L.trans * maxf(0.0, -nl)
+		var wr := minf(0.9, L.wrap + YardClothTex.WRAP)
+		var k := maxf(0.0, (nl + wr) / (1.0 + wr)) + L.trans * maxf(0.0, -nl)
 		c += L.col * (k * att * L.pw)
 	return c
 
