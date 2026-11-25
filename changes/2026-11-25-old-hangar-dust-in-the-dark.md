@@ -1,0 +1,1 @@
+- **Fixed** — In the Old hangar the dust motes vanish while the lamp is out.

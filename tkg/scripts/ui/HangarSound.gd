@@ -185,10 +185,13 @@ static func _voice_bus(n: String, to: StringName) -> StringName:
 	var idx := _bus(n, to)
 	if not made:
 		AudioServer.add_bus_effect(idx, AudioEffectPanner.new())
-		var lp := AudioEffectLowPassFilter.new()
-		lp.resonance = 0.7071
-		lp.db = AudioEffectFilter.FILTER_24DB
-		AudioServer.add_bus_effect(idx, lp)
+		# the mixer's 2nd-order Butterworth run forward and back: two plain biquads (Godot's 24DB is four, a
+		# far steeper slope that took 10 dB off 4-8 kHz). Why: docs/why/HangarSound.md#depth-low-pass
+		for i in 2:
+			var lp := AudioEffectLowPassFilter.new()
+			lp.resonance = 0.7071
+			lp.db = AudioEffectFilter.FILTER_6DB
+			AudioServer.add_bus_effect(idx, lp)
 	return StringName(n)
 
 
@@ -218,8 +221,9 @@ func _route(v: Voice, x: float, k: float, dark: float) -> float:
 		for bus: StringName in [v.dry.bus, v.wet.bus]:
 			var idx := AudioServer.get_bus_index(bus)
 			(AudioServer.get_bus_effect(idx, 0) as AudioEffectPanner).pan = pn.x
-			(AudioServer.get_bus_effect(idx, 1) as AudioEffectFilter).cutoff_hz = 7000.0 - 5200.0 * dark
-			AudioServer.set_bus_effect_enabled(idx, 1, dark > 0.0)
+			for e in [1, 2]:
+				(AudioServer.get_bus_effect(idx, e) as AudioEffectFilter).cutoff_hz = 7000.0 - 5200.0 * dark
+				AudioServer.set_bus_effect_enabled(idx, e, dark > 0.0)
 	return pn.y
 
 

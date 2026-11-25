@@ -47,7 +47,10 @@ each mote's track: its pixel each frame (the film's slow ellipse, snapped with h
 and forth) and its brightness there (how lit the air is at that pixel, its glint, its fade). A mote is never drawn
 where the air is unlit. The game draws them all in one MultiMesh per layer; the shader reads the track at the
 frame (30 a second on the 10 s loop, which the film made seamless) and screens the mote onto what is under it in
-the sodium colour times the lamp's level, so the dust goes out with the lamp.
+the sodium colour times the lamp's level, so the dust goes out with the lamp. On a dark frame (the lamp's drawn
+level 0) the dust layers are not drawn at all, and the shader discards an unlit mote rather than writing back the
+screen copy it read (Jon, Nov 25: "the dust particles should disappear when the light is off"; the copy can be
+older than what was drawn over that pixel since, which left specks moving in the dark). HangarSoundTest checks it.
 
 - The far motes are in `under`, so they pass behind the posts as well as the tarps (in the film they were drawn
   over the posts, which were painted into the room). They hang in the air behind the tarps, where the posts are.

@@ -6,6 +6,9 @@ approved mixes were built from. Docs: docs/why/HangarSound.md.
       writes tkg/assets/audio/hangar/*.wav, tkg/assets/audio/sfx/hangar_banner.wav and tkg/assets/audio/hangar/hangar.json
   ... python -I tools/dev/hangar_sound.py measure FILE.wav [FILE.wav ...]
       integrated LUFS, LRA and true peak of each file (a game capture, or a reference mix), the mixer's own meters
+  python -I tools/dev/hangar_sound.py plans
+      bakes each room's cues off its life into tkg/assets/audio/hangar/cues.json (`-- sheet=HangarCuesBake`);
+      needs no sound3 folder or packages. Rerun after changing a room's life or HangarCues (HangarSoundTest says so)
   ... python -I tools/dev/hangar_sound.py hall PROBE.wav
       the Godot hall's decay and level from a probe capture (`-- sheet=HangarSoundFilm probe=1`)
 
@@ -18,6 +21,10 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+if sys.argv[1:2] == ["plans"]:                                # before the imports below: no sound3, no packages
+    import subprocess
+    sys.exit(subprocess.call(["bash", "tools/dev/godot.sh", "-t", "300", "--headless", "--path", "tkg", "--",
+                              "sheet=HangarCuesBake"], cwd=str(REPO)))
 SCRATCH = Path(os.environ.get("TK_SCRATCH") or next((q / "tk-scratch" for q in REPO.parents
                                                    if (q / "tk-scratch" / "shipselect" / "sound3").is_dir()), ""))
 S3 = SCRATCH / "shipselect" / "sound3"

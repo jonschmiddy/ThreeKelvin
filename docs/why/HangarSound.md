@@ -20,7 +20,7 @@ game, started from the life event it belongs to (`HangarCues`), with the mixer's
   fade in (the mixer trimmed those takes the same way). The lead is divided by the take's pitch.
 - **Depth**: `depth = clamp((400 - lane_y) / 190, 0, 1.4)`; dry level -7 dB a unit (heroes -2), the hall send
   0.35 (heroes 0.7) + 0.35 a unit, and a low-pass from 7 kHz toward 1.8 kHz with darkness (the cue's own darkness
-  + 0.25 a unit). Each voice has its own bus with that low-pass (24 dB, Q 0.707: the mixer's zero-phase Butterworth).
+  + 0.25 a unit). Each voice has its own bus with that low-pass (see depth-low-pass).
   The mixer normalised every stem after darkening it; the game's files are normalised before, so each voice adds back
   what its low-pass takes off that file (`lp` in `hangar.json`, 21 steps of darkness).
 - **Pan**: `clamp(x / 960 x 2 - 1) x 0.75` (heroes 0.6, the flicker 0.3), constant power. Godot's panner is a
@@ -58,7 +58,7 @@ click (`ui_click`) stays.
 What starts each sound, read off the room's life (never the cue map's times, which were the film's). Korvan's life
 draws film frame `pyround(t x 30)`, so its predicates read the state at that frame and an edge falls half a frame
 before the film's time. Edges are sampled at 60 Hz (half the shortest life state) and halved to a tenth of a millisecond. Each room's cues are
-worked out once a run (`HangarCues._cached`): a banner click does not pay for them again.
+worked out offline and baked (see baked-cues).
 
 Korvan (30 s, `ShipRoomKorvanFilm`):
 
@@ -101,6 +101,25 @@ Old (10 s, `ShipRoomOld`):
 Nothing in the cue map is left without a game event. One cue time moved to its event (`lamps.sag`, above), and the
 crane's brake is one film frame earlier than the mix (the tie). Old's events land on the lamp's continuous clock
 (2.050 s), where the mix had the film frame after (62/30 = 2.067 s).
+
+## depth-low-pass
+
+The mixer darkens a stem with a 2nd-order Butterworth run forward and back (`sosfiltfilt`): 24 dB an octave, 6 dB
+down at the cutoff, no ringing. The game first used one `AudioEffectLowPassFilter` at `FILTER_24DB`, but Godot's
+`db` counts biquad stages (6DB is one 2-pole stage, 24DB four, each stage's Q raised), so it fell about 48 dB an
+octave with a bump below the cutoff: Jon's Nov 25 captures were 10 to 13 dB down at 4-8 kHz against the approved
+mixes ("muddy, not as crisp"). Each voice bus now has two `FILTER_6DB` stages at Q 0.707, the mixer's response.
+
+## baked-cues
+
+Working a room's cues out of its life samples its predicates every 60th of a second over the lap and halves each
+edge: about 90 ms for Korvan and 140 to 165 ms for Solari, a visible hitch the first time a room showed. The lives
+are fixed functions of the room clock, so `-- sheet=HangarCuesBake` (run by `python tools/dev/hangar_sound.py plans`)
+works them out once (`HangarCues.compute`) into `tkg/assets/audio/hangar/cues.json`, one cue a line, and
+`HangarCues.plan_for` reads that file (once a run) instead. Only the cues are baked; the layers (the crane, the
+forklift, the hum and the buzz) follow the room each frame and are cheap to build. HangarSoundTest works every room's
+cues out again and fails, naming the first cue and field that differ and the command above, when they are not the
+baked ones (times within a microsecond): a changed life fails the test until the cues are rebaked.
 
 ## flicker-and-buzz
 

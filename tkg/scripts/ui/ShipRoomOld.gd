@@ -24,6 +24,8 @@ const HOSE_AT := {-1: Vector2i(-27, -1), 1: Vector2i(4, -1)}
 
 var _level := 1.0
 var _dust: Array[ShaderMaterial] = []
+## The two dust layers (behind and in front of the stands).
+var motes: Array[CanvasItem] = []
 
 
 func hull_amb() -> float:
@@ -78,6 +80,7 @@ func _motes(file: String) -> Control:
 	m.set_shader_parameter(&"motes", tx)
 	c.material = m
 	_dust.append(m)
+	motes.append(c)
 	return c
 
 
@@ -160,6 +163,9 @@ func _tick(_dt: float) -> void:
 	for m in _dust:
 		m.set_shader_parameter(&"frame", f)
 		m.set_shader_parameter(&"level", _level)
+	# the dust is only seen in the lamp's light: none drawn while it is out (Jon, Nov 25)
+	for c in motes:
+		c.visible = _level > 0.0
 
 
 ## The dust's one draw: every mote at once (`ship_room_old_motes.gdshader` moves them).

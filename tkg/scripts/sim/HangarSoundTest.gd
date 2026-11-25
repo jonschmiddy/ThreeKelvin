@@ -72,6 +72,9 @@ func _room(cs: ChassisSelect, id: StringName) -> void:
 	var crew_max := 0
 	var buzz_bad := 0
 	var buzz_n := 0
+	var dust_bad := 0
+	var dark_n := 0
+	var dust_n := 0
 	var loop := hs.plan.loop
 	while r.t - t_show < loop + 1.0:
 		await _tree.process_frame
@@ -95,6 +98,12 @@ func _room(cs: ChassisSelect, id: StringName) -> void:
 				var out := (r as ShipRoomOld).level() <= 0.0
 				if (out and b.level > 0.0) or (not out and b.level < 1.0):
 					buzz_bad += 1
+			var ro := r as ShipRoomOld
+			var dark := ro.level() <= 0.0
+			dark_n += 1 if dark else 0
+			dust_n += 1
+			if ro.motes.size() != 2 or ro.motes.any(func(c: CanvasItem) -> bool: return c.visible == dark):
+				dust_bad += 1
 	if id == &"korvan":
 		_brakes(speeds, t_show, acts)
 	var got := hs.starts.slice(n0)
@@ -103,11 +112,24 @@ func _room(cs: ChassisSelect, id: StringName) -> void:
 	if id == &"old":
 		_ok("old: the buzz is cut through every out and back with the light (%d of %d frames wrong)" % [buzz_bad, buzz_n],
 			buzz_n > 0 and buzz_bad == 0)
+		_ok("old: no dust drawn on a dark frame, and the dust shown on a lit one (%d of %d frames wrong, %d dark)"
+			% [dust_bad, dust_n, dark_n], dark_n > 0 and dust_bad == 0)
 		var b := _buzz(hs)
 		_ok("old: the buzz runs at the lamp's place in its three cycles (%.3f s in, room %.3f)"
 			% [b.pos0 if b else -1.0, fposmod(b.t0, 30.0) if b else -1.0],
 			b != null and absf(b.pos0 - fposmod(b.t0, 30.0)) < 0.002)
 	_print_starts(got)
+	_baked(r)
+
+
+## The baked cues are the ones the room's life gives now (a changed life fails here until they are rebaked).
+func _baked(r: ShipRoom) -> void:
+	var us := Time.get_ticks_usec()
+	var want := HangarCues.compute(r).cues
+	var d := HangarCues.diff(want, HangarCues.baked(r.id))
+	_ok("%s: the baked cues are its life's (%d, worked out in %.1f ms)%s" % [r.id, want.size(),
+		(Time.get_ticks_usec() - us) / 1000.0, "" if d == "" else ": DIFFER at %s; rebake: %s" % [d, HangarCues.REBAKE]],
+		d == "" and not want.is_empty())
 
 
 func _buzz(hs: HangarSound) -> HangarSound.Voice:

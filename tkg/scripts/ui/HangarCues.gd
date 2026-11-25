@@ -79,16 +79,35 @@ class Plan:
 	var hero_db := 4.0
 
 
-## Each room's cues, worked out once a run: its life is the same every visit, and a banner click should not pay again.
-static var _cached: Dictionary[StringName, Array] = {}
+## Each room's cues, worked out offline by `-- sheet=HangarCuesBake` (90 to 165 ms a room, a hitch at first show).
+## HangarSoundTest fails when a life changes and BAKED was not rebaked. Why: docs/why/HangarSound.md#baked-cues
+const BAKED := "res://assets/audio/hangar/cues.json"
+const REBAKE := "python tools/dev/hangar_sound.py plans"
+## A cue's fields as BAKED stores them.
+const FIELDS: Array[String] = ["id", "kind", "at", "end", "x", "y", "files", "gain", "hero", "prio", "dark", "sync",
+	"cut", "dur", "lap", "n", "per", "k"]
+## BAKED read once a run: each room's cues.
+static var _baked: Dictionary[StringName, Array] = {}
 
 
+## The room's plan: its layers built on its life, its cues the baked ones.
 static func plan_for(r: ShipRoom) -> Plan:
+	var p := _plan(r, false)
+	p.cues.assign(baked(r.id))
+	return p
+
+
+## The room's plan with its cues worked out from its life (the baker and the test; slow).
+static func compute(r: ShipRoom) -> Plan:
+	var p := _plan(r, true)
+	_count(p)
+	return p
+
+
+static func _plan(r: ShipRoom, cues: bool) -> Plan:
 	var p := Plan.new()
 	p.room = r.id
 	p.hero_db = float(HERO_DB.get(r.id, 4.0))
-	var have: Array = _cached.get(r.id, [])
-	var cues := have.is_empty()
 	match r.id:
 		&"korvan":
 			_korvan(p, r as ShipRoomKorvan, cues)
@@ -96,12 +115,74 @@ static func plan_for(r: ShipRoom) -> Plan:
 			_solari(p, r as ShipRoomSolari, cues)
 		&"old":
 			_old(p, r as ShipRoomOld, cues)
-	if cues:
-		_count(p)
-		_cached[r.id] = p.cues.duplicate()
-	else:
-		p.cues.assign(have)
 	return p
+
+
+## A room's baked cues (none, and an error, when BAKED lacks it).
+static func baked(id: StringName) -> Array[Cue]:
+	if _baked.is_empty():
+		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(BAKED))
+		if d is Dictionary:
+			for room: String in d:
+				if d[room] is Array:
+					var cs: Array[Cue] = []
+					for row: Variant in d[room]:
+						cs.append(cue_of(row as Dictionary))
+					_baked[StringName(room)] = cs
+	if not _baked.has(id):
+		push_error("HangarCues: %s has no cues for %s; run %s" % [BAKED, id, REBAKE])
+		return []
+	var out: Array[Cue] = []
+	out.assign(_baked[id])
+	return out
+
+
+## A cue as one row of BAKED.
+static func row_of(c: Cue) -> Dictionary[String, Variant]:
+	var d: Dictionary[String, Variant] = {}
+	for f in FIELDS:
+		var v: Variant = c.get(f)
+		if f == "files":
+			v = Array(c.files).map(func(s: StringName) -> String: return String(s))
+		elif v is StringName:
+			v = String(v)
+		d[f] = v
+	return d
+
+
+static func cue_of(d: Dictionary) -> Cue:
+	var c := Cue.new()
+	for f in FIELDS:
+		if not d.has(f):
+			continue
+		var v: Variant = d[f]
+		match typeof(c.get(f)):
+			TYPE_INT:
+				c.set(f, int(v))
+			TYPE_FLOAT:
+				c.set(f, float(v))
+			TYPE_BOOL:
+				c.set(f, bool(v))
+			TYPE_STRING_NAME:
+				c.set(f, StringName(str(v)))
+			TYPE_ARRAY:
+				for s: Variant in v:
+					c.files.append(StringName(str(s)))
+	return c
+
+
+## Where two cue lists differ ("" when they are the same: every field, times within a microsecond).
+static func diff(want: Array[Cue], got: Array[Cue]) -> String:
+	if want.size() != got.size():
+		return "%d cues, baked %d" % [want.size(), got.size()]
+	for i in want.size():
+		var a := row_of(want[i])
+		var b := row_of(got[i])
+		for f in FIELDS:
+			var same: bool = absf(float(a[f]) - float(b[f])) < 1e-6 if a[f] is float else a[f] == b[f]
+			if not same:
+				return "cue %d (%s) %s: %s, baked %s" % [i, a["id"], f, a[f], b[f]]
+	return ""
 
 
 ## The mixer's lanes: 0 at the front lane (row 400), 1 at the wall's foot, up to 1.4 for the decks.
