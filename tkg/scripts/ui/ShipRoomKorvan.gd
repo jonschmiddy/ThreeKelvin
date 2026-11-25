@@ -20,6 +20,7 @@ var back: ShipRoomKorvanBack
 var front: ShipRoomKorvanFront
 var air: ShipRoomKorvanAir
 var _shown := -1
+var _sent: Dictionary[StringName, Variant] = {}
 
 
 func hull_amb() -> float:
@@ -45,7 +46,7 @@ func _build() -> void:
 	back.build()
 	front = ShipRoomKorvanFront.new(life)
 	life.on(above)
-	front.build()
+	front.build(air)
 	air.build_post(above)
 	_tick(0.0)
 
@@ -117,6 +118,10 @@ func _hull_rows(s: YardStandSet) -> void:
 
 
 func _uniform(n: StringName, v: Variant) -> void:
+	# each set is a call into the renderer: only what changed since the last frame is sent
+	if _sent.has(n) and _sent[n] == v:
+		return
+	_sent[n] = v
 	for m in _mats:
 		m.set_shader_parameter(n, v)
 

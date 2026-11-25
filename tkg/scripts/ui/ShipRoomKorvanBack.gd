@@ -2,7 +2,7 @@ class_name ShipRoomKorvanBack
 extends RefCounted
 
 ## Korvan's film behind the hulls (mix18.render's back() and post_light()): the albedo edits, the
-## girder, the door's corridor, the office, the holo-table room, the engine test, the wall crew, the
+## crane's rail, the door's corridor, the office, the holo-table room, the engine test, the wall crew, the
 ## drones, the cargo swap and the crane. Why: docs/why/ShipRoomKorvan.md#life
 
 const F := preload("res://scripts/ui/ShipRoomKorvanFilm.gd")
@@ -24,6 +24,8 @@ var _albedo: Texture2D
 var _wall: Array = []
 var _corridor: Array = []
 var _top_truck: ShipRoomKorvanLife.Walker
+## The holo room's layer being drawn on: its unchanging walls, cone, table and crew are kept.
+var _hq: ShipRoomKorvanPaint
 
 
 func _init(l: ShipRoomKorvanLife) -> void:
@@ -50,15 +52,26 @@ func _mk(n: StringName, b: ShipRoomKorvanPaint.Blend = ShipRoomKorvanPaint.Blend
 ## The layers, in the film's order: albedo edits first (lit by the room), then post_light's.
 func build_edits() -> void:
 	_mk(&"edit").light(3)
+	var r := _mk(&"rail")
+	r.light(6)
+	r.keep = true
+	# the crane's rail (Jon's B1, mix21): its tile row 12 on frame row 11, lit as wall art, under the shafts and haze
+	for x in range(0, 960, 140):
+		life.piece(r, "rail", x, -1)
 
 
 func build() -> void:
-	_mk(&"girder")
 	_mk(&"corridor")
 	_mk(&"cor_crew").light(5, Vector2.ZERO, 0.55, 0, 9, 0.55, P.c8(40, 30, 20))
 	_mk(&"office", P.Blend.MUL)
 	_mk(&"paper")
-	_mk(&"holo")
+	for n: StringName in [&"holo_a", &"holo_b", &"holo_c", &"holo_d"]:
+		_mk(n).clip = Rect2(HX0, HY0, 38, 26)
+	var hm := ShaderMaterial.new()
+	hm.shader = preload("res://shaders/ship_room_korvan_holo.gdshader")
+	p[&"holo_b"].material = hm
+	p[&"holo_b"].rect(HX0, HY0, 38, 26, Color.WHITE)
+	p[&"holo_b"].keep = true
 	_mk(&"beacons")
 	_mk(&"burner", P.Blend.UNLIT)
 	_mk(&"blades")
@@ -129,7 +142,6 @@ func draw(f: int, t: float, lk: float) -> void:
 	var tB := F.win(t, F.ENGINE_AT)
 	var tC := F.win(t, F.DOOR_AT)
 	_edits(t, tB, tC, fr)
-	life.piece(p[&"girder"], "girder", 0, 0)
 	_door(tC)
 	_office_draw(t)
 	_holo(t, float(fr["holo_fl"]))
@@ -242,15 +254,19 @@ func _door(tC: float) -> void:
 # ------------------------------------------------------------------ the office: two clerks' shapes on the glass
 func _office_draw(t: float) -> void:
 	var u := fposmod(t, 30.0)
-	_shade(_rect_cells(236, 186, 13, 4), 0.38)
-	var cab := _rect_cells(258, 181, 5, 9)
-	if (u >= 4.3 and u < 6.2) or (u >= 23.7 and u < 24.8):
-		cab.append_array(_rect_cells(256, 184, 2, 2))
-	_shade(cab, 0.45)
+	var drawer := (u >= 4.3 and u < 6.2) or (u >= 23.7 and u < 24.8)
 	var b := _clerk_b(u)
-	_shade(_figure(241, int(b.x), int(b.y), int(b.z)), 0.30)
 	var a := _clerk_a(u)
-	_shade(_figure(int(a.x), int(a.y), int(a.z) / 10, int(a.z) % 10 - 5), 0.26)
+	var key := [drawer, b, a]
+	if not p[&"office"].recall(key):
+		_shade(_rect_cells(236, 186, 13, 4), 0.38)
+		var cab := _rect_cells(258, 181, 5, 9)
+		if drawer:
+			cab.append_array(_rect_cells(256, 184, 2, 2))
+		_shade(cab, 0.45)
+		_shade(_figure(241, int(b.x), int(b.y), int(b.z)), 0.30)
+		_shade(_figure(int(a.x), int(a.y), int(a.z) / 10, int(a.z) % 10 - 5), 0.26)
+		p[&"office"].remember(key)
 	var pp := Vector2i(-1, -1)
 	if b.w > 0.5:
 		pp = Vector2i(241 + 6, int(b.x) + 6)
@@ -389,7 +405,7 @@ func _hput(x: float, y: float, c: Color, a: float = 1.0) -> void:
 	var xi := F.pyround(x)
 	var yi := F.pyround(y)
 	if xi >= 0 and yi >= 0 and xi < 38 and yi < 26:
-		p[&"holo"].rect(HX0 + xi, HY0 + yi, 1, 1, Color(c.r, c.g, c.b, a))
+		_hq.rect(HX0 + xi, HY0 + yi, 1, 1, Color(c.r, c.g, c.b, a))
 
 
 func _hline(x0: float, y0: float, x1: float, y1: float, c: Color, a: float = 1.0) -> void:
@@ -402,58 +418,73 @@ func _hline(x0: float, y0: float, x1: float, y1: float, c: Color, a: float = 1.0
 
 
 func _hrect(x0: int, y0: int, x1: int, y1: int, c: Color) -> void:
-	p[&"holo"].rect(HX0 + x0, HY0 + y0, x1 - x0 + 1, y1 - y0 + 1, c)
+	_hq.rect(HX0 + x0, HY0 + y0, x1 - x0 + 1, y1 - y0 + 1, c)
 
 
 func _holo(t: float, fl: float) -> void:
-	var q := p[&"holo"]
-	q.clip = Rect2(HX0, HY0, 38, 26)
 	var u := fposmod(t, 15.0)
-	var bands := [[P.c8(40, 52, 72), 3], [P.c8(34, 46, 64), 5], [P.c8(30, 40, 56), 6], [P.c8(26, 34, 48), 12]]
-	var y := 0
-	for b: Array in bands:
-		q.rect(HX0, HY0 + y, 38, int(b[1]), b[0])
-		y += int(b[1])
-	for yy in range(4, 15):
-		var f := (15.0 - yy) / 11.0
-		var hw := 5.0 + 6.0 * f
-		for x in range(int(19 - hw), int(19 + hw) + 1):
-			if ShipRoom.bayer4(HX0 + x, HY0 + yy) < 0.12:
-				_hput(x, yy, P.c8(90, 200, 240), 0.3)
+	_hq = p[&"holo_a"]
+	if not _hq.keep:
+		_hq.keep = true
+		var bands := [[P.c8(40, 52, 72), 3], [P.c8(34, 46, 64), 5], [P.c8(30, 40, 56), 6], [P.c8(26, 34, 48), 12]]
+		var y := 0
+		for b: Array in bands:
+			_hq.rect(HX0, HY0 + y, 38, int(b[1]), b[0])
+			y += int(b[1])
+		for yy in range(4, 15):
+			var f := (15.0 - yy) / 11.0
+			var hw := 5.0 + 6.0 * f
+			for x in range(int(19 - hw), int(19 + hw) + 1):
+				if ShipRoom.bayer4(HX0 + x, HY0 + yy) < 0.12:
+					_hput(x, yy, P.c8(90, 200, 240), 0.3)
+	# the hologram's edges and the scanlines: ends worked out here, the pixels on the GPU
 	var th := TAU * (t / 15.0)
 	var hot := u >= 5.0 and u < 8.0 and int(u * 5.0) % 2 == 0
+	var segs := PackedVector4Array()
+	var cols := PackedVector4Array()
 	for s in _hull_model():
 		var pts: Array[Vector2] = []
 		for v: Vector3 in [s[0], s[1]]:
 			var w := v * 1.3
 			var X := w.x * cos(th) - w.z * sin(th)
 			var Z := w.x * sin(th) + w.z * cos(th)
-			pts.append(Vector2(19.0 + X, 12.0 - w.y * cos(0.42) + Z * sin(0.42) * 0.8))
+			pts.append(Vector2(F.pyround(19.0 + X), F.pyround(12.0 - w.y * cos(0.42) + Z * sin(0.42) * 0.8)))
 		var eng: bool = s[2]
 		var c := P.c8(255, 150, 60) if eng and hot else P.c8(150, 242, 255)
-		_hline(pts[0].x, pts[0].y, pts[1].x, pts[1].y, c, 1.0 if eng and hot else 0.85)
-	for yy in 26:
-		if (yy + int(t * 6.0)) % 3 == 0:
-			q.rect(HX0 + 8, HY0 + yy, 23, 1, Color(0, 0, 0, 1.0 - (0.86 + 0.08 * fl)))
-	_hrect(6, 15, 32, 17, P.c8(44, 52, 68))
-	_hrect(6, 15, 32, 15, P.c8(70, 84, 104))
-	_hrect(12, 15, 26, 15, P.c8(150, 240, 255))
-	_hrect(8, 18, 8, 21, P.c8(30, 34, 44))
-	_hrect(30, 18, 30, 21, P.c8(30, 34, 44))
+		segs.append(Vector4(pts[0].x, pts[0].y, pts[1].x, pts[1].y))
+		cols.append(Vector4(c.r, c.g, c.b, 1.0 if eng and hot else 0.85))
+	var hm := p[&"holo_b"].material as ShaderMaterial
+	hm.set_shader_parameter(&"nseg", segs.size())
+	while segs.size() < 64:
+		segs.append(Vector4.ZERO)
+		cols.append(Vector4.ZERO)
+	hm.set_shader_parameter(&"seg", segs)
+	hm.set_shader_parameter(&"segc", cols)
+	hm.set_shader_parameter(&"scan_off", int(t * 6.0))
+	hm.set_shader_parameter(&"scan_k", 0.86 + 0.08 * fl)
+	_hq = p[&"holo_c"]
 	var s1 := life.src("holo_s1")
-	life.piece(q, "holo_s1", HX0, HY0 + 22 - int(s1.size.y))
+	if not _hq.keep:
+		_hq.keep = true
+		_hrect(6, 15, 32, 17, P.c8(44, 52, 68))
+		_hrect(6, 15, 32, 15, P.c8(70, 84, 104))
+		_hrect(12, 15, 26, 15, P.c8(150, 240, 255))
+		_hrect(8, 18, 8, 21, P.c8(30, 34, 44))
+		_hrect(30, 18, 30, 21, P.c8(30, 34, 44))
+		life.piece(_hq, "holo_s1", HX0, HY0 + 22 - int(s1.size.y))
+		for i in 3:
+			_hput(2 + i, 3 - i, Color.WHITE, 0.22)
+			_hput(3 + i, 3 - i, Color.WHITE, 0.12)
+	_hq = p[&"holo_d"]
 	var w1 := int(s1.size.x)
 	var jab := u >= 5.0 and u < 8.0
 	var reach := 11 + (F.pyround(1.5 * sin(u * 9.0)) if jab else 0)
 	_hline(w1 - 2, 9, reach - 2, 7 if jab else 9, P.c8(200, 200, 196))
 	var s2 := life.src("holo_s2")
 	var nod := 1 if jab and int(u * 4.0) % 2 == 0 else 0
-	q.sprite(life.atlas, Rect2(s2.position + Vector2(0, 5), Vector2(s2.size.x, s2.size.y - 5)), HX0 + 31, HY0 + 9)
-	q.sprite(life.atlas, Rect2(s2.position, Vector2(s2.size.x, 5)), HX0 + 31, HY0 + 4 + nod)
+	_hq.sprite(life.atlas, Rect2(s2.position + Vector2(0, 5), Vector2(s2.size.x, s2.size.y - 5)), HX0 + 31, HY0 + 9)
+	_hq.sprite(life.atlas, Rect2(s2.position, Vector2(s2.size.x, 5)), HX0 + 31, HY0 + 4 + nod)
 	_hrect(31, 10, 31 + int(s2.size.x) - 2, 10, P.c8(60, 70, 44))
-	for i in 3:
-		_hput(2 + i, 3 - i, Color.WHITE, 0.22)
-		_hput(3 + i, 3 - i, Color.WHITE, 0.12)
 
 
 # ------------------------------------------------------------------ the engine test: beacons, the port, embers, steam
@@ -623,10 +654,13 @@ func _rigger(t: float) -> void:
 		run_s = 30.0 - 30.0 * F.smooth((u - 6.5) / 3.5)
 	var c := p[&"rig_chain"]
 	c.light(2, Vector2(871, 100), 0.3, 0.35, 1.3)
-	for y in range(74, 117):
-		for xd: Vector2i in [Vector2i(870, 1), Vector2i(871, -1)]:
-			var lit := posmod(y + xd.y * int(run_s), 3) != 0
-			c.px(xd.x, y, P.c8(150, 150, 158) if lit else P.c8(50, 52, 58))
+	var ph := posmod(int(run_s), 3)
+	if not c.recall(ph):
+		for y in range(74, 117):
+			for xd: Vector2i in [Vector2i(870, 1), Vector2i(871, -1)]:
+				var lit := posmod(y + xd.y * int(run_s), 3) != 0
+				c.px(xd.x, y, P.c8(150, 150, 158) if lit else P.c8(50, 52, 58))
+		c.remember(ph)
 	var s := life.crew_src("t_rigger", 0)
 	p[&"rig_sh"].contact(862, 870, 127, 2, 0.4)
 	p[&"rig"].light(1, Vector2(866, 112), 0.3)
@@ -801,22 +835,42 @@ func _rig(cr: ShipRoomKorvanFilm.Crane, lk: float) -> void:
 	var tr := p[&"trolley"]
 	tr.light(2, Vector2(tx + tw / 2, ty + th / 2), 0.35, 0.4, 1.25, 2.0)
 	life.piece(tr, "trolley_half", tx, ty)
-	var wh := p[&"rig_wheels"]
-	for cx: int in [tx + 9, tx + tw - 10]:
-		for dy in range(-3, 3):
-			for dx in range(-3, 4):
-				var d := Vector2(dx, dy + 0.5).length()
-				if d <= 3.2:
-					wh.px(cx + dx, 9 + dy, INK if d > 2.4 else (P.c8(150, 156, 166) if dy < 0 else P.c8(70, 74, 84)))
-		wh.px(cx, 9, P.c8(200, 204, 210))
+	life.piece(p[&"rig_wheels"], "wheels", tx, 6)
 	var lit := p[&"rig_lit"]
 	var dk := p[&"rig_dark"]
 	lit.light(2, Vector2(cr.x, 50), 0.45, 0.5, 1.25, lk)
+	# the rigging's shape is fixed relative to its hook for a given swing: drawn once per shape, then moved
 	var hc := F.pyround(cr.x + cr.sway * 0.25)
+	# an even origin keeps Python's half-to-even rounding the same in the shifted shape
+	var o := hc - posmod(hc, 2)
+	lit.position = Vector2(o, 0)
+	dk.position = Vector2(o, 0)
+	var key := [cr.x - o, cr.lx - o, hc - o, cr.ly, cr.lw]
+	if lit.keep and lit.get_meta(&"key", []) == key:
+		return
+	lit.set_meta(&"key", key)
+	lit.keep = true
+	dk.keep = true
+	lit.free = true
+	dk.free = true
+	lit.clear()
+	dk.clear()
+	if lit.recall(key) and dk.recall(key):
+		return
+	_rig_shape(lit, dk, cr.x - o, cr.lx - o, cr.ly, cr.lw, hc - o)
+	lit.remember(key)
+	dk.remember(key)
+
+
+## The rigging (upper11._draw_rig) relative to an even origin near its hook: ropes, block, hook, spreader, chains, slings.
+func _rig_shape(lit: ShipRoomKorvanPaint, dk: ShipRoomKorvanPaint, x: int, lx: int, ly: int, lw: int, hc: int) -> void:
+	var K := F.K
+	var ty := int(K["trolley_y"])
+	var th := int(K["trolley_h"])
 	var bt := ty + th + 1
-	for cx0: int in [cr.x - 4, cr.x + 4]:
+	for cx0: int in [x - 4, x + 4]:
 		var a := Vector2(cx0, ty + th - 4)
-		var b := Vector2(cx0 + (hc - cr.x), bt)
+		var b := Vector2(cx0 + (hc - x), bt)
 		var n := int(maxf(maxf(absf(b.x - a.x), absf(b.y - a.y)), 1.0))
 		for i in n + 1:
 			var v := a + (b - a) * float(i) / n
@@ -830,9 +884,9 @@ func _rig(cr: ShipRoomKorvanFilm.Crane, lk: float) -> void:
 	for e: Array in [[0, [0]], [1, [0]], [2, [0]], [3, [-1, 0, 1, 2]], [4, [2]]]:
 		for dx: int in e[1]:
 			lit.px(hc + dx, hk + int(e[0]), P.c8(200, 204, 212))
-	var by := cr.ly - 11
-	var bx0 := cr.lx + 6
-	var bx1 := cr.lx + cr.lw - 7
+	var by := ly - 11
+	var bx0 := lx + 6
+	var bx1 := lx + lw - 7
 	lit.rect(bx0, by, bx1 - bx0 + 1, 1, P.c8(238, 188, 66))
 	lit.rect(bx0, by + 1, bx1 - bx0 + 1, 1, P.c8(206, 156, 48))
 	lit.rect(bx0, by + 2, bx1 - bx0 + 1, 1, P.c8(150, 110, 34))
@@ -842,10 +896,10 @@ func _rig(cr: ShipRoomKorvanFilm.Crane, lk: float) -> void:
 		dk.px(xx, by + 1, P.c8(40, 32, 14))
 	for fr: float in [0.06, 0.36, 0.64, 0.94]:
 		var gx := F.pyround(bx0 + (bx1 - bx0) * fr)
-		for yy in range(by + 4, cr.ly):
+		for yy in range(by + 4, ly):
 			lit.px(gx, yy, P.c8(170, 176, 186) if yy % 2 == 1 else P.c8(70, 74, 82))
 			dk.px(gx + 1, yy, INK)
-		dk.px(gx, cr.ly, P.c8(110, 116, 124))
+		dk.px(gx, ly, P.c8(110, 116, 124))
 	for gx: int in [bx0 + 4, bx1 - 4]:
 		var n := int(maxf(absf(gx - hc), absf(by - hk - 3)))
 		var side := 1 if gx > hc else -1

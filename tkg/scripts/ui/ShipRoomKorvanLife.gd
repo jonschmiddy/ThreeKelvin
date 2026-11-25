@@ -14,10 +14,12 @@ var lit: Material
 var atlas: Texture2D
 var rects: Dictionary = {}
 var _tex: Dictionary[String, Texture2D] = {}
+var _src: Dictionary[String, Rect2] = {}
 var _layer: Control
 var _paints: Array[ShipRoomKorvanPaint] = []
 var _puff_mat: ShaderMaterial
 var white: Texture2D
+var _contact_mat: ShaderMaterial
 
 
 func _init(m: Material) -> void:
@@ -28,6 +30,8 @@ func _init(m: Material) -> void:
 	rects = d if d is Dictionary else {}
 	_puff_mat = ShaderMaterial.new()
 	_puff_mat.shader = PUFF
+	_contact_mat = ShaderMaterial.new()
+	_contact_mat.shader = ShipRoomKorvanPaint.CONTACT
 	var img := Image.create(1, 1, false, Image.FORMAT_RGBA8)
 	img.fill(Color.WHITE)
 	white = ImageTexture.create_from_image(img)
@@ -41,6 +45,7 @@ func on(c: Control) -> void:
 func paint(b: ShipRoomKorvanPaint.Blend = ShipRoomKorvanPaint.Blend.LIT) -> ShipRoomKorvanPaint:
 	var p := ShipRoomKorvanPaint.new()
 	p.setup(b, lit)
+	p.contact_mat = _contact_mat
 	if b == ShipRoomKorvanPaint.Blend.LIT:
 		p.light(4)
 	_layer.add_child(p)
@@ -80,8 +85,11 @@ func clear_all() -> void:
 
 ## An atlas piece's source rect.
 func src(n: String) -> Rect2:
+	if _src.has(n):
+		return _src[n]
 	var r: Array = rects.get(n, [0, 0, 0, 0])
-	return Rect2(r[0], r[1], r[2], r[3])
+	_src[n] = Rect2(r[0], r[1], r[2], r[3])
+	return _src[n]
 
 
 func piece(p: ShipRoomKorvanPaint, n: String, x: int, y: int, flip: bool = false, mod: Color = Color.WHITE) -> void:
@@ -96,15 +104,18 @@ func yard_tex(pic: String) -> Texture2D:
 
 ## A Yard crew look's frame i: its texture region (core.crew_frame).
 func crew_src(look: String, i: int) -> Rect2:
+	var key := look + str(i)
+	if _src.has(key):
+		return _src[key]
 	var m: Dictionary = F.Y["crew"][look]
 	var t := yard_tex(m["picture"])
 	var fw := t.get_width() / int(m["frames"])
-	return Rect2(i * fw, 0, fw, t.get_height())
+	_src[key] = Rect2(i * fw, 0, fw, t.get_height())
+	return _src[key]
 
 
 func crew(p: ShipRoomKorvanPaint, look: String, i: int, x: int, y: int, flip: bool = false) -> void:
-	var m: Dictionary = F.Y["crew"][look]
-	p.sprite(yard_tex(m["picture"]), crew_src(look, i), x, y, flip)
+	p.sprite(yard_tex(String(F.Y["crew"][look]["picture"])), crew_src(look, i), x, y, flip)
 
 
 ## A Yard life strip's frame i (core.strip_frame).
