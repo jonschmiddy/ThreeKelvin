@@ -32,11 +32,20 @@ func _run() -> void:
 		Run.fit_chassis(&"korvan", HullData.Weight.MEDIUM, 0)
 		Run.launched_as = &"korvan"
 		RunHistory.record(RunHistory.Outcome.WON, "ShipRoomShot")
+		# (the first pick's room goes before the second's is built: two Korvan rooms at once overrun
+		# the shader instance buffer)
+		Router.show_launcher()
+		await Harness.frames(get_tree(), 3)
 		cs = await _pick_screen()
 	if cs == null:
 		print("shiproomshot: no hull pick")
 		get_tree().quit(1)
 		return
+	# `cycle=N`: N banner clicks across the three rooms first, as a player browsing would
+	for k in int(Harness.arg("cycle", "0")):
+		cs._select([0, 1, 2][k % 3])
+		for f in 20:
+			await get_tree().process_frame
 	cs._select(0 if room == "korvan" else 1)
 	# (should the record still not open it, its set stands in its room anyway)
 	if room == "solari" and cs._yard.room.id != &"solari":
