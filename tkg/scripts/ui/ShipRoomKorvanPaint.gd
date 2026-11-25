@@ -83,10 +83,12 @@ func _set_li(v: Vector4) -> void:
 func clear() -> void:
 	if _kind.is_empty():
 		return
-	_kind.clear()
-	_rect.clear()
-	_col.clear()
-	_spr.clear()
+	# new arrays, never .clear(): after `recall` these are the memo's own (packed arrays are shared)
+	# Why: docs/why/ShipRoomKorvan.md#remembered-poses
+	_kind = PackedByteArray()
+	_rect = PackedVector4Array()
+	_col = PackedColorArray()
+	_spr = []
 	queue_redraw()
 
 
