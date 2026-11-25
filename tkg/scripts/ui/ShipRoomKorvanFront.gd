@@ -31,9 +31,8 @@ var p: Dictionary[StringName, ShipRoomKorvanPaint] = {}
 var _courier: ShipRoomKorvanLife.Walker
 var _suit: Image = null
 var _ink: Dictionary[Vector3i, int] = {}
-var _arc: Sparks = null
-var _w8: Array[Sparks] = [null, null]
-var _bench_s: Sparks = null
+var _fx: Array[ShaderMaterial] = []
+var _wisps: Array[ShipRoomKorvanPaint] = []
 
 
 func _init(l: ShipRoomKorvanLife) -> void:
@@ -48,7 +47,12 @@ func _mk(n: StringName, b: ShipRoomKorvanPaint.Blend = ShipRoomKorvanPaint.Blend
 	return q
 
 
-func build() -> void:
+func build(air: ShipRoomKorvanAir) -> void:
+	air.build_motes()
+	for i in 40:
+		var w := life.paint()
+		w.light(7)
+		_wisps.append(w)
 	_mk(&"bead")
 	_mk(&"bench_sh", P.Blend.MUL)
 	_mk(&"bench").light(0)
@@ -82,10 +86,36 @@ func build() -> void:
 		_mk(StringName("w%d_arc" % i))
 		_mk(StringName("w%d_sparks" % i))
 	_build_delivery()
+	_spark_layer(&"bench_sparks", "bench", 0.0)
+	_spark_layer(&"sparks", "arc", 0.6)
+	_spark_layer(&"w0_sparks", "weld", 0.6)
+	_spark_layer(&"w1_sparks", "grind", 0.65)
 	_mk(&"fork_sh", P.Blend.MUL)
 	_mk(&"fork")
 	_mk(&"fork_crate")
 	_mk(&"fork_lamp")
+
+
+## A baked spark table on the GPU (ship_room_korvan_fx): its rects drawn once, moved by the shader.
+## Why: docs/why/ShipRoomKorvan.md#cost
+func _spark_layer(n: StringName, key: String, tail: float) -> void:
+	var q := p[n]
+	var m := ShaderMaterial.new()
+	m.shader = preload("res://shaders/ship_room_korvan_fx.gdshader")
+	m.set_shader_parameter(&"sparks", ShipRoom.tex(&"korvan", "sparks.png"))
+	var blk: Array = F.FX["sparks"][key]
+	m.set_shader_parameter(&"set_off", int(blk[0]))
+	var pal := PackedVector3Array()
+	for c: Array in F.FX["palette"]:
+		pal.append(Vector3(float(c[0]), float(c[1]), float(c[2])) / 255.0)
+	m.set_shader_parameter(&"palette", pal)
+	m.set_shader_parameter(&"tail_a", tail)
+	q.material = m
+	for i in int(blk[1]):
+		q.rect(4 * i, 0, 1, 1, Color.WHITE)
+		q.rect(4 * i + 2, 0, 1, 1, Color.WHITE)
+	q.keep = true
+	_fx.append(m)
 
 
 func _build_delivery() -> void:
@@ -114,6 +144,9 @@ func _build_delivery() -> void:
 func draw(f: int, t: float) -> void:
 	var fr: Dictionary = (F.D["frames"] as Array)[f]
 	var tA := fposmod(t, 10.0)
+	for m in _fx:
+		m.set_shader_parameter(&"frame", f)
+	_wisps_draw(t, fr)
 	_bead(tA)
 	_bench(t)
 	var wp := F.weld_pose(tA)
@@ -123,7 +156,6 @@ func draw(f: int, t: float) -> void:
 	if lvl > 0.0:
 		var tip := F.arc_tip(wp.x)
 		_star(p[&"arc_glow"], p[&"arc"], tip, lvl, ((F.D["tenths"] as Array)[int(floorf(tA * 10.0))] as Dictionary)["arc"], false)
-	_arc_sparks(tA)
 	if not p[&"flamp"].keep:
 		_floor_lamp()
 		_desk()
@@ -162,19 +194,6 @@ func _bench(t: float) -> void:
 	var grinding := F.in_any(t, F.GRIND)
 	p[&"bench_sh"].contact(bx - 18, bx + 16, bf, 3, 0.5)
 	life.strip(p[&"bench"], "grind_strip", int(t * 10.0) % 9 if grinding else 0, bx - 24, bf - 28)
-	var g := Vector2(float(F.K["g_ox"]), float(F.K["g_oy"]))
-	if _bench_s == null:
-		_bench_s = Sparks.new(F.D["spawn"]["bench"], 30.0, g, Callable())
-	for j in _bench_s.alive(t):
-		var s: Array = _bench_s.rows[j]
-		var age := fposmod(t - float(s[0]), 30.0)
-		if age > float(s[3]):
-			continue
-		var x := g.x + float(s[1]) * age
-		var y := minf(bf, g.y + float(s[2]) * age + 110.0 * age * age)
-		var a := age / float(s[3])
-		var c := P.c8(255, 246, 216) if a < 0.3 else (P.c8(255, 179, 71) if a < 0.7 else P.c8(192, 80, 26))
-		p[&"bench_sparks"].px(F.pyround(x), F.pyround(y), c)
 
 
 # ------------------------------------------------------------------ the lift under the heavy and its welder (ideaA)
@@ -198,45 +217,49 @@ func _lamp_tech(t: float) -> void:
 	p[&"tech_sh"].contact(tx - 9, tx + 9, int(K["tech_feet"]), 3, 0.45)
 	life.piece(p[&"tech"], "tech_cut", int(K["tbx0"]), int(K["tby0"]), flip)
 	var arm := p[&"tech_arm"]
-	var ux := aim.x
-	var uy := aim.y
-	var s0 := Vector2(aim.z, aim.w)
-	var pts: Array[Vector2i] = []
-	var s := 1.0
-	while s < 10.5:
-		pts.append(Vector2i(F.pyround(s0.x + ux * s), F.pyround(s0.y + uy * s)))
-		s += 0.5
-	for q in pts:
-		arm.rect(q.x - 1, q.y - 1, 3, 3, P.c8(12, 14, 20))
-	for q in pts:
-		arm.px(q.x, q.y, P.c8(61, 128, 182))
-		arm.px(q.x, q.y + 1, P.c8(28, 66, 108))
-	var h := Vector2i(F.pyround(s0.x + ux * 10.5), F.pyround(s0.y + uy * 10.5))
-	arm.rect(h.x, h.y, 1, 2, SKIN)
-	s = 11.5
-	while s < 14.5:
-		arm.px(F.pyround(s0.x + ux * s), F.pyround(s0.y + uy * s), P.c8(44, 46, 52))
-		s += 0.5
+	if not arm.recall(spot):
+		var ux := aim.x
+		var uy := aim.y
+		var s0 := Vector2(aim.z, aim.w)
+		var pts: Array[Vector2i] = []
+		var s := 1.0
+		while s < 10.5:
+			pts.append(Vector2i(F.pyround(s0.x + ux * s), F.pyround(s0.y + uy * s)))
+			s += 0.5
+		for q in pts:
+			arm.rect(q.x - 1, q.y - 1, 3, 3, P.c8(12, 14, 20))
+		for q in pts:
+			arm.px(q.x, q.y, P.c8(61, 128, 182))
+			arm.px(q.x, q.y + 1, P.c8(28, 66, 108))
+		var h := Vector2i(F.pyround(s0.x + ux * 10.5), F.pyround(s0.y + uy * 10.5))
+		arm.rect(h.x, h.y, 1, 2, SKIN)
+		s = 11.5
+		while s < 14.5:
+			arm.px(F.pyround(s0.x + ux * s), F.pyround(s0.y + uy * s), P.c8(44, 46, 52))
+			s += 0.5
+		arm.remember(spot)
 	var lens := F.lens_at(spot)
-	var by := int((K["under_m"] as Array)[spot]) - 1
-	var n := maxi(1, lens.y - by)
 	var beam := p[&"tech_beam"]
-	for i in n:
-		var u := float(i) / n
-		var y := lens.y - i
-		var cxb := lens.x + (spot - lens.x) * u
-		var hw := 0.5 + 5.0 * u
-		for x in range(int(cxb - hw - 1), int(cxb + hw + 2)):
-			var dd := absf(x - cxb) / hw
-			var k := 0.0
-			if dd < 0.45:
-				k = 0.34
-			elif dd < 1.0 and ShipRoom.bayer4(x, y) < 0.5:
-				k = 0.17
-			if k > 0.0:
-				beam.px(x, y, P.c8(255 * k * (1.0 - 0.35 * u), 214 * k * (1.0 - 0.35 * u), 150 * k * (1.0 - 0.35 * u)))
+	if not beam.recall(spot):
+		var by := int((K["under_m"] as Array)[spot]) - 1
+		var n := maxi(1, lens.y - by)
+		for i in n:
+			var u := float(i) / n
+			var y := lens.y - i
+			var cxb := lens.x + (spot - lens.x) * u
+			var hw := 0.5 + 5.0 * u
+			for x in range(int(cxb - hw - 1), int(cxb + hw + 2)):
+				var dd := absf(x - cxb) / hw
+				var k := 0.0
+				if dd < 0.45:
+					k = 0.34
+				elif dd < 1.0 and ShipRoom.bayer4(x, y) < 0.5:
+					k = 0.17
+				if k > 0.0:
+					beam.px(x, y, P.c8(255 * k * (1.0 - 0.35 * u), 214 * k * (1.0 - 0.35 * u), 150 * k * (1.0 - 0.35 * u)))
+		_glow(beam, lens, 3, 1.4, 0.9, Color(120 / 255.0, 100 / 255.0, 70 / 255.0))
+		beam.remember(spot)
 	p[&"tech_lens"].px(lens.x, lens.y, P.c8(255, 246, 214))
-	_glow(beam, lens, 3, 1.4, 0.9, Color(120 / 255.0, 100 / 255.0, 70 / 255.0))
 
 
 ## core.glow_local(r, fall) x s, stepped on the frame's grid and added in colour c.
@@ -260,48 +283,6 @@ func _star(glow: ShipRoomKorvanPaint, q: ShipRoomKorvanPaint, a: Vector2i, lvl: 
 		var o := Vector2i(int(d[1]), int(d[0])) if yx else Vector2i(int(d[0]), int(d[1]))
 		q.px(a.x + o.x, a.y + o.y, P.c8(225, 240, 255))
 	q.px(a.x, a.y, Color.WHITE)
-
-
-static func spark_col(a: float) -> Color:
-	if a < 0.15:
-		return Color.WHITE
-	if a < 0.4:
-		return P.c8(255, 233, 168)
-	if a < 0.7:
-		return P.c8(255, 179, 71)
-	return P.c8(192, 80, 26)
-
-
-func _arc_sparks(tA: float) -> void:
-	var K := F.K
-	var lx0 := float(K["lift_x0"])
-	var lw := float(K["lift_w"])
-	var wb := float(K["wb"])
-	var ly := float(K["ly"])
-	var deck := func(x: float, y: float) -> float:
-		return wb if x >= lx0 and x <= lx0 + lw - 1.0 and y < wb + 2.0 else ly + 1.0
-	if _arc == null:
-		_arc = Sparks.new(F.D["spawn"]["arc"], 10.0, Vector2(float(K["tip_x"]), float(K["belly"]) + 2.0), deck)
-	for i in _arc.alive(tA):
-		var s: Array = _arc.rows[i]
-		var age := fposmod(tA - float(s[0]), 10.0)
-		if age > float(s[3]):
-			continue
-		var v := _arc.fly(i, age)
-		var a := age / float(s[3])
-		_spark(p[&"sparks"], v, spark_col(a), a < 0.7, 0.6)
-
-
-func _spark(q: ShipRoomKorvanPaint, v: PackedFloat32Array, c: Color, tail: bool, k: float) -> void:
-	var xi := F.pyround(v[0])
-	var yi := F.pyround(v[1])
-	if xi < 0 or yi < 0 or xi >= 960 or yi >= 540:
-		return
-	q.px(xi, yi, c)
-	var pxi := F.pyround(v[2])
-	var pyi := F.pyround(v[3])
-	if tail and (pxi != xi or pyi != yi):
-		q.px(pxi, pyi, Color(c.r, c.g, c.b, k))
 
 
 # ------------------------------------------------------------------ the floor lamp under the light hull, aimed up at its belly
@@ -364,31 +345,18 @@ func _ladder(i: int, t: float, fr: Dictionary) -> void:
 	if lvl > 0.0:
 		var tn: Dictionary = (F.D["tenths"] as Array)[int(floorf(t * 10.0)) % 300]
 		_star(p[StringName("w%d_glow" % i)], arc, tip, lvl, (tn["w8"] as Array)[i], true)
-	_ladder_sparks(i, sp, t, false)
-
-
-func _ladder_sparks(i: int, sp: Dictionary, t: float, grind: bool) -> void:
-	if _w8[i] == null:
-		var deck := func(_x: float, _y: float) -> float:
-			return WFLOOR + 1.0
-		_w8[i] = Sparks.new((F.D["spawn"]["w8"] as Array)[i], 30.0, Vector2(float(sp["tip"][0]), float(sp["tip"][1])), deck)
-	var sk: Sparks = _w8[i]
-	for j in sk.alive(t):
-		var s: Array = sk.rows[j]
-		var age := fposmod(t - float(s[0]), 30.0)
-		if age > float(s[3]):
-			continue
-		var v := sk.fly(j, age)
-		var a := age / float(s[3])
-		if grind:
-			var c := P.c8(255, 214, 120) if a < 0.3 else (P.c8(255, 150, 50) if a < 0.7 else P.c8(190, 74, 24))
-			_spark(p[StringName("w%d_sparks" % i)], v, c, true, 0.65)
-		else:
-			_spark(p[StringName("w%d_sparks" % i)], v, spark_col(a), a < 0.7, 0.6)
 
 
 ## people8.platform: the A-frame platform ladder, its rail and legs behind him, its toe board in front.
 func _platform(i: int, sp: Dictionary, back: bool) -> void:
+	# the platforms never change: drawn once and kept
+	var names: Array[StringName] = []
+	for n: String in (["w%d_bink", "w%d_bk", "w%d_bkt"] if back else ["w%d_fink", "w%d_fkt"]):
+		names.append(StringName(n % i))
+	if p[names[0]].keep:
+		return
+	for n in names:
+		p[n].keep = true
 	var X := int(sp["LX"])
 	var deck := int(sp["F"]) + 1
 	var ink := P.c8(14, 16, 20)
@@ -460,7 +428,6 @@ func _grinder(i: int, sp: Dictionary, on: bool, j: int, t: float) -> void:
 	if on:
 		gh.px(tx, ty + j, P.c8(255, 236, 190))
 		gh.px(tx, ty + 1 + j, P.c8(255, 170, 70))
-	_ladder_sparks(i, sp, t, true)
 
 
 # ------------------------------------------------------------------ the parts delivery, with hands (people8 round 16)
@@ -753,55 +720,49 @@ func _forklift(t: float) -> void:
 		p[&"fork_lamp"].rect(bx, by, 2, 2, P.c8(255, 190, 70) if int(t / 0.2) % 2 == 0 else P.c8(110, 64, 22))
 
 
-## A film's table of throws (born, vx, vy, life) on a loop of `period`: only those alive now are looked at,
-## and each one's 120 Hz flight is carried on from where the last frame left it.
-class Sparks:
-	var ts := PackedFloat32Array()
-	var rows: Array = []
-	var period := 30.0
-	var maxlife := 0.0
-	var from := Vector2.ZERO
-	var deck: Callable
-	var _st: Dictionary[int, PackedFloat32Array] = {}
 
-	func _init(list: Array, per: float, fr: Vector2, dk: Callable) -> void:
-		rows = list
-		period = per
-		from = fr
-		deck = dk
-		for r: Array in list:
-			ts.append(float(r[0]))
-			maxlife = maxf(maxlife, float(r[3]))
+# ------------------------------------------------------------------ round 20's weld smoke (atmos20.wisps)
+## Thin wisps rise from each arc while it burns, drift with the hall's draught and thin out in 2.1 s; each is
+## one pooled layer lit by the life shader (lmode 7). Why: docs/why/ShipRoomKorvan.md#air
+func _wisps_draw(t: float, fr: Dictionary) -> void:
+	for w in _wisps:
+		w.clear()
+	var used := 0
+	var tA := fposmod(t, 10.0)
+	var wp := F.weld_pose(tA)
+	var lift_on := func(tb: float) -> bool:
+		return F.weld_pose(fposmod(tb, 10.0)).y == 1
+	used = _wisp_arc(t, Vector2(F.arc_tip(wp.x)), float(fr["arcA"]) if wp.y == 1 else 0.0, lift_on, "71", used)
+	var sp: Dictionary = (F.K["weld8"] as Array)[0]
+	var st := F.weld_state(sp, t)
+	var weld_on := func(tb: float) -> bool:
+		return F.weld_state(sp, tb).y > 0.5
+	_wisp_arc(t, Vector2(float(sp["tip"][0]), float(sp["tip"][1])), float((fr["arc8"] as Array)[0]) if st.y > 0.5 else 0.0,
+		weld_on, "72", used)
 
-	func alive(t: float) -> PackedInt32Array:
-		var out := PackedInt32Array()
-		var lo := t - maxlife
-		for i in range(ts.bsearch(maxf(lo, 0.0), true), ts.bsearch(t, false)):
-			out.append(i)
-		if lo < 0.0:
-			for i in range(ts.bsearch(period + lo, true), ts.size()):
-				out.append(i)
-		return out
 
-	## [x, y, x a step before, y a step before] at `age`.
-	func fly(i: int, age: float) -> PackedFloat32Array:
-		var r: Array = rows[i]
-		var n := int(age / (1.0 / 120.0))
-		var s: PackedFloat32Array = _st.get(i, PackedFloat32Array())
-		if s.is_empty() or int(s[0]) > n:
-			s = PackedFloat32Array([0, from.x, from.y, float(r[1]), float(r[2]), from.x, from.y])
-		var dt := 1.0 / 120.0
-		while int(s[0]) < n:
-			s[5] = s[1]
-			s[6] = s[2]
-			s[4] += 260.0 * dt
-			s[1] += s[3] * dt
-			s[2] += s[4] * dt
-			var stop: float = deck.call(s[1], s[2])
-			if s[2] >= stop and s[4] > 0.0:
-				s[2] = stop
-				s[4] *= -0.32
-				s[3] *= 0.55
-			s[0] += 1.0
-		_st[i] = s
-		return PackedFloat32Array([s[1], s[2], s[5], s[6]])
+func _wisp_arc(t: float, src: Vector2, lvl: float, on_at: Callable, seed: String, used: int) -> int:
+	var draws: Array = F.FX["wisps"][seed]
+	var k_now := int(floorf(t / 0.12))
+	for j in 18:
+		var k := k_now - j
+		var tb := k * 0.12
+		var age := t - tb
+		if age < 0.0 or age > 2.1 or not on_at.call(fposmod(tb, 30.0)) or used >= _wisps.size():
+			continue
+		var r: Array = draws[posmod(k, 250)]
+		var u := age / 2.1
+		var cx := src.x + float(r[0]) + 3.2 * age + 1.2 * sin(float(r[2]) + age * 2.2)
+		var cy := src.y - 2.0 + float(r[1]) - 9.0 * age * (1.0 - 0.25 * u)
+		var rad := (1.0 + 2.6 * u) * float(r[3])
+		var dens := 0.8 * pow(1.0 - u, 1.4)
+		var x0 := int(floorf(cx - rad - 1.0))
+		var y0 := int(floorf(cy - rad - 1.0))
+		var x1 := int(ceilf(cx + rad + 1.0))
+		var y1 := int(ceilf(cy + rad + 1.0))
+		var w := _wisps[used]
+		used += 1
+		w.light(7, Vector2(cx, cy), rad, dens, lvl)
+		w.set_instance_shader_parameter(&"lsrc", src)
+		w.rect(x0, y0, x1 - x0, y1 - y0, Color.WHITE)
+	return used

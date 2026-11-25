@@ -7,19 +7,35 @@ extends Node2D
 
 enum Blend { LIT, MUL, ADD, UNLIT }
 
+const FRAME := Rect2(0, 0, 960, 540)
+const CONTACT := preload("res://shaders/ship_room_korvan_contact.gdshader")
+
 var blend := Blend.LIT
-## Drawn once and kept: what never changes from frame to frame (the floor lamp, the desk).
+## Drawn once and kept: what never changes from frame to frame (the floor lamp, the desk, the platforms).
 var keep := false
 ## Draws outside this frame rect are cut (the door's opening, the office glass).
-var clip := Rect2(0, 0, 960, 540):
+var clip := FRAME:
 	set(v):
 		clip = v
 		_full = v == FRAME
 var _full := true
-const FRAME := Rect2(0, 0, 960, 540)
-## Contact shadows worked out once per place and size: [x, y, f] each.
-static var _contacts: Dictionary[Vector4i, PackedVector3Array] = {}
-var _ops: Array[Array] = []
+## Drawn in its own coordinates, moved by `position`: no frame bounds (the crane's rigging).
+var free := false
+# the ops in packed arrays (cheap to fill each frame): a kind per op, rects and their colours, sprites
+var _kind := PackedByteArray()
+var _rect := PackedVector4Array()
+var _col := PackedColorArray()
+var _spr: Array[Array] = []
+## The contact shadow's shader (shared by the room's layers, given by `ShipRoomKorvanLife`).
+var contact_mat: ShaderMaterial = null
+## Op lists already worked out for a state of this layer (`recall`, `remember`): a layer whose picture is a
+## function of a few numbers (the office's clerks, the hoist's chain) is drawn from them after the first time.
+var _memo: Dictionary = {}
+var _lmode := -1
+var _lp := Vector2(-1, -1)
+var _lk4 := Vector4(-1, -1, -1, -1)
+var _ladd := Vector3(-1, -1, -1)
+var _cs := Vector4(-1, -1, -1, -1)
 
 
 func setup(b: Blend, lit: Material) -> void:
@@ -42,15 +58,50 @@ func setup(b: Blend, lit: Material) -> void:
 ## times clamp(max light at p + k, lo, hi), 3 the room's light, 4 as drawn, 5 a flat light k; then x mul + add.
 func light(mode: int, p: Vector2 = Vector2.ZERO, k: float = 0.0, lo: float = 0.0, hi: float = 9.0,
 		mul: float = 1.0, add: Color = Color(0, 0, 0)) -> void:
-	set_instance_shader_parameter(&"lmode", mode)
-	set_instance_shader_parameter(&"lp", Vector2(clampf(p.x, 0, 959), clampf(p.y, 0, 539)))
-	set_instance_shader_parameter(&"lk4", Vector4(k, lo, hi, mul))
-	set_instance_shader_parameter(&"ladd", Vector3(add.r, add.g, add.b))
+	# each set is a call into the renderer: only what changed is sent
+	var lp := Vector2(clampf(p.x, 0, 959), clampf(p.y, 0, 539))
+	var lk4 := Vector4(k, lo, hi, mul)
+	var la := Vector3(add.r, add.g, add.b)
+	if mode != _lmode:
+		_lmode = mode
+		set_instance_shader_parameter(&"lmode", mode)
+	if lp != _lp:
+		_lp = lp
+		set_instance_shader_parameter(&"lp", lp)
+	if lk4 != _lk4:
+		_lk4 = lk4
+		set_instance_shader_parameter(&"lk4", lk4)
+	if la != _ladd:
+		_ladd = la
+		set_instance_shader_parameter(&"ladd", la)
 
 
 func clear() -> void:
-	_ops.clear()
+	if _kind.is_empty():
+		return
+	_kind.clear()
+	_rect.clear()
+	_col.clear()
+	_spr.clear()
 	queue_redraw()
+
+
+## Draws what was remembered for `key`, true when there was one (the layer must be clear).
+func recall(key: Variant) -> bool:
+	var m: Array = _memo.get(key, [])
+	if m.is_empty():
+		return false
+	_kind = m[0]
+	_rect = m[1]
+	_col = m[2]
+	_spr.assign(m[3])
+	if not _kind.is_empty():
+		queue_redraw()
+	return true
+
+
+func remember(key: Variant) -> void:
+	_memo[key] = [_kind.duplicate(), _rect.duplicate(), _col.duplicate(), _spr.duplicate()]
 
 
 ## A colour in the film's 0-255 floats.
@@ -59,18 +110,42 @@ static func c8(r: float, g: float, b: float, a: float = 1.0) -> Color:
 
 
 func rect(x: int, y: int, w: int, h: int, c: Color) -> void:
-	var r := Rect2(x, y, w, h)
-	if not _full:
-		r = r.intersection(clip)
-	elif x < 0 or y < 0 or x + w > 960 or y + h > 540:
-		r = r.intersection(FRAME)
-	if r.size.x > 0 and r.size.y > 0:
-		_ops.append([0, r, c])
+	if free:
+		_rect.append(Vector4(x, y, w, h))
+		_col.append(c)
+		_kind.append(0)
+		if _kind.size() == 1:
+			queue_redraw()
+		return
+	if not _full or x < 0 or y < 0 or x + w > 960 or y + h > 540:
+		var r := Rect2(x, y, w, h).intersection(clip)
+		if r.size.x <= 0 or r.size.y <= 0:
+			return
+		_rect.append(Vector4(r.position.x, r.position.y, r.size.x, r.size.y))
+	elif w <= 0 or h <= 0:
+		return
+	else:
+		_rect.append(Vector4(x, y, w, h))
+	_col.append(c)
+	_kind.append(0)
+	if _kind.size() == 1:
+		queue_redraw()
 
 
 func px(x: int, y: int, c: Color) -> void:
-	if x >= 0 and y >= 0 and x < 960 and y < 540:
+	if free:
 		rect(x, y, 1, 1, c)
+		return
+	if x < 0 or y < 0 or x >= 960 or y >= 540:
+		return
+	if not _full:
+		rect(x, y, 1, 1, c)
+		return
+	_rect.append(Vector4(x, y, 1, 1))
+	_col.append(c)
+	_kind.append(0)
+	if _kind.size() == 1:
+		queue_redraw()
 
 
 ## A region of a texture with its top left at (x, y), mirrored when flip; cut to the clip.
@@ -78,7 +153,7 @@ func sprite(tex: Texture2D, src: Rect2, x: int, y: int, flip: bool = false, mod:
 	if tex == null:
 		return
 	var dst := Rect2(x, y, src.size.x, src.size.y)
-	var cut := dst.intersection(clip)
+	var cut := dst if free else dst.intersection(clip)
 	if cut.size.x <= 0 or cut.size.y <= 0:
 		return
 	var s := src
@@ -88,46 +163,46 @@ func sprite(tex: Texture2D, src: Rect2, x: int, y: int, flip: bool = false, mod:
 	s.size.y = cut.size.y
 	s.position.x += dx1 if flip else dx0
 	s.size.x = cut.size.x
-	_ops.append([1, tex, s, cut, flip, mod])
+	_spr.append([tex, s, cut, flip, mod])
+	_kind.append(1)
+	if _kind.size() == 1:
+		queue_redraw()
 
 
-## The film's contact shadow (core.contact) as multiplies: an ellipse round the feet, its rim
-## dithered on the frame's grid. Only on a MUL layer.
+## The film's contact shadow (core.contact), one per layer: its ellipse worked out by a multiply shader.
+## Why: docs/why/ShipRoomKorvan.md#cost
 func contact(x0: float, x1: float, feet: int, length: int = 6, dark: float = 0.5) -> void:
-	var key := Vector4i(roundi(x0 * 2.0), roundi(x1 * 2.0), feet, length * 100 + roundi(dark * 100.0))
-	var cells: PackedVector3Array = _contacts.get(key, PackedVector3Array())
-	if cells.is_empty():
-		cells = _contact_cells(x0, x1, feet, length, dark)
-		_contacts[key] = cells
-	for c in cells:
-		_ops.append([0, Rect2(c.x, c.y, 1, 1), Color(c.z, c.z, c.z)])
-
-
-static func _contact_cells(x0: float, x1: float, feet: int, length: int, dark: float) -> PackedVector3Array:
-	var out := PackedVector3Array()
+	if contact_mat == null:
+		contact_mat = ShaderMaterial.new()
+		contact_mat.shader = CONTACT
+	if material != contact_mat:
+		material = contact_mat
 	var cx := (x0 + x1) / 2.0
 	var rx := maxf(2.0, (x1 - x0) / 2.0 + 3.0)
-	for dy in range(-1, length + 1):
-		var y := feet + dy
-		if y < 0 or y >= 540:
-			continue
-		for x in range(maxi(0, int(cx - rx) - 1), mini(960, int(cx + rx) + 2)):
-			var r := sqrt(pow((x - cx) / rx, 2.0) + pow((dy + 1) / (length + 1.0), 2.0))
-			var k := clampf(1.0 - r, 0.0, 1.0)
-			if k > 0.35 or (k > 0.0 and ShipRoom.bayer4(x, y) < k / 0.35):
-				out.append(Vector3(x, y, 1.0 - dark * clampf(0.45 + k, 0.0, 1.0)))
-	return out
+	var cs := Vector4(cx, rx, feet, length)
+	if cs != _cs:
+		_cs = cs
+		set_instance_shader_parameter(&"cs", cs)
+		set_instance_shader_parameter(&"cdark", dark)
+	var a := int(cx - rx) - 1
+	rect(a, feet - 1, int(cx + rx) + 2 - a, length + 2, Color.WHITE)
 
 
 func _draw() -> void:
-	for op in _ops:
-		if op[0] == 0:
-			draw_rect(op[1], op[2])
+	var ri := 0
+	var si := 0
+	for k in _kind:
+		if k == 0:
+			var r := _rect[ri]
+			draw_rect(Rect2(r.x, r.y, r.z, r.w), _col[ri])
+			ri += 1
 		else:
-			var d: Rect2 = op[3]
-			if op[4]:
+			var op: Array = _spr[si]
+			si += 1
+			var d: Rect2 = op[2]
+			if op[3]:
 				draw_set_transform(Vector2(d.end.x, d.position.y), 0.0, Vector2(-1, 1))
-				draw_texture_rect_region(op[1], Rect2(Vector2.ZERO, d.size), op[2], op[5])
+				draw_texture_rect_region(op[0], Rect2(Vector2.ZERO, d.size), op[1], op[4])
 				draw_set_transform(Vector2.ZERO)
 			else:
-				draw_texture_rect_region(op[1], d, op[2], op[5])
+				draw_texture_rect_region(op[0], d, op[1], op[4])

@@ -32,6 +32,8 @@ const LSTOPS := [Vector2(0.0, 748), Vector2(4.0, 776), Vector2(8.5, 792), Vector
 static var D: Dictionary = {}
 static var K: Dictionary = {}
 static var Y: Dictionary = {}
+## fx.json: the baked sparks' blocks and palette, the motes' draws, the wisps' draws.
+static var FX: Dictionary = {}
 
 
 static func ensure() -> void:
@@ -39,6 +41,9 @@ static func ensure() -> void:
 		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(DIR + "film.json"))
 		D = d if d is Dictionary else {}
 		K = D.get("consts", {})
+	if FX.is_empty():
+		var x: Variant = JSON.parse_string(FileAccess.get_file_as_string(DIR + "fx.json"))
+		FX = x if x is Dictionary else {}
 	if Y.is_empty():
 		var y: Variant = JSON.parse_string(FileAccess.get_file_as_string(YARD + "yard.json"))
 		Y = (y as Dictionary).get("art", {}) if y is Dictionary else {}

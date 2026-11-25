@@ -8,7 +8,8 @@ render_mode unshaded;
 //   1  a post: the stands' own light x WORK x the lamps, plus dyn and dobj, side-lit by work lights
 //   2  a hull: the berth lamps' ship light x its row light (hull_light), plus dsh, capped at 0.98
 //   3  life: its own colour under the object light (lmode: 0 at its pixels, 1 at a point, 2 k-scaled,
-//      3 the room light at its pixels (albedo edits), 4 as drawn, 5 a flat light; then x mul + add)
+//      3 the room light at its pixels (albedo edits), 4 as drawn, 5 a flat light; then x mul + add;
+//      6 the rail as wall art, 7 a weld wisp)
 
 uniform int mode = 0;
 uniform sampler2D albedo : filter_nearest, repeat_disable;
@@ -69,6 +70,8 @@ instance uniform int lmode = 0;
 instance uniform vec2 lp = vec2(0.0);
 instance uniform vec4 lk4 = vec4(0.0, 0.0, 9.0, 1.0);
 instance uniform vec3 ladd = vec3(0.0);
+// a weld wisp (lmode 7): the arc it rose from
+instance uniform vec2 lsrc = vec2(0.0);
 
 varying vec2 fp;
 
@@ -268,16 +271,6 @@ float emis_k(ivec2 q) {
 	return i <= 24 ? tw[i - 1] : door_lamp;
 }
 
-// a post's backlit rim from the door (door7.stand_backlight): its first two and last two columns, its top
-float backlit(sampler2D tx, vec2 uv, vec2 px) {
-	if (texture(tx, uv + vec2(-px.x, 0.0)).a < 0.5 || texture(tx, uv + vec2(-2.0 * px.x, 0.0)).a < 0.5
-			|| texture(tx, uv + vec2(px.x, 0.0)).a < 0.5 || texture(tx, uv + vec2(2.0 * px.x, 0.0)).a < 0.5
-			|| texture(tx, uv + vec2(0.0, -px.y)).a < 0.5) {
-		return 1.0;
-	}
-	return 0.08;
-}
-
 void fragment() {
 	ivec2 q = ivec2(floor(fp));
 	vec4 c = COLOR;
@@ -290,7 +283,12 @@ void fragment() {
 		COLOR = vec4(mix(lit, er, e.a), 1.0);
 	} else if (mode == 1) {
 		vec3 dyn, dobj, dsh, flo;
-		float back = backlit(TEXTURE, UV, TEXTURE_PIXEL_SIZE);
+		// a post's backlit rim from the door (door7.stand_backlight): its first two and last two columns, its top
+		vec2 px = TEXTURE_PIXEL_SIZE;
+		bool rim = texture(TEXTURE, UV + vec2(-px.x, 0.0)).a < 0.5 || texture(TEXTURE, UV + vec2(-2.0 * px.x, 0.0)).a < 0.5
+			|| texture(TEXTURE, UV + vec2(px.x, 0.0)).a < 0.5 || texture(TEXTURE, UV + vec2(2.0 * px.x, 0.0)).a < 0.5
+			|| texture(TEXTURE, UV + vec2(0.0, -px.y)).a < 0.5;
+		float back = rim ? 1.0 : 0.08;
 		l_moving(q, true, back, dyn, dobj, dsh, flo);
 		float st = texelFetch(lt6, q, 0).w * 255.0 / 96.0 * 0.9;
 		vec3 L = st * WORK * lk + dyn + dobj;
@@ -321,7 +319,22 @@ void fragment() {
 			rgb = shade(rgb, l_room(q));
 		} else if (lmode == 5) {
 			rgb = shade(rgb, vec3(lk4.x));
+		} else if (lmode == 6) {
+			// the crane's rail, lit as wall art: an ambient 0.95 plus the hall's light (mix21.rail21)
+			rgb *= clamp(0.95 + 0.9 * l_obj(q), vec3(0.4), vec3(1.6));
+		} else if (lmode == 7) {
+			// a weld wisp (atmos20.wisps): a puff dithered against its coverage, the room's light on grey, the arc's
+			// light near the arc; centre lp, (radius, density, arc level)
+			float d = length(vec2(float(q.x) - lp.x, (float(q.y) - lp.y) * 1.15));
+			float cov = clamp(lk4.x - d + 0.5, 0.0, 1.0) * lk4.y;
+			if (bay(q) >= cov) {
+				discard;
+			}
+			vec3 sm = vec3(150.0, 152.0, 160.0) / 255.0;
+			float near = exp(-length(vec2(q) - lsrc) / 14.0) * lk4.z;
+			rgb = min(sm * clamp(l_obj(q), 0.0, 1.6) + vec3(0.70, 0.85, 1.0) * 0.75 * near, vec3(1.0));
+			c.a = 0.65;
 		}
-		COLOR = vec4(rgb * (lmode == 2 ? 1.0 : lk4.w) + ladd, c.a);
+		COLOR = vec4(rgb * (lmode == 2 || lmode == 7 ? 1.0 : lk4.w) + ladd, c.a);
 	}
 }

@@ -65,8 +65,13 @@ The film's air (`hero.py`, mix18's `post_light` and `_finish`) is in two places,
 
 - behind the hulls, added over the room: each wall tube's shaft at its own tube's weight (the shafts never
   overlap, so one field and an index of whose it is), the berth lamps' shafts down onto the hulls' tops (the
-  crane's load cuts them under it), the door's shaft while it is open, and the 900 dust motes, each on its own
-  slow loop and lit only where a shaft is;
+  crane's load cuts them under it), the door's shaft while it is open, and round 20's faint cool haze high in the
+  hall inside the cones (atmos20's four dithered levels), so the cones read as volume;
+- in front of the hulls (mix21's after_hulls, Jon approved mix20 and mix21): atmos20's 200 motes, seen only in the
+  lamps' cones and the berth shafts, each held to whole pixels as the film held them (their place per frame is
+  baked, `motes20.png`), glinting slowly; and the weld smoke, thin wisps rising from the lift's arc and the
+  ladder welder's while they burn, drifting in the hall's draught, each a dithered puff lit by the room (and the
+  arc near the arc);
 - over everything under the banners, one pass reading the screen: the worn deck's sheen (what is bright over
   each line where things meet the floor, mirrored, blurred a pixel, stepped in sixths of 48), the haze (the
   room blurred 21 px wide, dimmed, mixed in by the film's stepped depth map: thick high on the far wall, clear on
@@ -76,3 +81,27 @@ The film's air (`hero.py`, mix18's `post_light` and `_finish`) is in two places,
 The haze's wide blur is read from the screen's mipmaps (a 5 x 5 grid of 4 px cells) and bloom's wide box from a
 3 px grid, instead of the film's exact box sums: the same widths at a fraction of the reads. The bloom's source
 takes the haze at each sample by the same depth map, with the blurred colour of the pixel being finished.
+
+## crane-rail
+
+Jon picked B1 for the rail the crane runs on (mix21): `rail_B1.png`, a seamless 140 px box-section track tile, repeated
+across the top band with its rod row (12) on frame row 11, so the box spans rows -1 to 8 and the cab's wheels (row 9)
+ride its lower lip. It is lit as wall art (an ambient 0.95 plus 0.9 of the room's light, clamped 0.4 to 1.6) and drawn
+before the shafts and the haze. It replaced round 11's code-drawn grey girder.
+
+## cost
+
+The room's life is built on the film's 30 fps step, not every frame: on this PC it costs about 1.6 ms of GDScript a
+film frame (0.8 ms a frame at 60), down from about 7.5 ms. What took the time, and what was done:
+
+- every spark (the lift's arc, the ladder welder's, the grinder's, the bench grinder's) is baked per film frame from
+  the film's own throws into `sparks.png` (a column per spark, a row per frame); each set is a fixed list of 1 px
+  rects drawn once and moved by `ship_room_korvan_fx.gdshader`. The motes are the same (`motes20.png`). No particle
+  is touched by GDScript;
+- a contact shadow is one rect worked out by `ship_room_korvan_contact.gdshader`, not a rect a pixel;
+- the holo-table's turning hull is drawn on the GPU (`ship_room_korvan_holo.gdshader`, the film's pixel lines);
+- what never changes is drawn once and kept (the platforms, the floor lamp and its beam, the desk, the rail, the holo
+  room's walls, cone and table); what changes with a few numbers is drawn once per state and recalled (the office's
+  clerks, the hoist's chain, the lamp tech's arm and beam by where he aims, the crane's rigging by its swing, moved
+  with the trolley);
+- a layer's ops sit in packed arrays, and a light setting or a shader parameter is sent only when it changed.
