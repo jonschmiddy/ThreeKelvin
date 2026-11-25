@@ -13,6 +13,11 @@ field x weight x colour (l3), the weights (s0) and the weights x breath (s1). Th
 stepping, so a breathing furnace never makes its band edges creep. The room is `albedo x m x 1.7`, the burning layer
 over it unlit.
 
+No light casts a hard floor shadow (show23, Jon three times: "guy still has his weird shadow"): the pours, the roar,
+the arc, the grinder and the lamp tech's lamp light the floor with no cut-outs. The only floor shadows are each
+thing's contact shadow and each walker's one soft shadow from the wall (see walker-shadows). The posts keep their
+backlit faces from the wall's light.
+
 The static fields are baked by the exporter from the film's own functions (`fields.png`, 32 channels, 4 to a layer):
 the lamps, the bed and front-lane lights and the ring band's steady fill as one RGB+weight layer; each furnace's
 wall, foot and floor glow; each pour's floor fan with the posts', hulls', lift's and fettler's shadows in it (an
@@ -67,8 +72,7 @@ simulated from its birth (`show.Emitter`, 90 Hz; `engine.Particles`, 120 Hz). Th
 same physics incrementally each frame, so a particle is where the film's would be give or take a frame's step; it
 never simulates a particle twice. The pours throw splash sparks off the metal's surface; the hot moulds and the
 furnaces drift embers up; furnace 2's roar throws embers and spill; a plate landing on its stack clanks dust off it.
-The quench sprays from the fixed nozzle on the bed's lip in an arc into the mould, and its steam rolls up the wall in
-round, lobed puffs with a denser core and a thinner rim (round 15: never the old dither squares), lit warm from the
+The quenching plate's steam rolls up the wall in round, lobed puffs with a denser core and a thinner rim (round 15: never the old dither squares), lit warm from the
 plate below and by the room.
 
 ## walker-shadows
@@ -88,3 +92,14 @@ has x1.5 to x1.8). The game's hull canvas at grade C is the film's albedo exactl
 both; medium 40.9; light 44.8), so the film's light was right and the read was wrong. A canvas item takes no
 instance uniforms here either, so each hull's rows and floor bounce go to the shader as a small array found by its
 columns.
+
+Show23 then took the arc's point shadow away too: no light casts a floor shadow. Each walker has a firmer contact
+shadow (4 rows, x0.6 at its heart, a dithered rim) and his wall shadow never fades below about half strength.
+
+## atmos
+
+Show21 (Jon: "can we also get some atmospherics ... just some smoke/haze/motes of dust etc."): a warm haze under the
+roof in three pair-dithered levels lit by the furnace glow below each column; thin lobed smoke wisps off each pour and
+each quench drifting right with the hall's draught; a 1 px heat shimmer of 2-row bands over every furnace's top and
+over a pouring bed, 3 changes a second; ember and soot motes rising slowly, seen only where a real light falls on
+them, a few of them in the front lane's air over the hulls.

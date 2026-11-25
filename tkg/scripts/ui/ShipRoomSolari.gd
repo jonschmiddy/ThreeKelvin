@@ -102,6 +102,7 @@ func _build() -> void:
 	_screen(under, Mode.AIR)
 	_add_layer(under, func(ci: CanvasItem) -> void: fx.paint_dust(ci, t), null)
 	_add_layer(above, func(ci: CanvasItem) -> void: crew.paint_front(ci, t, m_at), mats[Mode.FRONT])
+	_add_layer(above, func(ci: CanvasItem) -> void: fx.paint_motes(ci, t, true), null)
 	var add := CanvasItemMaterial.new()
 	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	_add_layer(above, func(ci: CanvasItem) -> void: crew.paint_beam_light(ci, t), add)
@@ -193,6 +194,15 @@ func _light() -> void:
 	var dxp := int(roundf(tl / C.LOOP * (W + 120) - 60))
 	_pool(Vector4(dxp, 66, 12, 18), Vector4(0.4, 0, 0, 0), Color(0.8, 0.9, 1.0), 0.35)
 	var tired := fposmod(t, 7.3)
+	# show21's hot air: over a pouring bed, and over every furnace's top, in atmos.shimmer's order
+	var shim := PackedVector4Array()
+	for j in 6:
+		var tx := C.TAPS[j]
+		if C.pouring(C.u_of(j, tl)):
+			shim.append(Vector4(tx - 10, tx + 11, 140, 158))
+		shim.append(Vector4(tx - 18, tx + 19, 64, 74))
+	var n_sh := shim.size()
+	shim.resize(12)
 	var cl := _crew_light()
 	_lw = cl.duplicate()
 	_lw[&"door_k"] = door_k
@@ -211,6 +221,9 @@ func _light() -> void:
 		m.set_shader_parameter(&"tired_b", 0.35 if tired < 0.12 or (tired > 3.1 and tired < 3.18) else 1.0)
 		m.set_shader_parameter(&"brass", 0.45 + 0.5 * pk_max + 0.7 * op)
 		m.set_shader_parameter(&"beam_op", op)
+		m.set_shader_parameter(&"n_shim", n_sh)
+		m.set_shader_parameter(&"shim", shim)
+		m.set_shader_parameter(&"shim_tick", float(int(tl * 3.0)))
 		for k: StringName in cl:
 			m.set_shader_parameter(k, cl[k])
 	_send_lists()
@@ -247,7 +260,7 @@ func _bay_light(j: int, u: float, pk: float, gutter: float) -> void:
 ## The welder's arc, the fettler's grinder, the lamp tech's lamp and who walks through the light.
 func _crew_light() -> Dictionary[StringName, Variant]:
 	if crew == null:
-		return {&"people": PackedVector4Array([Vector4.ZERO, Vector4.ZERO, Vector4.ZERO])}
+		return {}
 	return crew.light_state(t, self)
 
 

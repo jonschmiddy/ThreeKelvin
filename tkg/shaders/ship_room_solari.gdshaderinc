@@ -29,9 +29,6 @@ uniform vec4 pool_a[32];
 uniform vec4 pool_b[32];
 uniform vec4 pool_c[32];
 uniform vec4 pool_d[32];
-// the people walking through the arc's light: (x0, x1, z, height); the torch's tip
-uniform vec4 people[3];
-uniform vec2 arc_tip = vec2(0.0);
 
 const vec3 AMBC = vec3(1.0, 0.84, 0.72);
 const vec3 FIRE = vec3(1.0, 0.62, 0.30);
@@ -82,46 +79,6 @@ float pool_at(vec2 p, int i, float ring) {
 	return f;
 }
 
-// shadows13.hit: does the line from a floor cell to the light pass through anyone walking?
-bool people_hit(vec2 f, vec3 l) {
-	if (f.y < FOOT) {
-		return false;
-	}
-	for (int i = 0; i < 3; i++) {
-		vec4 s = people[i];
-		if (s.w <= 0.0) {
-			continue;
-		}
-		float dz = f.y - l.y;
-		if (abs(dz) <= 0.5) {
-			continue;
-		}
-		float u = (s.z - l.y) / dz;
-		if (u <= 0.0 || u > 1.0) {
-			continue;
-		}
-		float xr = round(l.x + (f.x - l.x) * u);
-		float hr = l.z * (1.0 - u);
-		if (xr >= s.x && xr <= s.y && hr >= 0.0 && hr <= s.w) {
-			return true;
-		}
-	}
-	return false;
-}
-
-// shadows13.point: 0.15 in a walker's shadow, 0.55 on its one-cell edge
-float people_k(ivec2 c, vec3 l) {
-	vec2 f = vec2(c) * 2.0 + 1.0;
-	if (people_hit(f, l)) {
-		return 0.15;
-	}
-	if (people_hit(f + vec2(2.0, 0.0), l) || people_hit(f - vec2(2.0, 0.0), l)
-			|| people_hit(f + vec2(0.0, 2.0), l) || people_hit(f - vec2(0.0, 2.0), l)) {
-		return 0.55;
-	}
-	return 1.0;
-}
-
 // The cell's light before stepping: l3 (rgb), s0, s1.
 void light_sum(ivec2 c, out vec3 l3, out float s0, out float s1) {
 	l3 = vec3(fch(c, 0), fch(c, 1), fch(c, 2));
@@ -160,10 +117,6 @@ void light_sum(ivec2 c, out vec3 l3, out float s0, out float s1) {
 	}
 	if (arc_i >= 0) {
 		v = fch(c, 22 + arc_i) * arc_w;
-		// a walker near the arc throws its own point shadow (show20: no wedges from the pours or the roar)
-		if (v > 0.0 && fl) {
-			v *= people_k(c, vec3(arc_tip.x, 386.0, 386.0 - arc_tip.y));
-		}
 		l3 += v * ARC;
 		s0 += v;
 		s1 += v;

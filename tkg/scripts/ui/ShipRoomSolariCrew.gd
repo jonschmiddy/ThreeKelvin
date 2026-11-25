@@ -414,8 +414,8 @@ func belly_row(x: int) -> int:
 	return int(_belly.get(str(x), 270))
 
 
-## The crew's light this frame: the arc, the grinder, the lamp tech's lamp, and the walkers as
-## shadow sheets (x0, x1, z, height) in the pours' and the roar's light.
+## The crew's light this frame: the arc, the grinder, the lamp tech's lamp (show23: none of them
+## cuts a floor shadow).
 func light_state(t: float, r: ShipRoomSolari) -> Dictionary[StringName, Variant]:
 	var tl := fposmod(t, C.LOOP)
 	var out: Dictionary[StringName, Variant] = {&"arc_i": -1, &"arc_w": 0.0, &"grind_w": 0.0, &"tech_i": -1}
@@ -425,7 +425,6 @@ func light_state(t: float, r: ShipRoomSolari) -> Dictionary[StringName, Variant]
 		var tip := weld_tip(ws[0])
 		r.hull_light(tip.x, tip.y, 130, ShipRoomSolari.ARC, 1.3 * fl)
 		out[&"arc_i"] = mini(2, ws[0])
-		out[&"arc_tip"] = Vector2(tip)
 		out[&"arc_w"] = fl
 	if grind_on(tl):
 		var b: float = [0.85, 0.95, 1.05][int(C.hash1([77, int(tl * 8.0)]) * 3.0)]
@@ -438,13 +437,6 @@ func light_state(t: float, r: ShipRoomSolari) -> Dictionary[StringName, Variant]
 			out[&"tech_i"] = i
 			var bx := int(roundf(tp.x)) + (-1 if tp.flip else 1) * 26
 			r.hull_light(bx, belly_row(bx), 50, Color(1.0, 0.95, 0.82), 0.8)
-	var ppl := PackedVector4Array()
-	for plan: Array in [CARRY1, CARRY2]:
-		var cx := int(roundf(walker_at("look_loader", plan, tl).x))
-		ppl.append(Vector4(cx - 3, cx + 3, 391, 42))
-	var tx := int(roundf(tp.x))
-	ppl.append(Vector4(tx - 3, tx + 3, 335, 41))
-	out[&"people"] = ppl
 	return out
 
 
@@ -485,8 +477,8 @@ func paint_front(ci: CanvasItem, t: float, m_at: Callable) -> void:
 	var tp := walker_at("look_rigger", LAMP_TECH, tl)
 	var carriers: Array[Pose] = [walker_at("look_loader", CARRY1, tl), walker_at("look_loader", CARRY2, tl)]
 	for p in carriers:
-		contact(ci, int(roundf(p.x)) - 3, int(roundf(p.x)) + 3, 391, 3, 0.45)
-	contact(ci, int(roundf(tp.x)) - 3, int(roundf(tp.x)) + 3, 335, 3, 0.45)
+		contact(ci, int(roundf(p.x)) - 4, int(roundf(p.x)) + 4, 391, 4, 0.6)
+	contact(ci, int(roundf(tp.x)) - 4, int(roundf(tp.x)) + 4, 335, 4, 0.6)
 	var shining := false
 	for sx: int in [430, 486, 530]:
 		shining = shining or absf(tp.x - sx) < 0.5
@@ -645,7 +637,7 @@ func _cover(x: int) -> int:
 ## show20.wall_shadow (Jon: "This guy's shadow is weird"): one shadow from the furnace wall behind a
 ## walker, his pose's silhouette flipped and flattened onto the floor (0.4 of his height) from his feet,
 ## leaning away from the nearest furnace (at most 0.5 px a row), x0.5 near and x0.72 far, as strong as
-## the floor's light at his feet.
+## the floor's light at his feet, never under about half.
 func wall_shadow(ci: CanvasItem, look: StringName, p: Pose, w: int, feet: int, m_at: Callable) -> void:
 	var frames: Array = _sil.get(look, [])
 	if p.fr >= frames.size():
@@ -665,9 +657,8 @@ func wall_shadow(ci: CanvasItem, look: StringName, p: Pose, w: int, feet: int, m
 			tn = tt
 	var lean := clampf((cx - tn) / 240.0, -0.5, 0.5)
 	var m: Vector3 = m_at.call(clampi(int(cx), 0, ShipRoom.W - 1), mini(ShipRoom.H - 1, feet))
-	var lv := clampf(((m.x + m.y + m.z) / 3.0 - 0.15) / 0.7, 0.0, 1.0)
-	if lv <= 0.05:
-		return
+	# show22: never fainter than about half strength, so it never vanishes on a dim floor
+	var lv := clampf(((m.x + m.y + m.z) / 3.0 - 0.15) / 0.7, 0.45, 1.0)
 	var sh_h := maxi(2, int(roundf(0.4 * rows.size())))
 	for k in sh_h:
 		var src := rows[-1] - int(k / 0.4)
