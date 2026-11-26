@@ -17,9 +17,7 @@ const VOICES := 18
 ## The decks by `StationScreen` page.
 const DECK_OF := {&"stock": &"prom", &"services": &"yard", &"hold": &"exch", &"work": &"board", &"bench": &"lab"}
 const TIERS: Array[String] = ["unclaimed", "outpost", "settlement", "city", "capital"]
-## Under the Lab, the station's old room tone and PA as they were, until Jon picks its sound (Nov 26: "the lab hum is
-## annoying"); every other deck has no tone of its own under it. Why: docs/why/StationSound.md#the-lab
-const LAB_ROOM := &"amb_station"
+## The decks' room for `Audio.room`: no tone of its own (each deck plays its own; the Lab's bed is `LabScene`'s).
 const DECKS_ROOM := &"station"
 ## The bus (the mixer's 2:1 as Godot's compressor reads it, as the hangars'), and a trim per room by capture, so the
 ## bus sits where its page mix does (a capture at the default faders reads 4 dB under). Why: docs/why/StationSound.md#levels
@@ -206,7 +204,7 @@ func dock(_scr: Control, fresh: bool) -> void:
 	data()
 	pa_rows()
 	if _live:
-		for dk: StringName in [&"prom", &"yard", &"exch", &"board"]:
+		for dk: StringName in [&"prom", &"yard", &"exch", &"board", &"lab"]:
 			for f in files_of(plan_of(dk, tier)):
 				_ask(DIR % f)
 		for r in _pa_for(tier):
@@ -256,7 +254,7 @@ func show_deck(id: StringName) -> void:
 	_seen.clear()
 	_loops.clear()
 	if dk != &"":
-		Audio.room(LAB_ROOM if dk == &"lab" else DECKS_ROOM, 0.6 if dk == &"lab" else 0.4)
+		Audio.room(DECKS_ROOM, 0.4)
 	if not plan.is_empty():
 		if _pa_next == INF:
 			_pa_next = t + randf_range(PA_FIRST.x, PA_FIRST.y)
@@ -496,7 +494,7 @@ func _layers(scr: StationScreen) -> void:
 		var f := StringName(str((d.get("files", []) as Array)[0]))
 		var v := _loop(StringName("layer:" + str(d.get("id", ""))), f, MID_X, 0.0)
 		if v != null:
-			v.dry_db = REF + float(d.get("db", 0.0)) - float(file_info(f).get("loud", -20.0))
+			v.dry_db = REF + float(plan.get("ref_db", 0.0)) + float(d.get("db", 0.0)) - float(file_info(f).get("loud", -20.0))
 			v.wet_db = v.dry_db + linear_to_db(maxf(float(d.get("wet", 0.0)), 1e-4))
 	match deck:
 		&"board":
@@ -805,7 +803,7 @@ func say(r: Dictionary, pa: Dictionary) -> void:
 		StationBus.route(v.dry.bus, pn.x, 0.0)
 		StationBus.route(v.wet.bus, pn.x, 0.0)
 	var comp := float((data().get("speaker_db", {}) as Dictionary).get(kind, 0.0))
-	v.dry_db = REF + float(pa.get("db", 0.0)) - float(r.get("loud", -20.0)) + comp + pn.y
+	v.dry_db = REF + float(plan.get("ref_db", 0.0)) + float(pa.get("db", 0.0)) - float(r.get("loud", -20.0)) + comp + pn.y
 	v.wet_db = v.dry_db + linear_to_db(maxf(float(pa.get("wet", 0.1)), 1e-4))
 	_log(&"pa", StringName(str(r.get("id", ""))), float(pa.get("x", MID_X)), float(pa.get("db", 0.0)),
 		{"speaker": kind, "tape": _pa_tape})

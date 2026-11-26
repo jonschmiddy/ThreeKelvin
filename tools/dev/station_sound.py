@@ -59,9 +59,16 @@ PICKS = {
              "settlement": ("exch", "B", {}), "city": ("exch", "B", {}), "capital": ("exch", "B", dict(bed_db=-3.0))},
     "board": {"unclaimed": ("board", "B", dict(behind="low", pa="tape_wall")), "outpost": ("board", "B", dict(behind="low")),
               "settlement": ("board", "B", {}), "city": ("board", "B", {}), "capital": ("board", "B", {})},
+    # The Lab (Jon, Nov 26: C "Far plant"): its own bed and sounds are LabScene's; the station behind the shut door is
+    # the room's, at the old Door shut mix's ref, on its fixed bus (lab_beds/old_bus.json). Why: #the-lab
+    "lab": {"unclaimed": ("lab", "C", dict(behind="low", pa="tape_door")), "outpost": ("lab", "C", dict(behind="low")),
+            "settlement": ("lab", "C", {}), "city": ("lab", "C", {}), "capital": ("lab", "C", {})},
 }
+LAB_BEDS = SS / "lab_beds" / "C_plant"
+LAB_BUS = SS / "lab_beds" / "old_bus.json"
 # The rooms whose mixes the bus numbers come from (the tier variants share their pick's).
-MIXES = sorted({(d, c) for deck in PICKS.values() for d, c, _ in deck.values()})
+MIXES = sorted({(d, c) for deck in PICKS.values() for d, c, _ in deck.values() if d != "lab"})
+HALLS = sorted({(d, c) for deck in PICKS.values() for d, c, _ in deck.values()})
 # The yard's crispness (Jon, Nov 26: "as crisp as hangar B2"): a level of `HangarSound.CRISP`. Why: #crispness
 CRISP = {"yard": "B2"}
 # The Board's own sounds, played through the Board's room as the mix had them, tamed (`StationSound.keep`): decks.BOARD_KEEP,
@@ -75,10 +82,11 @@ SPEAKERS = {
     "clear": dict(hp=[220, 220], lp=[6000, 6000], bell={2000: 6.0}),
     "cheap": dict(hp=[320, 320], lp=[3600, 3600], bell={2000: 4.0}),
     "far": dict(hp=[260, 260], lp=[3200, 3200, 2400, 2400, 2400, 2400], bell={}),
-    "wall": dict(hp=[90, 90], lp=[520] * 8, bell={250: 8.0}),
-    "door": dict(hp=[70, 70], lp=[380] * 8, bell={}),
+    "wall": dict(hp=[90, 90], lp=[520] * 4, bell={250: 8.0}),
+    "door": dict(hp=[70, 70], lp=[380] * 4, bell={}),
     "tape": dict(hp=[380, 380], lp=[3000, 3000], bell={}, tape=True),
-    "tape_wall": dict(hp=[380, 380], lp=[520] * 8, bell={250: 6.0}, tape=True),
+    "tape_wall": dict(hp=[380, 380], lp=[520] * 4, bell={250: 6.0}, tape=True),
+    "tape_door": dict(hp=[380, 380], lp=[380] * 4, bell={}, tape=True),
 }
 
 
@@ -155,11 +163,13 @@ def room_plan(deck, tier, dk, c, cfg, var):
     p = dict(deck=deck, tier=tier, mix=f"{dk}_{c}", name=cfg["name"], rt=cfg["rt"], size=cfg["size"], warmth=cfg["warmth"],
              wet_base=cfg["wet_base"], beds=[], bed_db=float(cfg.get("bed_db", 0.0)) + float(var.get("bed_db", 0.0)),
              bed_dark=float(var.get("bed_dark", 0.0)), layers=[], map={}, pa={}, crisp=CRISP.get(deck, ""))
-    for n in cfg.get("bed", []):
+    if deck == "lab":                                         # the Lab's bed is LabScene's; the rest sits on the old ref
+        p["ref_db"] = round(float(cfg["ref"]), 2)
+    for n in ([] if deck == "lab" else cfg.get("bed", [])):
         p["beds"].append(add(deck, n, "bed", dark=float(cfg.get("bed_dark", 0.1)), even=bool(cfg.get("bed_even"))))
     for lay in cfg.get("layers", []):
         names = lay["src"]
-        if deck == "board" and var.get("behind") == "low":
+        if deck in ("board", "lab") and var.get("behind") == "low":
             names = DK.deck_cfgs()["prom_u"]["concepts"]["C"]["bed"]   # the low tiers' promenade behind the wall
         files = [add(deck, n, "muffled", prefix="behind_", dark=float(lay.get("dark", 0.2)), lp=float(lay["lp"]), rate=11025)
                  for n in names]
@@ -430,7 +440,7 @@ def halls():
                           mixer=round(10 * math.log10(np.sum(w ** 2) / np.sum(c ** 2)), 2))), flush=True)
     D = DK.deck_cfgs()
     out = {}
-    for dk, c in MIXES:
+    for dk, c in HALLS:
         cfg = D[dk]["concepts"][c]
         out[f"{dk}_{c}"] = fit_hall(cfg["rt"], cfg["size"], cfg["warmth"])
         print(f"{dk}_{c}", json.dumps(out[f"{dk}_{c}"]), flush=True)
@@ -455,9 +465,20 @@ def build():
     for dk, c in MIXES:
         bus[f"{dk}_{c}"] = bus_numbers(dk, c)
         print(f"{dk}_{c}", bus[f"{dk}_{c}"], flush=True)
+    lab_bus = json.loads(LAB_BUS.read_text())
     for key, p in rooms.items():
         p["hall"] = hl[p["mix"]]
-        p["bus"] = {k: v for k, v in bus[p["mix"]].items() if k in ("gain_db", "thr_rms_db")}
+        if p["deck"] == "lab":                                # the game's own lab levels: no bus gain over them
+            p["bus"] = dict(gain_db=0.0, thr_rms_db=round(float(lab_bus["thr"]), 2), page_gain_db=round(float(lab_bus["gain"]), 2))
+        else:
+            p["bus"] = {k: v for k, v in bus[p["mix"]].items() if k in ("gain_db", "thr_rms_db")}
+    for tier in TIERS:                                         # Jon's lab beds, as made (22 s seamless, levels set)
+        src = LAB_BEDS / f"lab_{tier}.wav"
+        x, sr = sf.read(str(src), always_2d=True)
+        sf.write(str(OUT / f"lab_{tier}.wav"), x.astype(np.float32), sr, subtype="PCM_16")
+        import_stub(f"lab_{tier}", True)
+        files[f"lab_{tier}"] = measure_file(x, True) | dict(src=f"station-sound/lab_beds/C_plant/lab_{tier}.wav", kind="labbed",
+                                                         rate=sr)
     data = dict(_note="Made by tools/dev/station_sound.py from tk-scratch/station-sound; docs/why/StationSound.md",
                 files=files, rooms=rooms, eq21=eq21_gains(), eq21_hz=EQ21, speakers=SPEAKERS,
                 speaker_db=speaker_comp(), mixes=bus)

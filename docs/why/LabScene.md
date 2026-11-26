@@ -66,10 +66,11 @@ audition page, and all of it plays on the Ambient bus beside the station's
 own crowd and PA, which carry on underneath.
 ```
 
-The bed is swappable (Nov 26: Jon, on the station sound page, "the lab hum is annoying"; new beds are being made):
-`LabScene.bed_path` plays `tkg/assets/audio/station/lab_<tier>.wav` when one is there, else today's
-`ambience/lab_<tier>.wav`, at `BED_DB` dB (0 for every tier until a new bed is levelled). Measured that day, today's
-beds are near-pure tones: settlement 239 Hz (99.6 % of its energy in one band), unclaimed 91 Hz.
+The bed was replaced on Nov 26 (Jon, on the station sound page: "the lab hum is annoying"; he picked C "Far plant"): the
+old beds were near-pure tones (settlement 239 Hz, 99.6 % of its energy in one band; unclaimed 91 Hz). The new ones are
+a far low rumble of pumps, `tkg/assets/audio/station/lab_<tier>.wav`, levels set in the files; `LabScene.bed_path`
+reads them and `BED_DB` (0) is the knob. The station heard behind the Lab's door is `StationSound`'s
+(`docs/why/StationSound.md#the-lab`); the station tone and PA that ran under every deck are gone.
 
 ## Light rhythms
 

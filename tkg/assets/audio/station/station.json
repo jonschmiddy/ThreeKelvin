@@ -1599,6 +1599,142 @@
    "kind": "muffled",
    "rate": 11025
   },
+  "lab_behind_bed_low_c1": {
+   "loud": -19.992,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 5.52,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "promenade/bed_low_C1.wav",
+   "kind": "muffled",
+   "rate": 11025
+  },
+  "lab_behind_bed_low_c2": {
+   "loud": -19.994,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 1.78,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "promenade/bed_low_C2.wav",
+   "kind": "muffled",
+   "rate": 11025
+  },
+  "lab_behind_bed_high_a1": {
+   "loud": -19.993,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 0.76,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "promenade/bed_high_A1.wav",
+   "kind": "muffled",
+   "rate": 11025
+  },
+  "lab_behind_bed_high_a2": {
+   "loud": -20.839,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 1.96,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "promenade/bed_high_A2.wav",
+   "kind": "muffled",
+   "rate": 11025
+  },
   "pa_tape_clunk": {
    "loud": -13.094,
    "len": 0.06,
@@ -1631,6 +1767,176 @@
    ],
    "src": "synth",
    "kind": "shot",
+   "rate": 44100
+  },
+  "lab_unclaimed": {
+   "loud": -46.849,
+   "len": 22.0,
+   "onset": 0.0,
+   "hit": 0.16,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "station-sound/lab_beds/C_plant/lab_unclaimed.wav",
+   "kind": "labbed",
+   "rate": 44100
+  },
+  "lab_outpost": {
+   "loud": -53.029,
+   "len": 22.0,
+   "onset": 0.0,
+   "hit": 0.16,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "station-sound/lab_beds/C_plant/lab_outpost.wav",
+   "kind": "labbed",
+   "rate": 44100
+  },
+  "lab_settlement": {
+   "loud": -53.119,
+   "len": 22.0,
+   "onset": 0.0,
+   "hit": 0.16,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "station-sound/lab_beds/C_plant/lab_settlement.wav",
+   "kind": "labbed",
+   "rate": 44100
+  },
+  "lab_city": {
+   "loud": -53.144,
+   "len": 22.0,
+   "onset": 0.0,
+   "hit": 0.16,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "station-sound/lab_beds/C_plant/lab_city.wav",
+   "kind": "labbed",
+   "rate": 44100
+  },
+  "lab_capital": {
+   "loud": -53.189,
+   "len": 22.0,
+   "onset": 0.0,
+   "hit": 0.16,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "station-sound/lab_beds/C_plant/lab_capital.wav",
+   "kind": "labbed",
    "rate": 44100
   }
  },
@@ -3638,6 +3944,356 @@
     "thr_rms_db": -26.34,
     "gain_db": -8.38
    }
+  },
+  "lab:unclaimed": {
+   "deck": "lab",
+   "tier": "unclaimed",
+   "mix": "lab_C",
+   "name": "Far plant",
+   "rt": 0.7,
+   "size": 0.2,
+   "warmth": 0.5,
+   "wet_base": 0.1,
+   "beds": [],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [
+    {
+     "id": "station",
+     "files": [
+      "lab_behind_bed_low_c1",
+      "lab_behind_bed_low_c2"
+     ],
+     "db": -12.0,
+     "wet": 0.0
+    }
+   ],
+   "map": {},
+   "pa": {
+    "speaker": "tape_door",
+    "db": -11.0,
+    "wet": 0.0,
+    "x": 150.0
+   },
+   "crisp": "",
+   "ref_db": -13.03,
+   "hall": {
+    "room": 0.27,
+    "damp": 0.0,
+    "shelf": 0.25,
+    "db": 1.76,
+    "predelay": 22.0,
+    "rt_want": [
+     0.88,
+     0.7,
+     0.36,
+     0.2
+    ],
+    "rt_godot": [
+     0.85,
+     0.74,
+     0.36,
+     0.18
+    ],
+    "rt_sim_mixer": [
+     0.8,
+     0.67,
+     0.53,
+     0.35
+    ],
+    "rt_sim_godot": [
+     0.87,
+     0.67,
+     0.41,
+     0.28
+    ],
+    "err": 0.009
+   },
+   "bus": {
+    "gain_db": 0.0,
+    "thr_rms_db": -38.68,
+    "page_gain_db": 5.35
+   }
+  },
+  "lab:outpost": {
+   "deck": "lab",
+   "tier": "outpost",
+   "mix": "lab_C",
+   "name": "Far plant",
+   "rt": 0.7,
+   "size": 0.2,
+   "warmth": 0.5,
+   "wet_base": 0.1,
+   "beds": [],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [
+    {
+     "id": "station",
+     "files": [
+      "lab_behind_bed_low_c1",
+      "lab_behind_bed_low_c2"
+     ],
+     "db": -12.0,
+     "wet": 0.0
+    }
+   ],
+   "map": {},
+   "pa": {
+    "speaker": "door",
+    "db": -11.0,
+    "wet": 0.0,
+    "x": 150.0
+   },
+   "crisp": "",
+   "ref_db": -13.03,
+   "hall": {
+    "room": 0.27,
+    "damp": 0.0,
+    "shelf": 0.25,
+    "db": 1.76,
+    "predelay": 22.0,
+    "rt_want": [
+     0.88,
+     0.7,
+     0.36,
+     0.2
+    ],
+    "rt_godot": [
+     0.85,
+     0.74,
+     0.36,
+     0.18
+    ],
+    "rt_sim_mixer": [
+     0.8,
+     0.67,
+     0.53,
+     0.35
+    ],
+    "rt_sim_godot": [
+     0.87,
+     0.67,
+     0.41,
+     0.28
+    ],
+    "err": 0.009
+   },
+   "bus": {
+    "gain_db": 0.0,
+    "thr_rms_db": -38.68,
+    "page_gain_db": 5.35
+   }
+  },
+  "lab:settlement": {
+   "deck": "lab",
+   "tier": "settlement",
+   "mix": "lab_C",
+   "name": "Far plant",
+   "rt": 0.7,
+   "size": 0.2,
+   "warmth": 0.5,
+   "wet_base": 0.1,
+   "beds": [],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [
+    {
+     "id": "station",
+     "files": [
+      "lab_behind_bed_high_a1",
+      "lab_behind_bed_high_a2"
+     ],
+     "db": -12.0,
+     "wet": 0.0
+    }
+   ],
+   "map": {},
+   "pa": {
+    "speaker": "door",
+    "db": -11.0,
+    "wet": 0.0,
+    "x": 150.0
+   },
+   "crisp": "",
+   "ref_db": -13.03,
+   "hall": {
+    "room": 0.27,
+    "damp": 0.0,
+    "shelf": 0.25,
+    "db": 1.76,
+    "predelay": 22.0,
+    "rt_want": [
+     0.88,
+     0.7,
+     0.36,
+     0.2
+    ],
+    "rt_godot": [
+     0.85,
+     0.74,
+     0.36,
+     0.18
+    ],
+    "rt_sim_mixer": [
+     0.8,
+     0.67,
+     0.53,
+     0.35
+    ],
+    "rt_sim_godot": [
+     0.87,
+     0.67,
+     0.41,
+     0.28
+    ],
+    "err": 0.009
+   },
+   "bus": {
+    "gain_db": 0.0,
+    "thr_rms_db": -38.68,
+    "page_gain_db": 5.35
+   }
+  },
+  "lab:city": {
+   "deck": "lab",
+   "tier": "city",
+   "mix": "lab_C",
+   "name": "Far plant",
+   "rt": 0.7,
+   "size": 0.2,
+   "warmth": 0.5,
+   "wet_base": 0.1,
+   "beds": [],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [
+    {
+     "id": "station",
+     "files": [
+      "lab_behind_bed_high_a1",
+      "lab_behind_bed_high_a2"
+     ],
+     "db": -12.0,
+     "wet": 0.0
+    }
+   ],
+   "map": {},
+   "pa": {
+    "speaker": "door",
+    "db": -11.0,
+    "wet": 0.0,
+    "x": 150.0
+   },
+   "crisp": "",
+   "ref_db": -13.03,
+   "hall": {
+    "room": 0.27,
+    "damp": 0.0,
+    "shelf": 0.25,
+    "db": 1.76,
+    "predelay": 22.0,
+    "rt_want": [
+     0.88,
+     0.7,
+     0.36,
+     0.2
+    ],
+    "rt_godot": [
+     0.85,
+     0.74,
+     0.36,
+     0.18
+    ],
+    "rt_sim_mixer": [
+     0.8,
+     0.67,
+     0.53,
+     0.35
+    ],
+    "rt_sim_godot": [
+     0.87,
+     0.67,
+     0.41,
+     0.28
+    ],
+    "err": 0.009
+   },
+   "bus": {
+    "gain_db": 0.0,
+    "thr_rms_db": -38.68,
+    "page_gain_db": 5.35
+   }
+  },
+  "lab:capital": {
+   "deck": "lab",
+   "tier": "capital",
+   "mix": "lab_C",
+   "name": "Far plant",
+   "rt": 0.7,
+   "size": 0.2,
+   "warmth": 0.5,
+   "wet_base": 0.1,
+   "beds": [],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [
+    {
+     "id": "station",
+     "files": [
+      "lab_behind_bed_high_a1",
+      "lab_behind_bed_high_a2"
+     ],
+     "db": -12.0,
+     "wet": 0.0
+    }
+   ],
+   "map": {},
+   "pa": {
+    "speaker": "door",
+    "db": -11.0,
+    "wet": 0.0,
+    "x": 150.0
+   },
+   "crisp": "",
+   "ref_db": -13.03,
+   "hall": {
+    "room": 0.27,
+    "damp": 0.0,
+    "shelf": 0.25,
+    "db": 1.76,
+    "predelay": 22.0,
+    "rt_want": [
+     0.88,
+     0.7,
+     0.36,
+     0.2
+    ],
+    "rt_godot": [
+     0.85,
+     0.74,
+     0.36,
+     0.18
+    ],
+    "rt_sim_mixer": [
+     0.8,
+     0.67,
+     0.53,
+     0.35
+    ],
+    "rt_sim_godot": [
+     0.87,
+     0.67,
+     0.41,
+     0.28
+    ],
+    "err": 0.009
+   },
+   "bus": {
+    "gain_db": 0.0,
+    "thr_rms_db": -38.68,
+    "page_gain_db": 5.35
+   }
   }
  },
  "eq21": [
@@ -3737,10 +4393,6 @@
     520,
     520,
     520,
-    520,
-    520,
-    520,
-    520,
     520
    ],
    "bell": {
@@ -3753,10 +4405,6 @@
     70
    ],
    "lp": [
-    380,
-    380,
-    380,
-    380,
     380,
     380,
     380,
@@ -3785,15 +4433,25 @@
     520,
     520,
     520,
-    520,
-    520,
-    520,
-    520,
     520
    ],
    "bell": {
     "250": 6.0
    },
+   "tape": true
+  },
+  "tape_door": {
+   "hp": [
+    380,
+    380
+   ],
+   "lp": [
+    380,
+    380,
+    380,
+    380
+   ],
+   "bell": {},
    "tape": true
   }
  },
@@ -3801,10 +4459,11 @@
   "clear": -2.88,
   "cheap": -1.41,
   "far": 1.39,
-  "wall": 24.38,
-  "door": 43.41,
+  "wall": 16.62,
+  "door": 31.23,
   "tape": 0.8,
-  "tape_wall": 29.89
+  "tape_wall": 20.15,
+  "tape_door": 35.06
  },
  "mixes": {
   "board_B": {

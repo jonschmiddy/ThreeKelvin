@@ -9,7 +9,7 @@ extends Node
 const FRAME := 1.0 / 60.0 + 0.002
 ## What may start while the car rides: the rooms' steady loops (a deck's bed comes in at the hand-over).
 const STEADY := [&"bed", &"layer:station", &"curve:tube", &"curve:fork"]
-const DECKS := [&"stock", &"services", &"hold", &"work"]
+const DECKS := [&"stock", &"services", &"hold", &"work", &"bench"]
 
 var _tree: SceneTree
 var h := Harness.new()
@@ -43,13 +43,13 @@ func _plans() -> void:
 		return
 	var missing: Array[String] = []
 	var speakers: Dictionary = d.get("speakers", {})
-	for dk: StringName in [&"prom", &"yard", &"exch", &"board"]:
+	for dk: StringName in [&"prom", &"yard", &"exch", &"board", &"lab"]:
 		for tr in StationSound.TIERS:
 			var p := StationSound.plan_of(dk, tr)
 			if p.is_empty():
 				missing.append("%s:%s has no plan" % [dk, tr])
 				continue
-			if dk != &"board" and (p.get("beds", []) as Array).size() != 2:
+			if not dk in [&"board", &"lab"] and (p.get("beds", []) as Array).size() != 2:
 				missing.append("%s:%s has %d bed takes" % [dk, tr, (p.get("beds", []) as Array).size()])
 			for f in StationSound.files_of(p):
 				if not ResourceLoader.exists(StationSound.DIR % f) or StationSound.file_info(f).is_empty():
@@ -132,7 +132,7 @@ func _deck(scr: StationScreen, id: StringName, tr: String) -> void:
 			in_ride.append(String(s["id"]))
 	print("  %s %s: rode %d frames; %s; opened in %.2f ms" % [tr, dk, rode, counts, StationSound.open_ms.get(dk, -1.0)])
 	_ok("%s %s: the deck on show is heard" % [tr, dk], ss.deck == dk and ss.plan.get("deck", "") == String(dk))
-	if dk != &"board":
+	if not dk in [&"board", &"lab"]:
 		_ok("%s %s: its bed plays" % [tr, dk], counts.get("bed", 0) >= 1)
 	_ok("%s %s: nothing but its steady loops starts in the ride %s" % [tr, dk, in_ride], in_ride.is_empty())
 	match dk:
@@ -149,6 +149,12 @@ func _deck(scr: StationScreen, id: StringName, tr: String) -> void:
 			_ok("%s board: its own sounds (the tubes' stutters) play through its room %s" % [tr, own], not own.is_empty())
 		&"exch":
 			_passes(got, tr)
+		&"lab":
+			var lab := scr.deck_room(&"bench") as LabScene
+			_ok("%s lab: the station behind the shut door, and its own bed is Jon's far plant (%s)" % [tr,
+				LabScene.bed_path(lab._level) if lab != null else "no lab"], counts.get("layer:station", 0) == 1
+				and lab != null and LabScene.bed_path(lab._level).begins_with("res://assets/audio/station/lab_")
+				and ResourceLoader.exists(LabScene.bed_path(lab._level)))
 
 
 ## Each ship pass starts its lead before the ship's middle crosses the screen's (within a frame).

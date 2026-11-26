@@ -54,11 +54,9 @@ const AMBIENCE := {
 		"shots": [&"lab_capital_big_bubble", &"lab_capital_data_chirp", &"lab_capital_valve_hiss"]},
 }
 const AMB_VOICES := 6
-## THE BED IS SWAPPABLE (Jon, Nov 26: "the lab hum is annoying"; new beds are being made): a `lab_<tier>.wav` dropped
-## into `BED_NEW` plays instead of the one in ambience/, at `BED_DB` dB (0, as today, until it is levelled).
-## Why: docs/why/LabScene.md#lab-ambience
-const BED_NEW := "res://assets/audio/station/%s.wav"
-const BED_OLD := "res://assets/audio/ambience/%s.wav"
+## THE BED (Jon, Nov 26: "the lab hum is annoying"; he picked C "Far plant", a low rumble of pumps far below): one file
+## a tier in `BED_DIR`, its level set in the file, swappable there, at `BED_DB` dB. Why: docs/why/LabScene.md#lab-ambience
+const BED_DIR := "res://assets/audio/station/%s.wav"
 const BED_DB := {"unclaimed": 0.0, "outpost": 0.0, "settlement": 0.0, "city": 0.0, "capital": 0.0}
 ## Random gap between sounds; the audition ran 8 to 16 s, a lab you stand in spaces them out.
 static var shot_every := Vector2(15.0, 30.0)
@@ -358,10 +356,9 @@ func _amb_setup() -> void:
 	_bed.stream = stream
 
 
-## A tier's bed: a new one in BED_NEW if it is there, else today's.
+## A tier's bed.
 static func bed_path(level: String) -> String:
-	var bed := String((AMBIENCE.get(level, {}) as Dictionary).get("bed", "lab_" + level))
-	return BED_NEW % bed if ResourceLoader.exists(BED_NEW % bed) else BED_OLD % bed
+	return BED_DIR % String((AMBIENCE.get(level, {}) as Dictionary).get("bed", "lab_" + level))
 
 
 ## The bed rises with the lights, 0.3 to 3.0 s; a lab already on takes half a second.

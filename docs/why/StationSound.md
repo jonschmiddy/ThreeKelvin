@@ -9,7 +9,7 @@ reverb as the hangars have, no station bed under all of them; the PA keeps its s
 recorded PA loop that cuts out; the yard's joke events stay silent; the Lab and the Board keep their own sound with the
 station muffled behind them. Nov 26, from whole-room mixes over each deck's film (page KqbFQqBfBSy2Z9Vo36Sn4s): Promenade
 B "Lunch arcade", Promenade unclaimed C "Closing time", Shipyard B "Clean factory", Shipyard unclaimed A "Empty hangar",
-Exchange B "Server room", Hiring Board B "Strip lights". The Lab was not picked ("the lab hum is annoying").
+Exchange B "Server room", Hiring Board B "Strip lights". Later that day the Lab: C "Far plant" (the-lab).
 
 The page played baked mixes cut to films. The game does not: every deck's life runs on its own clock, so a loop laid
 over it would drift off the picture. As in the hangars, every stem the mixer used is played by the game and started from
@@ -66,6 +66,7 @@ beds below settlement, the high from it, capital the same bed darker and lower. 
 | Shipyard | A, the tape far off | A's bed, the live PA far off | B | B, darker and 3 dB down |
 | Exchange | B, the tape through the wall | B | B | B, 3 dB down |
 | Hiring Board | B, the low tiers' Promenade behind the wall, the tape | B, the low Promenade behind | B (the high Promenade behind, the mix's own) | B |
+| Laboratory | C's bed; the low Promenade behind the door, the tape through it | C, the low Promenade behind | C, the high Promenade behind | C |
 
 The bus numbers (the level the mixer's bus gave a room, its compressor's threshold) come from re-running the picked
 mixes; a tier's variant takes its pick's.
@@ -102,9 +103,19 @@ left out (the hiss sat 58 dB down).
 
 ## the-lab
 
-Not picked. The Lab plays as it did: its own bed and sounds (`LabScene`), and under it the station's old room tone and
-PA (`amb_station`, as every deck had before), so nothing about it changes. `LabScene.bed_path` takes a new
-`lab_<tier>.wav` from `tkg/assets/audio/station/` when one is there, at `LabScene.BED_DB`, so a new bed drops in.
+Jon, Nov 26, after "the lab hum is annoying" (the old beds were near-pure tones: settlement 239 Hz, 99.6 % of its energy
+in one band): C "Far plant", a low rough rumble of pumps far below the floor (`tk-scratch/station-sound/lab_beds`,
+`make_beds.py`: a generated take low-passed to 90-130 Hz by tier, notched on the generator's 100 Hz comb, each tier
+13 LU under the old bed). The beds are `tkg/assets/audio/station/lab_<tier>.wav`, their levels in the files;
+`LabScene.bed_path` plays them at `BED_DB` (0). Everything else in the Lab is as it was: its power-on, flickers,
+one-shots and glass (`LabScene`). The old tones and `amb_station` under the Lab are gone.
+
+Behind the shut door, the Lab's room plays the old "Door shut" recipe: the concourse crowd (the Promenade's high bed A,
+the low tiers' C) low-passed at 330 Hz, 12 dB under, and the PA through the door (`door`, unclaimed `tape_door`) 11 dB
+under, both against the old settlement hum's level (`ref_db`, -13.03: the new beds kept that ref in the page mix, so
+everything but the bed sits where it sat). The page mix put a fixed bus over all of it (+5.35 dB, `lab_beds/old_bus.json`);
+in the game the Lab's own sounds play at their own levels on Ambient as they always did, so the Lab's room bus has no
+gain, and a Lab capture reads about 5.35 dB (and the faders' 4) under its page mix.
 
 ## the-buses
 
