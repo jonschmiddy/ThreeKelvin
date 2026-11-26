@@ -161,6 +161,8 @@ func _set_room(rid: StringName) -> void:
 	add_child(room.above)
 	move_child(room.above, after + 1)
 	_fall.texture = fall_texture(room.band_colour())
+	# the room's sound starts from its own life (Jon's Nov 25 picks)
+	HangarSound.shared().show_room(room, self)
 
 
 ## What is picked holds the blur round it with the pointer gone (Jon, Nov 11:
@@ -187,6 +189,7 @@ func _process(delta: float) -> void:
 	if room != null:
 		room.extra = lift.plume.lights() if lift != null and lift.plume != null else []
 		room.tick(delta)
+		HangarSound.shared().tick()
 	if lift != null:
 		_lift_t += delta
 		lift.lift_at(_lift_t)
@@ -204,6 +207,12 @@ func _process(delta: float) -> void:
 		_ghost.queue_redraw()
 	elif _ghost.visible:
 		_ghost.queue_redraw()
+
+
+func _exit_tree() -> void:
+	# (another yard may already be showing its room: leave only our own)
+	if room != null and HangarSound.shared().room == room:
+		HangarSound.shared().show_room(null, null)
 
 
 func _on_hover(w: HullData.Weight, on: bool) -> void:

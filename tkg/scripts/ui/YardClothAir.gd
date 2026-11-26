@@ -57,6 +57,9 @@ var _pp_s := 0.0
 var _pp_dx := 0.0
 var _pp_dy := 0.0
 var _pp_sp := 0.0
+## The banner the pointer shoved this step and how hard (-1 none): its push sound (`YardCloth._step`).
+var pushed := -1
+var push_k := 0.0
 
 
 func setup(bx: PackedFloat32Array, n: int) -> void:
@@ -131,6 +134,8 @@ func forces(b: int, t: float) -> void:
 		_kick[b] = 1.2 + minf(_pp_sp / 70.0, 2.6)
 		_kdx[b] = _pp_dx
 		_kdy[b] = _pp_dy
+		pushed = b
+		push_k = _kick[b]
 	_was[b] = 1 if _pp_real else 0
 	_kick[b] *= exp(-HS / 0.35)
 	var ps := _pp_s + _kick[b] if _pp else 0.0

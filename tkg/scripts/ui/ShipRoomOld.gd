@@ -24,6 +24,8 @@ const HOSE_AT := {-1: Vector2i(-27, -1), 1: Vector2i(4, -1)}
 
 var _level := 1.0
 var _dust: Array[ShaderMaterial] = []
+## The two dust layers (behind and in front of the stands).
+var motes: Array[CanvasItem] = []
 
 
 func hull_amb() -> float:
@@ -78,6 +80,7 @@ func _motes(file: String) -> Control:
 	m.set_shader_parameter(&"motes", tx)
 	c.material = m
 	_dust.append(m)
+	motes.append(c)
 	return c
 
 
@@ -122,6 +125,11 @@ func _hoses(s: YardStandSet) -> void:
 ## whole frames at 30 fps, and a steady lamp hums +-3 %.
 ## Why: docs/why/ShipRoomOld.md#the-lamp
 static func lamp_at(u: float) -> float:
+	return lamp_step(u) * (1.0 + 0.018 * sin(TAU * 3.0 * u / LOOP) + 0.012 * sin(TAU * 7.0 * u / LOOP + 1.0))
+
+
+## The lamp's step `u` into the loop, without the steady hum: 0 out, under 1 a flicker or a stutter, 1 lit.
+static func lamp_step(u: float) -> float:
 	for o: Array in OFFS:
 		var t0 := float(o[0])
 		var ln := float(o[1])
@@ -137,7 +145,12 @@ static func lamp_at(u: float) -> float:
 		var k := int(roundf((u - float(b[0])) * FPS))
 		if k >= 0 and k < steps.size():
 			f = float(steps[k])
-	return f * (1.0 + 0.018 * sin(TAU * 3.0 * u / LOOP) + 0.012 * sin(TAU * 7.0 * u / LOOP + 1.0))
+	return f
+
+
+## The lamp as it is drawn this frame (its schedule times a launch's beat): what its hum follows.
+func level() -> float:
+	return _level
 
 
 func _tick(_dt: float) -> void:
@@ -150,6 +163,9 @@ func _tick(_dt: float) -> void:
 	for m in _dust:
 		m.set_shader_parameter(&"frame", f)
 		m.set_shader_parameter(&"level", _level)
+	# the dust is only seen in the lamp's light: none drawn while it is out (Jon, Nov 25)
+	for c in motes:
+		c.visible = _level > 0.0
 
 
 ## The dust's one draw: every mote at once (`ship_room_old_motes.gdshader` moves them).

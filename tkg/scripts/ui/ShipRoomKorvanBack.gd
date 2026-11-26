@@ -746,8 +746,13 @@ static func _path(pts: Array, t: float) -> Vector2:
 	return Vector2(NAN, NAN)
 
 
+## The top deck's crate is on its stack (the drones lift it at 2.4 s on the door's clock and set the new one at 8.6).
+static func stack_crate_shown(tc: float) -> bool:
+	return tc < 2.4 or tc >= 8.6
+
+
 func _cargo(tc: float, t: float) -> void:
-	if tc < 2.4 or tc >= 8.6:
+	if stack_crate_shown(tc):
 		p[&"stack_crate"].light(1, Vector2(527, 26))
 		life.piece(p[&"stack_crate"], "crate", 520, 20)
 	if tc <= 0.0:
