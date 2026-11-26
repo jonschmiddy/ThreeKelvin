@@ -54,6 +54,12 @@ const AMBIENCE := {
 		"shots": [&"lab_capital_big_bubble", &"lab_capital_data_chirp", &"lab_capital_valve_hiss"]},
 }
 const AMB_VOICES := 6
+## THE BED IS SWAPPABLE (Jon, Nov 26: "the lab hum is annoying"; new beds are being made): a `lab_<tier>.wav` dropped
+## into `BED_NEW` plays instead of the one in ambience/, at `BED_DB` dB (0, as today, until it is levelled).
+## Why: docs/why/LabScene.md#lab-ambience
+const BED_NEW := "res://assets/audio/station/%s.wav"
+const BED_OLD := "res://assets/audio/ambience/%s.wav"
+const BED_DB := {"unclaimed": 0.0, "outpost": 0.0, "settlement": 0.0, "city": 0.0, "capital": 0.0}
 ## Random gap between sounds; the audition ran 8 to 16 s, a lab you stand in spaces them out.
 static var shot_every := Vector2(15.0, 30.0)
 
@@ -343,13 +349,19 @@ func _amb_setup() -> void:
 	var a: Dictionary = AMBIENCE.get(_level, {})
 	if not a.has("bed"):
 		return
-	var stream: AudioStream = load("res://assets/audio/ambience/%s.wav" % a["bed"])
+	var stream: AudioStream = load(bed_path(_level))
 	if stream is AudioStreamWAV:
 		# SEAMLESS ON ITS OWN LENGTH, as the station's rooms are (`Audio.room`):
 		# a wav, because ogg clicks at a loop's seam.
 		var w := stream as AudioStreamWAV
 		Audio.loop_whole(w)
 	_bed.stream = stream
+
+
+## A tier's bed: a new one in BED_NEW if it is there, else today's.
+static func bed_path(level: String) -> String:
+	var bed := String((AMBIENCE.get(level, {}) as Dictionary).get("bed", "lab_" + level))
+	return BED_NEW % bed if ResourceLoader.exists(BED_NEW % bed) else BED_OLD % bed
 
 
 ## The bed rises with the lights, 0.3 to 3.0 s; a lab already on takes half a second.
@@ -370,7 +382,7 @@ func _ambience(delta: float) -> void:
 		_bed_gain = clampf((tb - 0.3) / 2.7, 0.0, 1.0)
 	else:
 		_bed_gain = minf(1.0, _bed_gain + delta * 2.0)
-	_bed.volume_db = linear_to_db(maxf(_bed_gain, 0.001))
+	_bed.volume_db = linear_to_db(maxf(_bed_gain, 0.001)) + float(BED_DB.get(_level, 0.0))
 	if _lab_clock >= _shot_at:
 		var shots: Array = AMBIENCE[_level].get("shots", [])
 		if not shots.is_empty():

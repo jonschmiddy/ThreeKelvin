@@ -2,7 +2,8 @@ class_name YardSound
 extends Node
 
 ## As Jon set it on the Yard Drones sound panel (v46). Levels are baked in: 0 dB on Ambient.
-## None of it plays in the sim or a headless run.
+## None of it plays in the sim or a headless run. The hall's bed, the welder and the rest of the room are the
+## deck's (`StationSound`, Jon's Nov 26 picks); this keeps the TV's power-on, the drones, their work and the lights.
 ## Why: docs/why/YardSound.md#yard-sound
 
 const POWER_ON_SOUNDS := {
@@ -18,31 +19,18 @@ const FLICKS := {
 	"unclaimed": [&"lab_unclaimed_flicker"], "outpost": [&"lab_outpost_flicker"], "settlement": [&"lab_settlement_flicker"],
 	"city": [&"lab_city_flicker_a", &"lab_city_flicker_b"], "capital": [],
 }
-const SHOTS := [&"yard_clank_1", &"yard_clank_2", &"yard_clank_3", &"yard_airtool_1", &"yard_airtool_2",
-	&"yard_hiss_2", &"yard_hiss_3", &"yard_hoist_1", &"yard_hoist_2"]
 const WORK := {0: [&"yard_patch_1", &"yard_patch_2"], 1: [&"yard_repair_1", &"yard_repair_2"],
 	2: [&"yard_refuel_2", &"yard_refuel_3"], 3: [&"yard_faults_2", &"yard_faults_3"]}
 ## The drones' whir, six semitones down, and how far it winds down as they brake.
 const DRONE_ST := -6.0
 const WIND_DOWN := 0.30
 const PAN_BUSES := 8
-const WELD_PAN := 0.35
-## Seconds between the now-and-then sounds.
-static var shot_every := Vector2(15.0, 30.0)
 
 var scene: YardScene
 var _cache: Dictionary = {}
-var _bed: AudioStreamPlayer
-var _bed_fade: Tween = null
-var _bed_on := false
-var _voices: Array[AudioStreamPlayer] = []
-var _vnext := 0
 var _pan: Array[AudioStreamPlayer] = []
 var _pan_bus: Array[StringName] = []
 var _pnext := 0
-var _weld: AudioStreamPlayer
-var _weld_was := false
-var _weld_fade: Tween = null
 ## Each flickering light's voice, so the next slice cuts the last off.
 var _flick: Dictionary = {}
 var _flick_tw: Dictionary = {}
@@ -53,22 +41,15 @@ var _winding: Array = []
 var _heard := 0
 var _tp := 0.0
 var _powered := false
-var _shot_at := 0.0
-var _last_shot := &""
 var _last_work: Dictionary = {}
 var _was_visible := false
 
 
 func _ready() -> void:
-	_bed = _player(&"Ambient")
-	for i in 6:
-		_voices.append(_player(&"Ambient"))
 	for i in PAN_BUSES:
 		var bus := _pan_bus_named("YardPan%d" % i)
 		_pan_bus.append(bus)
 		_pan.append(_player(bus))
-	_weld = _player(_pan_bus_named("YardWeld"))
-	_set_pan(&"YardWeld", WELD_PAN)
 
 
 func _player(bus: StringName) -> AudioStreamPlayer:
@@ -113,15 +94,6 @@ func _stream(name: StringName, dir: String = "sfx") -> AudioStream:
 	return _cache[key]
 
 
-## A wav that joins on itself, looped on its own length (ogg clicks at a seam).
-func _loop(name: StringName, dir: String) -> AudioStream:
-	var s := _stream(name, dir)
-	if s is AudioStreamWAV:
-		var w := s as AudioStreamWAV
-		Audio.loop_whole(w)
-	return s
-
-
 func _taped(name: StringName) -> void:
 	if Audio.taping:
 		Audio.tape.append([name, Time.get_ticks_msec(), 0.0, 1.0])
@@ -132,25 +104,17 @@ func power_on(tp: float, settled: bool = false) -> void:
 	_tp = tp
 	_powered = true
 	_heard = POWER_ON_SOUNDS.get(scene.level, []).size() if settled else 0
-	# the now-and-then counts from now, not from a power-on long past
-	_shot_at = tp + (YardScene.SETTLED if settled else 0.0) + randf_range(shot_every.x, shot_every.y)
 
 
-## Each tick of the yard's clock: the TV's power-on sounds that are due, the
-## now-and-then, the welder, and the lights' dropouts.
+## Each tick of the yard's clock: the TV's power-on sounds that are due, and the
+## lights' dropouts (the room itself is `StationSound`'s, ticked by the yard).
 func tick(t: float, tb: float) -> void:
 	if YardScene.pin_clock >= 0.0:
 		return
-	if not _bed_on:
-		_bed_start()
 	var plan: Array = POWER_ON_SOUNDS.get(scene.level, [])
 	while _powered and _heard < plan.size() and float(plan[_heard][0]) <= tb:
 		Audio.play(plan[_heard][1], 0.0)
 		_heard += 1
-	if t >= _shot_at and _powered:
-		_shot()
-		_shot_at = t + randf_range(shot_every.x, shot_every.y)
-	_welder()
 	_dropouts()
 
 
@@ -200,70 +164,6 @@ func flick(key: String, strong: bool = false) -> void:
 	tw.tween_callback(p.stop)
 	_flick_tw[key] = tw
 	_taped(name)
-
-
-func _bed_start() -> void:
-	_bed_on = true
-	var s := _loop(&"yard_bed", "ambience")
-	if s == null:
-		return
-	_bed.stream = s
-	_bed.volume_db = -60.0
-	_bed.play()
-	if _bed_fade != null and _bed_fade.is_valid():
-		_bed_fade.kill()
-	_bed_fade = create_tween()
-	_bed_fade.tween_property(_bed, ^"volume_db", 0.0, 1.2).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	_taped(&"yard_bed")
-
-
-## One of the takes, never the one just heard, and another kind if there is one.
-func _shot() -> void:
-	var kind := String(_last_shot).split("_")[1] if _last_shot != &"" else ""
-	var pool: Array = SHOTS.filter(func(n: StringName) -> bool: return n != _last_shot and String(n).split("_")[1] != kind)
-	if pool.is_empty():
-		pool = SHOTS.filter(func(n: StringName) -> bool: return n != _last_shot)
-	var name: StringName = pool[randi() % pool.size()]
-	_last_shot = name
-	_play(name, 0.0)
-
-
-func _play(name: StringName, db: float) -> void:
-	var s := _stream(name)
-	if s == null:
-		return
-	var p := _voices[_vnext]
-	_vnext = (_vnext + 1) % _voices.size()
-	p.stream = s
-	p.pitch_scale = 1.0
-	p.volume_db = db
-	p.play()
-	_taped(name)
-
-
-## The welder's arc: the loop starts the frame it strikes, somewhere it can run
-## 4.2 s from without reaching its seam, and fades out the frame it goes off.
-func _welder() -> void:
-	var on := bool(scene.life.weld_now.get("on", false))
-	if on == _weld_was:
-		return
-	_weld_was = on
-	if _weld_fade != null and _weld_fade.is_valid():
-		_weld_fade.kill()
-	if not on:
-		_weld_fade = create_tween()
-		_weld_fade.tween_property(_weld, ^"volume_db", -60.0, 0.12)
-		_weld_fade.tween_callback(_weld.stop)
-		return
-	var s := _loop(&"yard_weld", "sfx")
-	if s == null:
-		return
-	_weld.stream = s
-	_weld.volume_db = -60.0
-	_weld.play(randf() * maxf(0.0, s.get_length() - 4.3))
-	_weld_fade = create_tween()
-	_weld_fade.tween_property(_weld, ^"volume_db", 0.0, 0.015)
-	_taped(&"yard_weld")
 
 
 func _panned(name: StringName, x: float) -> AudioStreamPlayer:
@@ -347,19 +247,11 @@ func _process(_delta: float) -> void:
 
 
 func _hush() -> void:
-	_bed_on = false
-	if _bed.playing:
-		if _bed_fade != null and _bed_fade.is_valid():
-			_bed_fade.kill()
-		_bed_fade = create_tween()
-		_bed_fade.tween_property(_bed, ^"volume_db", -60.0, 0.3)
-		_bed_fade.tween_callback(_bed.stop)
-	for p: AudioStreamPlayer in _voices + _pan + [_weld]:
+	for p: AudioStreamPlayer in _pan:
 		if p.playing:
 			var t := create_tween()
 			t.tween_property(p, ^"volume_db", -40.0, 0.12)
 			t.tween_callback(p.stop)
-	_weld_was = false
 	_winding.clear()
 	var names: Array[StringName] = []
 	for e: Array in POWER_ON_SOUNDS.get(scene.level, []):

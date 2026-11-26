@@ -12,9 +12,8 @@ var _undock: Button
 ## The lab's glass in the room, which the power-on's scan opens: the owner's
 ## sign-on on it (`LabLogin`), and the key that is the glass itself.
 var _bench_clip: Control
-## THE LAB'S SCREEN IN THE ROOM (Jon, Nov 5): the owner's logo, a sign-in
-## while you point at it, and the whole glass is the one key into it. Built
-## once and restyled (`_refresh_bench`).
+## THE LAB'S SCREEN IN THE ROOM (Jon, Nov 5): the owner's logo, a sign-in while you point at it, and the whole glass
+## is the one key into it. Built once and restyled (`_refresh_bench`).
 var _glass_press: Button
 ## The pointer was on the glass at the last look (`_process`), so its hover is
 ## heard once on arriving (`Audio.lab_hover`).
@@ -89,6 +88,7 @@ var _tabs_on: Dictionary = {}
 ## Why: docs/why/StationScreen.md#hull-portrait-height
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	StationSound.shared().dock(self, Router.powered.is_empty())
 	# The room is chosen by `Router._swap`, the one place that sees every screen change.
 	_build()
 	Sig.resources_changed.connect(_refresh)
@@ -709,10 +709,9 @@ func _page_bench() -> Control:
 	pm.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
 	_screen_pic.material = pm
 	_bench_clip.add_child(_screen_pic)
-	# THE WHOLE GLASS IS THE KEY, and the only one: pointed at, the screen
-	# turns to its sign-in; pressed anywhere on it, the camera goes onto it.
-	# It draws nothing of its own (only pressable things look pressable, and
-	# the sign-in is how it says so).
+	# THE WHOLE GLASS IS THE KEY, and the only one: pointed at, the screen turns to its sign-in; pressed anywhere on
+	# it, the camera goes onto it. It draws nothing of its own (only pressable things look pressable, and the sign-in
+	# is how it says so).
 	_glass_press = Button.new()
 	_glass_press.focus_mode = Control.FOCUS_NONE
 	_glass_press.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -729,15 +728,14 @@ func _page_bench() -> Control:
 	return Widgets.panel_with(Widgets.pad(stack))
 
 
-## THE POINTER ON THE GLASS, or off it: the sign-in, or the logo. Read off the
-## key each frame (its hover, as the GUI has it), so the pointer already on the
-## glass when the camera comes back out shows the sign-in. Never while the
-## camera is away from the room (the screen says SIGNING IN on the way in, and
-## its logo on the way out).
+## THE POINTER ON THE GLASS, or off it: the sign-in, or the logo. Read off the key each frame (its hover, as the GUI
+## has it), so the pointer already on the glass when the camera comes back out shows the sign-in. Never while the
+## camera is away from the room (the screen says SIGNING IN on the way in, and its logo on the way out).
 func _process(_delta: float) -> void:
 	_ride_step(_delta)
 	if _deck_swap != null:
 		_swap_decks()
+	StationSound.shared().tick(self, _delta)
 	if _login == null or _glass_press == null or _tab != &"bench":
 		_glass_on = false
 		return
@@ -745,9 +743,8 @@ func _process(_delta: float) -> void:
 		return
 	# (nor while the deck is still riding in: the glass is not where it will be)
 	var on := _glass_press.is_visible_in_tree() and _glass_press.is_hovered() and not deck_changing()
-	# THE HOVER IS HEARD ON THE EDGE, the frame the screen turns to its sign-in,
-	# once until the pointer leaves. Not on the camera's way back out with the
-	# pointer still on the glass: `_glass_on` is not touched while the camera is
+	# THE HOVER IS HEARD ON THE EDGE, the frame the screen turns to its sign-in, once until the pointer leaves. Not on
+	# the camera's way back out with the pointer still on the glass: `_glass_on` is not touched while the camera is
 	# away, so it is still on from the press.
 	if on and not _glass_on:
 		Audio.lab_hover()
@@ -755,9 +752,8 @@ func _process(_delta: float) -> void:
 	_login.set_state(LabLogin.LOGIN if on else LabLogin.LOGO)
 
 
-## THE KEY'S KEYBOARD AND PAD: Enter, Space or the pad's A on the lab's deck,
-## its screen up, presses the glass, as a click does. Esc or the pad's B takes
-## the camera back out (`LabZoom._input`).
+## THE KEY'S KEYBOARD AND PAD: Enter, Space or the pad's A on the lab's deck, its screen up, presses the glass, as a
+## click does. Esc or the pad's B takes the camera back out (`LabZoom._input`).
 func _unhandled_input(e: InputEvent) -> void:
 	if _tab != &"bench" or _lab_zoom == null or _lab_zoom.is_open() or e.is_echo() or deck_changing():
 		return
@@ -774,9 +770,8 @@ func _unhandled_input(e: InputEvent) -> void:
 
 ## Into the Lab's screen, on page `id`.
 func _open_lab(id: StringName) -> void:
-	# NOT WHILE THE DECK CHANGES (the review, Nov 5): `_tab` is the Lab from the
-	# click on its floor, but the Lab is not in its place till the car stops, and
-	# a zoom started then would start from a room that is still moving
+	# NOT WHILE THE DECK CHANGES (the review, Nov 5): `_tab` is the Lab from the click on its floor, but the Lab is
+	# not in its place till the car stops, and a zoom started then would start from a room that is still moving
 	if _lab_zoom == null or _lab_zoom.is_open() or deck_changing():
 		return
 	# (heard only on the press that signs in, the same frame as its ui_click;
@@ -1105,9 +1100,8 @@ func _swap_decks() -> void:
 	to.visible = true
 
 
-## From the deck `from` shown under a dark of `a0` (0, or how dark a ride cut
-## short by this press had it) to the deck `to`. Pressed back to the deck still
-## showing, the dark only goes back down.
+## From the deck `from` shown under a dark of `a0` (0, or how dark a ride cut short by this press had it) to the deck
+## `to`. Pressed back to the deck still showing, the dark only goes back down.
 func _cross_decks(from: Control, to: Control, secs: float, a0: float = 0.0) -> void:
 	var body := to.get_parent() as Control
 	if body == null:
@@ -1129,9 +1123,8 @@ func _cross_decks(from: Control, to: Control, secs: float, a0: float = 0.0) -> v
 	_deck_from = from
 	_deck_fade.tween_property(_deck_dark, ^"color:a", 1.0, secs * 0.5 * (1.0 - a0)) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	# (the hand-over on this screen's next `_process`, ahead of the decks' own:
-	# a tween runs after them, and the Lab shown from here drew one frame on
-	# its build's lit uniforms, its logo up, before its power-on had ticked)
+	# (the hand-over on this screen's next `_process`, ahead of the decks' own: a tween runs after them, and the Lab
+	# shown from here drew one frame on its build's lit uniforms, its logo up, before its power-on had ticked)
 	_deck_fade.tween_callback(func() -> void: _deck_swap = to)
 	# (the dark held whole while the hand-over lands: two frames at 60)
 	_deck_fade.tween_interval(DECK_HOLD_S)
@@ -1161,9 +1154,8 @@ func deck_changing() -> bool:
 	return _deck_fade != null and _deck_fade.is_valid()
 
 
-## The deck change finished now: only the deck you are on shown, every deck in
-## its place and taking clicks again, and the dark and the slab gone. `keep`
-## (a new ride starting from this one) leaves the decks where they stand for it.
+## The deck change finished now: only the deck you are on shown, every deck in its place and taking clicks again, and
+## the dark and the slab gone. `keep` (a new ride starting from this one) leaves the decks where they stand for it.
 func _end_deck_fade(keep: bool = false) -> void:
 	_boot_release()
 	if _deck_fade != null and _deck_fade.is_valid():
@@ -1232,11 +1224,10 @@ func _ride_step(delta: float) -> void:
 		_slide_tw = null
 
 
-## A DECK'S POWER-ON WAITS FOR THE CAR: riding in, the deck is dark (`hold`),
-## and its lights strike (`go`) a quarter second before the car stops, on the
-## ride's own clock (a stalled frame holds the ride, so a power-on timed on
-## any other clock struck early). A ride cut short by another press strikes it
-## then (`_end_deck_fade`), so no deck is left dark.
+## A DECK'S POWER-ON WAITS FOR THE CAR: riding in, the deck is dark (`hold`), and its lights strike (`go`) a quarter
+## second before the car stops, on the ride's own clock (a stalled frame holds the ride, so a power-on timed on any
+## other clock struck early). A ride cut short by another press strikes it then (`_end_deck_fade`), so no deck is left
+## dark.
 var _boot_go: Array[Callable] = []
 
 
@@ -1252,6 +1243,15 @@ func _boot_release() -> void:
 	for g in go:
 		if g.is_valid():
 			g.call()
+
+
+## What the decks' sound hears (`StationSound`): the page on screen (on a ride, the one holding more of the panel).
+func deck_shown() -> StringName:
+	return _page_id(_deck_showing())
+
+
+func deck_room(id: StringName) -> Control:
+	return {&"stock": _shop, &"hold": _exchange, &"work": _board_lamp, &"services": _scene, &"bench": _lab}.get(id)
 
 
 ## The page whose deck this is, by its id.

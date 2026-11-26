@@ -260,7 +260,8 @@ func autosave() -> void:
 ## Why: docs/why/Router.md#room-you-are-in
 func _room_for(screen: Control) -> Variant:
 	if screen is StationScreen:
-		return &"amb_station"
+		# (each deck plays its own room, `StationSound`; the Lab asks for the old tone under it)
+		return StationSound.DECKS_ROOM
 	if screen is ChassisSelect:
 		return Audio.YARD_ROOM
 	if screen is SectorScreen or screen is SystemMapScreen:

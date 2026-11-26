@@ -66,6 +66,11 @@ audition page, and all of it plays on the Ambient bus beside the station's
 own crowd and PA, which carry on underneath.
 ```
 
+The bed is swappable (Nov 26: Jon, on the station sound page, "the lab hum is annoying"; new beds are being made):
+`LabScene.bed_path` plays `tkg/assets/audio/station/lab_<tier>.wav` when one is there, else today's
+`ambience/lab_<tier>.wav`, at `BED_DB` dB (0 for every tier until a new bed is levelled). Measured that day, today's
+beds are near-pure tones: settlement 239 Hz (99.6 % of its energy in one band), unclaimed 91 Hz.
+
 ## Light rhythms
 
 Inside `_weights()`, above `var n := roundi(tb * HZ)`:

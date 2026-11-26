@@ -604,6 +604,32 @@ func _pose_cast() -> void:
 		_posed.append([w, dx, dy, f, run])
 
 
+## The walkers posed now, for the Promenade's sound (`StationSound`): each one's id, screen x, walk frame, frame
+## count and height, and whether it was drawn in the last tenth of a second (behind a wall it is not).
+func walkers_seen() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if _posed_at != _clock:
+		_pose_cast()
+	var xf := get_global_transform_with_canvas()
+	for p in _posed:
+		var w: Dictionary = p[0]
+		if not w.has("_id"):
+			w["_id"] = _cast.find(w)
+		var fig := bool(w.figure)
+		var fw := float(w.get("fw", 0.0))
+		var fh := float(w.get("fh", w.get("tall", 0.0)))
+		var feet := Vector2(p[1], p[2]) if fig else Vector2(float(p[1]) + fw * 0.5, float(p[2]) + fh)
+		var fr: int = p[3] if not fig else int(floorf(float(p[4]) / maxf(2.0, float(w.get("tall", 10.0)) * 0.3))) % 2
+		out.append({"id": int(w["_id"]), "x": (xf * feet).x, "frame": fr, "frames": int(w.get("frames", 2)), "fh": fh,
+			"fly": bool(w.get("fly", false)), "seen": _clock - float(w.get("_seen_at", -9.0)) <= 0.1})
+	return out
+
+
+## The failing lamp's flicker this frame (0 when steady), for the Promenade's sound.
+func flick_level() -> float:
+	return _flick_f
+
+
 ## `walkers()`: the crowd inside one clip -- reflections first on a polished
 ## floor, then everybody.
 func _shop_cast(clip: Rect2) -> void:
@@ -616,6 +642,8 @@ func _shop_cast(clip: Rect2) -> void:
 	for p in _posed:
 		var w: Dictionary = p[0]
 		if bool(w.figure):
+			if Rect2(p[1] - float(w.tall) * 0.2, p[2] - float(w.tall), float(w.tall) * 0.4, float(w.tall)).intersects(clip):
+				w["_seen_at"] = _clock
 			_bench_figure(p[1], p[2], float(w.tall), float(w.h0), float(p[4]),
 				float(w.haze), clip)
 		else:

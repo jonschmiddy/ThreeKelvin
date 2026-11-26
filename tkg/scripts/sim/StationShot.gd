@@ -1436,6 +1436,15 @@ func run(tree: SceneTree) -> void:
 				var fp := "user://station_%s_f%02d.png" % [berth, f]
 				tree.root.get_texture().get_image().save_png(fp)
 			print("wrote %d frames" % n)
+	# `filmhold=S` holds the deck S seconds of game time before quitting, for a film with its sound
+	# (`render.sh --fixed-fps 30 --write-movie`); then how long each deck's sound took to open.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("filmhold="):
+			var until := GameClock.now() + float(a.trim_prefix("filmhold="))
+			while GameClock.now() < until:
+				await tree.process_frame
+			for dk: StringName in StationSound.open_ms:
+				print("  station sound: %s opened in %.2f ms" % [dk, StationSound.open_ms[dk]])
 	tree.quit()
 
 

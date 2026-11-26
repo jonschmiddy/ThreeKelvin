@@ -1,0 +1,216 @@
+{
+ "_note": "The station PA's lines: stand-ins (the Sep 18 takes, chime and echo baked in) until Jon settles the script. Swap a row's file for a new dry take, or add rows; then run python tools/dev/station_sound.py pa to measure them. tiers: where a line is read. Unclaimed reads its lines as an old tape that cuts out (in code). docs/why/StationSound.md#the-pa",
+ "lines": [
+  {
+   "speaker": "Alice",
+   "id": "pa_00",
+   "file": "res://assets/audio/ambience/pa_00.ogg",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Daniel",
+   "id": "pa_01",
+   "file": "res://assets/audio/ambience/pa_01.ogg",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Bill",
+   "id": "pa_02",
+   "file": "res://assets/audio/ambience/pa_02.ogg",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Bill",
+   "id": "pa_03",
+   "file": "res://assets/audio/ambience/pa_03.ogg",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Daniel",
+   "id": "pa_04",
+   "file": "res://assets/audio/ambience/pa_04.ogg",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Daniel",
+   "id": "pa_05",
+   "file": "res://assets/audio/ambience/pa_05.ogg",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Alice",
+   "id": "pa_06",
+   "file": "res://assets/audio/ambience/pa_06.ogg",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Alice",
+   "id": "pa_07",
+   "file": "res://assets/audio/ambience/pa_07.ogg",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Bill",
+   "id": "pa_08",
+   "file": "res://assets/audio/ambience/pa_08.ogg",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Daniel",
+   "id": "pa_09",
+   "file": "res://assets/audio/ambience/pa_09.ogg",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Alice",
+   "id": "pa_10",
+   "file": "res://assets/audio/ambience/pa_10.ogg",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Bill",
+   "id": "pa_11",
+   "file": "res://assets/audio/ambience/pa_11.ogg",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Bill",
+   "id": "pa_12",
+   "file": "res://assets/audio/ambience/pa_12.ogg",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Daniel",
+   "id": "pa_13",
+   "file": "res://assets/audio/ambience/pa_13.ogg",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Alice",
+   "id": "pa_14",
+   "file": "res://assets/audio/ambience/pa_14.ogg",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Bill",
+   "id": "pa_15",
+   "file": "res://assets/audio/ambience/pa_15.ogg",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city",
+    "capital"
+   ]
+  },
+  {
+   "speaker": "Alice (old tape)",
+   "id": "pa_00_tape",
+   "file": "res://assets/audio/ambience/pa_00.ogg",
+   "tiers": [
+    "unclaimed"
+   ]
+  },
+  {
+   "speaker": "Alice (old tape)",
+   "id": "pa_06_tape",
+   "file": "res://assets/audio/ambience/pa_06.ogg",
+   "tiers": [
+    "unclaimed"
+   ]
+  },
+  {
+   "speaker": "Alice (old tape)",
+   "id": "pa_07_tape",
+   "file": "res://assets/audio/ambience/pa_07.ogg",
+   "tiers": [
+    "unclaimed"
+   ]
+  },
+  {
+   "speaker": "Alice (old tape)",
+   "id": "pa_10_tape",
+   "file": "res://assets/audio/ambience/pa_10.ogg",
+   "tiers": [
+    "unclaimed"
+   ]
+  },
+  {
+   "speaker": "Alice (old tape)",
+   "id": "pa_14_tape",
+   "file": "res://assets/audio/ambience/pa_14.ogg",
+   "tiers": [
+    "unclaimed"
+   ]
+  }
+ ]
+}

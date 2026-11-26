@@ -343,6 +343,30 @@ func _pose_cast() -> void:
 		_posed.append([tex, Vector2(floorf(x), floorf(y)), tint])
 
 
+## The ships passing now, for the Exchange's sound (`StationSound`): each pass's number, far or near, and when on the
+## room's clock its middle crosses screen x `mid` (the passes `_pose_cast` draws, from the same rolls).
+func passes(mid: float) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var fleet := _fleet_list()
+	if no_people or fleet.is_empty():
+		return out
+	var salt := float(absi(place_seed) % 9973) * 0.013
+	var cx := (get_global_transform_with_canvas().affine_inverse() * Vector2(mid, 0.0)).x
+	var n1 := int(floorf(_clock / FLY_EVERY))
+	for n in range(n1 - 3, n1 + 1):
+		var t0: float = float(n) * FLY_EVERY + _roll(n, 1.0, salt) * FLY_EVERY * 0.6
+		if _clock < t0:
+			continue
+		var ship: Dictionary = fleet[int(_roll(n, 2.0, salt) * float(fleet.size())) % fleet.size()]
+		var far: bool = _roll(n, 3.0, salt) < 0.6
+		var tex: Texture2D = ship.far if far else ship.near
+		var w := float(tex.get_size().x)
+		var speed: float = (18.0 + 12.0 * _roll(n, 4.0, salt)) if far 			else (38.0 + 26.0 * _roll(n, 4.0, salt))
+		var run := cx + w * 0.5 if int(ship.facing) > 0 else PANEL.x + w * 0.5 - cx
+		out.append({"n": n, "far": far, "x": mid, "cross": t0 + run / speed})
+	return out
+
+
 ## One roll for pass `n`: which ship, how far, how fast, how high.
 static func _roll(n: int, k: float, salt: float) -> float:
 	return ShopLight.hash1(float(n) * 7.31 + k * 3.17 + salt)

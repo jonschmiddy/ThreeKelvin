@@ -88,7 +88,9 @@ var _duck: float = 1.0     ## 1 is unducked; multiplies every music stem
 ## Why: docs/why/Audio.md#station-duck
 const ROOM_DUCK := 0.0     ## silent, while docked
 ## Only the station pushes the score aside; open space sits under the music.
-const ROOM_DUCKS: Dictionary = {&"amb_station": ROOM_DUCK}
+const ROOM_DUCKS: Dictionary = {&"amb_station": ROOM_DUCK, &"station": ROOM_DUCK}
+## Rooms with no tone of their own: the station's decks play their own (`StationSound`), the score still steps aside.
+const SILENT_ROOMS: Array[StringName] = [&"station"]
 const ROOM_DUCK_S := 1.6   ## and it arrives with the room, not before it
 var _rduck: float = 1.0
 
@@ -319,7 +321,7 @@ func room(name: StringName, fade_s: float = ROOM_FADE) -> void:
 	_room_now = name
 	if _room_fade != null and _room_fade.is_valid():
 		_room_fade.kill()
-	if name == &"":
+	if name == &"" or name in SILENT_ROOMS:
 		if _room == null or not _room.playing:
 			return
 		_room_fade = create_tween()

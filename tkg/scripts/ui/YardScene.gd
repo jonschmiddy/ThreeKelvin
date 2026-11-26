@@ -784,6 +784,8 @@ func _tick(t: float) -> void:
 	light.weigh(t)
 	if sound != null:
 		sound.tick(t, t - _tp)
+	if pin_clock < 0.0:
+		StationSound.shared().yard_tick(self, t)
 	life.tick(t, _dt)
 	light.dyn.clear()
 	var tb := t - _tp
