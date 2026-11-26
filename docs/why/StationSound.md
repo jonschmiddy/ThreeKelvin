@@ -90,16 +90,51 @@ tail: `reverb_filter.cpp` damps with `exp(-2 pi (damp / 2 + 0.5)^2 10 kHz / rate
 
 ## the-pa
 
-Jon is still settling the script (page AanNzkknhQzM9aXrgbp9W9). The game reads `tkg/assets/audio/station/pa.json`:
-one row a line (speaker, line id, file, tiers, and its loudness and length, measured by `station_sound.py pa`). The
-rows are today's sixteen lines (Sep 18, chime and echo baked in) as stand-ins: Bill and Daniel from outpost, Alice from
-settlement, Alice's five read as the old tape at unclaimed. New dry takes replace a row's file, or add rows; no code
-changes. When (plan.md): the first line 15 to 25 s after docking, then 60 to 120 s after one ends, dealt from a bag so
-all are heard before any twice, never in a ride. Each deck hears it through its own speaker (the mixer's `speaker`
-kinds as Godot filter stages on a bus per kind): the Promenade clear, the Shipyard far, the Exchange and the Board
-through the wall. Unclaimed's tape is code too: wow and flutter on the pitch, band-limited 380 Hz-3 kHz, two dropouts
-(38-47 % of the line at 8 %, 61-64.5 % at 25 %), cut dead at 78 % with a small clunk. The mixer's tape drive and hiss are
-left out (the hiss sat 58 dB down).
+Jon's Nov 26 script and takes (tk-scratch/station-sound/pa_script_v2.json, pa_v2/takes; ship_4 and welder_1 cut). The
+game reads `tkg/assets/audio/station/pa.json`, made by tk-scratch/station-sound/pa_v2/game/make_pa.py and measured by
+`station_sound.py pa`: one row a line (id, speaker, text, `when`, tiers, file, `play`, its loudness and length), the
+chime and the bang. The takes are dry (no chime, no echo), so the game adds both.
+
+**The chime** is the head of an old Sep 18 take (`ambience/pa_02.ogg`; every one opened on the same two-tone chime),
+cut where its voice came in and faded. It plays before each staff and Recording line through the deck's speaker, at the
+level it sat on the old take (`ref_loud`), and the voice comes in 2 s after it starts (the old takes waited 2.58 s; the
+chime is gone by 1.5 s). The tape has none: it is a recording, not someone at a desk.
+
+**When.** After a fresh docking the first line is a dock line, 5 to 8 s after the first deck shows, past the dock's
+clunk and the deck's power-on; where the tier has none (capital, unclaimed), a bag line 15 to 25 s in. Then a line 60 to
+120 s after one ends, never in a ride, one at a time. Jon (Nov 26) wants it really random: the bag and the dock lines'
+own bag are static, so they last the whole run across dockings and decks, and the pool is heard before any line twice.
+A bag drawn dry of lines that fit here gets the lines it no longer holds back at its front, shuffled, so what is left
+is heard first. No two lines with the same `when` run back to back while another fits, and no line twice running.
+`pa_rng` deals it all (the test seeds it).
+
+**Roles** (`play`). `dock`: the dock lines' bag. `bag`: everything else that plays on its own, filtered by tier, by
+`decks` where a row names some (the five lines about things in the yard: forklift_1, welder_2, shift_1, scrubber_1,
+free_5), and by `needs` (lift_2, "working again", only once lift_1 was heard this docking). `after`: a follow-up, never
+on its own: about one lead in three, 5 to 10 s after it ends (free_2 after a ship_ line, correct_1 after a hauler_,
+correct_2 after a board_), dropped if a ride holds it 15 s. `leave`: no moment plays it. Undocking goes straight to the
+sector (or rides to the yard first, which hushes the PA) and the decks fall silent as the screen goes, so no station
+sound is heard as you leave; the rows wait for such a moment. reactor_1 ("That bang was the reactor venting") has
+`bang`: no deck has a reactor sound of its own, so the game's heaviest low blast (`sfx/explosion_small_3`) plays first
+far off through the deck's room (fully dark, wet 0.6, 2 dB under the deck's PA level), and the chime 1.2 s after it.
+
+**Speakers.** Each deck hears the PA through its own speaker (the mixer's `speaker` kinds as Godot filter stages on a
+bus per kind): the Promenade clear, the Shipyard far, the Exchange and the Board through the wall, the Lab through the
+door. `speaker_db` (what each speaker's filters take off the lines, made up after) is re-measured on the dry takes:
+they are full range, where the old ones had a speaker's band already, so the wall and the door take far less off them.
+
+**Wet.** The old takes carried their own echo, so each deck's wet send was raised until the room fills the gaps
+between words as much as it did on the old lines (the 85th-15th percentile spread of 50 ms frames over the line, on the
+game's chain emulated: pa_v2/game/wet_tune.py, `PA_WET` in station_sound.py). Promenade 0.12/0.08 to 0.20/0.25, the
+Exchange 0.05 to 0.6 (its room is tiny, so it takes a lot), the Board and the Lab 0 to 0.2, the tapes 0.08 to 0.15;
+the Shipyard's far speaker already matched (0.5, 0.4), its tape 0.5 to 0.4.
+
+**The tape** (unclaimed) is code too: wow and flutter on the pitch, band-limited 380 Hz-3 kHz, two dropouts (38-47 % of
+the line at 8 %, 61-64.5 % at 25 %), cut dead with a small clunk where its row's `cut` says the written line stops:
+tape_1 at 8.93 s (after "cla-"), tape_4 at 4.10 s (the take says all of "stock": just into its vowel, after the
+"st"), tape_5 at 3.40 s ("gr-"), from whisper's word times and a 10 ms envelope, each then cut as the game cuts it and
+whispered back (pa_v2/game/cutcheck.py): "clai-", "insta-", "show gr-"; 20 ms later whisper hears "stock" and "show". The mixer's tape drive and hiss are left out
+(the hiss sat 58 dB down).
 
 ## the-lab
 
@@ -147,5 +182,10 @@ measurements, speaker, no joke class), the PA table has lines on disk at every t
 unclaimed station on the real screen, the plan is read at docking before any deck opens; each deck for 24 s plays its
 bed and its events (steps, the welder and forklift, the tube and the station behind, the ship passes each its lead
 ahead of its crossing within a frame), and nothing but a room's steady loops starts while the car rides; a PA line due
-mid-ride waits for the car and is read through the deck's speaker, and the unclaimed tape cuts with its clunk; each yard
-joke fired makes no sound; undocked, every voice is out.
+mid-ride waits for the car and is read through the deck's speaker after its chime, and the unclaimed tape cuts with its
+clunk where its line stops; each yard joke fired makes no sound; undocked, every voice is out. The PA's own: the table
+is Jon's 69 lines with their roles, follow-ups' leads, cuts, chime and bang; on the table alone (seeded), the bag deals
+a whole pass before any line twice across a docking with no `when` twice running, the dock lines rotate, lift_2 waits
+for lift_1, the yard's lines stay on the yard, unclaimed hears only the tape and capital no Daniel or Bill, and a ship
+call gets free_2 about one time in three; on the screen, the first line after docking is a dock line with its chime
+(unclaimed: the tape, no chime), and reactor_1 comes after its bang and its chime.

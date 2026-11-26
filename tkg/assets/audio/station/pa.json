@@ -1,210 +1,1233 @@
 {
- "_note": "The station PA's lines: stand-ins (the Sep 18 takes, chime and echo baked in) until Jon settles the script. pa_00, pa_01 and pa_11 are left out: they say \"berth\", and the game's word is \"bay\". Swap a row's file for a new dry take, or add rows; then run python tools/dev/station_sound.py pa to measure them. tiers: where a line is read. Unclaimed reads its lines as an old tape that cuts out (in code). docs/why/StationSound.md#the-pa",
+ "_note": "The station PA (Jon's Nov 26 script and takes, dry): made by tk-scratch/station-sound/pa_v2/game/make_pa.py, measured by tools/dev/station_sound.py pa. play: dock (the first line after a fresh docking), bag (dealt for the whole run), after (a follow-up to a lead whose id starts with one of `after`), leave (no moment plays it yet). needs: heard only once that line was heard this docking. decks: only on those decks. cut: where the tape stops (s). chime: the staff chime first. docs/why/StationSound.md#the-pa",
+ "chime": {
+  "file": "res://assets/audio/station/pa/pa_chime.ogg",
+  "lead": 2.0,
+  "old_lead": 2.58,
+  "src": "ambience/pa_02.ogg's head (the Sep 18 takes' chime)",
+  "secs": 2.53,
+  "ref_loud": -26.14
+ },
+ "bang": {
+  "file": "res://assets/audio/sfx/explosion_small_3.wav",
+  "db": -2.0,
+  "dark": 1.0,
+  "wet": 0.6,
+  "loud": -12.01,
+  "secs": 3.0,
+  "onset": 0.0,
+  "lp": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
  "lines": [
   {
-   "speaker": "Bill",
-   "id": "pa_02",
-   "file": "res://assets/audio/ambience/pa_02.ogg",
-   "tiers": [
-    "outpost",
-    "settlement",
-    "city",
-    "capital"
-   ],
-   "loud": -26.14,
-   "secs": 11.723
-  },
-  {
-   "speaker": "Bill",
-   "id": "pa_03",
-   "file": "res://assets/audio/ambience/pa_03.ogg",
-   "tiers": [
-    "outpost",
-    "settlement",
-    "city",
-    "capital"
-   ],
-   "loud": -26.45,
-   "secs": 9.419
-  },
-  {
+   "id": "dock_1",
    "speaker": "Daniel",
-   "id": "pa_04",
-   "file": "res://assets/audio/ambience/pa_04.ogg",
+   "line": "Bay four, you're on the clamps. Lift's on your left as you come out.",
+   "when": "the player docks",
    "tiers": [
     "outpost",
     "settlement",
-    "city",
-    "capital"
+    "city"
    ],
-   "loud": -26.22,
-   "secs": 11.658
+   "file": "res://assets/audio/station/pa/dock_1.ogg",
+   "take": 1,
+   "play": "dock",
+   "chime": true,
+   "loud": -18.28,
+   "secs": 4.206
   },
   {
+   "id": "dock_4",
    "speaker": "Daniel",
-   "id": "pa_05",
-   "file": "res://assets/audio/ambience/pa_05.ogg",
+   "line": "Bay four, clamps are on. Bay four.",
+   "when": "the player docks",
    "tiers": [
     "outpost",
     "settlement",
-    "city",
-    "capital"
+    "city"
    ],
-   "loud": -26.38,
-   "secs": 7.19
+   "file": "res://assets/audio/station/pa/dock_4.ogg",
+   "take": 2,
+   "play": "dock",
+   "chime": true,
+   "loud": -19.12,
+   "secs": 3.09
   },
   {
-   "speaker": "Alice",
-   "id": "pa_06",
-   "file": "res://assets/audio/ambience/pa_06.ogg",
-   "tiers": [
-    "settlement",
-    "city",
-    "capital"
-   ],
-   "loud": -26.2,
-   "secs": 8.583
-  },
-  {
-   "speaker": "Alice",
-   "id": "pa_07",
-   "file": "res://assets/audio/ambience/pa_07.ogg",
-   "tiers": [
-    "settlement",
-    "city",
-    "capital"
-   ],
-   "loud": -25.67,
-   "secs": 8.583
-  },
-  {
-   "speaker": "Bill",
-   "id": "pa_08",
-   "file": "res://assets/audio/ambience/pa_08.ogg",
-   "tiers": [
-    "outpost",
-    "settlement",
-    "city",
-    "capital"
-   ],
-   "loud": -26.3,
-   "secs": 10.812
-  },
-  {
+   "id": "dock_5",
    "speaker": "Daniel",
-   "id": "pa_09",
-   "file": "res://assets/audio/ambience/pa_09.ogg",
+   "line": "Good dock, bay four. The bay lift's running.",
+   "when": "the player docks",
    "tiers": [
     "outpost",
     "settlement",
-    "city",
-    "capital"
+    "city"
    ],
-   "loud": -26.02,
-   "secs": 11.083
+   "file": "res://assets/audio/station/pa/dock_5.ogg",
+   "take": 2,
+   "play": "dock",
+   "chime": true,
+   "loud": -17.31,
+   "secs": 2.697
   },
   {
-   "speaker": "Alice",
-   "id": "pa_10",
-   "file": "res://assets/audio/ambience/pa_10.ogg",
-   "tiers": [
-    "settlement",
-    "city",
-    "capital"
-   ],
-   "loud": -25.88,
-   "secs": 8.862
-  },
-  {
-   "speaker": "Bill",
-   "id": "pa_12",
-   "file": "res://assets/audio/ambience/pa_12.ogg",
-   "tiers": [
-    "outpost",
-    "settlement",
-    "city",
-    "capital"
-   ],
-   "loud": -26.13,
-   "secs": 8.444
-  },
-  {
+   "id": "leave_1",
    "speaker": "Daniel",
-   "id": "pa_13",
-   "file": "res://assets/audio/ambience/pa_13.ogg",
+   "line": "Bay four, clamps are off. You're clear.",
+   "when": "the player leaves",
    "tiers": [
     "outpost",
     "settlement",
-    "city",
-    "capital"
+    "city"
    ],
-   "loud": -26.21,
-   "secs": 11.501
+   "file": "res://assets/audio/station/pa/leave_1.ogg",
+   "take": 2,
+   "play": "leave",
+   "chime": true,
+   "loud": -19.09,
+   "secs": 2.752
   },
   {
-   "speaker": "Alice",
-   "id": "pa_14",
-   "file": "res://assets/audio/ambience/pa_14.ogg",
+   "id": "leave_4",
+   "speaker": "Daniel",
+   "line": "Bay four, you're released.",
+   "when": "the player leaves",
    "tiers": [
+    "outpost",
     "settlement",
-    "city",
-    "capital"
+    "city"
    ],
-   "loud": -25.67,
-   "secs": 9.676
+   "file": "res://assets/audio/station/pa/leave_4.ogg",
+   "take": 2,
+   "play": "leave",
+   "chime": true,
+   "loud": -18.82,
+   "secs": 1.902
   },
   {
+   "id": "leave_5",
+   "speaker": "Daniel",
+   "line": "Ship leaving bay four. Bay four, keep the lane clear.",
+   "when": "the player leaves",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/leave_5.ogg",
+   "take": 2,
+   "play": "leave",
+   "chime": true,
+   "loud": -18.73,
+   "secs": 3.828
+  },
+  {
+   "id": "ship_1",
    "speaker": "Bill",
-   "id": "pa_15",
-   "file": "res://assets/audio/ambience/pa_15.ogg",
+   "line": "Ship coming in on pad two. Pad two. Get that forklift off the line.",
+   "when": "a ship lands in the yard",
    "tiers": [
     "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/ship_1.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.97,
+   "secs": 5.28
+  },
+  {
+   "id": "ship_5",
+   "speaker": "Bill",
+   "line": "Pad one, ship coming down. Stand back from pad one.",
+   "when": "a ship lands in the yard",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/ship_5.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.32,
+   "secs": 4.464
+  },
+  {
+   "id": "clamp_1",
+   "speaker": "Daniel",
+   "line": "Clamp six is out again. Use five or seven.",
+   "when": "clamp six is down",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/clamp_1.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.2,
+   "secs": 4.063
+  },
+  {
+   "id": "clamp_4",
+   "speaker": "Daniel",
+   "line": "Clamp six is still out. Don't use six.",
+   "when": "clamp six is down",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/clamp_4.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.19,
+   "secs": 3.149
+  },
+  {
+   "id": "clamp_5",
+   "speaker": "Daniel",
+   "line": "Reminder, clamp six is down. Clamp six.",
+   "when": "clamp six is down",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/clamp_5.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.33,
+   "secs": 3.181
+  },
+  {
+   "id": "leak_1",
+   "speaker": "Daniel",
+   "line": "Would the owner of the ship on pad three come back to it, please. It's leaking something onto the pad.",
+   "when": "a ship on pad three is leaking",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/leak_1.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.35,
+   "secs": 5.623
+  },
+  {
+   "id": "leak_4",
+   "speaker": "Daniel",
+   "line": "Pad three, your ship's leaking. Pad three.",
+   "when": "a ship on pad three is leaking",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/leak_4.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -19.98,
+   "secs": 2.8
+  },
+  {
+   "id": "leak_5",
+   "speaker": "Daniel",
+   "line": "Bill, there's a leak on pad three. Pad three.",
+   "when": "a ship on pad three is leaking",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/leak_5.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.77,
+   "secs": 4.45
+  },
+  {
+   "id": "frame_1",
+   "speaker": "Bill",
+   "line": "Somebody left a hull frame on pad five. Pad five. Come and move it.",
+   "when": "something left on a pad",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/frame_1.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.36,
+   "secs": 5.925
+  },
+  {
+   "id": "frame_4",
+   "speaker": "Bill",
+   "line": "Whose cart is this on pad two? Pad two.",
+   "when": "something left on a pad",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/frame_4.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.43,
+   "secs": 3.698
+  },
+  {
+   "id": "frame_5",
+   "speaker": "Bill",
+   "line": "There's a crate sitting on pad four. Come and get it.",
+   "when": "something left on a pad",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/frame_5.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.27,
+   "secs": 3.366
+  },
+  {
+   "id": "board_1",
+   "speaker": "Alice",
+   "line": "New work on the hiring board. Two contracts, posted just now.",
+   "when": "new work on the hiring board",
+   "tiers": [
     "settlement",
     "city",
     "capital"
    ],
-   "loud": -26.59,
-   "secs": 10.094
+   "file": "res://assets/audio/station/pa/board_1.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.6,
+   "secs": 4.671
   },
   {
-   "speaker": "Alice (old tape)",
-   "id": "pa_06_tape",
-   "file": "res://assets/audio/ambience/pa_06.ogg",
+   "id": "board_4",
+   "speaker": "Alice",
+   "line": "New contract on the hiring board.",
+   "when": "new work on the hiring board",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/board_4.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -19.28,
+   "secs": 2.25
+  },
+  {
+   "id": "board_5",
+   "speaker": "Alice",
+   "line": "Hiring board's changed. Three new postings, three.",
+   "when": "new work on the hiring board",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/board_5.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.97,
+   "secs": 3.84
+  },
+  {
+   "id": "shelf_1",
+   "speaker": "Alice",
+   "line": "The Shelf has new stock in.",
+   "when": "the Shelf has restocked",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/shelf_1.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -19.81,
+   "secs": 1.778
+  },
+  {
+   "id": "shelf_4",
+   "speaker": "Alice",
+   "line": "The Shelf's restocked.",
+   "when": "the Shelf has restocked",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/shelf_4.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -19.2,
+   "secs": 1.827
+  },
+  {
+   "id": "shelf_5",
+   "speaker": "Alice",
+   "line": "The Shelf's got a few new things in today.",
+   "when": "the Shelf has restocked",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/shelf_5.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.81,
+   "secs": 2.607
+  },
+  {
+   "id": "patch_1",
+   "speaker": "Alice",
+   "line": "To the person patching a hull on the concourse, please take it down to the yard. You're blocking the lift.",
+   "when": "someone patching a hull on the concourse",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/patch_1.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.68,
+   "secs": 6.76
+  },
+  {
+   "id": "patch_4",
+   "speaker": "Alice",
+   "line": "No hull patching on the concourse, please. Take it to the yard.",
+   "when": "someone patching a hull on the concourse",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/patch_4.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.65,
+   "secs": 3.84
+  },
+  {
+   "id": "patch_5",
+   "speaker": "Alice",
+   "line": "Could the person patching outside the exchange move down to the yard, please.",
+   "when": "someone patching a hull on the concourse",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/patch_5.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.31,
+   "secs": 4.4
+  },
+  {
+   "id": "fuel_1",
+   "speaker": "Daniel",
+   "line": "If you need fuel, it's sold on the outer ring.",
+   "when": "fuel",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/fuel_1.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.2,
+   "secs": 3.111
+  },
+  {
+   "id": "fuel_4",
+   "speaker": "Daniel",
+   "line": "Fuel prices have changed. They're posted on the outer ring.",
+   "when": "fuel",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/fuel_4.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.28,
+   "secs": 3.6
+  },
+  {
+   "id": "fuel_5",
+   "speaker": "Daniel",
+   "line": "Bay four, fuel's on the outer ring if you want it.",
+   "when": "fuel",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/fuel_5.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.67,
+   "secs": 3.023
+  },
+  {
+   "id": "reactor_1",
+   "speaker": "Bill",
+   "line": "That bang was the reactor venting, it's fine.",
+   "when": "the reactor bangs",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/reactor_1.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "bang": true,
+   "loud": -17.71,
+   "secs": 3.467
+  },
+  {
+   "id": "reactor_4",
+   "speaker": "Bill",
+   "line": "Reactor vent in five minutes. Expect a bang.",
+   "when": "the reactor bangs",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/reactor_4.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.68,
+   "secs": 4.16
+  },
+  {
+   "id": "reactor_5",
+   "speaker": "Bill",
+   "line": "Reactor's done venting. No more bangs today.",
+   "when": "the reactor bangs",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/reactor_5.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.21,
+   "secs": 2.985
+  },
+  {
+   "id": "cargo_1",
+   "speaker": "Alice",
+   "line": "Contract cargo goes to the dock office. Dock office, by the bay lift.",
+   "when": "contract cargo goes to the dock office",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/cargo_1.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.07,
+   "secs": 4.96
+  },
+  {
+   "id": "cargo_4",
+   "speaker": "Alice",
+   "line": "Anyone with contract cargo, take it to the dock office.",
+   "when": "contract cargo goes to the dock office",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/cargo_4.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.57,
+   "secs": 3.9
+  },
+  {
+   "id": "cargo_5",
+   "speaker": "Alice",
+   "line": "If it's contract cargo, it goes to the dock office.",
+   "when": "contract cargo goes to the dock office",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/cargo_5.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.16,
+   "secs": 3.283
+  },
+  {
+   "id": "tape_1",
+   "speaker": "Old tape",
+   "line": "Welcome aboard! Your new station is open for business, with a full shipyard and an exchange on the promenade. Please see the station office to cla-",
+   "when": "unclaimed station loop",
    "tiers": [
     "unclaimed"
    ],
-   "loud": -26.2,
-   "secs": 8.583
+   "file": "res://assets/audio/station/pa/tape_1.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": false,
+   "cut": 8.93,
+   "loud": -15.76,
+   "secs": 8.988
   },
   {
-   "speaker": "Alice (old tape)",
-   "id": "pa_07_tape",
-   "file": "res://assets/audio/ambience/pa_07.ogg",
+   "id": "tape_4",
+   "speaker": "Old tape",
+   "line": "Good news, pilots! The shipyard is now open, and patch kits are in sto-",
+   "when": "unclaimed station loop",
    "tiers": [
     "unclaimed"
    ],
-   "loud": -25.67,
-   "secs": 8.583
+   "file": "res://assets/audio/station/pa/tape_4.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": false,
+   "cut": 4.1,
+   "loud": -18.11,
+   "secs": 4.257
   },
   {
-   "speaker": "Alice (old tape)",
-   "id": "pa_10_tape",
-   "file": "res://assets/audio/ambience/pa_10.ogg",
+   "id": "tape_5",
+   "speaker": "Old tape",
+   "line": "Welcome! Please keep your ship in its bay until the clamps show gr-",
+   "when": "unclaimed station loop",
    "tiers": [
     "unclaimed"
    ],
-   "loud": -25.88,
-   "secs": 8.862
+   "file": "res://assets/audio/station/pa/tape_5.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": false,
+   "cut": 3.4,
+   "loud": -18.52,
+   "secs": 3.516
   },
   {
-   "speaker": "Alice (old tape)",
-   "id": "pa_14_tape",
-   "file": "res://assets/audio/ambience/pa_14.ogg",
+   "id": "capital_1",
+   "speaker": "Recording",
+   "line": "Welcome to the capital. Please keep the bay lifts clear for arriving crews.",
+   "when": "capital notices",
    "tiers": [
-    "unclaimed"
+    "capital"
    ],
-   "loud": -25.67,
-   "secs": 9.676
+   "file": "res://assets/audio/station/pa/capital_1.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.14,
+   "secs": 4.275
+  },
+  {
+   "id": "capital_4",
+   "speaker": "Recording",
+   "line": "Hull repairs are not allowed on the promenade. Please use the shipyard.",
+   "when": "capital notices",
+   "tiers": [
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/capital_4.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.38,
+   "secs": 4.299
+  },
+  {
+   "id": "capital_5",
+   "speaker": "Recording",
+   "line": "Fuel is sold on the outer ring.",
+   "when": "capital notices",
+   "tiers": [
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/capital_5.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -19.03,
+   "secs": 1.84
+  },
+  {
+   "id": "free_1",
+   "speaker": "Daniel",
+   "line": "Bill to the traffic desk, please. Bill, traffic desk.",
+   "when": "staff page, any time",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/free_1.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.03,
+   "secs": 4.425
+  },
+  {
+   "id": "free_2",
+   "speaker": "Bill",
+   "line": "Correction on that last one, the ship's for pad four. Pad four.",
+   "when": "a few seconds after a ship-landing call",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/free_2.ogg",
+   "take": 1,
+   "play": "after",
+   "chime": true,
+   "after": [
+    "ship_"
+   ],
+   "loud": -17.29,
+   "secs": 6.07
+  },
+  {
+   "id": "free_3",
+   "speaker": "Alice",
+   "line": "No, leave it on my desk, I'll do it after. Sorry. Station office, the hiring board's been updated.",
+   "when": "open mic before a board notice",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/free_3.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.41,
+   "secs": 7.317
+  },
+  {
+   "id": "free_4",
+   "speaker": "Daniel",
+   "line": "Tug four, traffic desk, you're in the hauler lane. Move over to the ring when you can.",
+   "when": "ring traffic, any time",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/free_4.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.45,
+   "secs": 5.276
+  },
+  {
+   "id": "free_5",
+   "speaker": "Bill",
+   "line": "Who's got the forklift keys? Bring 'em back to the yard office.",
+   "when": "yard, any time",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/free_5.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "decks": [
+    "yard"
+   ],
+   "loud": -18.36,
+   "secs": 4.0
+  },
+  {
+   "id": "free_6",
+   "speaker": "Alice",
+   "line": "Would the crew of the hauler on bay two come to the station office, please. You've left a bag here.",
+   "when": "lost item, any time",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/free_6.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.21,
+   "secs": 7.25
+  },
+  {
+   "id": "page_1",
+   "speaker": "Daniel",
+   "line": "Alice, call the traffic desk when you get a minute.",
+   "when": "staff page",
+   "tiers": [
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/page_1.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.65,
+   "secs": 2.716
+  },
+  {
+   "id": "page_2",
+   "speaker": "Bill",
+   "line": "Daniel, it's the yard. Pick up, will you?",
+   "when": "staff page",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/page_2.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -19.05,
+   "secs": 3.313
+  },
+  {
+   "id": "page_3",
+   "speaker": "Alice",
+   "line": "Bill to the station office, please. Bill, station office.",
+   "when": "staff page",
+   "tiers": [
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/page_3.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.68,
+   "secs": 3.551
+  },
+  {
+   "id": "lift_1",
+   "speaker": "Alice",
+   "line": "The bay lift's out of service. We'll call when it's back.",
+   "when": "the bay lift is out of service",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/lift_1.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.63,
+   "secs": 3.428
+  },
+  {
+   "id": "lift_2",
+   "speaker": "Daniel",
+   "line": "The bay lift's working again, thanks for waiting.",
+   "when": "the bay lift is working again",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/lift_2.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "needs": "lift_1",
+   "loud": -18.26,
+   "secs": 2.524
+  },
+  {
+   "id": "hauler_1",
+   "speaker": "Daniel",
+   "line": "Hauler on approach. Keep the lane clear, please.",
+   "when": "a hauler on approach",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/hauler_1.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.56,
+   "secs": 3.096
+  },
+  {
+   "id": "hauler_2",
+   "speaker": "Daniel",
+   "line": "Hauler coming in to bay two. Bay two, stand clear.",
+   "when": "a hauler on approach",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/hauler_2.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.42,
+   "secs": 4.16
+  },
+  {
+   "id": "shift_1",
+   "speaker": "Bill",
+   "line": "Shift change in the yard. Tools back on the rack.",
+   "when": "shift change",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/shift_1.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "decks": [
+    "yard"
+   ],
+   "loud": -17.99,
+   "secs": 4.32
+  },
+  {
+   "id": "shift_2",
+   "speaker": "Daniel",
+   "line": "Traffic desk, changing shifts. Hold your calls a minute.",
+   "when": "shift change",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/shift_2.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.68,
+   "secs": 3.44
+  },
+  {
+   "id": "welder_2",
+   "speaker": "Bill",
+   "line": "Who's got the welder? Pad four needs it.",
+   "when": "welding in the yard",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/welder_2.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "decks": [
+    "yard"
+   ],
+   "loud": -18.54,
+   "secs": 2.64
+  },
+  {
+   "id": "scrap_1",
+   "speaker": "Bill",
+   "line": "Scrap bin's full. Don't put any more in it.",
+   "when": "the scrap bin",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/scrap_1.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.74,
+   "secs": 3.377
+  },
+  {
+   "id": "scrap_2",
+   "speaker": "Alice",
+   "line": "Scrap's up a bit today, if you're selling.",
+   "when": "scrap prices move",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/scrap_2.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -19.57,
+   "secs": 2.542
+  },
+  {
+   "id": "scrubber_1",
+   "speaker": "Bill",
+   "line": "Air scrubber check in the yard. Ten minutes.",
+   "when": "air scrubber check",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/scrubber_1.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "decks": [
+    "yard"
+   ],
+   "loud": -18.71,
+   "secs": 3.013
+  },
+  {
+   "id": "exchange_1",
+   "speaker": "Alice",
+   "line": "The exchange is open.",
+   "when": "the exchange",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/exchange_1.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.97,
+   "secs": 1.803
+  },
+  {
+   "id": "exchange_2",
+   "speaker": "Alice",
+   "line": "The exchange closes in ten minutes.",
+   "when": "the exchange",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/exchange_2.ogg",
+   "take": 2,
+   "play": "bag",
+   "chime": true,
+   "loud": -17.68,
+   "secs": 2.927
+  },
+  {
+   "id": "lost_1",
+   "speaker": "Alice",
+   "line": "Somebody's left a jacket at the station office. Come and get it.",
+   "when": "a lost item",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/lost_1.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.85,
+   "secs": 3.76
+  },
+  {
+   "id": "lost_2",
+   "speaker": "Bill",
+   "line": "Found a helmet on pad one. It's in the yard office.",
+   "when": "a lost item",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/lost_2.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.3,
+   "secs": 3.68
+  },
+  {
+   "id": "correct_1",
+   "speaker": "Daniel",
+   "line": "Sorry, that hauler's for bay three. Bay three.",
+   "when": "a correction, a few seconds after a hauler call",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/correct_1.ogg",
+   "take": 1,
+   "play": "after",
+   "chime": true,
+   "after": [
+    "hauler_"
+   ],
+   "loud": -18.1,
+   "secs": 3.28
+  },
+  {
+   "id": "correct_2",
+   "speaker": "Alice",
+   "line": "Correction, that's two new contracts on the board.",
+   "when": "a correction, a few seconds after a board call",
+   "tiers": [
+    "settlement",
+    "city",
+    "capital"
+   ],
+   "file": "res://assets/audio/station/pa/correct_2.ogg",
+   "take": 1,
+   "play": "after",
+   "chime": true,
+   "after": [
+    "board_"
+   ],
+   "loud": -18.95,
+   "secs": 3.12
+  },
+  {
+   "id": "tug_1",
+   "speaker": "Daniel",
+   "line": "Tug two, you're clear onto the ring.",
+   "when": "ring traffic",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/tug_1.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -18.92,
+   "secs": 2.366
+  },
+  {
+   "id": "tug_2",
+   "speaker": "Daniel",
+   "line": "All ships, hold on the ring. Hauler's crossing.",
+   "when": "ring traffic",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/tug_2.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "loud": -19.38,
+   "secs": 3.04
+  },
+  {
+   "id": "forklift_1",
+   "speaker": "Bill",
+   "line": "Forklift coming through. Mind your feet.",
+   "when": "forklift moving in the yard",
+   "tiers": [
+    "outpost",
+    "settlement",
+    "city"
+   ],
+   "file": "res://assets/audio/station/pa/forklift_1.ogg",
+   "take": 1,
+   "play": "bag",
+   "chime": true,
+   "decks": [
+    "yard"
+   ],
+   "loud": -18.69,
+   "secs": 3.025
   }
  ]
 }

@@ -45,6 +45,7 @@ SR = S.SR
 ARGS = sys.argv[1:]
 OUT = REPO / "tkg" / "assets" / "audio" / "station"
 GAME = REPO / "tkg" / "assets" / "audio"
+S.GAME = GAME                                                  # (the mixer's game: sources from this checkout, not main's)
 EQ21 = [22, 32, 44, 63, 90, 125, 175, 250, 350, 500, 700, 1000, 1400, 2000, 2800, 4000, 5600, 8000, 11000, 16000, 22000]
 TIERS = ["unclaimed", "outpost", "settlement", "city", "capital"]
 # Each deck's picks (Jon, Nov 26) by tier: (decks.py deck, concept, the tier's change on it). Low beds below
@@ -64,6 +65,12 @@ PICKS = {
     "lab": {"unclaimed": ("lab", "C", dict(behind="low", pa="tape_door")), "outpost": ("lab", "C", dict(behind="low")),
             "settlement": ("lab", "C", {}), "city": ("lab", "C", {}), "capital": ("lab", "C", {})},
 }
+# The PA's wet send by (deck, speaker), for the dry Nov 26 takes (the mixer's were set for the old takes, which carried
+# their own echo): matched so the room fills the gaps between words as much as it did on the old ones, on the game's
+# chain emulated (tk-scratch/station-sound/pa_v2/game/wet_tune.py). The yard's far speaker sits as it was. Why: #the-pa
+PA_WET = {("prom", "cheap"): 0.2, ("prom", "clear"): 0.25, ("prom", "tape"): 0.12, ("yard", "tape"): 0.4,
+          ("exch", "wall"): 0.6, ("exch", "tape_wall"): 0.15, ("board", "wall"): 0.2, ("board", "tape_wall"): 0.1,
+          ("lab", "door"): 0.2, ("lab", "tape_door"): 0.08}
 LAB_BEDS = SS / "lab_beds" / "C_plant"
 LAB_BUS = SS / "lab_beds" / "old_bus.json"
 # The rooms whose mixes the bus numbers come from (the tier variants share their pick's).
@@ -179,7 +186,8 @@ def room_plan(deck, tier, dk, c, cfg, var):
                      if (GAME / "sfx" / f"{n}.wav").exists()}
     for cls, r in cfg["map"].items():
         if cls == "pa":
-            p["pa"] = dict(speaker=var.get("pa", r["speaker"]), db=float(r.get("db", 0.0)), wet=float(r.get("wet", 0.1)),
+            sp = var.get("pa", r["speaker"])
+            p["pa"] = dict(speaker=sp, db=float(r.get("db", 0.0)), wet=PA_WET.get((deck, sp), float(r.get("wet", 0.1))),
                            x=float(r.get("x", 480)))
             continue
         if cls.startswith("game:") or cls == "lampgate":
@@ -497,15 +505,35 @@ def _clunk():
 
 
 def pa():
-    """Each PA line's own loudest second and length, into the table."""
+    """Each PA line's own loudest second and length, into the table; the chime's length and the level it had against
+    the old take it was cut from (`ref_loud`: it plays where it sat on that line); the bang's level, length, first
+    sound and low-pass loss; then each speaker's loss over the new lines into station.json."""
     p = OUT / "pa.json"
     d = json.loads(p.read_text())
     for r in d["lines"]:
         x = take("game:" + r["file"].replace("res://assets/audio/", ""))
         r["loud"] = round(loud1(x), 2)
         r["secs"] = round(len(x) / SR, 3)
+    if "chime" in d:
+        c = d["chime"]
+        x = take("game:" + c["file"].replace("res://assets/audio/", ""))
+        c["secs"] = round(len(x) / SR, 3)
+        c["ref_loud"] = round(loud1(take("game:" + c["src"].split("'")[0])), 2)
+    if "bang" in d:
+        b = d["bang"]
+        x = take("game:" + b["file"].replace("res://assets/audio/", ""))
+        b.update(loud=round(loud1(x), 2), secs=round(len(x) / SR, 3), onset=round(G["sync_point"](x, "onset"), 3),
+                 lp=lp_comp(x))
     p.write_text(json.dumps(d, indent=1), encoding="utf-8", newline=chr(10))
     print("pa:", len(d["lines"]), "lines measured")
+    st = OUT / "station.json"
+    if st.exists():
+        s = json.loads(st.read_text())
+        s["speaker_db"] = speaker_comp()
+        for room in s["rooms"].values():
+            room["pa"]["wet"] = PA_WET.get((room["deck"], room["pa"]["speaker"]), room["pa"]["wet"])
+        st.write_text(json.dumps(s, indent=1), encoding="utf-8", newline=chr(10))
+        print("speaker_db:", s["speaker_db"])
 
 
 def measure(paths):

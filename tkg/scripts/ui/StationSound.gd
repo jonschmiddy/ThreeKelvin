@@ -9,7 +9,8 @@ extends Node
 
 const DIR := "res://assets/audio/station/%s.wav"
 const DATA := "res://assets/audio/station/station.json"
-## The PA's lines: one swappable table (speaker, line id, file, tiers). Why: docs/why/StationSound.md#the-pa
+## The PA's lines: one table (each line's speaker, text, `when`, tiers, file, role; the chime and the bang).
+## Why: docs/why/StationSound.md#the-pa
 const PA_TABLE := "res://assets/audio/station/pa.json"
 ## The plan's 0 dB: the bed's loudest second, where the mixer placed every layer from.
 const REF := -30.0
@@ -29,12 +30,21 @@ const LEVEL_TRIM := {
 	&"exch:unclaimed": -3.6, &"exch:outpost": -3.6, &"exch:settlement": -3.6, &"exch:city": -3.6, &"exch:capital": -3.6,
 	&"board:unclaimed": -3.8, &"board:outpost": -3.8, &"board:settlement": -3.8, &"board:city": -3.8, &"board:capital": -3.8,
 }
-## The PA (plan.md): the first line 15-25 s after docking, then 60-120 s after one ends; never in a ride.
+## The PA (Jon's Nov 26 script): after a fresh docking a dock line 5-8 s after the first deck shows (once the dock's
+## clunk and the deck's power-on are past); where no dock line is read, a line 15-25 s in; then one 60-120 s after
+## one ends, at random; never in a ride.
+const PA_DOCK := Vector2(5.0, 8.0)
 const PA_FIRST := Vector2(15.0, 25.0)
 const PA_GAP := Vector2(60.0, 120.0)
-## The unclaimed tape: dips (start, end, depth, as parts of the line), where it cuts out, its wow (the mixer's).
+## A follow-up (a row with `after`): about one lead in three, 5-10 s after the lead ends; dropped if a ride holds it 15 s.
+const PA_AFTER := Vector2(5.0, 10.0)
+const PA_AFTER_P := 1.0 / 3.0
+const PA_AFTER_LATE := 15.0
+## reactor_1 ("That bang was the reactor venting") comes this long after its bang starts (then its chime).
+const BANG_LEAD := 1.2
+## The unclaimed tape: dips (start, end, depth, as parts of the line), its wow (the mixer's); it cuts where its row's
+## `cut` says the written line stops.
 const TAPE_DIPS := [[0.38, 0.47, 0.08], [0.61, 0.645, 0.25]]
-const TAPE_CUT := 0.78
 ## The yard's rare events with no sound (Jon, Nov 25, 4B): the jokes. Every other rare event is listed with its sound.
 const JOKES: Array[String] = ["E6", "E11", "E12", "E13", "E18", "E20"]
 ## The screen's middle, where the mixer's ships and flyers were "passing", and its width for the pan.
@@ -46,6 +56,15 @@ static var record := false
 static var _shared: StationSound = null
 static var _data: Dictionary[String, Variant] = {}
 static var _pa_rows: Array[Dictionary] = []
+static var _pa_ids: Dictionary[String, Dictionary] = {}
+static var _pa_extra: Dictionary[String, Dictionary] = {}
+## The PA's dealing lasts the run (static: across dockings and decks), so the whole pool is heard before any line
+## twice (Jon, Nov 26: "really random"): the bag of line ids, the dock lines' own bag, the last line read.
+static var pa_rng := RandomNumberGenerator.new()
+static var _pa_bag: Array[String] = []
+static var _pa_dock_bag: Array[String] = []
+static var _pa_last_when := ""
+static var _pa_last_id := ""
 ## How long each deck took to open (ms), by deck: printed by the films and the test.
 static var open_ms: Dictionary[StringName, float] = {}
 
@@ -69,11 +88,20 @@ var _n: Dictionary[StringName, int] = {}
 var _seen: Dictionary[String, Variant] = {}
 var _pa: Voice = null
 var _pa_next := INF
-var _pa_bag: Array[int] = []
 var _pa_len := 0.0
 var _pa_t0 := 0.0
 var _pa_tape := false
 var _pa_cut := false
+var _pa_cut_at := INF
+## The line being announced (its bang or chime playing) and when its next step is due.
+var _pa_line: Dictionary = {}
+var _pa_line_at := INF
+var _pa_chimed := false
+## Follow-ups due ({row, at}), the lines heard this docking (lift_2 waits for lift_1), and a fresh docking's dock line.
+var _pa_after: Array[Dictionary] = []
+var _pa_heard: Dictionary[String, bool] = {}
+var _pa_fresh := false
+var _pa_dock_due := false
 var _yt := -1.0
 ## When the deck on show came up (its bed comes in over half a second from then).
 var _shown_at := 0.0
@@ -207,12 +235,15 @@ func dock(_scr: Control, fresh: bool) -> void:
 		for dk: StringName in [&"prom", &"yard", &"exch", &"board", &"lab"]:
 			for f in files_of(plan_of(dk, tier)):
 				_ask(DIR % f)
-		for r in _pa_for(tier):
-			_ask(String(r.get("file", "")))
+		for f in _pa_files(tier):
+			_ask(f)
 	open_ms[&"dock"] = (Time.get_ticks_usec() - us) / 1000.0
 	if fresh:
+		# (the bags carry on: a new docking hears the rest of the pool)
 		_pa_next = INF
-		_pa_bag.clear()
+		_pa_heard.clear()
+		_pa_after.clear()
+		_pa_fresh = true
 
 
 func _ask(path: String) -> void:
@@ -257,7 +288,11 @@ func show_deck(id: StringName) -> void:
 		Audio.room(DECKS_ROOM, 0.4)
 	if not plan.is_empty():
 		if _pa_next == INF:
-			_pa_next = t + randf_range(PA_FIRST.x, PA_FIRST.y)
+			_pa_dock_due = _pa_fresh and pa_rows().any(func(r: Dictionary) -> bool:
+				return pa_fits(r, "dock", tier, dk, {}))
+			_pa_fresh = false
+			var w := PA_DOCK if _pa_dock_due else PA_FIRST
+			_pa_next = t + pa_rng.randf_range(w.x, w.y)
 		StationBus.set_room(plan, _live)
 		if _live:
 			for f in files_of(plan):
@@ -273,6 +308,8 @@ func hush(secs: float = 0.3) -> void:
 			v.rate = -1.0 / maxf(0.01, secs)
 			v.stop_at = -INF
 	_loops.clear()
+	if _pa_line_at < INF:
+		_pa_cancel()
 
 
 ## Leaving the station: silent, and the next docking's PA starts over.
@@ -281,6 +318,9 @@ func leave() -> void:
 	deck = &""
 	plan = {}
 	_pa_next = INF
+	_pa_line = {}
+	_pa_line_at = INF
+	_pa_after.clear()
 	_screen = null
 
 
@@ -405,7 +445,11 @@ func _route(v: Voice, x: float, k: float, dark: float) -> float:
 
 
 static func dark_comp(f: StringName, dark: float) -> float:
-	var lp: Array = file_info(f).get("lp", [])
+	return _lp_at(file_info(f).get("lp", []), dark)
+
+
+## dB back for the low-pass at `dark`, from a file's 21-step loss (`lp`).
+static func _lp_at(lp: Array, dark: float) -> float:
 	if lp.is_empty() or dark <= 0.0:
 		return 0.0
 	var u := clampf(dark, 0.0, 1.0) * 20.0
@@ -750,35 +794,230 @@ func _fork() -> void:
 
 
 # ------------------------------------------------------------------ the PA
-func _pa_for(tr: String) -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
-	for r in pa_rows():
-		if (r.get("tiers", TIERS) as Array).has(tr) and ResourceLoader.exists(String(r.get("file", ""))):
-			out.append(r)
+## The table's chime and bang ({} where it has none).
+static func pa_extra(key: String) -> Dictionary[String, Variant]:
+	if _pa_extra.is_empty():
+		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(PA_TABLE))
+		if d is Dictionary:
+			for k: String in ["chime", "bang"]:
+				_pa_extra[k] = (d as Dictionary).get(k, {})
+	var out: Dictionary[String, Variant] = {}
+	out.assign(_pa_extra.get(key, {}))
 	return out
 
 
-## A line from the table when one is due (a bag: all before any twice), through this deck's speaker; never in a ride.
+## A row of the table by id ({} if none).
+static func pa_row(id: String) -> Dictionary[String, Variant]:
+	if _pa_ids.is_empty():
+		for r in pa_rows():
+			_pa_ids[String(r.get("id", ""))] = r
+	var out: Dictionary[String, Variant] = {}
+	out.assign(_pa_ids.get(id, {}))
+	return out
+
+
+## Whether a row can be dealt here (`play` its role in the table): its tier, its decks if it names any, the line it
+## needs heard first this docking if any, and its file on disk.
+static func pa_fits(r: Dictionary, play: String, tr: String, dk: StringName, heard: Dictionary) -> bool:
+	if r.is_empty() or String(r.get("play", "bag")) != play or not (r.get("tiers", TIERS) as Array).has(tr):
+		return false
+	var decks: Array = r.get("decks", [])
+	if not decks.is_empty() and not decks.has(String(dk)):
+		return false
+	var need := String(r.get("needs", ""))
+	if need != "" and not heard.has(need):
+		return false
+	return ResourceLoader.exists(String(r.get("file", "")))
+
+
+## The next line for here from the bag (`play` "bag") or the dock lines' own (`play` "dock"). The bags last the run:
+## drawn from the back; when none in it fits here, the lines it no longer holds go in at the front, shuffled, so what
+## is left is heard first. Never the same `when` twice running, nor the same line, while another fits. {} if none fits.
+static func pa_draw(play: String, tr: String, dk: StringName, heard: Dictionary) -> Dictionary[String, Variant]:
+	var bag: Array[String] = _pa_dock_bag if play == "dock" else _pa_bag
+	var fits := func(id: String) -> bool: return pa_fits(pa_row(id), play, tr, dk, heard)
+	if not bag.any(fits):
+		var fresh: Array[String] = []
+		for r in pa_rows():
+			var id := String(r.get("id", ""))
+			if String(r.get("play", "bag")) == play and not bag.has(id):
+				fresh.append(id)
+		for i in range(fresh.size() - 1, 0, -1):
+			var j := pa_rng.randi_range(0, i)
+			var s := fresh[i]
+			fresh[i] = fresh[j]
+			fresh[j] = s
+		fresh.append_array(bag)
+		bag.assign(fresh)
+	var pick := -1
+	var best := -1
+	for i in range(bag.size() - 1, -1, -1):
+		var r := pa_row(bag[i])
+		if not pa_fits(r, play, tr, dk, heard):
+			continue
+		var score := 2 if String(r.get("when", "")) != _pa_last_when else (1 if bag[i] != _pa_last_id else 0)
+		if score > best:
+			best = score
+			pick = i
+		if score == 2:
+			break
+	if pick < 0:
+		return {}
+	var out := pa_row(bag[pick])
+	bag.remove_at(pick)
+	_pa_last_when = String(out.get("when", ""))
+	_pa_last_id = String(out.get("id", ""))
+	return out
+
+
+## Every file the PA can play at a tier: its lines there, the chime and the bang.
+func _pa_files(tr: String) -> Array[String]:
+	var out: Array[String] = [String(pa_extra("chime").get("file", "")), String(pa_extra("bang").get("file", ""))]
+	for r in pa_rows():
+		if (r.get("tiers", TIERS) as Array).has(tr):
+			out.append(String(r.get("file", "")))
+	return out
+
+
+func pa_busy() -> bool:
+	return _pa != null and _pa.busy and _pa.id == &"pa"
+
+
+## The PA silent and owing nothing (the tests): no follow-up due, no line waiting on its chime, none playing.
+func pa_quiet() -> void:
+	_pa_after.clear()
+	_pa_line = {}
+	_pa_line_at = INF
+	if pa_busy():
+		_stop(_pa)
+
+
+## The PA, each frame of a deck with a speaker: the dock line or a bag line when one is due, a follow-up when its
+## time comes, the steps of the one being read (bang, chime, line); never in a ride, one at a time.
 func _pa_tick() -> void:
 	var pa: Dictionary = plan.get("pa", {})
-	if _pa != null and _pa.busy and _pa.id == &"pa":
+	if pa_busy():
 		_tape_env()
-	if pa.is_empty() or _riding or t < _pa_next:
+	if pa.is_empty():
 		return
-	var rows := _pa_for(tier)
-	if rows.is_empty():
-		_pa_next = INF
+	if _riding:
+		if _pa_line_at < INF:
+			_pa_cancel()
 		return
-	if _pa_bag.is_empty():
-		for i in rows.size():
-			_pa_bag.append(i)
-		_pa_bag.shuffle()
-	var r: Dictionary = rows[_pa_bag.pop_back() % rows.size()]
+	if t >= _pa_line_at:
+		_pa_step(pa)
+		return
+	if _pa_line_at < INF or pa_busy():
+		return
+	for i in _pa_after.size():
+		var f: Dictionary = _pa_after[i]
+		if t >= float(f["at"]):
+			_pa_after.remove_at(i)
+			if t - float(f["at"]) < PA_AFTER_LATE and pa_fits(f["row"], "after", tier, deck, _pa_heard):
+				announce(f["row"])
+			return
+	if t < _pa_next:
+		return
+	var r: Dictionary = {}
+	if _pa_dock_due:
+		r = pa_draw("dock", tier, deck, _pa_heard)
+	_pa_dock_due = false
+	if r.is_empty():
+		r = pa_draw("bag", tier, deck, _pa_heard)
+	if r.is_empty():
+		# (nothing in the table fits here now: try again a gap on)
+		_pa_next = t + pa_rng.randf_range(PA_GAP.x, PA_GAP.y)
+		return
+	announce(r)
+
+
+## A line as the PA reads it: the reactor's bang first if the line follows one, the chime if it has one, then the line.
+func announce(r: Dictionary) -> void:
+	var pa: Dictionary = plan.get("pa", {})
+	_pa_line = r
+	_pa_chimed = not bool(r.get("chime", false)) or pa_extra("chime").is_empty()
+	_pa_line_at = t
+	if bool(r.get("bang", false)) and not pa_extra("bang").is_empty():
+		_pa_bang(pa)
+		_pa_line_at = t + BANG_LEAD
+	if t >= _pa_line_at:
+		_pa_step(pa)
+
+
+func _pa_step(pa: Dictionary) -> void:
+	if not _pa_chimed:
+		_pa_chimed = true
+		_pa_chime(pa)
+		_pa_line_at = t + float(pa_extra("chime").get("lead", 2.0))
+		return
+	var r := _pa_line
+	_pa_line = {}
+	_pa_line_at = INF
 	say(r, pa)
-	_pa_next = t + _pa_len + randf_range(PA_GAP.x, PA_GAP.y)
 
 
-## Read one row of the table now, through `pa`'s speaker (the tests call it).
+## A line waiting on its chime goes with it (a ride, a deck changed): the next comes sooner than a gap.
+func _pa_cancel() -> void:
+	_pa_line = {}
+	_pa_line_at = INF
+	_pa_next = minf(_pa_next, t + pa_rng.randf_range(PA_FIRST.x, PA_FIRST.y))
+
+
+## A PA voice through this deck's speaker: its buses, its pan, its level for a file of loudness `loud`.
+func _pa_voice(v: Voice, pa: Dictionary, path: String, loud: float, secs: float) -> void:
+	var kind := String(pa.get("speaker", "clear"))
+	_start(v, path, 0.0, 1.0)
+	if _live:
+		v.dry.bus = StationBus.pa_bus(kind, false)
+		v.wet.bus = StationBus.pa_bus(kind, true)
+	v.loop = false
+	v.env = 1.0
+	v.rate = 0.0
+	v.ends = t + secs + 0.1
+	var pn := HangarSound.pan_for(float(pa.get("x", MID_X)), 0.5)
+	if _live:
+		StationBus.route(v.dry.bus, pn.x, 0.0)
+		StationBus.route(v.wet.bus, pn.x, 0.0)
+	var comp := float((data().get("speaker_db", {}) as Dictionary).get(kind, 0.0))
+	v.dry_db = REF + float(plan.get("ref_db", 0.0)) + float(pa.get("db", 0.0)) - loud + comp + pn.y
+	v.wet_db = v.dry_db + linear_to_db(maxf(float(pa.get("wet", 0.1)), 1e-4))
+
+
+## The staff chime, through the speaker, where it sat on the old take it was cut from (`ref_loud`).
+func _pa_chime(pa: Dictionary) -> void:
+	var c := pa_extra("chime")
+	var v := _free_voice()
+	if v == null:
+		return
+	_pa_voice(v, pa, String(c.get("file", "")), float(c.get("ref_loud", -26.0)), float(c.get("secs", 2.5)))
+	v.id = &"pa_chime"
+	_log(&"pa_chime", &"pa_chime", float(pa.get("x", MID_X)), float(pa.get("db", 0.0)))
+
+
+## The reactor venting: a heavy game sound far off, through the deck's room (dark, wet), at the PA's level for the deck.
+func _pa_bang(pa: Dictionary) -> void:
+	var b := pa_extra("bang")
+	var v := _free_voice()
+	if v == null:
+		return
+	var path := String(b.get("file", ""))
+	_start(v, path, 0.0, 1.0)
+	v.id = &"pa_bang"
+	v.loop = false
+	v.env = 1.0
+	v.rate = 0.0
+	v.ends = t + float(b.get("secs", 3.0)) + 0.05
+	var dark := dk(float(b.get("dark", 1.0)))
+	var pan_db := _route(v, float(pa.get("x", MID_X)), 0.5, dark)
+	var rel := float(b.get("db", 0.0)) + float(pa.get("db", 0.0))
+	v.dry_db = rel + REF + float(plan.get("ref_db", 0.0)) - float(b.get("loud", -20.0)) \
+		+ _lp_at(b.get("lp", []), dark) + pan_db
+	v.wet_db = v.dry_db + linear_to_db(maxf(float(b.get("wet", 0.5)), 1e-4))
+	_log(&"pa_bang", StringName(path.get_file().get_basename()), float(pa.get("x", MID_X)), rel)
+
+
+## Read one row of the table now, through `pa`'s speaker (the tests call it): no chime (`announce` has it). Its
+## follow-up, if it leads one, is rolled now; a bag or dock line sets when the next is due.
 func say(r: Dictionary, pa: Dictionary) -> void:
 	var kind := String(pa.get("speaker", "clear"))
 	var v := _free_voice()
@@ -788,43 +1027,53 @@ func say(r: Dictionary, pa: Dictionary) -> void:
 	_pa_tape = kind.begins_with("tape")
 	_pa_cut = false
 	_pa_len = float(r.get("secs", 10.0))
+	_pa_cut_at = minf(float(r.get("cut", _pa_len)), _pa_len)
 	_pa_t0 = t
-	_start(v, String(r.get("file", "")), 0.0, 1.0)
-	if _live:
-		v.dry.bus = StationBus.pa_bus(kind, false)
-		v.wet.bus = StationBus.pa_bus(kind, true)
+	_pa_voice(v, pa, String(r.get("file", "")), float(r.get("loud", -20.0)), _pa_cut_at if _pa_tape else _pa_len)
 	v.id = &"pa"
-	v.loop = false
-	v.env = 1.0
-	v.rate = 0.0
-	v.ends = t + _pa_len * (TAPE_CUT if _pa_tape else 1.0) + 0.1
-	var pn := HangarSound.pan_for(float(pa.get("x", MID_X)), 0.5)
-	if _live:
-		StationBus.route(v.dry.bus, pn.x, 0.0)
-		StationBus.route(v.wet.bus, pn.x, 0.0)
-	var comp := float((data().get("speaker_db", {}) as Dictionary).get(kind, 0.0))
-	v.dry_db = REF + float(plan.get("ref_db", 0.0)) + float(pa.get("db", 0.0)) - float(r.get("loud", -20.0)) + comp + pn.y
-	v.wet_db = v.dry_db + linear_to_db(maxf(float(pa.get("wet", 0.1)), 1e-4))
-	_log(&"pa", StringName(str(r.get("id", ""))), float(pa.get("x", MID_X)), float(pa.get("db", 0.0)),
-		{"speaker": kind, "tape": _pa_tape})
+	var id := String(r.get("id", ""))
+	var play := String(r.get("play", "bag"))
+	_pa_heard[id] = true
+	if play != "after":
+		_pa_next = t + _pa_len + pa_rng.randf_range(PA_GAP.x, PA_GAP.y)
+		pa_follow(id)
+	_log(&"pa", StringName(id), float(pa.get("x", MID_X)), float(pa.get("db", 0.0)),
+		{"speaker": kind, "tape": _pa_tape, "play": play, "cut": _pa_cut_at if _pa_tape else -1.0})
 
 
-## The unclaimed tape: its wow and flutter, two dropouts, and the cut part way through with a clunk (the mixer's).
+## About one lead in three gets its follow-up (a row whose `after` names the lead's start), 5-10 s after it ends.
+func pa_follow(id: String) -> void:
+	var fs: Array[Dictionary] = []
+	for r in pa_rows():
+		if String(r.get("play", "")) != "after" or not pa_fits(r, "after", tier, deck, _pa_heard):
+			continue
+		for p: Variant in r.get("after", []):
+			if id.begins_with(String(p)):
+				fs.append(r)
+				break
+	if fs.is_empty() or pa_rng.randf() >= PA_AFTER_P:
+		return
+	_pa_after.append({"row": fs[pa_rng.randi_range(0, fs.size() - 1)],
+		"at": t + _pa_len + pa_rng.randf_range(PA_AFTER.x, PA_AFTER.y)})
+
+
+## The unclaimed tape: its wow and flutter, two dropouts, and the cut where its row's line stops (`cut`, s) with a
+## clunk (the mixer's).
 func _tape_env() -> void:
 	if not _pa_tape:
 		return
-	var u := (t - _pa_t0) / maxf(0.1, _pa_len)
+	var tt := t - _pa_t0
+	var u := tt / maxf(0.1, _pa_len)
 	var g := 1.0
 	for d: Array in TAPE_DIPS:
 		if u >= float(d[0]) and u < float(d[1]):
 			g = float(d[2])
 	_pa.level = g
 	if _live:
-		var tt := t - _pa_t0
 		var wow := 1.0 + 0.006 * TAU * 0.55 * cos(TAU * 0.55 * tt) + 0.002 * TAU * 6.3 * cos(TAU * 6.3 * tt + 1.0)
 		_pa.dry.pitch_scale = wow
 		_pa.wet.pitch_scale = wow
-	if u >= TAPE_CUT and not _pa_cut:
+	if tt >= _pa_cut_at and not _pa_cut:
 		_pa_cut = true
 		_pa.rate = -1.0 / 0.005
 		_pa.stop_at = -INF
@@ -839,7 +1088,7 @@ func _tape_env() -> void:
 			_route(v, float((plan.get("pa", {}) as Dictionary).get("x", MID_X)), 0.5, 0.0)
 			v.dry_db = _pa.dry_db + 20.0 * log(0.03 / 0.1) / log(10.0)
 			v.wet_db = _pa.wet_db + 20.0 * log(0.03 / 0.1) / log(10.0)
-			_log(&"pa_clunk", &"pa_tape_clunk", MID_X, 0.0)
+			_log(&"pa_clunk", &"pa_tape_clunk", MID_X, 0.0, {"at": tt})
 
 
 # ------------------------------------------------------------------ the Board's own sounds
