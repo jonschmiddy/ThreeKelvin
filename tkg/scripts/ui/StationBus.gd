@@ -89,9 +89,12 @@ static func pa_bus(kind: String, wet: bool) -> StringName:
 	var n := ("StationPAW_%s" if wet else "StationPA_%s") % kind
 	if AudioServer.get_bus_index(n) >= 0:
 		return StringName(n)
-	var idx := _bus(n, &"StationHall" if wet else &"Station")
-	AudioServer.add_bus_effect(idx, AudioEffectPanner.new())
 	var sp: Dictionary = (StationSound.data().get("speakers", {}) as Dictionary).get(kind, {})
+	var to := &"StationHall"
+	if sp.has("hall"):
+		to = pa_hall(String(sp["hall"]))
+	var idx := _bus(n, to if wet else &"Station")
+	AudioServer.add_bus_effect(idx, AudioEffectPanner.new())
 	for f: Variant in sp.get("hp", []):
 		var hp := AudioEffectHighPassFilter.new()
 		hp.cutoff_hz = float(f)
@@ -110,6 +113,32 @@ static func pa_bus(kind: String, wet: bool) -> StringName:
 		for hz: Variant in bells:
 			eq.set_band_gain_db(EQ10_HZ.find(int(str(hz))), float(bells[hz]))
 		AudioServer.add_bus_effect(idx, eq)
+	return StringName(n)
+
+
+## A hall of the PA's own (`station.json` `pa_halls`): a speaker heard out in a room other than the deck's (the
+## concourse through a doorway), so its echo is that room's, not the deck's. Why: docs/why/StationSound.md#the-pa
+static func pa_hall(name: String) -> StringName:
+	var n := "StationPAHall_%s" % name
+	if AudioServer.get_bus_index(n) >= 0:
+		return StringName(n)
+	var h: Dictionary = (StationSound.data().get("pa_halls", {}) as Dictionary).get(name, {})
+	var idx := _bus(n, &"Station")
+	var rv := AudioEffectReverb.new()
+	rv.spread = 1.0
+	rv.hipass = 0.0
+	rv.dry = 0.0
+	rv.wet = 1.0
+	rv.predelay_feedback = 0.0
+	rv.room_size = float(h.get("room", 0.7))
+	rv.damping = float(h.get("damp", 0.45))
+	rv.predelay_msec = float(h.get("predelay", 37.0))
+	AudioServer.add_bus_effect(idx, rv)
+	var sh := AudioEffectHighShelfFilter.new()
+	sh.cutoff_hz = 5000.0
+	sh.gain = float(h.get("shelf", 0.25))
+	AudioServer.add_bus_effect(idx, sh)
+	AudioServer.set_bus_volume_db(idx, float(h.get("db", -5.0)))
 	return StringName(n)
 
 

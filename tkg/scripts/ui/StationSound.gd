@@ -173,7 +173,19 @@ static func plan_of(dk: StringName, tr: String) -> Dictionary[String, Variant]:
 	var r: Variant = (data().get("rooms", {}) as Dictionary).get("%s:%s" % [dk, tr])
 	if r is Dictionary:
 		out.assign(r)
+		var idea: Variant = (out.get("pa_ideas", {}) as Dictionary).get(pa_pick())
+		if idea is Dictionary:
+			out["pa"] = idea
 	return out
+
+
+## The PA idea on trial (station.json `pa_pick`, or `pa_pick=X` on the command line for the films); "" for the room's
+## own `pa`. Why: docs/why/StationSound.md#the-pa
+static func pa_pick() -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("pa_pick="):
+			return a.trim_prefix("pa_pick=")
+	return String(data().get("pa_pick", ""))
 
 
 ## Every file a plan plays.

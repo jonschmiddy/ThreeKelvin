@@ -129,6 +129,26 @@ game's chain emulated: pa_v2/game/wet_tune.py, `PA_WET` in station_sound.py). Pr
 Exchange 0.05 to 0.6 (its room is tiny, so it takes a lot), the Board and the Lab 0 to 0.2, the tapes 0.08 to 0.15;
 the Shipyard's far speaker already matched (0.5, 0.4), its tape 0.5 to 0.4.
 
+**Three ideas on trial** (Jon, Nov 26, after the films: the yard's PA "sounds GREAT", the Promenade's, Exchange's,
+Board's and Lab's "weird"). The cause, measured on the game's chain emulated (pa_v2/game/chain_spec.py): the old takes
+were already a PA's band (nothing much under 400 Hz: 250 Hz sat 30 dB under 1 kHz), the new ones are full range (250 Hz
+level with 1 kHz). Through the wall's and door's 520 and 380 Hz low-passes the new lines are all chest: 100-250 Hz
+40-50 dB over 1 kHz, no consonants left, a boomy mumble, and as `speaker_db` makes the loudness up after the filter,
+that boom is played at full level (the Lab's line rose from about 4 to 6 dB over its bed). Through `clear` (220 Hz-6
+kHz) the new lines keep their body and their highs: a hi-fi voice in the room, not a PA. The yard's `far` chain
+(260 Hz-2.4 kHz, steep) cuts them to the same band the old takes had, and its big wet send makes it far away: that is
+the PA Jon liked. The raised wet sends added echo to a chain that was already wrong. So each room's `pa_ideas` holds
+three ways to hear it, picked by station.json `pa_pick` ("" for the room's own `pa`; `pa_pick=X` on the command line
+overrides it for a film), made by `station_sound.py` (PA_IDEAS):
+A, the yard's PA everywhere: `far` on every deck, its own room's hall at wet 0.4, the deck's level.
+B, a speaker in this room: a small ceiling speaker (`ceiling`, 300 Hz-3 kHz) inside the room, close, only the room's own
+short echo (its `wet_base`); the Board, Exchange and Lab hear it in the room, not through the wall, 4 dB up.
+By capture each line sits about as far over its bed as the old ones did (IDEA_TRIM: the Board 3 dB up in all three,
+the Lab's B 2 dB down).
+C, out on the concourse: the yard-style PA in the big hall outside, through an open doorway (`concourse`: the far chain
+then 1.8 kHz, its wet into its own hall, `pa_halls.concourse`, the Promenade's 2 s unclaimed fit), 3 dB down, wet 0.5;
+on the Promenade itself, the far chain in the Promenade's hall (A). The tape follows each (`tape`, `tape_concourse`).
+
 **The tape** (unclaimed) is code too: wow and flutter on the pitch, band-limited 380 Hz-3 kHz, two dropouts (38-47 % of
 the line at 8 %, 61-64.5 % at 25 %), cut dead with a small clunk where its row's `cut` says the written line stops:
 tape_1 at 8.93 s (after "cla-"), tape_4 at 4.10 s (the take says all of "stock": just into its vowel, after the
