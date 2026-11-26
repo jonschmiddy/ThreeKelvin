@@ -119,3 +119,19 @@ its clamp packed as hundredths, its multiplier; a weld wisp its centre's whole p
 (the two arcs' places are plain uniforms), the centre's fraction riding in its rect's colour (the item's origin is
 not usable: batching can bake it into the vertices). A contact shadow packs its darkness with its length. 172
 items now use 172 slots, and the picture is the same to the pixel.
+
+## remembered-poses
+
+`recall` hands a layer the remembered pose's own packed arrays (Godot passes packed arrays by reference), so the
+next frame's `clear` must give the layer new arrays rather than `.clear()` them in place. Clearing in place emptied
+the memo: each remembered pose drew for two frames and then nothing until the next pose. Seen Nov 25 as the office
+clerks blinking about six times a second (Jon: "This room is flickering in and out"), and it also hid the hoist's
+chain, the lamp tech's arm and beam and, whenever the crane came back to an earlier swing, its rigging.
+`-- sheet=ShipRoomMemoTest` steps the whole loop and fails 12 ways without the fix.
+
+## relight
+
+The hall lamps relighting after the engine test (film frames 506-548) took a new value every frame, so they
+blinked about 27 times a second. Jon picked A (Nov 26) of two fixes shown at game scale: each lamp holds a value
+for 3 or 4 frames, so it stutters on 8 to 10 times a second, like old lamps catching. B, a dip and a smooth
+fade up, was the other.

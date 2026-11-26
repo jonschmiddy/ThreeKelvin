@@ -35,7 +35,8 @@ void fragment() {
 	// a dot, or a near mote's dot with two dimmer pixels right and below
 	float k = q == ivec2(0) ? 1.0 : (halo > 0.5 && q.x + q.y == 1 ? 0.35 : 0.0);
 	vec3 c = bright * k * level * SOD;
-	if (k * bright <= 0.0) {
+	// unlit, a mote is not there: never paste the screen copy back over what was drawn since
+	if (k * bright * level <= 0.0) {
 		discard;
 	}
 	vec3 dst = texture(screen, SCREEN_UV).rgb;

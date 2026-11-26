@@ -263,7 +263,8 @@ func _room_for(screen: Control) -> Variant:
 		# (each deck plays its own room, `StationSound`; the Lab asks for the old tone under it)
 		return StationSound.DECKS_ROOM
 	if screen is ChassisSelect:
-		return Audio.YARD_ROOM
+		# (its rooms play their own beds: `HangarSound`)
+		return &""
 	if screen is SectorScreen or screen is SystemMapScreen:
 		return _star_room()
 	# (the refit page, reached only by the harnesses now, sounds like where your

@@ -281,6 +281,9 @@ func _step(g: int) -> void:
 		_fa[b] = _air.fa
 		_fb[b] = _air.fb
 		_fc[b] = _air.fc
+	if _air.pushed >= 0:
+		HangarSound.banner_push(_air.push_k)
+		_air.pushed = -1
 	var m := _integ[g]
 	m.set_shader_parameter(&"fa", _fa)
 	m.set_shader_parameter(&"fb", _fb)

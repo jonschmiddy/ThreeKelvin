@@ -3,7 +3,7 @@ extends Node
 ## The ship-select rooms as a player meets them, to lay beside the approved films:
 ## `room=korvan|solari|old at=0,5,10 out=<dir> [pick=medium] [film=S] [set=calyx]`, with `--fixed-fps 30`
 ## so the room's clock steps as the films' did; needs a window (render.sh). docs/tests.md.
-## Banners: `bt=` `strip=1` `state=1` `banners=off` `events=<json>` `perf=1` `dev=1`; a lift: `launch=1`, `sink=1` (docs/tests.md).
+## Banners: `bt=` `strip=1` `state=1` `banners=off` `events=<json>` `perf=1` `dev=1`; a lift: `launch=1`, `sink=1`; the hangar hall: `hallprobe=1` (docs/tests.md).
 
 var _out := ""
 var _events: Array = []
@@ -64,20 +64,23 @@ func _run() -> void:
 		print("  %-6s thing %s posts %s top %d feet %d guns %s" % [HullData.weight_name(w), s.thing, s.post_x,
 			s.post_top, s.feet, s.guns])
 	var film := float(Harness.arg("film", "0"))
+	# `hallprobe=1`: the hangar's hall measured instead of the room (`HangarSound.probe`)
+	if Harness.arg("hallprobe") == "1":
+		HangarSound.shared().probe()
 	if film > 0.0:
 		var t0 := y.room.t
 		while y.room.t - t0 < film:
 			await get_tree().process_frame
 		print("shiproomshot: filmed %.1f s" % film)
-		get_tree().quit()
+		await _quit()
 		return
 	if Harness.arg("perf") == "1":
 		await _perf(y)
-		get_tree().quit()
+		await _quit()
 		return
 	if Harness.arg("launch") == "1":
 		await _launch_shots(cs, room)
-		get_tree().quit()
+		await _quit()
 		return
 	# `sink=1`: every berth's columns at 0, 6 and 12 rows down (`retract`), a still each: the Old hangar has no launch
 	if Harness.arg("sink") == "1":
@@ -87,11 +90,11 @@ func _run() -> void:
 			await RenderingServer.frame_post_draw
 			await RenderingServer.frame_post_draw
 			_shot("%s_sink_%02d" % [room, r])
-		get_tree().quit()
+		await _quit()
 		return
 	if Harness.arg("bt") != "":
 		await _banner_shots(y, room)
-		get_tree().quit()
+		await _quit()
 		return
 	var ats: Array[float] = []
 	for a in Harness.arg("at", "0,5,10").split(",", false):
@@ -103,6 +106,15 @@ func _run() -> void:
 		await RenderingServer.frame_post_draw
 		_shot("%s_%05.1f" % [room, a])
 	print("shiproomshot: done, %s" % _out)
+	await _quit()
+
+
+## The hangar's voices hushed and stopped before quitting, so none is still playing at exit (a playing voice's
+## stream was reported in use at exit).
+func _quit() -> void:
+	HangarSound.shared().show_room(null, null)
+	for f in 20:
+		await get_tree().process_frame
 	get_tree().quit()
 
 

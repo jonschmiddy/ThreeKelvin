@@ -225,7 +225,7 @@ func _gui_input(e: InputEvent) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_MOUSE_ENTER:
+		# (no hover blip: the cloth's push is its sound, `HangarSound.banner_push`)
 		hover = true
-		Audio.hover()
 	elif what == NOTIFICATION_MOUSE_EXIT:
 		hover = false

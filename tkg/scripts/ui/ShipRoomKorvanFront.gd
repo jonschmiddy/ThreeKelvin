@@ -557,6 +557,15 @@ func _courier_state(u: float, at: PackedFloat32Array) -> Array[Vector3]:
 	return [Vector3(x, 1.0 if left else 0.0, fi), crates[0], crates[1], Vector3(hold, cx0p, 0)]
 
 
+## The courier's two crates `u` into the film (x, bottom row, 1 while carried); none while he is not out.
+func crates_at(u: float) -> Array[Vector3]:
+	var at := _courier.at(u)
+	if not (u >= _courier.t_in and u < _courier.t_out and not at.is_empty()):
+		return []
+	var st := _courier_state(u, at)
+	return [st[1], st[2]]
+
+
 func _delivery(t: float) -> void:
 	var u := fposmod(t, 30.0)
 	var s := _courier.segs

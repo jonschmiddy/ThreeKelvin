@@ -54,8 +54,9 @@ func _rest(cs: ChassisSelect) -> void:
 	_ok("nothing is picked and LAUNCH is hidden", cs._picked < 0 and not cs.launchable()
 		and not cs._band.key.visible and not cs._band.armed)
 	_ok("the band says SELECT A SHIP", _band_says(cs, "SELECT A SHIP"))
-	_ok("the yard plays no score, and its bed is the room (asks %s, room %s)" % [Audio.music_asked, Router._room_for(cs)],
-		Audio.music_asked == &"yard" and Router._room_for(cs) == Audio.YARD_ROOM)
+	_ok("the yard plays no score and no room tone; its room's own sound plays (asks %s, room '%s', hangar %s)"
+		% [Audio.music_asked, Router._room_for(cs), HangarSound.shared().room.id if HangarSound.shared().room else &""],
+		Audio.music_asked == &"yard" and Router._room_for(cs) == &"" and HangarSound.shared().room == cs._yard.room)
 	_ok("a hull's tooltip is its blurb, without its size first", cs._yard.sets.values().all(_blurb_only))
 	_ok("seven banners hang, Korvan's named and six ???", cs._yard.banners.size() == DB.STARTABLE.size()
 		and cs._yard.banners[0].open and cs._yard.banners.slice(1).all(func(b: YardBanner) -> bool: return not b.open))
