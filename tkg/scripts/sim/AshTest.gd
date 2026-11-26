@@ -670,11 +670,17 @@ func _exits() -> void:
 	# its seam without a step, rendered across the wrap
 	var rooms: Array[String] = []
 	var loud: Array[String] = []
-	var dir := DirAccess.open("res://assets/audio/ambience")
-	for f in dir.get_files():
-		if not f.ends_with(".wav"):
-			continue
-		var w := (load("res://assets/audio/ambience/" + f) as AudioStreamWAV).duplicate() as AudioStreamWAV
+	# (and the station decks' own loops, `StationSound`: their beds, the Board's muffled station, the movers)
+	var paths: Array[String] = []
+	for f in DirAccess.open("res://assets/audio/ambience").get_files():
+		if f.ends_with(".wav"):
+			paths.append("res://assets/audio/ambience/" + f)
+	for f in DirAccess.open("res://assets/audio/station").get_files():
+		if f.ends_with(".wav") and bool(StationSound.file_info(StringName(f.get_basename())).get("loop", false)):
+			paths.append("res://assets/audio/station/" + f)
+	for path in paths:
+		var f := path.get_file()
+		var w := (load(path) as AudioStreamWAV).duplicate() as AudioStreamWAV
 		Audio.loop_whole(w)
 		var sr := float(w.mix_rate)
 		var pb := w.instantiate_playback()

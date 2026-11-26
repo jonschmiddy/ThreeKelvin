@@ -526,6 +526,7 @@ func _nine(im: Texture2D, m: int, x: float, y: float, w: float, h: float, bottom
 ## people to a line and no drones; other rooms keep their own.
 func _build_cast(bd: StringName) -> void:
 	_cast.clear()
+	seen_at.clear()
 	_read_walk()
 	if no_people or _backdrop == null:
 		return
@@ -575,6 +576,7 @@ func _build_cast(bd: StringName) -> void:
 					w["adv"] = float(adv_v) * ks
 			w["figure"] = pick == ""
 			w["speed"] = WALK_PACE * gait * (0.85 + 0.3 * h0) * depth * ks
+			w["sid"] = _cast.size()
 			_cast.append(w)
 
 
@@ -613,15 +615,13 @@ func walkers_seen() -> Array[Dictionary]:
 	var xf := get_global_transform_with_canvas()
 	for p in _posed:
 		var w: Dictionary = p[0]
-		if not w.has("_id"):
-			w["_id"] = _cast.find(w)
 		var fig := bool(w.figure)
 		var fw := float(w.get("fw", 0.0))
 		var fh := float(w.get("fh", w.get("tall", 0.0)))
 		var feet := Vector2(p[1], p[2]) if fig else Vector2(float(p[1]) + fw * 0.5, float(p[2]) + fh)
 		var fr: int = p[3] if not fig else int(floorf(float(p[4]) / maxf(2.0, float(w.get("tall", 10.0)) * 0.3))) % 2
-		out.append({"id": int(w["_id"]), "x": (xf * feet).x, "frame": fr, "frames": int(w.get("frames", 2)), "fh": fh,
-			"fly": bool(w.get("fly", false)), "seen": _clock - float(w.get("_seen_at", -9.0)) <= 0.1})
+		out.append({"id": int(w.sid), "x": (xf * feet).x, "frame": fr, "frames": int(w.get("frames", 2)), "fh": fh,
+			"fly": bool(w.get("fly", false)), "seen": _clock - float(seen_at.get(int(w.sid), -9.0)) <= 0.1})
 	return out
 
 
@@ -643,7 +643,7 @@ func _shop_cast(clip: Rect2) -> void:
 		var w: Dictionary = p[0]
 		if bool(w.figure):
 			if Rect2(p[1] - float(w.tall) * 0.2, p[2] - float(w.tall), float(w.tall) * 0.4, float(w.tall)).intersects(clip):
-				w["_seen_at"] = _clock
+				seen_at[int(w.sid)] = _clock
 			_bench_figure(p[1], p[2], float(w.tall), float(w.h0), float(p[4]),
 				float(w.haze), clip)
 		else:

@@ -910,6 +910,10 @@ var _posed: Array = []
 var _posed_at := -1.0
 
 
+## When each walker of the cast (by its `sid`) was last drawn, on the room's clock.
+var seen_at: Dictionary[int, float] = {}
+
+
 ## The room's own clock (s): what its walkers and ships move on.
 func room_clock() -> float:
 	return _clock
@@ -960,7 +964,8 @@ func _blit_walker(w: Dictionary, x: float, y: float, f: int, clip: Rect2) -> voi
 	if not cut.has_area():
 		return
 	# (seen: the Promenade's sound steps only the walkers you can see, `ShopScene.walkers_seen`)
-	w["_seen_at"] = _clock
+	if w.has("sid"):
+		seen_at[int(w["sid"])] = _clock
 	# Mirrored, the visible left edge comes from the
 	# frame's right, so the offset is from the far side.
 	var flip: bool = w["flip"]
