@@ -96,15 +96,45 @@ func _lamps(f: int, tC: float) -> void:
 	var row: Array = (F.D["lamps"] as Array)[f]
 	var tw := PackedFloat32Array()
 	var sum := 0.0
-	for v: Variant in row:
-		tw.append(float(v) / 10000.0)
-		sum += float(v) / 10000.0
+	var spans := _relight_spans()
+	for i in row.size():
+		var v := float(row[i])
+		# CATCH: in the relight each lamp holds a value 3 or 4 frames, so it stutters on 8-10 times a second
+		var sp: Vector2i = spans[i]
+		if f >= sp.x and f < sp.y:
+			var k := 3 + i % 2
+			v = float(((F.D["lamps"] as Array)[sp.x + floori(float(f - sp.x) / k) * k] as Array)[i])
+		tw.append(v / 10000.0)
+		sum += v / 10000.0
 	u[&"tw"] = tw
 	u[&"lk"] = sum / float(row.size())
 	var t := float(f) / 30.0
 	var mv := F.moving(tC) and tC > 0.0
 	var blink := mv and int(t * 4.0) % 2 == 0
 	u[&"door_lamp"] = 2.2 if blink else (0.25 if mv else 1.0)
+
+
+## The lamps' relight after the engine test (film frames 506-548): per lamp, the first frame it takes
+## one of the relight's values to the frame it holds full.
+## Why: docs/why/ShipRoomKorvan.md#relight
+const RELIT := [3000, 4500, 5500, 6500, 9000, 10000]
+static var _spans: Array[Vector2i] = []
+
+
+static func _relight_spans() -> Array[Vector2i]:
+	if _spans.is_empty():
+		var L: Array = F.D["lamps"]
+		for i in (L[0] as Array).size():
+			var s := -1
+			var e := -1
+			for f in range(506, 549):
+				var v := int((L[f] as Array)[i])
+				if s < 0 and v in RELIT:
+					s = f
+				if s >= 0 and v != 10000:
+					e = f + 1
+			_spans.append(Vector2i(s, maxi(e, s + 1)) if s >= 0 else Vector2i(-1, -1))
+	return _spans
 
 
 func _crane(t: float) -> void:
