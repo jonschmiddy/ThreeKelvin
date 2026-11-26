@@ -27,7 +27,7 @@ const COMP_DETECT := {&"korvan": 6.0, &"solari": 12.0, &"old": 2.0}
 ## A trim on every room after its capture was measured against its approved mix.
 const LEVEL_TRIM := {&"korvan": -2.3, &"solari": -3.0, &"old": 1.5}
 ## How crisp the rooms sound (Jon, Nov 25: "maybe even less muddy"): A the page mixes, B1 a bit crisper, B2
-## clearly; each loudness-matched to A. `hangarcrisp=` or settings.cfg `[audio] hangar_crisp` picks one live.
+## clearly (Jon picked B2, Nov 26); each matched to A. `hangarcrisp=` or settings.cfg `[audio] hangar_crisp` picks one live.
 ## Why: docs/why/HangarSound.md#crispness
 const CRISP := {
 	&"A": {dark_k = 1.0, damp = 0.5, shelf = 0.5, hall_db = 0.0, mud = 0.0, pres = 0.0, air = 0.0,
@@ -37,7 +37,7 @@ const CRISP := {
 	&"B2": {dark_k = 0.85, damp = 0.3, shelf = 0.8, hall_db = -2.0, mud = -2.0, pres = 4.0, air = 4.0,
 		trim = {&"korvan": 0.78, &"solari": 0.79, &"old": 0.81}},
 }
-const CRISP_DEFAULT := &"B1"
+const CRISP_DEFAULT := &"B2"
 ## The bus EQ's bands each `CRISP` lift goes on (`AudioEffectEQ21`'s, by index).
 const EQ_MUD := [6, 7, 8, 9]
 const EQ_PRES := [12, 13, 14, 15, 16]

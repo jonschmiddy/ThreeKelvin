@@ -118,7 +118,7 @@ holds three levels he picks between by ear: A is the page mixes, B1 a bit crispe
 `shelf` (a brighter tail) and its level `hall_db` (less wash), and dB added to the bus EQ's bands: `mud` at
 175-500 Hz, `pres` at 1.4-5.6 kHz, `air` from 8 kHz. `trim` holds each room's loudness (LUFS) to A's, measured
 by capture, so a level is never just louder. The level comes from the command line (`hangarcrisp=B2`), else
-`[audio] hangar_crisp` in settings.cfg, else `CRISP_DEFAULT` (B1 until Jon picks); `set_crisp` switches it live.
+`[audio] hangar_crisp` in settings.cfg, else `CRISP_DEFAULT` (B2, Jon's pick on Nov 26); `set_crisp` switches it live.
 
 A first try (darkness x0.7 and x0.4) lifted Korvan's 4-8 kHz 11 and 17 dB and Old's 2 and 4: the darkness is
 the big lever in the rooms with deep crews and does nothing in Old, so the levels lean on the bus EQ and only
