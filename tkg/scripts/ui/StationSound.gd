@@ -21,10 +21,16 @@ const TIERS: Array[String] = ["unclaimed", "outpost", "settlement", "city", "cap
 ## annoying"); every other deck has no tone of its own under it. Why: docs/why/StationSound.md#the-lab
 const LAB_ROOM := &"amb_station"
 const DECKS_ROOM := &"station"
-## The bus (the mixer's 2:1 as Godot's compressor reads it, as the hangars'), and a trim per room after capture.
+## The bus (the mixer's 2:1 as Godot's compressor reads it, as the hangars'), and a trim per room by capture, so the
+## bus sits where its page mix does (a capture at the default faders reads 4 dB under). Why: docs/why/StationSound.md#levels
 const COMP_RATIO := 1.3165
-const COMP_DETECT := 4.0
-const LEVEL_TRIM := {}
+const COMP_DETECT := 8.0
+const LEVEL_TRIM := {
+	&"prom:unclaimed": -5.1, &"prom:outpost": -5.1, &"prom:settlement": -3.9, &"prom:city": -3.9, &"prom:capital": -3.9,
+	&"yard:unclaimed": -4.4, &"yard:outpost": -4.4, &"yard:settlement": -3.6, &"yard:city": -3.6, &"yard:capital": -3.6,
+	&"exch:unclaimed": -3.6, &"exch:outpost": -3.6, &"exch:settlement": -3.6, &"exch:city": -3.6, &"exch:capital": -3.6,
+	&"board:unclaimed": -3.8, &"board:outpost": -3.8, &"board:settlement": -3.8, &"board:city": -3.8, &"board:capital": -3.8,
+}
 ## The PA (plan.md): the first line 15-25 s after docking, then 60-120 s after one ends; never in a ride.
 const PA_FIRST := Vector2(15.0, 25.0)
 const PA_GAP := Vector2(60.0, 120.0)
@@ -393,7 +399,7 @@ func _step() -> void:
 
 
 func _route(v: Voice, x: float, k: float, dark: float) -> float:
-	var pn := StationBus.pan_for(x, k)
+	var pn := HangarSound.pan_for(x, k)
 	if _live:
 		StationBus.route(v.dry.bus, pn.x, dark)
 		StationBus.route(v.wet.bus, pn.x, dark)
@@ -410,9 +416,19 @@ static func dark_comp(f: StringName, dark: float) -> float:
 	return lerpf(float(lp[a]), float(lp[b]), u - a)
 
 
-## A darkness at this room's crispness (the yard's B2 lifts its low-passes).
+## A room's crispness: a level of the hangars' (`HangarSound.CRISP`; the yard's is B2), or none.
+static func crisp_of(p: Dictionary) -> Dictionary[String, Variant]:
+	var out: Dictionary[String, Variant] = {}
+	var d: Variant = HangarSound.CRISP.get(StringName(str(p.get("crisp", ""))))
+	if d is Dictionary:
+		for k: Variant in d:
+			out[str(k)] = (d as Dictionary)[k]
+	return out
+
+
+## A darkness at this room's crispness (B2 lifts its low-passes).
 func dk(dark: float) -> float:
-	return dark * float((plan.get("crisp", {}) as Dictionary).get("dark_k", 1.0))
+	return dark * float(crisp_of(plan).get("dark_k", 1.0))
 
 
 func _log(id: StringName, file: StringName, x: float, gain: float, extra: Dictionary = {}) -> void:
@@ -784,7 +800,7 @@ func say(r: Dictionary, pa: Dictionary) -> void:
 	v.env = 1.0
 	v.rate = 0.0
 	v.ends = t + _pa_len * (TAPE_CUT if _pa_tape else 1.0) + 0.1
-	var pn := StationBus.pan_for(float(pa.get("x", MID_X)), 0.5)
+	var pn := HangarSound.pan_for(float(pa.get("x", MID_X)), 0.5)
 	if _live:
 		StationBus.route(v.dry.bus, pn.x, 0.0)
 		StationBus.route(v.wet.bus, pn.x, 0.0)
@@ -829,14 +845,29 @@ func _tape_env() -> void:
 
 
 # ------------------------------------------------------------------ the Board's own sounds
-## dB for `Audio.play` to put one of the Board's own sounds (a strike, a flicker, an ad, a popup) where the mix had
-## it: its level in the plan, through this Board's bus, less the faders' default gap (SFX 0.9, Ambient 0.7).
-static func keep_db(name: StringName) -> float:
-	var k: Variant = (data().get("keep", {}) as Dictionary).get(String(name))
+## One of the Board's own sounds (a strike, a flicker, a screen's power-on, an ad, a popup): through the Board's
+## room as the mix had it (its tamed copy, at its plan level), or `Audio.play` as before anywhere else.
+static func keep(name: StringName) -> void:
 	var s := _shared
-	if not k is Dictionary or s == null or s.deck != &"board" or s.plan.is_empty():
-		return 0.0
-	var bus: Dictionary = s.plan.get("bus", {})
-	var trim := float(LEVEL_TRIM.get(StringName("board:" + s.tier), 0.0))
-	return REF + float((k as Dictionary).get("db", 0.0)) + float(bus.get("gain_db", 0.0)) + trim \
-		- float((k as Dictionary).get("raw", -20.0)) - (linear_to_db(0.9) - linear_to_db(0.7))
+	if s == null or s.deck != &"board" or not (s.plan.get("keep", {}) as Dictionary).has(String(name)):
+		Audio.play(name, 0.0)
+		return
+	s._keep(name)
+
+
+func _keep(name: StringName) -> void:
+	var k: Dictionary = (plan.get("keep", {}) as Dictionary)[String(name)]
+	var f := StringName(str(k.get("file", "")))
+	var v := _free_voice()
+	if v == null:
+		return
+	_start(v, DIR % f, 0.0, 1.0)
+	v.id = name
+	v.loop = false
+	v.env = 1.0
+	v.rate = 0.0
+	v.ends = t + float(file_info(f).get("len", 1.0)) + 0.05
+	var pan_db := _route(v, MID_X, 0.7, 0.0)
+	v.dry_db = float(k.get("db", 0.0)) + REF - float(file_info(f).get("loud", -20.0)) + pan_db
+	v.wet_db = v.dry_db + linear_to_db(float(plan.get("wet_base", 0.12)))
+	_log(name, f, MID_X, float(k.get("db", 0.0)))

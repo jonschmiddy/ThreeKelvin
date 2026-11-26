@@ -62,10 +62,10 @@ PICKS = {
 }
 # The rooms whose mixes the bus numbers come from (the tier variants share their pick's).
 MIXES = sorted({(d, c) for deck in PICKS.values() for d, c, _ in deck.values()})
-# The yard's crispness (Jon, Nov 26: "as crisp as hangar B2"): the hangar's B2 levels. Why: #crispness
-CRISP = {"yard": dict(dark_k=0.85, shelf=0.8, hall_db=-2.0, mud=-2.0, pres=4.0, air=4.0)}
-# The Board's own sounds, played by `Audio.play` through `StationSound.keep_db` at the mix's level (decks.BOARD_KEEP,
-# the popups 10 dB down, and every tier's strike, flicker and screen sounds).
+# The yard's crispness (Jon, Nov 26: "as crisp as hangar B2"): a level of `HangarSound.CRISP`. Why: #crispness
+CRISP = {"yard": "B2"}
+# The Board's own sounds, played through the Board's room as the mix had them, tamed (`StationSound.keep`): decks.BOARD_KEEP,
+# the popups 10 dB down, and every tier's strike, flicker and screen sounds.
 KEEP = {n: 0.0 for n in DK.BOARD_KEEP + ["lab_unclaimed_bulb", "lab_outpost_lamp", "lab_unclaimed_flicker", "lab_outpost_flicker",
                                          "lab_monitor_pop", "lab_city_screen", "lab_capital_glass"]}
 KEEP.update({"board_popup_open": -10.0, "board_popup_close": -10.0})
@@ -154,7 +154,7 @@ def plan_files():
 def room_plan(deck, tier, dk, c, cfg, var):
     p = dict(deck=deck, tier=tier, mix=f"{dk}_{c}", name=cfg["name"], rt=cfg["rt"], size=cfg["size"], warmth=cfg["warmth"],
              wet_base=cfg["wet_base"], beds=[], bed_db=float(cfg.get("bed_db", 0.0)) + float(var.get("bed_db", 0.0)),
-             bed_dark=float(var.get("bed_dark", 0.0)), layers=[], map={}, pa={}, crisp=CRISP.get(deck, {}))
+             bed_dark=float(var.get("bed_dark", 0.0)), layers=[], map={}, pa={}, crisp=CRISP.get(deck, ""))
     for n in cfg.get("bed", []):
         p["beds"].append(add(deck, n, "bed", dark=float(cfg.get("bed_dark", 0.1)), even=bool(cfg.get("bed_even"))))
     for lay in cfg.get("layers", []):
@@ -164,6 +164,9 @@ def room_plan(deck, tier, dk, c, cfg, var):
         files = [add(deck, n, "muffled", prefix="behind_", dark=float(lay.get("dark", 0.2)), lp=float(lay["lp"]), rate=11025)
                  for n in names]
         p["layers"].append(dict(id=lay["id"], files=files, db=float(lay["db"]), wet=float(lay.get("wet", 0.0))))
+    if deck == "board":
+        p["keep"] = {n: dict(file=add(deck, "game:sfx/%s.wav" % n, "shot"), db=db) for n, db in KEEP.items()
+                     if (GAME / "sfx" / f"{n}.wav").exists()}
     for cls, r in cfg["map"].items():
         if cls == "pa":
             p["pa"] = dict(speaker=var.get("pa", r["speaker"]), db=float(r.get("db", 0.0)), wet=float(r.get("wet", 0.1)),
@@ -226,17 +229,6 @@ def import_stub(name, loop):
     p = OUT / f"{name}.wav.import"
     if not p.exists():
         p.write_text(IMPORT.format(loop=2 if loop else 0, mode=0 if loop else 2), encoding="utf-8", newline=chr(10))
-
-
-def keep_table():
-    out = {}
-    for n, db in KEEP.items():
-        p = GAME / "sfx" / f"{n}.wav"
-        if not p.exists():
-            continue
-        x = take("game:sfx/" + n + ".wav")
-        out[n] = dict(db=db, raw=round(loud1(x), 2), tamed=round(loud1(S.tame(x, 0.0)), 2))
-    return out
 
 
 # ------------------------------------------------------------------ the bus, from the approved mixes
@@ -429,11 +421,13 @@ def fit_hall(rt, size, warmth, shelf=0.25):
 
 def halls():
     """Check the emulation on the hangar's measured hall, then fit each room's."""
-    imp = np.zeros(8 * SR)
-    imp[0] = 1.0
-    g = godot_shelf(godot_reverb(imp, 0.955, 0.5), 0.5) * 10 ** (-10.5 / 20)
-    print(json.dumps(dict(check="hangar hall (room 0.955, damp 0.5, shelf 0.5, -10.5 dB): measured in Godot wet/dry +2.25 dB",
-                          emulated=round(10 * math.log10(np.sum(g ** 2)), 2))), flush=True)
+    c = take("game:hangar/crate_1.wav").mean(1)
+    pad = np.concatenate([c, np.zeros(10 * SR)])
+    g = godot_shelf(godot_reverb(pad, 0.955, 0.5), 0.5) * 10 ** (-10.5 / 20)
+    w = signal.fftconvolve(pad, mixer_hall(5.5, 1.0, 0.6, 7))[:len(pad)]
+    print(json.dumps(dict(check="the hangar's hall on crate_1 (Godot measured it 0.04 dB over the mixer's)",
+                          emulated_godot=round(10 * math.log10(np.sum(g ** 2) / np.sum(c ** 2)), 2),
+                          mixer=round(10 * math.log10(np.sum(w ** 2) / np.sum(c ** 2)), 2))), flush=True)
     D = DK.deck_cfgs()
     out = {}
     for dk, c in MIXES:
@@ -465,7 +459,7 @@ def build():
         p["hall"] = hl[p["mix"]]
         p["bus"] = {k: v for k, v in bus[p["mix"]].items() if k in ("gain_db", "thr_rms_db")}
     data = dict(_note="Made by tools/dev/station_sound.py from tk-scratch/station-sound; docs/why/StationSound.md",
-                files=files, rooms=rooms, eq21=eq21_gains(), eq21_hz=EQ21, keep=keep_table(), speakers=SPEAKERS,
+                files=files, rooms=rooms, eq21=eq21_gains(), eq21_hz=EQ21, speakers=SPEAKERS,
                 speaker_db=speaker_comp(), mixes=bus)
     (OUT / "station.json").write_text(json.dumps(data, indent=1), encoding="utf-8", newline=chr(10))
     for p in OUT.glob("*.wav"):

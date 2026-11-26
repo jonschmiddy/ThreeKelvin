@@ -3,7 +3,7 @@ extends Node
 
 ## As Jon set it on the Yard Drones sound panel (v46). Levels are baked in: 0 dB on Ambient.
 ## None of it plays in the sim or a headless run. The hall's bed, the welder and the rest of the room are the
-## deck's (`StationSound`, Jon's Nov 26 picks); this keeps the TV's power-on, the drones, their work and the lights.
+## deck's (`StationSound`, Jon's Nov 26 picks); this keeps the TV's power-on and flicker, the drones and their work.
 ## Why: docs/why/YardSound.md#yard-sound
 
 const POWER_ON_SOUNDS := {
@@ -35,7 +35,6 @@ var _pnext := 0
 var _flick: Dictionary = {}
 var _flick_tw: Dictionary = {}
 var _flick_turn := 0
-var _drop: Dictionary = {}
 ## The drones winding down: [player, started, rate, gain].
 var _winding: Array = []
 var _heard := 0
@@ -106,34 +105,15 @@ func power_on(tp: float, settled: bool = false) -> void:
 	_heard = POWER_ON_SOUNDS.get(scene.level, []).size() if settled else 0
 
 
-## Each tick of the yard's clock: the TV's power-on sounds that are due, and the
-## lights' dropouts (the room itself is `StationSound`'s, ticked by the yard).
-func tick(t: float, tb: float) -> void:
+## Each tick of the yard's clock: the TV's power-on sounds that are due. The tired lamps' dropouts are
+## silent now (Jon's Nov 26 pick had none; the bulb's pop is the room's), the room itself `StationSound`'s.
+func tick(_t: float, tb: float) -> void:
 	if YardScene.pin_clock >= 0.0:
 		return
 	var plan: Array = POWER_ON_SOUNDS.get(scene.level, [])
 	while _powered and _heard < plan.size() and float(plan[_heard][0]) <= tb:
 		Audio.play(plan[_heard][1], 0.0)
 		_heard += 1
-	_dropouts()
-
-
-## A light's dropout, heard on the frame it goes dark (a lamp, or a glow that
-## stutters); a flash dying is the snap, not a second tick.
-func _dropouts() -> void:
-	var L := scene.light
-	for n in L.nlights:
-		var d: Dictionary = L.lights[n]
-		var kind := String(d.get("kind", ""))
-		if kind != "ceil" and not (kind == "glow" and bool(d.get("sfx", false))):
-			continue
-		var w := L.ew[n] if kind == "glow" else L.nw[n]
-		var was := float(_drop.get(n, w))
-		if was >= 0.6 and was < 1.5 and w <= 0.35:
-			flick(str(n))
-		elif was < 1.5 and w >= 1.5:
-			flick(str(n), true)
-		_drop[n] = w
 
 
 func flick(key: String, strong: bool = false) -> void:

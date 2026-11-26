@@ -1,27 +1,6 @@
 {
- "_note": "The station PA's lines: stand-ins (the Sep 18 takes, chime and echo baked in) until Jon settles the script. Swap a row's file for a new dry take, or add rows; then run python tools/dev/station_sound.py pa to measure them. tiers: where a line is read. Unclaimed reads its lines as an old tape that cuts out (in code). docs/why/StationSound.md#the-pa",
+ "_note": "The station PA's lines: stand-ins (the Sep 18 takes, chime and echo baked in) until Jon settles the script. pa_00, pa_01 and pa_11 are left out: they say \"berth\", and the game's word is \"bay\". Swap a row's file for a new dry take, or add rows; then run python tools/dev/station_sound.py pa to measure them. tiers: where a line is read. Unclaimed reads its lines as an old tape that cuts out (in code). docs/why/StationSound.md#the-pa",
  "lines": [
-  {
-   "speaker": "Alice",
-   "id": "pa_00",
-   "file": "res://assets/audio/ambience/pa_00.ogg",
-   "tiers": [
-    "settlement",
-    "city",
-    "capital"
-   ]
-  },
-  {
-   "speaker": "Daniel",
-   "id": "pa_01",
-   "file": "res://assets/audio/ambience/pa_01.ogg",
-   "tiers": [
-    "outpost",
-    "settlement",
-    "city",
-    "capital"
-   ]
-  },
   {
    "speaker": "Bill",
    "id": "pa_02",
@@ -31,7 +10,9 @@
     "settlement",
     "city",
     "capital"
-   ]
+   ],
+   "loud": -26.14,
+   "secs": 11.723
   },
   {
    "speaker": "Bill",
@@ -42,7 +23,9 @@
     "settlement",
     "city",
     "capital"
-   ]
+   ],
+   "loud": -26.45,
+   "secs": 9.419
   },
   {
    "speaker": "Daniel",
@@ -53,7 +36,9 @@
     "settlement",
     "city",
     "capital"
-   ]
+   ],
+   "loud": -26.22,
+   "secs": 11.658
   },
   {
    "speaker": "Daniel",
@@ -64,7 +49,9 @@
     "settlement",
     "city",
     "capital"
-   ]
+   ],
+   "loud": -26.38,
+   "secs": 7.19
   },
   {
    "speaker": "Alice",
@@ -74,7 +61,9 @@
     "settlement",
     "city",
     "capital"
-   ]
+   ],
+   "loud": -26.2,
+   "secs": 8.583
   },
   {
    "speaker": "Alice",
@@ -84,7 +73,9 @@
     "settlement",
     "city",
     "capital"
-   ]
+   ],
+   "loud": -25.67,
+   "secs": 8.583
   },
   {
    "speaker": "Bill",
@@ -95,7 +86,9 @@
     "settlement",
     "city",
     "capital"
-   ]
+   ],
+   "loud": -26.3,
+   "secs": 10.812
   },
   {
    "speaker": "Daniel",
@@ -106,7 +99,9 @@
     "settlement",
     "city",
     "capital"
-   ]
+   ],
+   "loud": -26.02,
+   "secs": 11.083
   },
   {
    "speaker": "Alice",
@@ -116,18 +111,9 @@
     "settlement",
     "city",
     "capital"
-   ]
-  },
-  {
-   "speaker": "Bill",
-   "id": "pa_11",
-   "file": "res://assets/audio/ambience/pa_11.ogg",
-   "tiers": [
-    "outpost",
-    "settlement",
-    "city",
-    "capital"
-   ]
+   ],
+   "loud": -25.88,
+   "secs": 8.862
   },
   {
    "speaker": "Bill",
@@ -138,7 +124,9 @@
     "settlement",
     "city",
     "capital"
-   ]
+   ],
+   "loud": -26.13,
+   "secs": 8.444
   },
   {
    "speaker": "Daniel",
@@ -149,7 +137,9 @@
     "settlement",
     "city",
     "capital"
-   ]
+   ],
+   "loud": -26.21,
+   "secs": 11.501
   },
   {
    "speaker": "Alice",
@@ -159,7 +149,9 @@
     "settlement",
     "city",
     "capital"
-   ]
+   ],
+   "loud": -25.67,
+   "secs": 9.676
   },
   {
    "speaker": "Bill",
@@ -170,15 +162,9 @@
     "settlement",
     "city",
     "capital"
-   ]
-  },
-  {
-   "speaker": "Alice (old tape)",
-   "id": "pa_00_tape",
-   "file": "res://assets/audio/ambience/pa_00.ogg",
-   "tiers": [
-    "unclaimed"
-   ]
+   ],
+   "loud": -26.59,
+   "secs": 10.094
   },
   {
    "speaker": "Alice (old tape)",
@@ -186,7 +172,9 @@
    "file": "res://assets/audio/ambience/pa_06.ogg",
    "tiers": [
     "unclaimed"
-   ]
+   ],
+   "loud": -26.2,
+   "secs": 8.583
   },
   {
    "speaker": "Alice (old tape)",
@@ -194,7 +182,9 @@
    "file": "res://assets/audio/ambience/pa_07.ogg",
    "tiers": [
     "unclaimed"
-   ]
+   ],
+   "loud": -25.67,
+   "secs": 8.583
   },
   {
    "speaker": "Alice (old tape)",
@@ -202,7 +192,9 @@
    "file": "res://assets/audio/ambience/pa_10.ogg",
    "tiers": [
     "unclaimed"
-   ]
+   ],
+   "loud": -25.88,
+   "secs": 8.862
   },
   {
    "speaker": "Alice (old tape)",
@@ -210,7 +202,9 @@
    "file": "res://assets/audio/ambience/pa_14.ogg",
    "tiers": [
     "unclaimed"
-   ]
+   ],
+   "loud": -25.67,
+   "secs": 9.676
   }
  ]
 }

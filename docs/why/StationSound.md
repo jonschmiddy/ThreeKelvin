@@ -33,9 +33,14 @@ chase) have no sound (`StationSound.JOKES`). The random clank, air tool, hiss an
 the random clank/airtool/hiss/hoist with the welder, grinder and forklift you can see"); so is `yard_bed`'s place on
 the deck. `YardSound` keeps the TV's power-on, the drones, their work and the lights' flickers, as they were.
 
-The Board's own sounds (the tubes' strikes and flickers, a screen's power-on, the ads' jingles, the popups) still play
-through `Audio.play`, at the level the mix had them: `keep_db` is their place in the plan (0 dB, the popups -10, as the
-plan's flag asked) through the Board's bus, less the faders' default gap (SFX 0.9, Ambient 0.7).
+The Board's own sounds (the tubes' strikes and flickers, a screen's power-on, the ads' jingles, the popups) play
+through the Board's room as the mix had them (`StationSound.keep`): a tamed copy of each (`board_<name>.wav`) at its
+plan level, 0 dB, the popups -10 (the plan's flag). They used to play through `Audio.play`; matched there by the raw
+file's loudness, the flicker came out 13 dB short of the mix in its mids, as the mixer's `tame` takes 13 dB off it
+before levelling it. Off the Board (and with no plan) `keep` is `Audio.play` as before.
+
+The yard's tired lamps no longer tick on every dropout (`YardSound._dropouts`, about two a second at an unclaimed
+station): Jon's pick has no such sound, and the bulb's pop is the room's own event. The TV's flicker stays.
 
 Every repeat picks its take, pitch (+-3 %) and level (+-1.5 dB) by a fixed hash of (deck, event, occurrence). A shot
 synced on its contact starts 0.05 s before its contact when it is seen as it happens, or its contact lands on the
@@ -64,6 +69,15 @@ beds below settlement, the high from it, capital the same bed darker and lower. 
 
 The bus numbers (the level the mixer's bus gave a room, its compressor's threshold) come from re-running the picked
 mixes; a tier's variant takes its pick's.
+
+## levels
+
+As the hangars' (`docs/why/HangarSound.md#the-bus`): each room's bus sits where its page mix does (-37 LUFS, the
+mixer's target, before the Master and Ambient faders), so a capture at the default faders (Master 0.9, Ambient 0.7)
+reads about 4 dB under its page mix, as a hangar's does, and about where the old station tone sat (-41.9). The bus gain
+the mixer gave each room is in `station.json`; `LEVEL_TRIM` is what the captures (Nov 26, 40 s from 8 s in, the
+compressor's detect at +8 dB) said was left: -3.6 to -5.1 dB, the Godot compressor and EQ being gentler than the
+mixer's, as in the hangars. The tier variants share their pick's trim.
 
 ## crispness
 

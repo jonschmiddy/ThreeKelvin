@@ -49,7 +49,7 @@ tail rings out on its own.
 **What it replaced.** The hull pick's room tone was the Shipyard deck's bed (`yard_bed`, `Audio.YARD_ROOM`, Jon's
 Nov 11 "the yard front is the Shipyard deck's own hall"). The rooms now have their own beds, so the hull pick has no
 room tone (`Router._room_for` gives `&""`, which fades whatever was playing) and `YARD_ROOM` is gone; the deck still
-plays `yard_bed` through `YardSound`, untouched. The banners' `ui_hover` blip on pointing is gone too: the cloth's
+played `yard_bed` through `YardSound` until the station decks got their own rooms (Nov 26, `docs/why/StationSound.md`); the file is gone. The banners' `ui_hover` blip on pointing is gone too: the cloth's
 push (B2) is the sound of pointing at a banner now, and two sounds for one gesture was the conflict. The banner's
 click (`ui_click`) stays.
 

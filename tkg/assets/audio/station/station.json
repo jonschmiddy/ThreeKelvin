@@ -1,0 +1,3907 @@
+{
+ "_note": "Made by tools/dev/station_sound.py from tk-scratch/station-sound; docs/why/StationSound.md",
+ "files": {
+  "prom_bed_low_c1": {
+   "loud": -20.0,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 1.86,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.03,
+    0.03,
+    0.04,
+    0.05,
+    0.06,
+    0.07,
+    0.1
+   ],
+   "src": "promenade/bed_low_C1.wav",
+   "kind": "bed",
+   "rate": 44100
+  },
+  "prom_bed_low_c2": {
+   "loud": -20.0,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 0.64,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.04,
+    0.05,
+    0.06,
+    0.08,
+    0.11,
+    0.15,
+    0.21,
+    0.3
+   ],
+   "src": "promenade/bed_low_C2.wav",
+   "kind": "bed",
+   "rate": 44100
+  },
+  "prom_steps_b1": {
+   "loud": -22.335,
+   "len": 5.0,
+   "onset": 0.08,
+   "hit": 0.08,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01
+   ],
+   "src": "promenade/steps_B1.mp3",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "prom_lab_unclaimed_flicker": {
+   "loud": -21.707,
+   "len": 0.48,
+   "onset": 0.0,
+   "hit": 0.02,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    7.18,
+    7.37,
+    7.54,
+    7.7,
+    7.85,
+    7.99,
+    8.12,
+    8.24,
+    8.35,
+    8.45,
+    8.54,
+    8.62,
+    8.69,
+    8.75,
+    8.8,
+    8.84,
+    8.87,
+    8.9,
+    8.94,
+    8.98
+   ],
+   "src": "game:sfx/lab_unclaimed_flicker.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "prom_bed_high_b1": {
+   "loud": -20.0,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 3.16,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.03,
+    0.03,
+    0.04,
+    0.06,
+    0.08,
+    0.11,
+    0.15,
+    0.21,
+    0.31
+   ],
+   "src": "promenade/bed_high_B1.wav",
+   "kind": "bed",
+   "rate": 44100
+  },
+  "prom_bed_high_b2": {
+   "loud": -20.0,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 0.56,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.04,
+    0.05,
+    0.06,
+    0.08,
+    0.12,
+    0.16,
+    0.23,
+    0.34
+   ],
+   "src": "promenade/bed_high_B2.wav",
+   "kind": "bed",
+   "rate": 44100
+  },
+  "yard_bed_low_a1": {
+   "loud": -20.0,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 0.64,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01
+   ],
+   "src": "yard/bed_low_A1.wav",
+   "kind": "bed",
+   "rate": 44100
+  },
+  "yard_bed_low_a2": {
+   "loud": -20.0,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 0.3,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.03
+   ],
+   "src": "yard/bed_low_A2.wav",
+   "kind": "bed",
+   "rate": 44100
+  },
+  "yard_weld": {
+   "loud": -20.0,
+   "len": 5.7,
+   "onset": 0.0,
+   "hit": 0.82,
+   "loop": true,
+   "ch": 1,
+   "lp": [
+    0.0,
+    5.34,
+    5.69,
+    6.05,
+    6.42,
+    6.8,
+    7.19,
+    7.59,
+    7.98,
+    8.37,
+    8.75,
+    9.1,
+    9.43,
+    9.72,
+    9.99,
+    10.23,
+    10.46,
+    10.67,
+    10.89,
+    11.14,
+    11.43
+   ],
+   "src": "game:sfx/yard_weld.wav",
+   "kind": "loop",
+   "rate": 44100
+  },
+  "yard_forklift_a1": {
+   "loud": -20.0,
+   "len": 7.7,
+   "onset": 0.0,
+   "hit": 0.06,
+   "loop": true,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.03,
+    0.05
+   ],
+   "src": "yard/forklift_A1.wav",
+   "kind": "loop",
+   "rate": 44100
+  },
+  "yard_flyer_a1": {
+   "loud": -20.0,
+   "len": 5.0,
+   "onset": 0.72,
+   "hit": 1.54,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.03,
+    0.03,
+    0.04,
+    0.05,
+    0.05,
+    0.06,
+    0.07,
+    0.08,
+    0.09,
+    0.1
+   ],
+   "src": "yard/flyer_A1.mp3",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "yard_bulb_a1": {
+   "loud": -20.0,
+   "len": 1.48,
+   "onset": 0.0,
+   "hit": 0.0,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.03,
+    0.03,
+    0.04,
+    0.06,
+    0.08,
+    0.1,
+    0.14,
+    0.2,
+    0.3,
+    0.45,
+    0.72,
+    1.19
+   ],
+   "src": "yard/bulb_A1.mp3",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "yard_console_a1": {
+   "loud": -30.013,
+   "len": 2.48,
+   "onset": 0.0,
+   "hit": 0.26,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.09,
+    0.1,
+    0.1,
+    0.11,
+    0.12,
+    0.13,
+    0.15,
+    0.16,
+    0.17,
+    0.19,
+    0.21,
+    0.23,
+    0.25,
+    0.28,
+    0.32,
+    0.37,
+    0.44,
+    0.52,
+    0.64,
+    0.81
+   ],
+   "src": "yard/console_A1.mp3",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "yard_bed_high_b1": {
+   "loud": -20.0,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 0.3,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.03,
+    0.05
+   ],
+   "src": "yard/bed_high_B1.wav",
+   "kind": "bed",
+   "rate": 44100
+  },
+  "yard_bed_high_b2": {
+   "loud": -20.0,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 0.28,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "yard/bed_high_B2.wav",
+   "kind": "bed",
+   "rate": 44100
+  },
+  "yard_forklift_b1": {
+   "loud": -20.0,
+   "len": 7.7,
+   "onset": 0.0,
+   "hit": 0.34,
+   "loop": true,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.03,
+    0.03,
+    0.03,
+    0.03,
+    0.03,
+    0.04,
+    0.04,
+    0.05,
+    0.05,
+    0.06,
+    0.07,
+    0.09,
+    0.11,
+    0.14,
+    0.2,
+    0.27
+   ],
+   "src": "yard/forklift_B1.wav",
+   "kind": "loop",
+   "rate": 44100
+  },
+  "yard_forklift_b2": {
+   "loud": -20.0,
+   "len": 7.7,
+   "onset": 0.0,
+   "hit": 0.42,
+   "loop": true,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.02,
+    0.02,
+    0.02,
+    0.02,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.03,
+    0.03,
+    0.04,
+    0.04,
+    0.05,
+    0.05,
+    0.06,
+    0.08,
+    0.1,
+    0.12,
+    0.16,
+    0.22
+   ],
+   "src": "yard/forklift_B2.wav",
+   "kind": "loop",
+   "rate": 44100
+  },
+  "yard_flyer_b1": {
+   "loud": -20.0,
+   "len": 5.0,
+   "onset": 0.0,
+   "hit": 0.82,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.03,
+    0.04
+   ],
+   "src": "yard/flyer_B1.mp3",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "yard_flyer_b2": {
+   "loud": -20.0,
+   "len": 5.0,
+   "onset": 0.0,
+   "hit": 0.58,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.02
+   ],
+   "src": "yard/flyer_B2.mp3",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "yard_hatch_b1": {
+   "loud": -20.0,
+   "len": 2.48,
+   "onset": 0.3,
+   "hit": 0.64,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.02,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.03,
+    0.04,
+    0.04,
+    0.05,
+    0.05,
+    0.06,
+    0.08,
+    0.09,
+    0.11,
+    0.14,
+    0.18,
+    0.22,
+    0.29,
+    0.4,
+    0.55
+   ],
+   "src": "yard/hatch_B1.mp3",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "yard_bump_b1": {
+   "loud": -20.0,
+   "len": 2.0,
+   "onset": 0.0,
+   "hit": 0.14,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.03,
+    0.04,
+    0.04,
+    0.04,
+    0.05,
+    0.06,
+    0.06,
+    0.07,
+    0.08,
+    0.1,
+    0.11,
+    0.13,
+    0.15,
+    0.18,
+    0.22,
+    0.27,
+    0.33,
+    0.41,
+    0.52,
+    0.65
+   ],
+   "src": "yard/bump_B1.mp3",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "yard_bump_b2": {
+   "loud": -20.0,
+   "len": 2.0,
+   "onset": 0.0,
+   "hit": 0.0,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.01,
+    0.02,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.03,
+    0.03,
+    0.04,
+    0.04,
+    0.05,
+    0.06,
+    0.07,
+    0.09,
+    0.11,
+    0.14,
+    0.18,
+    0.24,
+    0.32,
+    0.44
+   ],
+   "src": "yard/bump_B2.mp3",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "exch_bed_b1": {
+   "loud": -20.0,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 0.4,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01
+   ],
+   "src": "exchange/bed_B1.wav",
+   "kind": "bed",
+   "rate": 44100
+  },
+  "exch_bed_b2": {
+   "loud": -20.0,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 0.3,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "exchange/bed_B2.wav",
+   "kind": "bed",
+   "rate": 44100
+  },
+  "exch_pass_b1": {
+   "loud": -20.0,
+   "len": 5.0,
+   "onset": 0.08,
+   "hit": 1.28,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "exchange/pass_B1.mp3",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "exch_pass_b2": {
+   "loud": -20.0,
+   "len": 5.0,
+   "onset": 0.12,
+   "hit": 0.8,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "exchange/pass_B2.mp3",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_behind_bed_low_c1": {
+   "loud": -19.991,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 5.52,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "promenade/bed_low_C1.wav",
+   "kind": "muffled",
+   "rate": 11025
+  },
+  "board_behind_bed_low_c2": {
+   "loud": -19.992,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 1.32,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01
+   ],
+   "src": "promenade/bed_low_C2.wav",
+   "kind": "muffled",
+   "rate": 11025
+  },
+  "board_lab_settlement_lamp": {
+   "loud": -22.627,
+   "len": 0.4452,
+   "onset": 0.0,
+   "hit": 0.02,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.18,
+    0.19,
+    0.2,
+    0.21,
+    0.21,
+    0.22,
+    0.23,
+    0.24,
+    0.26,
+    0.27,
+    0.29,
+    0.31,
+    0.34,
+    0.38,
+    0.43,
+    0.51,
+    0.61,
+    0.77,
+    0.99,
+    1.34
+   ],
+   "src": "game:sfx/lab_settlement_lamp.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_lab_settlement_flicker": {
+   "loud": -21.707,
+   "len": 0.48,
+   "onset": 0.0,
+   "hit": 0.02,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    7.18,
+    7.37,
+    7.54,
+    7.7,
+    7.85,
+    7.99,
+    8.12,
+    8.24,
+    8.35,
+    8.45,
+    8.54,
+    8.62,
+    8.69,
+    8.75,
+    8.8,
+    8.84,
+    8.87,
+    8.9,
+    8.94,
+    8.98
+   ],
+   "src": "game:sfx/lab_settlement_flicker.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_ad_coolant": {
+   "loud": -20.0,
+   "len": 6.0,
+   "onset": 0.0,
+   "hit": 0.48,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.03,
+    0.04,
+    0.05,
+    0.07,
+    0.08,
+    0.11,
+    0.14,
+    0.19,
+    0.27,
+    0.37,
+    0.53
+   ],
+   "src": "game:sfx/board_ad_coolant.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_ad_drone": {
+   "loud": -20.0,
+   "len": 6.0,
+   "onset": 0.0,
+   "hit": 0.4,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.04,
+    0.05,
+    0.06,
+    0.08,
+    0.11,
+    0.15,
+    0.21,
+    0.32
+   ],
+   "src": "game:sfx/board_ad_drone.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_ad_hull_wax": {
+   "loud": -20.0,
+   "len": 6.0,
+   "onset": 0.0,
+   "hit": 0.16,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.04,
+    0.05,
+    0.06,
+    0.08,
+    0.11,
+    0.15,
+    0.22,
+    0.32
+   ],
+   "src": "game:sfx/board_ad_hull_wax.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_ad_lucky_spin": {
+   "loud": -20.0,
+   "len": 6.0,
+   "onset": 0.0,
+   "hit": 1.6,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.03,
+    0.03,
+    0.04,
+    0.06,
+    0.08,
+    0.11,
+    0.16
+   ],
+   "src": "game:sfx/board_ad_lucky_spin.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_ad_noodles": {
+   "loud": -20.0,
+   "len": 6.0,
+   "onset": 0.0,
+   "hit": 0.3,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.03,
+    0.04,
+    0.06,
+    0.07,
+    0.1,
+    0.13,
+    0.18,
+    0.25,
+    0.36
+   ],
+   "src": "game:sfx/board_ad_noodles.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_ad_star_taxi": {
+   "loud": -20.0,
+   "len": 6.0,
+   "onset": 0.0,
+   "hit": 0.72,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.04,
+    0.05,
+    0.06,
+    0.09,
+    0.12,
+    0.17,
+    0.25
+   ],
+   "src": "game:sfx/board_ad_star_taxi.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_lab_unclaimed_bulb": {
+   "loud": -21.708,
+   "len": 0.48,
+   "onset": 0.0,
+   "hit": 0.02,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    7.18,
+    7.37,
+    7.54,
+    7.7,
+    7.85,
+    7.99,
+    8.12,
+    8.24,
+    8.35,
+    8.45,
+    8.54,
+    8.62,
+    8.69,
+    8.75,
+    8.8,
+    8.84,
+    8.87,
+    8.9,
+    8.94,
+    8.98
+   ],
+   "src": "game:sfx/lab_unclaimed_bulb.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_lab_outpost_lamp": {
+   "loud": -21.689,
+   "len": 1.0,
+   "onset": 0.0,
+   "hit": 0.1,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.02,
+    0.02,
+    0.03,
+    0.03,
+    0.03,
+    0.04,
+    0.04,
+    0.05,
+    0.06,
+    0.07,
+    0.08,
+    0.09,
+    0.11,
+    0.13,
+    0.15
+   ],
+   "src": "game:sfx/lab_outpost_lamp.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_lab_outpost_flicker": {
+   "loud": -20.0,
+   "len": 0.48,
+   "onset": 0.0,
+   "hit": 0.0,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    2.88,
+    2.91,
+    2.94,
+    2.96,
+    2.99,
+    3.01,
+    3.03,
+    3.06,
+    3.08,
+    3.09,
+    3.11,
+    3.13,
+    3.14,
+    3.16,
+    3.18,
+    3.2,
+    3.22,
+    3.24,
+    3.27,
+    3.31
+   ],
+   "src": "game:sfx/lab_outpost_flicker.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_lab_monitor_pop": {
+   "loud": -32.044,
+   "len": 0.6,
+   "onset": 0.0,
+   "hit": 0.0,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    3.3,
+    3.41,
+    3.52,
+    3.64,
+    3.76,
+    3.89,
+    4.02,
+    4.15,
+    4.3,
+    4.45,
+    4.61,
+    4.79,
+    4.98,
+    5.21,
+    5.47,
+    5.78,
+    6.17,
+    6.65,
+    7.25,
+    7.96
+   ],
+   "src": "game:sfx/lab_monitor_pop.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_lab_city_screen": {
+   "loud": -24.091,
+   "len": 1.48,
+   "onset": 0.0,
+   "hit": 0.0,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    5.26,
+    5.33,
+    5.38,
+    5.42,
+    5.46,
+    5.49,
+    5.51,
+    5.53,
+    5.54,
+    5.55,
+    5.56,
+    5.57,
+    5.58,
+    5.58,
+    5.59,
+    5.59,
+    5.59,
+    5.6,
+    5.6,
+    5.61
+   ],
+   "src": "game:sfx/lab_city_screen.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_lab_capital_glass": {
+   "loud": -20.0,
+   "len": 1.48,
+   "onset": 0.0,
+   "hit": 0.2,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.04,
+    0.06,
+    0.09,
+    0.15
+   ],
+   "src": "game:sfx/lab_capital_glass.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_popup_open": {
+   "loud": -20.0,
+   "len": 0.4707,
+   "onset": 0.0,
+   "hit": 0.2,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.02,
+    0.04,
+    0.06
+   ],
+   "src": "game:sfx/board_popup_open.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_popup_close": {
+   "loud": -22.038,
+   "len": 0.48,
+   "onset": 0.0,
+   "hit": 0.02,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+    0.02,
+    0.03,
+    0.04,
+    0.06,
+    0.08,
+    0.13
+   ],
+   "src": "game:sfx/board_popup_close.wav",
+   "kind": "shot",
+   "rate": 44100
+  },
+  "board_tube_b2": {
+   "loud": -20.0,
+   "len": 7.7,
+   "onset": 0.0,
+   "hit": 0.36,
+   "loop": true,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "board/tube_B2.wav",
+   "kind": "loop",
+   "rate": 44100
+  },
+  "board_behind_bed_high_a1": {
+   "loud": -19.991,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 0.64,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01
+   ],
+   "src": "promenade/bed_high_A1.wav",
+   "kind": "muffled",
+   "rate": 11025
+  },
+  "board_behind_bed_high_a2": {
+   "loud": -21.591,
+   "len": 21.7,
+   "onset": 0.0,
+   "hit": 13.46,
+   "loop": true,
+   "ch": 2,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01
+   ],
+   "src": "promenade/bed_high_A2.wav",
+   "kind": "muffled",
+   "rate": 11025
+  },
+  "pa_tape_clunk": {
+   "loud": -13.094,
+   "len": 0.06,
+   "onset": 0.0,
+   "hit": 0.0,
+   "loop": false,
+   "ch": 1,
+   "lp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "src": "synth",
+   "kind": "shot",
+   "rate": 44100
+  }
+ },
+ "rooms": {
+  "prom:unclaimed": {
+   "deck": "prom",
+   "tier": "unclaimed",
+   "mix": "prom_u_C",
+   "name": "Closing time",
+   "rt": 1.8,
+   "size": 0.5,
+   "warmth": 0.5,
+   "wet_base": 0.25,
+   "beds": [
+    "prom_bed_low_c1",
+    "prom_bed_low_c2"
+   ],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "step": {
+     "db": -7,
+     "sync": "hit",
+     "rand": true,
+     "files": [
+      "prom_steps_b1"
+     ]
+    },
+    "lamp": {
+     "db": -6,
+     "files": [
+      "prom_lab_unclaimed_flicker"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "tape",
+    "db": -3.0,
+    "wet": 0.12,
+    "x": 300.0
+   },
+   "crisp": "",
+   "hall": {
+    "room": 0.715,
+    "damp": 0.45,
+    "shelf": 0.25,
+    "db": -4.73,
+    "predelay": 37.0,
+    "rt_want": [
+     2.25,
+     1.8,
+     0.94,
+     0.5
+    ],
+    "rt_godot": [
+     2.05,
+     1.9,
+     1.07,
+     0.44
+    ],
+    "rt_sim_mixer": [
+     1.99,
+     1.79,
+     1.35,
+     0.78
+    ],
+    "rt_sim_godot": [
+     2.05,
+     1.82,
+     1.1,
+     0.49
+    ],
+    "err": 0.049
+   },
+   "bus": {
+    "thr_rms_db": -27.09,
+    "gain_db": -6.75
+   }
+  },
+  "prom:outpost": {
+   "deck": "prom",
+   "tier": "outpost",
+   "mix": "prom_u_C",
+   "name": "Closing time",
+   "rt": 1.8,
+   "size": 0.5,
+   "warmth": 0.5,
+   "wet_base": 0.25,
+   "beds": [
+    "prom_bed_low_c1",
+    "prom_bed_low_c2"
+   ],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "step": {
+     "db": -7,
+     "sync": "hit",
+     "rand": true,
+     "files": [
+      "prom_steps_b1"
+     ]
+    },
+    "lamp": {
+     "db": -6,
+     "files": [
+      "prom_lab_unclaimed_flicker"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "cheap",
+    "db": -3.0,
+    "wet": 0.12,
+    "x": 300.0
+   },
+   "crisp": "",
+   "hall": {
+    "room": 0.715,
+    "damp": 0.45,
+    "shelf": 0.25,
+    "db": -4.73,
+    "predelay": 37.0,
+    "rt_want": [
+     2.25,
+     1.8,
+     0.94,
+     0.5
+    ],
+    "rt_godot": [
+     2.05,
+     1.9,
+     1.07,
+     0.44
+    ],
+    "rt_sim_mixer": [
+     1.99,
+     1.79,
+     1.35,
+     0.78
+    ],
+    "rt_sim_godot": [
+     2.05,
+     1.82,
+     1.1,
+     0.49
+    ],
+    "err": 0.049
+   },
+   "bus": {
+    "thr_rms_db": -27.09,
+    "gain_db": -6.75
+   }
+  },
+  "prom:settlement": {
+   "deck": "prom",
+   "tier": "settlement",
+   "mix": "prom_B",
+   "name": "Lunch arcade",
+   "rt": 1.2,
+   "size": 0.35,
+   "warmth": 0.4,
+   "wet_base": 0.2,
+   "beds": [
+    "prom_bed_high_b1",
+    "prom_bed_high_b2"
+   ],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "step": {
+     "db": -8,
+     "sync": "hit",
+     "rand": true,
+     "files": [
+      "prom_steps_b1"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "clear",
+    "db": 1.0,
+    "wet": 0.08,
+    "x": 600.0
+   },
+   "crisp": "",
+   "hall": {
+    "room": 0.555,
+    "damp": 0.3,
+    "shelf": 0.25,
+    "db": -2.41,
+    "predelay": 29.5,
+    "rt_want": [
+     1.5,
+     1.2,
+     0.65,
+     0.36
+    ],
+    "rt_godot": [
+     1.38,
+     1.27,
+     0.72,
+     0.32
+    ],
+    "rt_sim_mixer": [
+     1.28,
+     1.2,
+     0.88,
+     0.56
+    ],
+    "rt_sim_godot": [
+     1.35,
+     1.22,
+     0.75,
+     0.37
+    ],
+    "err": 0.036
+   },
+   "bus": {
+    "thr_rms_db": -23.85,
+    "gain_db": -9.84
+   }
+  },
+  "prom:city": {
+   "deck": "prom",
+   "tier": "city",
+   "mix": "prom_B",
+   "name": "Lunch arcade",
+   "rt": 1.2,
+   "size": 0.35,
+   "warmth": 0.4,
+   "wet_base": 0.2,
+   "beds": [
+    "prom_bed_high_b1",
+    "prom_bed_high_b2"
+   ],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "step": {
+     "db": -8,
+     "sync": "hit",
+     "rand": true,
+     "files": [
+      "prom_steps_b1"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "clear",
+    "db": 1.0,
+    "wet": 0.08,
+    "x": 600.0
+   },
+   "crisp": "",
+   "hall": {
+    "room": 0.555,
+    "damp": 0.3,
+    "shelf": 0.25,
+    "db": -2.41,
+    "predelay": 29.5,
+    "rt_want": [
+     1.5,
+     1.2,
+     0.65,
+     0.36
+    ],
+    "rt_godot": [
+     1.38,
+     1.27,
+     0.72,
+     0.32
+    ],
+    "rt_sim_mixer": [
+     1.28,
+     1.2,
+     0.88,
+     0.56
+    ],
+    "rt_sim_godot": [
+     1.35,
+     1.22,
+     0.75,
+     0.37
+    ],
+    "err": 0.036
+   },
+   "bus": {
+    "thr_rms_db": -23.85,
+    "gain_db": -9.84
+   }
+  },
+  "prom:capital": {
+   "deck": "prom",
+   "tier": "capital",
+   "mix": "prom_B",
+   "name": "Lunch arcade",
+   "rt": 1.2,
+   "size": 0.35,
+   "warmth": 0.4,
+   "wet_base": 0.2,
+   "beds": [
+    "prom_bed_high_b1",
+    "prom_bed_high_b2"
+   ],
+   "bed_db": -3.0,
+   "bed_dark": 0.35,
+   "layers": [],
+   "map": {
+    "step": {
+     "db": -8,
+     "sync": "hit",
+     "rand": true,
+     "files": [
+      "prom_steps_b1"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "clear",
+    "db": 1.0,
+    "wet": 0.08,
+    "x": 600.0
+   },
+   "crisp": "",
+   "hall": {
+    "room": 0.555,
+    "damp": 0.3,
+    "shelf": 0.25,
+    "db": -2.41,
+    "predelay": 29.5,
+    "rt_want": [
+     1.5,
+     1.2,
+     0.65,
+     0.36
+    ],
+    "rt_godot": [
+     1.38,
+     1.27,
+     0.72,
+     0.32
+    ],
+    "rt_sim_mixer": [
+     1.28,
+     1.2,
+     0.88,
+     0.56
+    ],
+    "rt_sim_godot": [
+     1.35,
+     1.22,
+     0.75,
+     0.37
+    ],
+    "err": 0.036
+   },
+   "bus": {
+    "thr_rms_db": -23.85,
+    "gain_db": -9.84
+   }
+  },
+  "yard:unclaimed": {
+   "deck": "yard",
+   "tier": "unclaimed",
+   "mix": "yard_u_A",
+   "name": "Empty hangar",
+   "rt": 5.5,
+   "size": 1.0,
+   "warmth": 0.6,
+   "wet_base": 0.35,
+   "beds": [
+    "yard_bed_low_a1",
+    "yard_bed_low_a2"
+   ],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "weld": {
+     "db": -6,
+     "dark": 0.4,
+     "fin": 0.1,
+     "fout": 0.3,
+     "files": [
+      "yard_weld"
+     ]
+    },
+    "fork": {
+     "db": -5,
+     "dark": 0.5,
+     "files": [
+      "yard_forklift_a1"
+     ]
+    },
+    "flyer": {
+     "db": -2,
+     "dark": 0.3,
+     "lead": 2.0,
+     "files": [
+      "yard_flyer_a1"
+     ]
+    },
+    "bulb": {
+     "db": -3,
+     "sync": "hit",
+     "files": [
+      "yard_bulb_a1"
+     ]
+    },
+    "console": {
+     "db": -6,
+     "files": [
+      "yard_console_a1"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "tape",
+    "db": -8.0,
+    "wet": 0.5,
+    "x": 780.0
+   },
+   "crisp": "B2",
+   "hall": {
+    "room": 0.945,
+    "damp": 0.95,
+    "shelf": 0.25,
+    "db": -10.66,
+    "predelay": 62.0,
+    "rt_want": [
+     6.88,
+     5.5,
+     2.75,
+     1.43
+    ],
+    "rt_godot": [
+     5.98,
+     5.63,
+     3.34,
+     1.23
+    ],
+    "rt_sim_mixer": [
+     6.29,
+     5.53,
+     3.84,
+     2.14
+    ],
+    "rt_sim_godot": [
+     6.36,
+     5.49,
+     3.44,
+     1.38
+    ],
+    "err": 0.081
+   },
+   "bus": {
+    "thr_rms_db": -24.52,
+    "gain_db": -8.75
+   }
+  },
+  "yard:outpost": {
+   "deck": "yard",
+   "tier": "outpost",
+   "mix": "yard_u_A",
+   "name": "Empty hangar",
+   "rt": 5.5,
+   "size": 1.0,
+   "warmth": 0.6,
+   "wet_base": 0.35,
+   "beds": [
+    "yard_bed_low_a1",
+    "yard_bed_low_a2"
+   ],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "weld": {
+     "db": -6,
+     "dark": 0.4,
+     "fin": 0.1,
+     "fout": 0.3,
+     "files": [
+      "yard_weld"
+     ]
+    },
+    "fork": {
+     "db": -5,
+     "dark": 0.5,
+     "files": [
+      "yard_forklift_a1"
+     ]
+    },
+    "flyer": {
+     "db": -2,
+     "dark": 0.3,
+     "lead": 2.0,
+     "files": [
+      "yard_flyer_a1"
+     ]
+    },
+    "bulb": {
+     "db": -3,
+     "sync": "hit",
+     "files": [
+      "yard_bulb_a1"
+     ]
+    },
+    "console": {
+     "db": -6,
+     "files": [
+      "yard_console_a1"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "far",
+    "db": -8.0,
+    "wet": 0.5,
+    "x": 780.0
+   },
+   "crisp": "B2",
+   "hall": {
+    "room": 0.945,
+    "damp": 0.95,
+    "shelf": 0.25,
+    "db": -10.66,
+    "predelay": 62.0,
+    "rt_want": [
+     6.88,
+     5.5,
+     2.75,
+     1.43
+    ],
+    "rt_godot": [
+     5.98,
+     5.63,
+     3.34,
+     1.23
+    ],
+    "rt_sim_mixer": [
+     6.29,
+     5.53,
+     3.84,
+     2.14
+    ],
+    "rt_sim_godot": [
+     6.36,
+     5.49,
+     3.44,
+     1.38
+    ],
+    "err": 0.081
+   },
+   "bus": {
+    "thr_rms_db": -24.52,
+    "gain_db": -8.75
+   }
+  },
+  "yard:settlement": {
+   "deck": "yard",
+   "tier": "settlement",
+   "mix": "yard_B",
+   "name": "Clean factory",
+   "rt": 3.0,
+   "size": 0.7,
+   "warmth": 0.5,
+   "wet_base": 0.28,
+   "beds": [
+    "yard_bed_high_b1",
+    "yard_bed_high_b2"
+   ],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "weld": {
+     "db": -6,
+     "dark": 0.4,
+     "fin": 0.1,
+     "fout": 0.3,
+     "files": [
+      "yard_weld"
+     ]
+    },
+    "fork": {
+     "db": -3,
+     "dark": 0.3,
+     "files": [
+      "yard_forklift_b1",
+      "yard_forklift_b2"
+     ]
+    },
+    "flyer": {
+     "db": -1,
+     "dark": 0.2,
+     "lead": 2.0,
+     "files": [
+      "yard_flyer_b1",
+      "yard_flyer_b2"
+     ]
+    },
+    "hatch": {
+     "db": -4,
+     "sync": "hit",
+     "files": [
+      "yard_hatch_b1"
+     ]
+    },
+    "bump": {
+     "db": -5,
+     "sync": "hit",
+     "files": [
+      "yard_bump_b1",
+      "yard_bump_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "far",
+    "db": -7.0,
+    "wet": 0.4,
+    "x": 780.0
+   },
+   "crisp": "B2",
+   "hall": {
+    "room": 0.85,
+    "damp": 0.7,
+    "shelf": 0.25,
+    "db": -7.74,
+    "predelay": 47.0,
+    "rt_want": [
+     3.75,
+     3.0,
+     1.56,
+     0.84
+    ],
+    "rt_godot": [
+     3.37,
+     3.16,
+     1.87,
+     0.73
+    ],
+    "rt_sim_mixer": [
+     3.3,
+     2.92,
+     2.09,
+     1.28
+    ],
+    "rt_sim_godot": [
+     3.44,
+     3.07,
+     1.96,
+     0.83
+    ],
+    "err": 0.068
+   },
+   "bus": {
+    "thr_rms_db": -24.15,
+    "gain_db": -9.2
+   }
+  },
+  "yard:city": {
+   "deck": "yard",
+   "tier": "city",
+   "mix": "yard_B",
+   "name": "Clean factory",
+   "rt": 3.0,
+   "size": 0.7,
+   "warmth": 0.5,
+   "wet_base": 0.28,
+   "beds": [
+    "yard_bed_high_b1",
+    "yard_bed_high_b2"
+   ],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "weld": {
+     "db": -6,
+     "dark": 0.4,
+     "fin": 0.1,
+     "fout": 0.3,
+     "files": [
+      "yard_weld"
+     ]
+    },
+    "fork": {
+     "db": -3,
+     "dark": 0.3,
+     "files": [
+      "yard_forklift_b1",
+      "yard_forklift_b2"
+     ]
+    },
+    "flyer": {
+     "db": -1,
+     "dark": 0.2,
+     "lead": 2.0,
+     "files": [
+      "yard_flyer_b1",
+      "yard_flyer_b2"
+     ]
+    },
+    "hatch": {
+     "db": -4,
+     "sync": "hit",
+     "files": [
+      "yard_hatch_b1"
+     ]
+    },
+    "bump": {
+     "db": -5,
+     "sync": "hit",
+     "files": [
+      "yard_bump_b1",
+      "yard_bump_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "far",
+    "db": -7.0,
+    "wet": 0.4,
+    "x": 780.0
+   },
+   "crisp": "B2",
+   "hall": {
+    "room": 0.85,
+    "damp": 0.7,
+    "shelf": 0.25,
+    "db": -7.74,
+    "predelay": 47.0,
+    "rt_want": [
+     3.75,
+     3.0,
+     1.56,
+     0.84
+    ],
+    "rt_godot": [
+     3.37,
+     3.16,
+     1.87,
+     0.73
+    ],
+    "rt_sim_mixer": [
+     3.3,
+     2.92,
+     2.09,
+     1.28
+    ],
+    "rt_sim_godot": [
+     3.44,
+     3.07,
+     1.96,
+     0.83
+    ],
+    "err": 0.068
+   },
+   "bus": {
+    "thr_rms_db": -24.15,
+    "gain_db": -9.2
+   }
+  },
+  "yard:capital": {
+   "deck": "yard",
+   "tier": "capital",
+   "mix": "yard_B",
+   "name": "Clean factory",
+   "rt": 3.0,
+   "size": 0.7,
+   "warmth": 0.5,
+   "wet_base": 0.28,
+   "beds": [
+    "yard_bed_high_b1",
+    "yard_bed_high_b2"
+   ],
+   "bed_db": -3.0,
+   "bed_dark": 0.35,
+   "layers": [],
+   "map": {
+    "weld": {
+     "db": -6,
+     "dark": 0.4,
+     "fin": 0.1,
+     "fout": 0.3,
+     "files": [
+      "yard_weld"
+     ]
+    },
+    "fork": {
+     "db": -3,
+     "dark": 0.3,
+     "files": [
+      "yard_forklift_b1",
+      "yard_forklift_b2"
+     ]
+    },
+    "flyer": {
+     "db": -1,
+     "dark": 0.2,
+     "lead": 2.0,
+     "files": [
+      "yard_flyer_b1",
+      "yard_flyer_b2"
+     ]
+    },
+    "hatch": {
+     "db": -4,
+     "sync": "hit",
+     "files": [
+      "yard_hatch_b1"
+     ]
+    },
+    "bump": {
+     "db": -5,
+     "sync": "hit",
+     "files": [
+      "yard_bump_b1",
+      "yard_bump_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "far",
+    "db": -7.0,
+    "wet": 0.4,
+    "x": 780.0
+   },
+   "crisp": "B2",
+   "hall": {
+    "room": 0.85,
+    "damp": 0.7,
+    "shelf": 0.25,
+    "db": -7.74,
+    "predelay": 47.0,
+    "rt_want": [
+     3.75,
+     3.0,
+     1.56,
+     0.84
+    ],
+    "rt_godot": [
+     3.37,
+     3.16,
+     1.87,
+     0.73
+    ],
+    "rt_sim_mixer": [
+     3.3,
+     2.92,
+     2.09,
+     1.28
+    ],
+    "rt_sim_godot": [
+     3.44,
+     3.07,
+     1.96,
+     0.83
+    ],
+    "err": 0.068
+   },
+   "bus": {
+    "thr_rms_db": -24.15,
+    "gain_db": -9.2
+   }
+  },
+  "exch:unclaimed": {
+   "deck": "exch",
+   "tier": "unclaimed",
+   "mix": "exch_B",
+   "name": "Server room",
+   "rt": 0.4,
+   "size": 0.1,
+   "warmth": 0.5,
+   "wet_base": 0.1,
+   "beds": [
+    "exch_bed_b1",
+    "exch_bed_b2"
+   ],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "pass": {
+     "db": 1,
+     "dark": 0.5,
+     "lead": 1.6,
+     "files": [
+      "exch_pass_b1",
+      "exch_pass_b2"
+     ]
+    },
+    "pass_far": {
+     "db": -12,
+     "dark": 0.9,
+     "lead": 1.6,
+     "files": [
+      "exch_pass_b1",
+      "exch_pass_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "tape_wall",
+    "db": -11.0,
+    "wet": 0.05,
+    "x": 200.0
+   },
+   "crisp": "",
+   "hall": {
+    "room": 0.0,
+    "damp": 0.0,
+    "shelf": 0.25,
+    "db": 4.41,
+    "predelay": 17.0,
+    "rt_want": [
+     0.5,
+     0.4,
+     0.21,
+     0.11
+    ],
+    "rt_godot": [
+     0.6,
+     0.55,
+     0.31,
+     0.17
+    ],
+    "rt_sim_mixer": [
+     0.49,
+     0.43,
+     0.34,
+     0.23
+    ],
+    "rt_sim_godot": [
+     0.61,
+     0.51,
+     0.37,
+     0.27
+    ],
+    "err": 0.458
+   },
+   "bus": {
+    "thr_rms_db": -29.73,
+    "gain_db": -1.72
+   }
+  },
+  "exch:outpost": {
+   "deck": "exch",
+   "tier": "outpost",
+   "mix": "exch_B",
+   "name": "Server room",
+   "rt": 0.4,
+   "size": 0.1,
+   "warmth": 0.5,
+   "wet_base": 0.1,
+   "beds": [
+    "exch_bed_b1",
+    "exch_bed_b2"
+   ],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "pass": {
+     "db": 1,
+     "dark": 0.5,
+     "lead": 1.6,
+     "files": [
+      "exch_pass_b1",
+      "exch_pass_b2"
+     ]
+    },
+    "pass_far": {
+     "db": -12,
+     "dark": 0.9,
+     "lead": 1.6,
+     "files": [
+      "exch_pass_b1",
+      "exch_pass_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "wall",
+    "db": -11.0,
+    "wet": 0.05,
+    "x": 200.0
+   },
+   "crisp": "",
+   "hall": {
+    "room": 0.0,
+    "damp": 0.0,
+    "shelf": 0.25,
+    "db": 4.41,
+    "predelay": 17.0,
+    "rt_want": [
+     0.5,
+     0.4,
+     0.21,
+     0.11
+    ],
+    "rt_godot": [
+     0.6,
+     0.55,
+     0.31,
+     0.17
+    ],
+    "rt_sim_mixer": [
+     0.49,
+     0.43,
+     0.34,
+     0.23
+    ],
+    "rt_sim_godot": [
+     0.61,
+     0.51,
+     0.37,
+     0.27
+    ],
+    "err": 0.458
+   },
+   "bus": {
+    "thr_rms_db": -29.73,
+    "gain_db": -1.72
+   }
+  },
+  "exch:settlement": {
+   "deck": "exch",
+   "tier": "settlement",
+   "mix": "exch_B",
+   "name": "Server room",
+   "rt": 0.4,
+   "size": 0.1,
+   "warmth": 0.5,
+   "wet_base": 0.1,
+   "beds": [
+    "exch_bed_b1",
+    "exch_bed_b2"
+   ],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "pass": {
+     "db": 1,
+     "dark": 0.5,
+     "lead": 1.6,
+     "files": [
+      "exch_pass_b1",
+      "exch_pass_b2"
+     ]
+    },
+    "pass_far": {
+     "db": -12,
+     "dark": 0.9,
+     "lead": 1.6,
+     "files": [
+      "exch_pass_b1",
+      "exch_pass_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "wall",
+    "db": -11.0,
+    "wet": 0.05,
+    "x": 200.0
+   },
+   "crisp": "",
+   "hall": {
+    "room": 0.0,
+    "damp": 0.0,
+    "shelf": 0.25,
+    "db": 4.41,
+    "predelay": 17.0,
+    "rt_want": [
+     0.5,
+     0.4,
+     0.21,
+     0.11
+    ],
+    "rt_godot": [
+     0.6,
+     0.55,
+     0.31,
+     0.17
+    ],
+    "rt_sim_mixer": [
+     0.49,
+     0.43,
+     0.34,
+     0.23
+    ],
+    "rt_sim_godot": [
+     0.61,
+     0.51,
+     0.37,
+     0.27
+    ],
+    "err": 0.458
+   },
+   "bus": {
+    "thr_rms_db": -29.73,
+    "gain_db": -1.72
+   }
+  },
+  "exch:city": {
+   "deck": "exch",
+   "tier": "city",
+   "mix": "exch_B",
+   "name": "Server room",
+   "rt": 0.4,
+   "size": 0.1,
+   "warmth": 0.5,
+   "wet_base": 0.1,
+   "beds": [
+    "exch_bed_b1",
+    "exch_bed_b2"
+   ],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "pass": {
+     "db": 1,
+     "dark": 0.5,
+     "lead": 1.6,
+     "files": [
+      "exch_pass_b1",
+      "exch_pass_b2"
+     ]
+    },
+    "pass_far": {
+     "db": -12,
+     "dark": 0.9,
+     "lead": 1.6,
+     "files": [
+      "exch_pass_b1",
+      "exch_pass_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "wall",
+    "db": -11.0,
+    "wet": 0.05,
+    "x": 200.0
+   },
+   "crisp": "",
+   "hall": {
+    "room": 0.0,
+    "damp": 0.0,
+    "shelf": 0.25,
+    "db": 4.41,
+    "predelay": 17.0,
+    "rt_want": [
+     0.5,
+     0.4,
+     0.21,
+     0.11
+    ],
+    "rt_godot": [
+     0.6,
+     0.55,
+     0.31,
+     0.17
+    ],
+    "rt_sim_mixer": [
+     0.49,
+     0.43,
+     0.34,
+     0.23
+    ],
+    "rt_sim_godot": [
+     0.61,
+     0.51,
+     0.37,
+     0.27
+    ],
+    "err": 0.458
+   },
+   "bus": {
+    "thr_rms_db": -29.73,
+    "gain_db": -1.72
+   }
+  },
+  "exch:capital": {
+   "deck": "exch",
+   "tier": "capital",
+   "mix": "exch_B",
+   "name": "Server room",
+   "rt": 0.4,
+   "size": 0.1,
+   "warmth": 0.5,
+   "wet_base": 0.1,
+   "beds": [
+    "exch_bed_b1",
+    "exch_bed_b2"
+   ],
+   "bed_db": -3.0,
+   "bed_dark": 0.0,
+   "layers": [],
+   "map": {
+    "pass": {
+     "db": 1,
+     "dark": 0.5,
+     "lead": 1.6,
+     "files": [
+      "exch_pass_b1",
+      "exch_pass_b2"
+     ]
+    },
+    "pass_far": {
+     "db": -12,
+     "dark": 0.9,
+     "lead": 1.6,
+     "files": [
+      "exch_pass_b1",
+      "exch_pass_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "wall",
+    "db": -11.0,
+    "wet": 0.05,
+    "x": 200.0
+   },
+   "crisp": "",
+   "hall": {
+    "room": 0.0,
+    "damp": 0.0,
+    "shelf": 0.25,
+    "db": 4.41,
+    "predelay": 17.0,
+    "rt_want": [
+     0.5,
+     0.4,
+     0.21,
+     0.11
+    ],
+    "rt_godot": [
+     0.6,
+     0.55,
+     0.31,
+     0.17
+    ],
+    "rt_sim_mixer": [
+     0.49,
+     0.43,
+     0.34,
+     0.23
+    ],
+    "rt_sim_godot": [
+     0.61,
+     0.51,
+     0.37,
+     0.27
+    ],
+    "err": 0.458
+   },
+   "bus": {
+    "thr_rms_db": -29.73,
+    "gain_db": -1.72
+   }
+  },
+  "board:unclaimed": {
+   "deck": "board",
+   "tier": "unclaimed",
+   "mix": "board_B",
+   "name": "Strip lights",
+   "rt": 0.8,
+   "size": 0.25,
+   "warmth": 0.5,
+   "wet_base": 0.12,
+   "beds": [],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [
+    {
+     "id": "station",
+     "files": [
+      "board_behind_bed_low_c1",
+      "board_behind_bed_low_c2"
+     ],
+     "db": -11.0,
+     "wet": 0.0
+    }
+   ],
+   "map": {
+    "tube": {
+     "db": 4,
+     "smooth": 0.003,
+     "pan": 0.1,
+     "files": [
+      "board_tube_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "tape_wall",
+    "db": -12.0,
+    "wet": 0.0,
+    "x": 150.0
+   },
+   "crisp": "",
+   "keep": {
+    "lab_settlement_lamp": {
+     "file": "board_lab_settlement_lamp",
+     "db": 0.0
+    },
+    "lab_settlement_flicker": {
+     "file": "board_lab_settlement_flicker",
+     "db": 0.0
+    },
+    "board_ad_coolant": {
+     "file": "board_ad_coolant",
+     "db": 0.0
+    },
+    "board_ad_drone": {
+     "file": "board_ad_drone",
+     "db": 0.0
+    },
+    "board_ad_hull_wax": {
+     "file": "board_ad_hull_wax",
+     "db": 0.0
+    },
+    "board_ad_lucky_spin": {
+     "file": "board_ad_lucky_spin",
+     "db": 0.0
+    },
+    "board_ad_noodles": {
+     "file": "board_ad_noodles",
+     "db": 0.0
+    },
+    "board_ad_star_taxi": {
+     "file": "board_ad_star_taxi",
+     "db": 0.0
+    },
+    "lab_unclaimed_bulb": {
+     "file": "board_lab_unclaimed_bulb",
+     "db": 0.0
+    },
+    "lab_outpost_lamp": {
+     "file": "board_lab_outpost_lamp",
+     "db": 0.0
+    },
+    "lab_unclaimed_flicker": {
+     "file": "prom_lab_unclaimed_flicker",
+     "db": 0.0
+    },
+    "lab_outpost_flicker": {
+     "file": "board_lab_outpost_flicker",
+     "db": 0.0
+    },
+    "lab_monitor_pop": {
+     "file": "board_lab_monitor_pop",
+     "db": 0.0
+    },
+    "lab_city_screen": {
+     "file": "board_lab_city_screen",
+     "db": 0.0
+    },
+    "lab_capital_glass": {
+     "file": "board_lab_capital_glass",
+     "db": 0.0
+    },
+    "board_popup_open": {
+     "file": "board_popup_open",
+     "db": -10.0
+    },
+    "board_popup_close": {
+     "file": "board_popup_close",
+     "db": -10.0
+    }
+   },
+   "hall": {
+    "room": 0.335,
+    "damp": 0.1,
+    "shelf": 0.25,
+    "db": 1.03,
+    "predelay": 24.5,
+    "rt_want": [
+     1.0,
+     0.8,
+     0.42,
+     0.22
+    ],
+    "rt_godot": [
+     0.93,
+     0.84,
+     0.44,
+     0.22
+    ],
+    "rt_sim_mixer": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "rt_sim_godot": [
+     0.99,
+     0.74,
+     0.47,
+     0.29
+    ],
+    "err": 0.013
+   },
+   "bus": {
+    "thr_rms_db": -26.34,
+    "gain_db": -8.38
+   }
+  },
+  "board:outpost": {
+   "deck": "board",
+   "tier": "outpost",
+   "mix": "board_B",
+   "name": "Strip lights",
+   "rt": 0.8,
+   "size": 0.25,
+   "warmth": 0.5,
+   "wet_base": 0.12,
+   "beds": [],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [
+    {
+     "id": "station",
+     "files": [
+      "board_behind_bed_low_c1",
+      "board_behind_bed_low_c2"
+     ],
+     "db": -11.0,
+     "wet": 0.0
+    }
+   ],
+   "map": {
+    "tube": {
+     "db": 4,
+     "smooth": 0.003,
+     "pan": 0.1,
+     "files": [
+      "board_tube_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "wall",
+    "db": -12.0,
+    "wet": 0.0,
+    "x": 150.0
+   },
+   "crisp": "",
+   "keep": {
+    "lab_settlement_lamp": {
+     "file": "board_lab_settlement_lamp",
+     "db": 0.0
+    },
+    "lab_settlement_flicker": {
+     "file": "board_lab_settlement_flicker",
+     "db": 0.0
+    },
+    "board_ad_coolant": {
+     "file": "board_ad_coolant",
+     "db": 0.0
+    },
+    "board_ad_drone": {
+     "file": "board_ad_drone",
+     "db": 0.0
+    },
+    "board_ad_hull_wax": {
+     "file": "board_ad_hull_wax",
+     "db": 0.0
+    },
+    "board_ad_lucky_spin": {
+     "file": "board_ad_lucky_spin",
+     "db": 0.0
+    },
+    "board_ad_noodles": {
+     "file": "board_ad_noodles",
+     "db": 0.0
+    },
+    "board_ad_star_taxi": {
+     "file": "board_ad_star_taxi",
+     "db": 0.0
+    },
+    "lab_unclaimed_bulb": {
+     "file": "board_lab_unclaimed_bulb",
+     "db": 0.0
+    },
+    "lab_outpost_lamp": {
+     "file": "board_lab_outpost_lamp",
+     "db": 0.0
+    },
+    "lab_unclaimed_flicker": {
+     "file": "prom_lab_unclaimed_flicker",
+     "db": 0.0
+    },
+    "lab_outpost_flicker": {
+     "file": "board_lab_outpost_flicker",
+     "db": 0.0
+    },
+    "lab_monitor_pop": {
+     "file": "board_lab_monitor_pop",
+     "db": 0.0
+    },
+    "lab_city_screen": {
+     "file": "board_lab_city_screen",
+     "db": 0.0
+    },
+    "lab_capital_glass": {
+     "file": "board_lab_capital_glass",
+     "db": 0.0
+    },
+    "board_popup_open": {
+     "file": "board_popup_open",
+     "db": -10.0
+    },
+    "board_popup_close": {
+     "file": "board_popup_close",
+     "db": -10.0
+    }
+   },
+   "hall": {
+    "room": 0.335,
+    "damp": 0.1,
+    "shelf": 0.25,
+    "db": 1.03,
+    "predelay": 24.5,
+    "rt_want": [
+     1.0,
+     0.8,
+     0.42,
+     0.22
+    ],
+    "rt_godot": [
+     0.93,
+     0.84,
+     0.44,
+     0.22
+    ],
+    "rt_sim_mixer": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "rt_sim_godot": [
+     0.99,
+     0.74,
+     0.47,
+     0.29
+    ],
+    "err": 0.013
+   },
+   "bus": {
+    "thr_rms_db": -26.34,
+    "gain_db": -8.38
+   }
+  },
+  "board:settlement": {
+   "deck": "board",
+   "tier": "settlement",
+   "mix": "board_B",
+   "name": "Strip lights",
+   "rt": 0.8,
+   "size": 0.25,
+   "warmth": 0.5,
+   "wet_base": 0.12,
+   "beds": [],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [
+    {
+     "id": "station",
+     "files": [
+      "board_behind_bed_high_a1",
+      "board_behind_bed_high_a2"
+     ],
+     "db": -11.0,
+     "wet": 0.0
+    }
+   ],
+   "map": {
+    "tube": {
+     "db": 4,
+     "smooth": 0.003,
+     "pan": 0.1,
+     "files": [
+      "board_tube_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "wall",
+    "db": -12.0,
+    "wet": 0.0,
+    "x": 150.0
+   },
+   "crisp": "",
+   "keep": {
+    "lab_settlement_lamp": {
+     "file": "board_lab_settlement_lamp",
+     "db": 0.0
+    },
+    "lab_settlement_flicker": {
+     "file": "board_lab_settlement_flicker",
+     "db": 0.0
+    },
+    "board_ad_coolant": {
+     "file": "board_ad_coolant",
+     "db": 0.0
+    },
+    "board_ad_drone": {
+     "file": "board_ad_drone",
+     "db": 0.0
+    },
+    "board_ad_hull_wax": {
+     "file": "board_ad_hull_wax",
+     "db": 0.0
+    },
+    "board_ad_lucky_spin": {
+     "file": "board_ad_lucky_spin",
+     "db": 0.0
+    },
+    "board_ad_noodles": {
+     "file": "board_ad_noodles",
+     "db": 0.0
+    },
+    "board_ad_star_taxi": {
+     "file": "board_ad_star_taxi",
+     "db": 0.0
+    },
+    "lab_unclaimed_bulb": {
+     "file": "board_lab_unclaimed_bulb",
+     "db": 0.0
+    },
+    "lab_outpost_lamp": {
+     "file": "board_lab_outpost_lamp",
+     "db": 0.0
+    },
+    "lab_unclaimed_flicker": {
+     "file": "prom_lab_unclaimed_flicker",
+     "db": 0.0
+    },
+    "lab_outpost_flicker": {
+     "file": "board_lab_outpost_flicker",
+     "db": 0.0
+    },
+    "lab_monitor_pop": {
+     "file": "board_lab_monitor_pop",
+     "db": 0.0
+    },
+    "lab_city_screen": {
+     "file": "board_lab_city_screen",
+     "db": 0.0
+    },
+    "lab_capital_glass": {
+     "file": "board_lab_capital_glass",
+     "db": 0.0
+    },
+    "board_popup_open": {
+     "file": "board_popup_open",
+     "db": -10.0
+    },
+    "board_popup_close": {
+     "file": "board_popup_close",
+     "db": -10.0
+    }
+   },
+   "hall": {
+    "room": 0.335,
+    "damp": 0.1,
+    "shelf": 0.25,
+    "db": 1.03,
+    "predelay": 24.5,
+    "rt_want": [
+     1.0,
+     0.8,
+     0.42,
+     0.22
+    ],
+    "rt_godot": [
+     0.93,
+     0.84,
+     0.44,
+     0.22
+    ],
+    "rt_sim_mixer": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "rt_sim_godot": [
+     0.99,
+     0.74,
+     0.47,
+     0.29
+    ],
+    "err": 0.013
+   },
+   "bus": {
+    "thr_rms_db": -26.34,
+    "gain_db": -8.38
+   }
+  },
+  "board:city": {
+   "deck": "board",
+   "tier": "city",
+   "mix": "board_B",
+   "name": "Strip lights",
+   "rt": 0.8,
+   "size": 0.25,
+   "warmth": 0.5,
+   "wet_base": 0.12,
+   "beds": [],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [
+    {
+     "id": "station",
+     "files": [
+      "board_behind_bed_high_a1",
+      "board_behind_bed_high_a2"
+     ],
+     "db": -11.0,
+     "wet": 0.0
+    }
+   ],
+   "map": {
+    "tube": {
+     "db": 4,
+     "smooth": 0.003,
+     "pan": 0.1,
+     "files": [
+      "board_tube_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "wall",
+    "db": -12.0,
+    "wet": 0.0,
+    "x": 150.0
+   },
+   "crisp": "",
+   "keep": {
+    "lab_settlement_lamp": {
+     "file": "board_lab_settlement_lamp",
+     "db": 0.0
+    },
+    "lab_settlement_flicker": {
+     "file": "board_lab_settlement_flicker",
+     "db": 0.0
+    },
+    "board_ad_coolant": {
+     "file": "board_ad_coolant",
+     "db": 0.0
+    },
+    "board_ad_drone": {
+     "file": "board_ad_drone",
+     "db": 0.0
+    },
+    "board_ad_hull_wax": {
+     "file": "board_ad_hull_wax",
+     "db": 0.0
+    },
+    "board_ad_lucky_spin": {
+     "file": "board_ad_lucky_spin",
+     "db": 0.0
+    },
+    "board_ad_noodles": {
+     "file": "board_ad_noodles",
+     "db": 0.0
+    },
+    "board_ad_star_taxi": {
+     "file": "board_ad_star_taxi",
+     "db": 0.0
+    },
+    "lab_unclaimed_bulb": {
+     "file": "board_lab_unclaimed_bulb",
+     "db": 0.0
+    },
+    "lab_outpost_lamp": {
+     "file": "board_lab_outpost_lamp",
+     "db": 0.0
+    },
+    "lab_unclaimed_flicker": {
+     "file": "prom_lab_unclaimed_flicker",
+     "db": 0.0
+    },
+    "lab_outpost_flicker": {
+     "file": "board_lab_outpost_flicker",
+     "db": 0.0
+    },
+    "lab_monitor_pop": {
+     "file": "board_lab_monitor_pop",
+     "db": 0.0
+    },
+    "lab_city_screen": {
+     "file": "board_lab_city_screen",
+     "db": 0.0
+    },
+    "lab_capital_glass": {
+     "file": "board_lab_capital_glass",
+     "db": 0.0
+    },
+    "board_popup_open": {
+     "file": "board_popup_open",
+     "db": -10.0
+    },
+    "board_popup_close": {
+     "file": "board_popup_close",
+     "db": -10.0
+    }
+   },
+   "hall": {
+    "room": 0.335,
+    "damp": 0.1,
+    "shelf": 0.25,
+    "db": 1.03,
+    "predelay": 24.5,
+    "rt_want": [
+     1.0,
+     0.8,
+     0.42,
+     0.22
+    ],
+    "rt_godot": [
+     0.93,
+     0.84,
+     0.44,
+     0.22
+    ],
+    "rt_sim_mixer": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "rt_sim_godot": [
+     0.99,
+     0.74,
+     0.47,
+     0.29
+    ],
+    "err": 0.013
+   },
+   "bus": {
+    "thr_rms_db": -26.34,
+    "gain_db": -8.38
+   }
+  },
+  "board:capital": {
+   "deck": "board",
+   "tier": "capital",
+   "mix": "board_B",
+   "name": "Strip lights",
+   "rt": 0.8,
+   "size": 0.25,
+   "warmth": 0.5,
+   "wet_base": 0.12,
+   "beds": [],
+   "bed_db": 0.0,
+   "bed_dark": 0.0,
+   "layers": [
+    {
+     "id": "station",
+     "files": [
+      "board_behind_bed_high_a1",
+      "board_behind_bed_high_a2"
+     ],
+     "db": -11.0,
+     "wet": 0.0
+    }
+   ],
+   "map": {
+    "tube": {
+     "db": 4,
+     "smooth": 0.003,
+     "pan": 0.1,
+     "files": [
+      "board_tube_b2"
+     ]
+    }
+   },
+   "pa": {
+    "speaker": "wall",
+    "db": -12.0,
+    "wet": 0.0,
+    "x": 150.0
+   },
+   "crisp": "",
+   "keep": {
+    "lab_settlement_lamp": {
+     "file": "board_lab_settlement_lamp",
+     "db": 0.0
+    },
+    "lab_settlement_flicker": {
+     "file": "board_lab_settlement_flicker",
+     "db": 0.0
+    },
+    "board_ad_coolant": {
+     "file": "board_ad_coolant",
+     "db": 0.0
+    },
+    "board_ad_drone": {
+     "file": "board_ad_drone",
+     "db": 0.0
+    },
+    "board_ad_hull_wax": {
+     "file": "board_ad_hull_wax",
+     "db": 0.0
+    },
+    "board_ad_lucky_spin": {
+     "file": "board_ad_lucky_spin",
+     "db": 0.0
+    },
+    "board_ad_noodles": {
+     "file": "board_ad_noodles",
+     "db": 0.0
+    },
+    "board_ad_star_taxi": {
+     "file": "board_ad_star_taxi",
+     "db": 0.0
+    },
+    "lab_unclaimed_bulb": {
+     "file": "board_lab_unclaimed_bulb",
+     "db": 0.0
+    },
+    "lab_outpost_lamp": {
+     "file": "board_lab_outpost_lamp",
+     "db": 0.0
+    },
+    "lab_unclaimed_flicker": {
+     "file": "prom_lab_unclaimed_flicker",
+     "db": 0.0
+    },
+    "lab_outpost_flicker": {
+     "file": "board_lab_outpost_flicker",
+     "db": 0.0
+    },
+    "lab_monitor_pop": {
+     "file": "board_lab_monitor_pop",
+     "db": 0.0
+    },
+    "lab_city_screen": {
+     "file": "board_lab_city_screen",
+     "db": 0.0
+    },
+    "lab_capital_glass": {
+     "file": "board_lab_capital_glass",
+     "db": 0.0
+    },
+    "board_popup_open": {
+     "file": "board_popup_open",
+     "db": -10.0
+    },
+    "board_popup_close": {
+     "file": "board_popup_close",
+     "db": -10.0
+    }
+   },
+   "hall": {
+    "room": 0.335,
+    "damp": 0.1,
+    "shelf": 0.25,
+    "db": 1.03,
+    "predelay": 24.5,
+    "rt_want": [
+     1.0,
+     0.8,
+     0.42,
+     0.22
+    ],
+    "rt_godot": [
+     0.93,
+     0.84,
+     0.44,
+     0.22
+    ],
+    "rt_sim_mixer": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "rt_sim_godot": [
+     0.99,
+     0.74,
+     0.47,
+     0.29
+    ],
+    "err": 0.013
+   },
+   "bus": {
+    "thr_rms_db": -26.34,
+    "gain_db": -8.38
+   }
+  }
+ },
+ "eq21": [
+  -11.4,
+  -7.19,
+  -5.01,
+  -2.93,
+  -0.8,
+  0.66,
+  1.56,
+  1.24,
+  0.1,
+  -0.51,
+  -0.49,
+  -0.66,
+  -1.13,
+  -2.04,
+  -2.94,
+  -2.88,
+  -2.32,
+  -2.79,
+  -3.74,
+  -4.04,
+  -4.0
+ ],
+ "eq21_hz": [
+  22,
+  32,
+  44,
+  63,
+  90,
+  125,
+  175,
+  250,
+  350,
+  500,
+  700,
+  1000,
+  1400,
+  2000,
+  2800,
+  4000,
+  5600,
+  8000,
+  11000,
+  16000,
+  22000
+ ],
+ "speakers": {
+  "clear": {
+   "hp": [
+    220,
+    220
+   ],
+   "lp": [
+    6000,
+    6000
+   ],
+   "bell": {
+    "2000": 6.0
+   }
+  },
+  "cheap": {
+   "hp": [
+    320,
+    320
+   ],
+   "lp": [
+    3600,
+    3600
+   ],
+   "bell": {
+    "2000": 4.0
+   }
+  },
+  "far": {
+   "hp": [
+    260,
+    260
+   ],
+   "lp": [
+    3200,
+    3200,
+    2400,
+    2400,
+    2400,
+    2400
+   ],
+   "bell": {}
+  },
+  "wall": {
+   "hp": [
+    90,
+    90
+   ],
+   "lp": [
+    520,
+    520,
+    520,
+    520,
+    520,
+    520,
+    520,
+    520
+   ],
+   "bell": {
+    "250": 8.0
+   }
+  },
+  "door": {
+   "hp": [
+    70,
+    70
+   ],
+   "lp": [
+    380,
+    380,
+    380,
+    380,
+    380,
+    380,
+    380,
+    380
+   ],
+   "bell": {}
+  },
+  "tape": {
+   "hp": [
+    380,
+    380
+   ],
+   "lp": [
+    3000,
+    3000
+   ],
+   "bell": {},
+   "tape": true
+  },
+  "tape_wall": {
+   "hp": [
+    380,
+    380
+   ],
+   "lp": [
+    520,
+    520,
+    520,
+    520,
+    520,
+    520,
+    520,
+    520
+   ],
+   "bell": {
+    "250": 6.0
+   },
+   "tape": true
+  }
+ },
+ "speaker_db": {
+  "clear": -2.88,
+  "cheap": -1.41,
+  "far": 1.39,
+  "wall": 24.38,
+  "door": 43.41,
+  "tape": 0.8,
+  "tape_wall": 29.89
+ },
+ "mixes": {
+  "board_B": {
+   "thr_rms_db": -26.34,
+   "pre_lufs": -28.04,
+   "gain_db": -8.38,
+   "mix": {
+    "lufs": -37.0,
+    "lra": 4.7,
+    "tp": -17.9,
+    "hot_2_5k": 0.0033,
+    "air_8k": 0.06216,
+    "lows_below_500": 0.924,
+    "sub_20_60": 0.021,
+    "body_120_500": 0.177
+   },
+   "band_2_8k_db": -21.37
+  },
+  "exch_B": {
+   "thr_rms_db": -29.73,
+   "pre_lufs": -34.81,
+   "gain_db": -1.72,
+   "mix": {
+    "lufs": -37.0,
+    "lra": 6.5,
+    "tp": -18.7,
+    "hot_2_5k": 0.0007,
+    "air_8k": 0.0,
+    "lows_below_500": 0.986,
+    "sub_20_60": 0.692,
+    "body_120_500": 0.123
+   },
+   "band_2_8k_db": -31.07
+  },
+  "prom_B": {
+   "thr_rms_db": -23.85,
+   "pre_lufs": -27.16,
+   "gain_db": -9.84,
+   "mix": {
+    "lufs": -37.0,
+    "lra": 3.5,
+    "tp": -21.3,
+    "hot_2_5k": 0.0069,
+    "air_8k": 0.0,
+    "lows_below_500": 0.585,
+    "sub_20_60": 0.061,
+    "body_120_500": 0.482
+   },
+   "band_2_8k_db": -21.57
+  },
+  "prom_u_C": {
+   "thr_rms_db": -27.09,
+   "pre_lufs": -30.06,
+   "gain_db": -6.75,
+   "mix": {
+    "lufs": -37.0,
+    "lra": 4.9,
+    "tp": -19.9,
+    "hot_2_5k": 0.004,
+    "air_8k": 0.00576,
+    "lows_below_500": 0.816,
+    "sub_20_60": 0.141,
+    "body_120_500": 0.585
+   },
+   "band_2_8k_db": -23.05
+  },
+  "yard_B": {
+   "thr_rms_db": -24.15,
+   "pre_lufs": -27.8,
+   "gain_db": -9.2,
+   "mix": {
+    "lufs": -37.0,
+    "lra": 5.0,
+    "tp": -23.8,
+    "hot_2_5k": 0.0088,
+    "air_8k": 0.00016,
+    "lows_below_500": 0.869,
+    "sub_20_60": 0.027,
+    "body_120_500": 0.691
+   },
+   "band_2_8k_db": -18.48
+  },
+  "yard_u_A": {
+   "thr_rms_db": -24.52,
+   "pre_lufs": -28.23,
+   "gain_db": -8.75,
+   "mix": {
+    "lufs": -37.0,
+    "lra": 6.1,
+    "tp": -14.9,
+    "hot_2_5k": 0.0095,
+    "air_8k": 0.00018,
+    "lows_below_500": 0.915,
+    "sub_20_60": 0.013,
+    "body_120_500": 0.436
+   },
+   "band_2_8k_db": -18.15
+  }
+ }
+}

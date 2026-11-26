@@ -116,8 +116,12 @@ func _deck(scr: StationScreen, id: StringName, tr: String) -> void:
 		rode += 1
 		await _tree.process_frame
 	var t0 := ss.t
+	var arc := 0
+	var y := scr.deck_room(&"services") as YardScene
 	while ss.t - t0 < 24.0:
 		await _tree.process_frame
+		if id == &"services" and y != null and y.life != null and bool(y.life.weld_now.get("on", false)):
+			arc += 1
 	var dk: StringName = StationSound.DECK_OF[id]
 	var got := ss.starts.slice(n0)
 	var counts: Dictionary[String, int] = {}
@@ -135,10 +139,14 @@ func _deck(scr: StationScreen, id: StringName, tr: String) -> void:
 		&"prom":
 			_ok("%s prom: the nearest walker's steps (%d in 24 s)" % [tr, counts.get("step", 0)], counts.get("step", 0) >= 6)
 		&"yard":
-			_ok("%s yard: the welder's arc and the forklift" % tr, counts.get("weld", 0) >= 1 and counts.get("curve:fork", 0) == 1)
+			# (the welder's arc is worked out where the yard paints, which headless it may not: then nothing to hear)
+			_ok("%s yard: the forklift, and the welder's arc each time it strikes (%d frames lit)" % [tr, arc],
+				counts.get("curve:fork", 0) == 1 and (counts.get("weld", 0) >= 1) == (arc > 0))
 		&"board":
 			_ok("%s board: the tube and the station behind the wall" % tr,
 				counts.get("curve:tube", 0) == 1 and counts.get("layer:station", 0) == 1)
+			var own := counts.keys().filter(func(k: String) -> bool: return k.begins_with("lab_") or k.begins_with("board_"))
+			_ok("%s board: its own sounds (the tubes' stutters) play through its room %s" % [tr, own], not own.is_empty())
 		&"exch":
 			_passes(got, tr)
 

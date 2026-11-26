@@ -5,10 +5,6 @@ extends RefCounted
 ## compression, a true-peak ceiling) into Ambient, its hall `StationHall` (one reverb, set per room), a bus per voice
 ## (pan and the depth low-pass) and one per PA speaker (its filters). Why: docs/why/StationSound.md#the-buses
 
-## The bus EQ's bands each crispness lift goes on (`AudioEffectEQ21`'s, by index), as the hangar's.
-const EQ_MUD := [6, 7, 8, 9]
-const EQ_PRES := [12, 13, 14, 15, 16]
-const EQ_AIR := [17, 18, 19, 20]
 ## `AudioEffectEQ10`'s band centres, for the PA's bells.
 const EQ10_HZ := [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
@@ -58,7 +54,7 @@ static func master() -> int:
 
 
 ## A voice's bus: its pan, then the mixer's 2nd-order Butterworth run forward and back as two plain 2-pole stages
-## (Godot's 24DB is a far steeper slope, which sounded muddy in the hangars). Why: docs/why/StationSound.md#depth-low-pass
+## (as `HangarSound`'s: Godot's 24DB sounded muddy). Why: docs/why/HangarSound.md#depth-low-pass
 static func voice(n: String, to: StringName) -> StringName:
 	master()
 	var made := AudioServer.get_bus_index(n) >= 0
@@ -71,15 +67,6 @@ static func voice(n: String, to: StringName) -> StringName:
 			lp.db = AudioEffectFilter.FILTER_6DB
 			AudioServer.add_bus_effect(idx, lp)
 	return StringName(n)
-
-
-## Constant power (the mixer's) as Godot's balance panner takes it: (its pan, the dB to make up).
-static func pan_for(x: float, k: float) -> Vector2:
-	var p := clampf(x / 960.0 * 2.0 - 1.0, -1.0, 1.0) * k
-	var th := (p + 1.0) * PI / 4.0
-	var l := cos(th) * sqrt(2.0)
-	var r := sin(th) * sqrt(2.0)
-	return Vector2((r - l) / (r + l), linear_to_db((r + l) * 0.5))
 
 
 ## A voice's pan (Godot's balance) and darkness (0: no low-pass; else 7 kHz down toward 1.8 kHz).
@@ -133,7 +120,7 @@ static func set_room(plan: Dictionary, live: bool) -> void:
 	var idx := master()
 	var key := StringName("%s:%s" % [plan.get("deck", ""), plan.get("tier", "")])
 	var bus: Dictionary = plan.get("bus", {})
-	var crisp: Dictionary = plan.get("crisp", {})
+	var crisp := StationSound.crisp_of(plan)
 	AudioServer.set_bus_volume_db(idx, float(bus.get("gain_db", -11.0)) + float(StationSound.LEVEL_TRIM.get(key, 0.0)))
 	var c := AudioServer.get_bus_effect(idx, 1) as AudioEffectCompressor
 	c.threshold = float(bus.get("thr_rms_db", -23.0)) + StationSound.COMP_DETECT
@@ -141,11 +128,11 @@ static func set_room(plan: Dictionary, live: bool) -> void:
 	var g: Array = StationSound.data().get("eq21", [])
 	for b in mini(g.size(), eq.get_band_count()):
 		var add := 0.0
-		if b in EQ_MUD:
+		if b in HangarSound.EQ_MUD:
 			add = float(crisp.get("mud", 0.0))
-		elif b in EQ_PRES:
+		elif b in HangarSound.EQ_PRES:
 			add = float(crisp.get("pres", 0.0))
-		elif b in EQ_AIR:
+		elif b in HangarSound.EQ_AIR:
 			add = float(crisp.get("air", 0.0))
 		eq.set_band_gain_db(b, float(g[b]) + add)
 	var hall: Dictionary = plan.get("hall", {})

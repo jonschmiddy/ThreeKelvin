@@ -113,7 +113,7 @@ func boot_now() -> void:
 func _sound() -> void:
 	var u := _now() - _boot_at
 	while _heard < _plan.size() and float(_plan[_heard][0]) <= u:
-		Audio.play(_plan[_heard][1], 0.0, 0, StationSound.keep_db(_plan[_heard][1]))
+		StationSound.keep(_plan[_heard][1])
 		_heard += 1
 		_voiced = true
 	if dev >= 3:
@@ -123,13 +123,13 @@ func _sound() -> void:
 	if not _settled and lvl >= 0.999 and u >= WAIT + float(int(_bars()["n"]) - 1) * GAP + STRIKE:
 		# held steady at last: the lamp's clunk and hum, once
 		_settled = true
-		Audio.play(STRIKE_SOUND[clampi(dev, 0, 2)], 0.0, 0, StationSound.keep_db(STRIKE_SOUND[clampi(dev, 0, 2)]))
+		StationSound.keep(STRIKE_SOUND[clampi(dev, 0, 2)])
 		_voiced = true
 	elif jump:
 		# a flash: the tubes striking, or a stutter coming back on
 		_flick_at = _now()
 		var fl: Array = FLICKER_SOUND[clampi(dev, 0, 2)]
-		Audio.play(fl[_flick_n % fl.size()], 0.0, 0, StationSound.keep_db(fl[_flick_n % fl.size()]))
+		StationSound.keep(fl[_flick_n % fl.size()])
 		_flick_n += 1
 		_voiced = true
 	_lvl_was = lvl

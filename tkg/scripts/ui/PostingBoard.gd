@@ -407,7 +407,7 @@ func _process(_dt: float) -> void:
 				_jingled = turn
 				# Scored to the picture: starts on the commercial's first frame or stays quiet.
 				if into < 0.1:
-					Audio.play(JINGLES[ci], 0.0, 0, StationSound.keep_db(JINGLES[ci]))
+					StationSound.keep(JINGLES[ci])
 
 
 static func _t() -> float:
@@ -791,7 +791,7 @@ func _side(col: Rect2) -> void:
 		_pops += 1
 		# Jon's picks on Hiring Board, Heard: a soft chime chord to open, a
 		# muffled pop to shut
-		Audio.play(&"board_popup_open", 0.0, 0, StationSound.keep_db(&"board_popup_open"))
+		StationSound.keep(&"board_popup_open")
 	if _pop_at >= 0.0:
 		var n := _pops % 3
 		var pw := minf(176.0, col.size.x - 8.0)
@@ -1029,7 +1029,7 @@ func _gui_input(event: InputEvent) -> void:
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and _on_pop(mb.position):
 		_pop_at = -1.0
 		_pop_next = _t() + POP_EVERY
-		Audio.play(&"board_popup_close", 0.0, 0, StationSound.keep_db(&"board_popup_close"))
+		StationSound.keep(&"board_popup_close")
 		pop_x = Rect2()
 		pop_btn = Rect2()
 		mouse_default_cursor_shape = Control.CURSOR_ARROW
