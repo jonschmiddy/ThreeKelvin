@@ -64,12 +64,6 @@ func _plans() -> void:
 				missing.append("%s:%s speaker %s" % [dk, tr, sp])
 			if (sp.begins_with("tape")) != (tr == "unclaimed"):
 				missing.append("%s:%s reads %s" % [dk, tr, sp])
-			var ideas: Dictionary = (d.get("rooms", {}) as Dictionary).get("%s:%s" % [dk, tr], {}).get("pa_ideas", {})
-			for k: String in ["A", "B", "C"]:
-				var isp := String((ideas.get(k, {}) as Dictionary).get("speaker", ""))
-				var hall := String((speakers.get(isp, {}) as Dictionary).get("hall", ""))
-				if not speakers.has(isp) or isp.begins_with("tape") != (tr == "unclaimed") 						or (hall != "" and not (d.get("pa_halls", {}) as Dictionary).has(hall)):
-					missing.append("%s:%s idea %s reads %s" % [dk, tr, k, isp])
 			for cls: Variant in (p.get("map", {}) as Dictionary):
 				if String(cls) in ["sneeze", "cat", "plane", "joke"]:
 					missing.append("%s:%s plays a joke (%s)" % [dk, tr, cls])

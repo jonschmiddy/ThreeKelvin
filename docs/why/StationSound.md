@@ -58,15 +58,15 @@ Headless (the tests) it decides and logs every start and plays nothing; it loads
 ## tiers
 
 Every station has all five decks at every level (Jon, Nov 3), and Jon picked two rooms a deck. plan.md's tiers: the low
-beds below settlement, the high from it, capital the same bed darker and lower. So:
+beds below settlement, the high from it, capital the same bed darker and lower. The PA's speaker is by deck, #the-pa. So:
 
 | Deck | unclaimed | outpost | settlement, city | capital |
 |---|---|---|---|---|
-| Promenade | C, the tape | C's bed, a live PA through a cheap speaker | B | B, its bed darker (0.35) and 3 dB down |
+| Promenade | C, the tape | C's bed | B | B, its bed darker (0.35) and 3 dB down |
 | Shipyard | A, the tape far off | A's bed, the live PA far off | B | B, darker and 3 dB down |
-| Exchange | B, the tape through the wall | B | B | B, 3 dB down |
+| Exchange | B, the tape | B | B | B, 3 dB down |
 | Hiring Board | B, the low tiers' Promenade behind the wall, the tape | B, the low Promenade behind | B (the high Promenade behind, the mix's own) | B |
-| Laboratory | C's bed; the low Promenade behind the door, the tape through it | C, the low Promenade behind | C, the high Promenade behind | C |
+| Laboratory | C's bed; the low Promenade behind the door, the tape | C, the low Promenade behind | C, the high Promenade behind | C |
 
 The bus numbers (the level the mixer's bus gave a room, its compressor's threshold) come from re-running the picked
 mixes; a tier's variant takes its pick's.
@@ -118,36 +118,17 @@ sound is heard as you leave; the rows wait for such a moment. reactor_1 ("That b
 `bang`: no deck has a reactor sound of its own, so the game's heaviest low blast (`sfx/explosion_small_3`) plays first
 far off through the deck's room (fully dark, wet 0.6, 2 dB under the deck's PA level), and the chime 1.2 s after it.
 
-**Speakers.** Each deck hears the PA through its own speaker (the mixer's `speaker` kinds as Godot filter stages on a
-bus per kind): the Promenade clear, the Shipyard far, the Exchange and the Board through the wall, the Lab through the
-door. `speaker_db` (what each speaker's filters take off the lines, made up after) is re-measured on the dry takes:
-they are full range, where the old ones had a speaker's band already, so the wall and the door take far less off them.
-
-**Wet.** The old takes carried their own echo, so each deck's wet send was raised until the room fills the gaps
-between words as much as it did on the old lines (the 85th-15th percentile spread of 50 ms frames over the line, on the
-game's chain emulated: pa_v2/game/wet_tune.py, `PA_WET` in station_sound.py). Promenade 0.12/0.08 to 0.20/0.25, the
-Exchange 0.05 to 0.6 (its room is tiny, so it takes a lot), the Board and the Lab 0 to 0.2, the tapes 0.08 to 0.15;
-the Shipyard's far speaker already matched (0.5, 0.4), its tape 0.5 to 0.4.
-
-**Three ideas on trial** (Jon, Nov 26, after the films: the yard's PA "sounds GREAT", the Promenade's, Exchange's,
-Board's and Lab's "weird"). The cause, measured on the game's chain emulated (pa_v2/game/chain_spec.py): the old takes
-were already a PA's band (nothing much under 400 Hz: 250 Hz sat 30 dB under 1 kHz), the new ones are full range (250 Hz
-level with 1 kHz). Through the wall's and door's 520 and 380 Hz low-passes the new lines are all chest: 100-250 Hz
-40-50 dB over 1 kHz, no consonants left, a boomy mumble, and as `speaker_db` makes the loudness up after the filter,
-that boom is played at full level (the Lab's line rose from about 4 to 6 dB over its bed). Through `clear` (220 Hz-6
-kHz) the new lines keep their body and their highs: a hi-fi voice in the room, not a PA. The yard's `far` chain
-(260 Hz-2.4 kHz, steep) cuts them to the same band the old takes had, and its big wet send makes it far away: that is
-the PA Jon liked. The raised wet sends added echo to a chain that was already wrong. So each room's `pa_ideas` holds
-three ways to hear it, picked by station.json `pa_pick` ("" for the room's own `pa`; `pa_pick=X` on the command line
-overrides it for a film), made by `station_sound.py` (PA_IDEAS):
-A, the yard's PA everywhere: `far` on every deck, its own room's hall at wet 0.4, the deck's level.
-B, a speaker in this room: a small ceiling speaker (`ceiling`, 300 Hz-3 kHz) inside the room, close, only the room's own
-short echo (its `wet_base`); the Board, Exchange and Lab hear it in the room, not through the wall, 4 dB up.
-By capture each line sits about as far over its bed as the old ones did (IDEA_TRIM: the Board 3 dB up in all three,
-the Lab's B 2 dB down).
-C, out on the concourse: the yard-style PA in the big hall outside, through an open doorway (`concourse`: the far chain
-then 1.8 kHz, its wet into its own hall, `pa_halls.concourse`, the Promenade's 2 s unclaimed fit), 3 dB down, wet 0.5;
-on the Promenade itself, the far chain in the Promenade's hall (A). The tape follows each (`tape`, `tape_concourse`).
+**Speakers** (Jon, Nov 26, from three ideas filmed). The old takes were already a PA's band (250 Hz sat 30 dB under
+1 kHz); the new are full range. Through the mixer's wall and door low-passes (520, 380 Hz) they came out all chest, a
+boomy mumble played at full level once `speaker_db` made the loudness up, and through `clear` (220 Hz-6 kHz) a hi-fi
+voice in the room; Jon: "weird". The yard's `far` chain (260 Hz-2.4 kHz, steep) cuts them to the old band and its wet
+puts them far off; Jon: "GREAT". Of three ideas (A the yard's PA everywhere, B a small speaker in the room, C the PA out
+on the concourse through a doorway) he picked per deck: the Promenade and the Exchange A, `far` at wet 0.4 into the
+deck's own hall; the Hiring Board and the Lab B, `ceiling` (300 Hz-3 kHz) in the room, not behind the wall, the room's
+own short echo (its `wet_base`), 4 dB over the mixer's through-wall level, then by capture the Board 3 dB more and the
+Lab 2 dB less, so each line sits about as far over its bed as the old ones did; the yard its `far` as the mixer had it.
+Unclaimed reads the tape (`tape`) through each the same way. `station_sound.py` (PA_KIND, PA_DB, `pa_room`) makes each
+room's `pa` from the mixer's, kept beside it as `mixer`. `speaker_db` is measured on the dry takes.
 
 **The tape** (unclaimed) is code too: wow and flutter on the pitch, band-limited 380 Hz-3 kHz, two dropouts (38-47 % of
 the line at 8 %, 61-64.5 % at 25 %), cut dead with a small clunk where its row's `cut` says the written line stops:
@@ -166,8 +147,7 @@ in one band): C "Far plant", a low rough rumble of pumps far below the floor (`t
 one-shots and glass (`LabScene`). The old tones and `amb_station` under the Lab are gone.
 
 Behind the shut door, the Lab's room plays the old "Door shut" recipe: the concourse crowd (the Promenade's high bed A,
-the low tiers' C) low-passed at 330 Hz, 12 dB under, and the PA through the door (`door`, unclaimed `tape_door`) 11 dB
-under, both against the old settlement hum's level (`ref_db`, -13.03: the new beds kept that ref in the page mix, so
+the low tiers' C) low-passed at 330 Hz, 12 dB under, and the PA (since Nov 26 a speaker in the room, #the-pa) against the old settlement hum's level (`ref_db`, -13.03: the new beds kept that ref in the page mix, so
 everything but the bed sits where it sat). The page mix put a fixed bus over all of it (+5.35 dB, `lab_beds/old_bus.json`);
 in the game the Lab's own sounds play at their own levels on Ambient as they always did, so the Lab's room bus has no
 gain, and a Lab capture reads about 5.35 dB (and the faders' 4) under its page mix.

@@ -1976,8 +1976,14 @@
    "pa": {
     "speaker": "tape",
     "db": -3.0,
-    "wet": 0.12,
-    "x": 300.0
+    "wet": 0.4,
+    "x": 300.0,
+    "mixer": {
+     "speaker": "tape",
+     "db": -3.0,
+     "wet": 0.12,
+     "x": 300.0
+    }
    },
    "crisp": "",
    "hall": {
@@ -2015,26 +2021,6 @@
    "bus": {
     "thr_rms_db": -27.09,
     "gain_db": -6.75
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "tape",
-     "db": -3.0,
-     "wet": 0.4,
-     "x": 300.0
-    },
-    "B": {
-     "speaker": "tape",
-     "db": -3.0,
-     "wet": 0.25,
-     "x": 300.0
-    },
-    "C": {
-     "speaker": "tape",
-     "db": -3.0,
-     "wet": 0.4,
-     "x": 300.0
-    }
    }
   },
   "prom:outpost": {
@@ -2070,10 +2056,16 @@
     }
    },
    "pa": {
-    "speaker": "cheap",
+    "speaker": "far",
     "db": -3.0,
-    "wet": 0.2,
-    "x": 300.0
+    "wet": 0.4,
+    "x": 300.0,
+    "mixer": {
+     "speaker": "cheap",
+     "db": -3.0,
+     "wet": 0.12,
+     "x": 300.0
+    }
    },
    "crisp": "",
    "hall": {
@@ -2111,26 +2103,6 @@
    "bus": {
     "thr_rms_db": -27.09,
     "gain_db": -6.75
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -3.0,
-     "wet": 0.4,
-     "x": 300.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -3.0,
-     "wet": 0.25,
-     "x": 300.0
-    },
-    "C": {
-     "speaker": "far",
-     "db": -3.0,
-     "wet": 0.4,
-     "x": 300.0
-    }
    }
   },
   "prom:settlement": {
@@ -2160,10 +2132,16 @@
     }
    },
    "pa": {
-    "speaker": "clear",
+    "speaker": "far",
     "db": 1.0,
-    "wet": 0.25,
-    "x": 600.0
+    "wet": 0.4,
+    "x": 600.0,
+    "mixer": {
+     "speaker": "clear",
+     "db": 1.0,
+     "wet": 0.08,
+     "x": 600.0
+    }
    },
    "crisp": "",
    "hall": {
@@ -2201,26 +2179,6 @@
    "bus": {
     "thr_rms_db": -23.85,
     "gain_db": -9.84
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": 1.0,
-     "wet": 0.4,
-     "x": 600.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": 1.0,
-     "wet": 0.2,
-     "x": 600.0
-    },
-    "C": {
-     "speaker": "far",
-     "db": 1.0,
-     "wet": 0.4,
-     "x": 600.0
-    }
    }
   },
   "prom:city": {
@@ -2250,10 +2208,16 @@
     }
    },
    "pa": {
-    "speaker": "clear",
+    "speaker": "far",
     "db": 1.0,
-    "wet": 0.25,
-    "x": 600.0
+    "wet": 0.4,
+    "x": 600.0,
+    "mixer": {
+     "speaker": "clear",
+     "db": 1.0,
+     "wet": 0.08,
+     "x": 600.0
+    }
    },
    "crisp": "",
    "hall": {
@@ -2291,26 +2255,6 @@
    "bus": {
     "thr_rms_db": -23.85,
     "gain_db": -9.84
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": 1.0,
-     "wet": 0.4,
-     "x": 600.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": 1.0,
-     "wet": 0.2,
-     "x": 600.0
-    },
-    "C": {
-     "speaker": "far",
-     "db": 1.0,
-     "wet": 0.4,
-     "x": 600.0
-    }
    }
   },
   "prom:capital": {
@@ -2340,10 +2284,16 @@
     }
    },
    "pa": {
-    "speaker": "clear",
+    "speaker": "far",
     "db": 1.0,
-    "wet": 0.25,
-    "x": 600.0
+    "wet": 0.4,
+    "x": 600.0,
+    "mixer": {
+     "speaker": "clear",
+     "db": 1.0,
+     "wet": 0.08,
+     "x": 600.0
+    }
    },
    "crisp": "",
    "hall": {
@@ -2381,26 +2331,6 @@
    "bus": {
     "thr_rms_db": -23.85,
     "gain_db": -9.84
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": 1.0,
-     "wet": 0.4,
-     "x": 600.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": 1.0,
-     "wet": 0.2,
-     "x": 600.0
-    },
-    "C": {
-     "speaker": "far",
-     "db": 1.0,
-     "wet": 0.4,
-     "x": 600.0
-    }
    }
   },
   "yard:unclaimed": {
@@ -2462,7 +2392,13 @@
     "speaker": "tape",
     "db": -8.0,
     "wet": 0.4,
-    "x": 780.0
+    "x": 780.0,
+    "mixer": {
+     "speaker": "tape",
+     "db": -8.0,
+     "wet": 0.5,
+     "x": 780.0
+    }
    },
    "crisp": "B2",
    "hall": {
@@ -2500,26 +2436,6 @@
    "bus": {
     "thr_rms_db": -24.52,
     "gain_db": -8.75
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "tape",
-     "db": -8.0,
-     "wet": 0.4,
-     "x": 780.0
-    },
-    "B": {
-     "speaker": "tape",
-     "db": -8.0,
-     "wet": 0.35,
-     "x": 780.0
-    },
-    "C": {
-     "speaker": "tape_concourse",
-     "db": -11.0,
-     "wet": 0.5,
-     "x": 780.0
-    }
    }
   },
   "yard:outpost": {
@@ -2581,7 +2497,13 @@
     "speaker": "far",
     "db": -8.0,
     "wet": 0.5,
-    "x": 780.0
+    "x": 780.0,
+    "mixer": {
+     "speaker": "far",
+     "db": -8.0,
+     "wet": 0.5,
+     "x": 780.0
+    }
    },
    "crisp": "B2",
    "hall": {
@@ -2619,26 +2541,6 @@
    "bus": {
     "thr_rms_db": -24.52,
     "gain_db": -8.75
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -8.0,
-     "wet": 0.4,
-     "x": 780.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -8.0,
-     "wet": 0.35,
-     "x": 780.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -11.0,
-     "wet": 0.5,
-     "x": 780.0
-    }
    }
   },
   "yard:settlement": {
@@ -2704,7 +2606,13 @@
     "speaker": "far",
     "db": -7.0,
     "wet": 0.4,
-    "x": 780.0
+    "x": 780.0,
+    "mixer": {
+     "speaker": "far",
+     "db": -7.0,
+     "wet": 0.4,
+     "x": 780.0
+    }
    },
    "crisp": "B2",
    "hall": {
@@ -2742,26 +2650,6 @@
    "bus": {
     "thr_rms_db": -24.15,
     "gain_db": -9.2
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -7.0,
-     "wet": 0.4,
-     "x": 780.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -7.0,
-     "wet": 0.28,
-     "x": 780.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -10.0,
-     "wet": 0.5,
-     "x": 780.0
-    }
    }
   },
   "yard:city": {
@@ -2827,7 +2715,13 @@
     "speaker": "far",
     "db": -7.0,
     "wet": 0.4,
-    "x": 780.0
+    "x": 780.0,
+    "mixer": {
+     "speaker": "far",
+     "db": -7.0,
+     "wet": 0.4,
+     "x": 780.0
+    }
    },
    "crisp": "B2",
    "hall": {
@@ -2865,26 +2759,6 @@
    "bus": {
     "thr_rms_db": -24.15,
     "gain_db": -9.2
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -7.0,
-     "wet": 0.4,
-     "x": 780.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -7.0,
-     "wet": 0.28,
-     "x": 780.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -10.0,
-     "wet": 0.5,
-     "x": 780.0
-    }
    }
   },
   "yard:capital": {
@@ -2950,7 +2824,13 @@
     "speaker": "far",
     "db": -7.0,
     "wet": 0.4,
-    "x": 780.0
+    "x": 780.0,
+    "mixer": {
+     "speaker": "far",
+     "db": -7.0,
+     "wet": 0.4,
+     "x": 780.0
+    }
    },
    "crisp": "B2",
    "hall": {
@@ -2988,26 +2868,6 @@
    "bus": {
     "thr_rms_db": -24.15,
     "gain_db": -9.2
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -7.0,
-     "wet": 0.4,
-     "x": 780.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -7.0,
-     "wet": 0.28,
-     "x": 780.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -10.0,
-     "wet": 0.5,
-     "x": 780.0
-    }
    }
   },
   "exch:unclaimed": {
@@ -3047,10 +2907,16 @@
     }
    },
    "pa": {
-    "speaker": "tape_wall",
+    "speaker": "tape",
     "db": -11.0,
-    "wet": 0.15,
-    "x": 200.0
+    "wet": 0.4,
+    "x": 200.0,
+    "mixer": {
+     "speaker": "tape_wall",
+     "db": -11.0,
+     "wet": 0.05,
+     "x": 200.0
+    }
    },
    "crisp": "",
    "hall": {
@@ -3088,26 +2954,6 @@
    "bus": {
     "thr_rms_db": -29.73,
     "gain_db": -1.72
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "tape",
-     "db": -11.0,
-     "wet": 0.4,
-     "x": 200.0
-    },
-    "B": {
-     "speaker": "tape",
-     "db": -7.0,
-     "wet": 0.1,
-     "x": 200.0
-    },
-    "C": {
-     "speaker": "tape_concourse",
-     "db": -14.0,
-     "wet": 0.5,
-     "x": 200.0
-    }
    }
   },
   "exch:outpost": {
@@ -3147,10 +2993,16 @@
     }
    },
    "pa": {
-    "speaker": "wall",
+    "speaker": "far",
     "db": -11.0,
-    "wet": 0.6,
-    "x": 200.0
+    "wet": 0.4,
+    "x": 200.0,
+    "mixer": {
+     "speaker": "wall",
+     "db": -11.0,
+     "wet": 0.05,
+     "x": 200.0
+    }
    },
    "crisp": "",
    "hall": {
@@ -3188,26 +3040,6 @@
    "bus": {
     "thr_rms_db": -29.73,
     "gain_db": -1.72
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -11.0,
-     "wet": 0.4,
-     "x": 200.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -7.0,
-     "wet": 0.1,
-     "x": 200.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -14.0,
-     "wet": 0.5,
-     "x": 200.0
-    }
    }
   },
   "exch:settlement": {
@@ -3247,10 +3079,16 @@
     }
    },
    "pa": {
-    "speaker": "wall",
+    "speaker": "far",
     "db": -11.0,
-    "wet": 0.6,
-    "x": 200.0
+    "wet": 0.4,
+    "x": 200.0,
+    "mixer": {
+     "speaker": "wall",
+     "db": -11.0,
+     "wet": 0.05,
+     "x": 200.0
+    }
    },
    "crisp": "",
    "hall": {
@@ -3288,26 +3126,6 @@
    "bus": {
     "thr_rms_db": -29.73,
     "gain_db": -1.72
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -11.0,
-     "wet": 0.4,
-     "x": 200.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -7.0,
-     "wet": 0.1,
-     "x": 200.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -14.0,
-     "wet": 0.5,
-     "x": 200.0
-    }
    }
   },
   "exch:city": {
@@ -3347,10 +3165,16 @@
     }
    },
    "pa": {
-    "speaker": "wall",
+    "speaker": "far",
     "db": -11.0,
-    "wet": 0.6,
-    "x": 200.0
+    "wet": 0.4,
+    "x": 200.0,
+    "mixer": {
+     "speaker": "wall",
+     "db": -11.0,
+     "wet": 0.05,
+     "x": 200.0
+    }
    },
    "crisp": "",
    "hall": {
@@ -3388,26 +3212,6 @@
    "bus": {
     "thr_rms_db": -29.73,
     "gain_db": -1.72
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -11.0,
-     "wet": 0.4,
-     "x": 200.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -7.0,
-     "wet": 0.1,
-     "x": 200.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -14.0,
-     "wet": 0.5,
-     "x": 200.0
-    }
    }
   },
   "exch:capital": {
@@ -3447,10 +3251,16 @@
     }
    },
    "pa": {
-    "speaker": "wall",
+    "speaker": "far",
     "db": -11.0,
-    "wet": 0.6,
-    "x": 200.0
+    "wet": 0.4,
+    "x": 200.0,
+    "mixer": {
+     "speaker": "wall",
+     "db": -11.0,
+     "wet": 0.05,
+     "x": 200.0
+    }
    },
    "crisp": "",
    "hall": {
@@ -3488,26 +3298,6 @@
    "bus": {
     "thr_rms_db": -29.73,
     "gain_db": -1.72
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -11.0,
-     "wet": 0.4,
-     "x": 200.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -7.0,
-     "wet": 0.1,
-     "x": 200.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -14.0,
-     "wet": 0.5,
-     "x": 200.0
-    }
    }
   },
   "board:unclaimed": {
@@ -3544,10 +3334,16 @@
     }
    },
    "pa": {
-    "speaker": "tape_wall",
-    "db": -12.0,
-    "wet": 0.1,
-    "x": 150.0
+    "speaker": "tape",
+    "db": -5.0,
+    "wet": 0.12,
+    "x": 150.0,
+    "mixer": {
+     "speaker": "tape_wall",
+     "db": -12.0,
+     "wet": 0.0,
+     "x": 150.0
+    }
    },
    "crisp": "",
    "keep": {
@@ -3655,26 +3451,6 @@
    "bus": {
     "thr_rms_db": -26.34,
     "gain_db": -8.38
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "tape",
-     "db": -9.0,
-     "wet": 0.4,
-     "x": 150.0
-    },
-    "B": {
-     "speaker": "tape",
-     "db": -5.0,
-     "wet": 0.12,
-     "x": 150.0
-    },
-    "C": {
-     "speaker": "tape_concourse",
-     "db": -12.0,
-     "wet": 0.5,
-     "x": 150.0
-    }
    }
   },
   "board:outpost": {
@@ -3711,10 +3487,16 @@
     }
    },
    "pa": {
-    "speaker": "wall",
-    "db": -12.0,
-    "wet": 0.2,
-    "x": 150.0
+    "speaker": "ceiling",
+    "db": -5.0,
+    "wet": 0.12,
+    "x": 150.0,
+    "mixer": {
+     "speaker": "wall",
+     "db": -12.0,
+     "wet": 0.0,
+     "x": 150.0
+    }
    },
    "crisp": "",
    "keep": {
@@ -3822,26 +3604,6 @@
    "bus": {
     "thr_rms_db": -26.34,
     "gain_db": -8.38
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -9.0,
-     "wet": 0.4,
-     "x": 150.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -5.0,
-     "wet": 0.12,
-     "x": 150.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -12.0,
-     "wet": 0.5,
-     "x": 150.0
-    }
    }
   },
   "board:settlement": {
@@ -3878,10 +3640,16 @@
     }
    },
    "pa": {
-    "speaker": "wall",
-    "db": -12.0,
-    "wet": 0.2,
-    "x": 150.0
+    "speaker": "ceiling",
+    "db": -5.0,
+    "wet": 0.12,
+    "x": 150.0,
+    "mixer": {
+     "speaker": "wall",
+     "db": -12.0,
+     "wet": 0.0,
+     "x": 150.0
+    }
    },
    "crisp": "",
    "keep": {
@@ -3989,26 +3757,6 @@
    "bus": {
     "thr_rms_db": -26.34,
     "gain_db": -8.38
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -9.0,
-     "wet": 0.4,
-     "x": 150.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -5.0,
-     "wet": 0.12,
-     "x": 150.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -12.0,
-     "wet": 0.5,
-     "x": 150.0
-    }
    }
   },
   "board:city": {
@@ -4045,10 +3793,16 @@
     }
    },
    "pa": {
-    "speaker": "wall",
-    "db": -12.0,
-    "wet": 0.2,
-    "x": 150.0
+    "speaker": "ceiling",
+    "db": -5.0,
+    "wet": 0.12,
+    "x": 150.0,
+    "mixer": {
+     "speaker": "wall",
+     "db": -12.0,
+     "wet": 0.0,
+     "x": 150.0
+    }
    },
    "crisp": "",
    "keep": {
@@ -4156,26 +3910,6 @@
    "bus": {
     "thr_rms_db": -26.34,
     "gain_db": -8.38
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -9.0,
-     "wet": 0.4,
-     "x": 150.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -5.0,
-     "wet": 0.12,
-     "x": 150.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -12.0,
-     "wet": 0.5,
-     "x": 150.0
-    }
    }
   },
   "board:capital": {
@@ -4212,10 +3946,16 @@
     }
    },
    "pa": {
-    "speaker": "wall",
-    "db": -12.0,
-    "wet": 0.2,
-    "x": 150.0
+    "speaker": "ceiling",
+    "db": -5.0,
+    "wet": 0.12,
+    "x": 150.0,
+    "mixer": {
+     "speaker": "wall",
+     "db": -12.0,
+     "wet": 0.0,
+     "x": 150.0
+    }
    },
    "crisp": "",
    "keep": {
@@ -4323,26 +4063,6 @@
    "bus": {
     "thr_rms_db": -26.34,
     "gain_db": -8.38
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -9.0,
-     "wet": 0.4,
-     "x": 150.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -5.0,
-     "wet": 0.12,
-     "x": 150.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -12.0,
-     "wet": 0.5,
-     "x": 150.0
-    }
    }
   },
   "lab:unclaimed": {
@@ -4370,10 +4090,16 @@
    ],
    "map": {},
    "pa": {
-    "speaker": "tape_door",
-    "db": -11.0,
-    "wet": 0.08,
-    "x": 150.0
+    "speaker": "tape",
+    "db": -9.0,
+    "wet": 0.1,
+    "x": 150.0,
+    "mixer": {
+     "speaker": "tape_door",
+     "db": -11.0,
+     "wet": 0.0,
+     "x": 150.0
+    }
    },
    "crisp": "",
    "ref_db": -13.03,
@@ -4413,26 +4139,6 @@
     "gain_db": 0.0,
     "thr_rms_db": -38.68,
     "page_gain_db": 5.35
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "tape",
-     "db": -11.0,
-     "wet": 0.4,
-     "x": 150.0
-    },
-    "B": {
-     "speaker": "tape",
-     "db": -9.0,
-     "wet": 0.1,
-     "x": 150.0
-    },
-    "C": {
-     "speaker": "tape_concourse",
-     "db": -14.0,
-     "wet": 0.5,
-     "x": 150.0
-    }
    }
   },
   "lab:outpost": {
@@ -4460,10 +4166,16 @@
    ],
    "map": {},
    "pa": {
-    "speaker": "door",
-    "db": -11.0,
-    "wet": 0.2,
-    "x": 150.0
+    "speaker": "ceiling",
+    "db": -9.0,
+    "wet": 0.1,
+    "x": 150.0,
+    "mixer": {
+     "speaker": "door",
+     "db": -11.0,
+     "wet": 0.0,
+     "x": 150.0
+    }
    },
    "crisp": "",
    "ref_db": -13.03,
@@ -4503,26 +4215,6 @@
     "gain_db": 0.0,
     "thr_rms_db": -38.68,
     "page_gain_db": 5.35
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -11.0,
-     "wet": 0.4,
-     "x": 150.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -9.0,
-     "wet": 0.1,
-     "x": 150.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -14.0,
-     "wet": 0.5,
-     "x": 150.0
-    }
    }
   },
   "lab:settlement": {
@@ -4550,10 +4242,16 @@
    ],
    "map": {},
    "pa": {
-    "speaker": "door",
-    "db": -11.0,
-    "wet": 0.2,
-    "x": 150.0
+    "speaker": "ceiling",
+    "db": -9.0,
+    "wet": 0.1,
+    "x": 150.0,
+    "mixer": {
+     "speaker": "door",
+     "db": -11.0,
+     "wet": 0.0,
+     "x": 150.0
+    }
    },
    "crisp": "",
    "ref_db": -13.03,
@@ -4593,26 +4291,6 @@
     "gain_db": 0.0,
     "thr_rms_db": -38.68,
     "page_gain_db": 5.35
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -11.0,
-     "wet": 0.4,
-     "x": 150.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -9.0,
-     "wet": 0.1,
-     "x": 150.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -14.0,
-     "wet": 0.5,
-     "x": 150.0
-    }
    }
   },
   "lab:city": {
@@ -4640,10 +4318,16 @@
    ],
    "map": {},
    "pa": {
-    "speaker": "door",
-    "db": -11.0,
-    "wet": 0.2,
-    "x": 150.0
+    "speaker": "ceiling",
+    "db": -9.0,
+    "wet": 0.1,
+    "x": 150.0,
+    "mixer": {
+     "speaker": "door",
+     "db": -11.0,
+     "wet": 0.0,
+     "x": 150.0
+    }
    },
    "crisp": "",
    "ref_db": -13.03,
@@ -4683,26 +4367,6 @@
     "gain_db": 0.0,
     "thr_rms_db": -38.68,
     "page_gain_db": 5.35
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -11.0,
-     "wet": 0.4,
-     "x": 150.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -9.0,
-     "wet": 0.1,
-     "x": 150.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -14.0,
-     "wet": 0.5,
-     "x": 150.0
-    }
    }
   },
   "lab:capital": {
@@ -4730,10 +4394,16 @@
    ],
    "map": {},
    "pa": {
-    "speaker": "door",
-    "db": -11.0,
-    "wet": 0.2,
-    "x": 150.0
+    "speaker": "ceiling",
+    "db": -9.0,
+    "wet": 0.1,
+    "x": 150.0,
+    "mixer": {
+     "speaker": "door",
+     "db": -11.0,
+     "wet": 0.0,
+     "x": 150.0
+    }
    },
    "crisp": "",
    "ref_db": -13.03,
@@ -4773,26 +4443,6 @@
     "gain_db": 0.0,
     "thr_rms_db": -38.68,
     "page_gain_db": 5.35
-   },
-   "pa_ideas": {
-    "A": {
-     "speaker": "far",
-     "db": -11.0,
-     "wet": 0.4,
-     "x": 150.0
-    },
-    "B": {
-     "speaker": "ceiling",
-     "db": -9.0,
-     "wet": 0.1,
-     "x": 150.0
-    },
-    "C": {
-     "speaker": "concourse",
-     "db": -14.0,
-     "wet": 0.5,
-     "x": 150.0
-    }
    }
   }
  },
@@ -4843,32 +4493,6 @@
   22000
  ],
  "speakers": {
-  "clear": {
-   "hp": [
-    220,
-    220
-   ],
-   "lp": [
-    6000,
-    6000
-   ],
-   "bell": {
-    "2000": 6.0
-   }
-  },
-  "cheap": {
-   "hp": [
-    320,
-    320
-   ],
-   "lp": [
-    3600,
-    3600
-   ],
-   "bell": {
-    "2000": 4.0
-   }
-  },
   "far": {
    "hp": [
     260,
@@ -4884,31 +4508,14 @@
    ],
    "bell": {}
   },
-  "wall": {
+  "ceiling": {
    "hp": [
-    90,
-    90
+    300,
+    300
    ],
    "lp": [
-    520,
-    520,
-    520,
-    520
-   ],
-   "bell": {
-    "250": 8.0
-   }
-  },
-  "door": {
-   "hp": [
-    70,
-    70
-   ],
-   "lp": [
-    380,
-    380,
-    380,
-    380
+    3000,
+    3000
    ],
    "bell": {}
   },
@@ -4923,94 +4530,12 @@
    ],
    "bell": {},
    "tape": true
-  },
-  "tape_wall": {
-   "hp": [
-    380,
-    380
-   ],
-   "lp": [
-    520,
-    520,
-    520,
-    520
-   ],
-   "bell": {
-    "250": 6.0
-   },
-   "tape": true
-  },
-  "tape_door": {
-   "hp": [
-    380,
-    380
-   ],
-   "lp": [
-    380,
-    380,
-    380,
-    380
-   ],
-   "bell": {},
-   "tape": true
-  },
-  "ceiling": {
-   "hp": [
-    300,
-    300
-   ],
-   "lp": [
-    3000,
-    3000
-   ],
-   "bell": {}
-  },
-  "concourse": {
-   "hp": [
-    260,
-    260
-   ],
-   "lp": [
-    3200,
-    3200,
-    2400,
-    2400,
-    2400,
-    2400,
-    1800,
-    1800
-   ],
-   "bell": {},
-   "hall": "concourse"
-  },
-  "tape_concourse": {
-   "hp": [
-    380,
-    380
-   ],
-   "lp": [
-    3000,
-    3000,
-    1800,
-    1800
-   ],
-   "bell": {},
-   "tape": true,
-   "hall": "concourse"
   }
  },
  "speaker_db": {
-  "clear": 0.7,
-  "cheap": 2.52,
   "far": 3.57,
-  "wall": -1.11,
-  "door": 5.69,
-  "tape": 4.56,
-  "tape_wall": 12.66,
-  "tape_door": 23.19,
   "ceiling": 3.62,
-  "concourse": 3.95,
-  "tape_concourse": 5.44
+  "tape": 4.56
  },
  "mixes": {
   "board_B": {
@@ -5109,15 +4634,5 @@
    },
    "band_2_8k_db": -18.15
   }
- },
- "pa_halls": {
-  "concourse": {
-   "room": 0.715,
-   "damp": 0.45,
-   "shelf": 0.25,
-   "db": -4.73,
-   "predelay": 37.0
-  }
- },
- "pa_pick": ""
+ }
 }

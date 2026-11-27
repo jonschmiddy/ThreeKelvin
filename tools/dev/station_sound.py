@@ -65,39 +65,23 @@ PICKS = {
     "lab": {"unclaimed": ("lab", "C", dict(behind="low", pa="tape_door")), "outpost": ("lab", "C", dict(behind="low")),
             "settlement": ("lab", "C", {}), "city": ("lab", "C", {}), "capital": ("lab", "C", {})},
 }
-# The PA's wet send by (deck, speaker), for the dry Nov 26 takes (the mixer's were set for the old takes, which carried
-# their own echo): matched so the room fills the gaps between words as much as it did on the old ones, on the game's
-# chain emulated (tk-scratch/station-sound/pa_v2/game/wet_tune.py). The yard's far speaker sits as it was. Why: #the-pa
-PA_WET = {("prom", "cheap"): 0.2, ("prom", "clear"): 0.25, ("prom", "tape"): 0.12, ("yard", "tape"): 0.4,
-          ("exch", "wall"): 0.6, ("exch", "tape_wall"): 0.15, ("board", "wall"): 0.2, ("board", "tape_wall"): 0.1,
-          ("lab", "door"): 0.2, ("lab", "tape_door"): 0.08}
-# The PA ideas on trial (Jon, Nov 26: the yard's PA "sounds GREAT", the others "weird"): each room's `pa_ideas`, picked
-# by station.json `pa_pick` (or `pa_pick=X` on the game's command line). A: the yard's far PA on every deck at about the
-# yard's wet, through each deck's own room. B: a small ceiling speaker in the room, close, the room's own short echo
-# (the Board, Exchange and Lab hear it in the room, not through the wall, so 4 dB up). C: the yard-style PA out on the
-# concourse heard through an open doorway: the far chain, the concourse's long hall, a 1.8 kHz low-pass, 3 dB down; on
-# the Promenade itself the far chain in its own hall. The unclaimed tape follows each. Why: docs/why/StationSound.md#the-pa
-PA_PICK = ""                                                   # "" plays each room's own `pa`
-IDEA_TRIM = {("board", ""): 3.0, ("lab", "B"): -2.0}
+# Each deck's PA (Jon, Nov 26, from three ideas filmed: the yard's far PA "sounds GREAT", the dry takes through the old
+# wall, door and clear speakers "weird"). The Promenade and Exchange: the yard's far PA, wet 0.4 into the deck's own
+# hall. The Board and Lab: a small ceiling speaker in the room (not through the wall), the room's own short echo,
+# 4 dB over the mixer's through-wall level, then by capture the Board 3 dB more and the Lab 2 dB less. The yard: its
+# far speaker as the mixer had it. Unclaimed reads the tape through each. Why: docs/why/StationSound.md#the-pa
+PA_KIND = {"prom": "far", "exch": "far", "board": "ceiling", "lab": "ceiling"}
+PA_DB = {"board": 7.0, "lab": 2.0}
 
 
-def pa_ideas(deck, tier, pa, wet_base):
+def pa_room(deck, tier, mixer, wet_base):
+    """A room's PA from the mixer's (speaker, db, wet, x): its deck's pick."""
     tape = tier == "unclaimed"
-    wall = deck in ("exch", "board", "lab")
-    a = dict(pa, speaker="tape" if tape else "far", wet=0.4)
-    b = dict(pa, speaker="tape" if tape else "ceiling", wet=round(float(wet_base), 3), db=pa["db"] + (4.0 if wall else 0.0))
-    c = dict(a) if deck == "prom" else dict(pa, speaker="tape_concourse" if tape else "concourse", wet=0.5,
-                                            db=pa["db"] - 3.0)
-    out = {"A": a, "B": b, "C": c}
-    for k, v in out.items():                                   # (by capture: each line about as far over its bed as the old)
-        v["db"] = round(v["db"] + IDEA_TRIM.get((deck, k), IDEA_TRIM.get((deck, ""), 0.0)), 2)
-    return out
-
-
-def pa_halls(rooms):
-    """The PA's own halls: the concourse is the Promenade's biggest (its unclaimed fit, about 2 s)."""
-    h = rooms["prom:unclaimed"]["hall"]
-    return dict(concourse={k: h[k] for k in ("room", "damp", "shelf", "db", "predelay")})
+    if deck == "yard":
+        return dict(mixer, speaker="tape" if tape else "far", wet=0.4 if tape else mixer["wet"])
+    kind = PA_KIND[deck]
+    wet = 0.4 if kind == "far" else round(float(wet_base), 3)
+    return dict(mixer, speaker="tape" if tape else kind, wet=wet, db=round(mixer["db"] + PA_DB.get(deck, 0.0), 2))
 
 
 LAB_BEDS = SS / "lab_beds" / "C_plant"
@@ -112,22 +96,12 @@ CRISP = {"yard": "B2"}
 KEEP = {n: 0.0 for n in DK.BOARD_KEEP + ["lab_unclaimed_bulb", "lab_outpost_lamp", "lab_unclaimed_flicker", "lab_outpost_flicker",
                                          "lab_monitor_pop", "lab_city_screen", "lab_capital_glass"]}
 KEEP.update({"board_popup_open": -10.0, "board_popup_close": -10.0})
-# The PA's speakers as the game builds them (filters as stages of Godot's 2-pole filter, Q per stage; EQ10 bells);
-# the mixer's `speaker` kinds, `cheap` the outpost's narrower one, `tape_wall` the old loop heard through a wall.
+# The PA's speakers as the game builds them (filters as stages of Godot's 2-pole filter, Q per stage; EQ10 bells):
+# the mixer's `far` and `tape`, and the Board's and Lab's small ceiling speaker.
 SPEAKERS = {
-    "clear": dict(hp=[220, 220], lp=[6000, 6000], bell={2000: 6.0}),
-    "cheap": dict(hp=[320, 320], lp=[3600, 3600], bell={2000: 4.0}),
     "far": dict(hp=[260, 260], lp=[3200, 3200, 2400, 2400, 2400, 2400], bell={}),
-    "wall": dict(hp=[90, 90], lp=[520] * 4, bell={250: 8.0}),
-    "door": dict(hp=[70, 70], lp=[380] * 4, bell={}),
-    "tape": dict(hp=[380, 380], lp=[3000, 3000], bell={}, tape=True),
-    "tape_wall": dict(hp=[380, 380], lp=[520] * 4, bell={250: 6.0}, tape=True),
-    "tape_door": dict(hp=[380, 380], lp=[380] * 4, bell={}, tape=True),
-    # Jon's Nov 26 PA ideas on trial (PA_IDEAS): B's small ceiling speaker in the room, C's yard-style PA out on the
-    # concourse heard through an open doorway (its own hall, `pa_halls`, then a gentle low-pass).
     "ceiling": dict(hp=[300, 300], lp=[3000, 3000], bell={}),
-    "concourse": dict(hp=[260, 260], lp=[3200, 3200, 2400, 2400, 2400, 2400, 1800, 1800], bell={}, hall="concourse"),
-    "tape_concourse": dict(hp=[380, 380], lp=[3000, 3000, 1800, 1800], bell={}, tape=True, hall="concourse"),
+    "tape": dict(hp=[380, 380], lp=[3000, 3000], bell={}, tape=True),
 }
 
 
@@ -220,10 +194,9 @@ def room_plan(deck, tier, dk, c, cfg, var):
                      if (GAME / "sfx" / f"{n}.wav").exists()}
     for cls, r in cfg["map"].items():
         if cls == "pa":
-            sp = var.get("pa", r["speaker"])
-            p["pa"] = dict(speaker=sp, db=float(r.get("db", 0.0)), wet=PA_WET.get((deck, sp), float(r.get("wet", 0.1))),
-                           x=float(r.get("x", 480)))
-            p["pa_ideas"] = pa_ideas(deck, tier, p["pa"], cfg["wet_base"])
+            mixer = dict(speaker=var.get("pa", r["speaker"]), db=float(r.get("db", 0.0)), wet=float(r.get("wet", 0.1)),
+                         x=float(r.get("x", 480)))
+            p["pa"] = pa_room(deck, tier, mixer, cfg["wet_base"]) | dict(mixer=mixer)
             continue
         if cls.startswith("game:") or cls == "lampgate":
             continue                                           # the game's own sounds (KEEP), or a gate this pick has not
@@ -523,8 +496,7 @@ def build():
         files[f"lab_{tier}"] = measure_file(x, True) | dict(src=f"station-sound/lab_beds/C_plant/lab_{tier}.wav", kind="labbed",
                                                          rate=sr)
     data = dict(_note="Made by tools/dev/station_sound.py from tk-scratch/station-sound; docs/why/StationSound.md",
-                files=files, rooms=rooms, eq21=eq21_gains(), eq21_hz=EQ21, speakers=SPEAKERS, pa_halls=pa_halls(rooms),
-                pa_pick=PA_PICK,
+                files=files, rooms=rooms, eq21=eq21_gains(), eq21_hz=EQ21, speakers=SPEAKERS,
                 speaker_db=speaker_comp(), mixes=bus)
     (OUT / "station.json").write_text(json.dumps(data, indent=1), encoding="utf-8", newline=chr(10))
     for p in OUT.glob("*.wav"):
@@ -567,11 +539,9 @@ def pa():
         s = json.loads(st.read_text())
         s["speaker_db"] = speaker_comp()
         for room in s["rooms"].values():
-            room["pa"]["wet"] = PA_WET.get((room["deck"], room["pa"]["speaker"]), room["pa"]["wet"])
-            room["pa_ideas"] = pa_ideas(room["deck"], room["tier"], room["pa"], room["wet_base"])
+            mixer = room["pa"]["mixer"]
+            room["pa"] = pa_room(room["deck"], room["tier"], mixer, room["wet_base"]) | dict(mixer=mixer)
         s["speakers"] = json.loads(json.dumps(SPEAKERS))
-        s["pa_halls"] = pa_halls(s["rooms"])
-        s["pa_pick"] = PA_PICK
         st.write_text(json.dumps(s, indent=1), encoding="utf-8", newline=chr(10))
         print("speaker_db:", s["speaker_db"])
 
