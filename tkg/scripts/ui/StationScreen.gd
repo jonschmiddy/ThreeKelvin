@@ -1369,7 +1369,7 @@ func _open_purge() -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)
 	col.add_child(UITheme.body("SYSTEM REPAIR", UITheme.ICE, UITheme.FS_HEAD))
-	col.add_child(UITheme.body("%d credits a fault." % cost,
+	col.add_child(UITheme.body("%d credits clears one fault. Pick one." % cost,
 		UITheme.COLD, UITheme.FS_SMALL))
 	col.add_child(UITheme.hsep())
 
