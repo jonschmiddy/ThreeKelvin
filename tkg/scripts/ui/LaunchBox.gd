@@ -53,7 +53,7 @@ func setup(launch: Button, not_yet: Button, seed_row: HBoxContainer) -> void:
 	var lab := UITheme.body("TIER", COLD, UITheme.FS_SMALL)
 	lab.position = Vector2(0, 2)
 	lab.mouse_filter = Control.MOUSE_FILTER_STOP
-	lab.tooltip_text = Widgets.tip("Tiers\nEach tier adds one rule to the galaxy. Winning a run opens the next tier.")
+	lab.tooltip_text = Widgets.tip("Tiers\nEach tier adds a rule, and a win opens the next one.")
 	add_child(lab)
 	for k in Ladder.count():
 		var s := Stop.new()

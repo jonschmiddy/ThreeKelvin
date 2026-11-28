@@ -280,10 +280,10 @@ function checker(ctx, col) {
 const TIERLINE = ["", "It woke after jump 15.", "It is already stronger.", "It is much stronger now.", ""];
 function tooltip(j) {
   const L = ["THE CUSTODIAN", "It guards the core."];
-  if (j < 15) L.push("It starts to grow stronger", "in " + (16 - j) + " jumps.");
-  else if (j === 15) L.push("It starts to grow stronger", "after your next jump.");
-  else if (j < CAP_J) L.push("It grows stronger with every", "jump you take.", TIERLINE[tier(j)], "It can grow to twice its strength.");
-  else L.push("It is at full strength.", "It will not grow any more.");
+  if (j < 15) L.push("It starts growing", "in " + (16 - j) + " jumps.");
+  else if (j === 15) L.push("It starts growing", "after your next jump.");
+  else if (j < CAP_J) L.push("It grows stronger", "with every jump.", TIERLINE[tier(j)], "It can grow to twice its strength.");
+  else L.push("It is at full strength.");
   return L;
 }
 // Godot's TooltipPanel look: bevel(PANEL2), 6 px top and bottom, 9 px sides, Silkscreen 8, 11 px pitch, hsep under the heading.

@@ -116,7 +116,6 @@ func show_rest() -> void:
 	# (centred where it was under the old key: the plate's box test measured it there)
 	var cx := (BAND.position.x + CHIPS_AT.x) / 2
 	_centred("SELECT A SHIP", UITheme.FS_HEAD, cx, (BAND.position.y + BAND.end.y) / 2 - 8, REST)
-	_centred("POINT AT A SHIP TO SEE IT.", UITheme.FS_SMALL, cx, (BAND.position.y + BAND.end.y) / 2 + 16, COLD)
 	key.set_on(false)
 
 
@@ -150,7 +149,6 @@ func show_locked(m: StringName, at: Vector2) -> void:
 	word("???", UITheme.FS_HEAD, COL_L, ROW0, MINT)
 	word("LOCKED MANUFACTURER", UITheme.FS_SMALL, COL_L, ROW0 + 24, COLD)
 	word(Unlocks.lock_line(m).to_upper(), UITheme.FS_SMALL, COL_A, ROW0 + 8, LOCK_INK)
-	word("ITS SHIPS WAIT UNDER THEIR TARPS UNTIL THEN.", UITheme.FS_SMALL, COL_A, ROW0 + 24, LOCK_DIM)
 	key.set_on(false)
 	queue_redraw()
 

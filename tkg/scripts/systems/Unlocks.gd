@@ -80,4 +80,4 @@ static func lock_line(manufacturer: StringName) -> String:
 		return ""
 	var known := unlocked(need)
 	var who := DB.short_name(DB.manufacturer_name(need)).to_upper() if known else "???"
-	return "Win a run with %s to unlock this manufacturer." % who
+	return "Win a run with %s to unlock." % who

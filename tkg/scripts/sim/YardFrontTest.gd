@@ -122,20 +122,20 @@ func _pick(cs: ChassisSelect) -> void:
 	var heavy: YardStandSet = cs._yard.set_of(HullData.Weight.HEAVY)
 	await _enter(medium)
 	_ok("pointing at the medium hull shows its facts", cs._hover == int(HullData.Weight.MEDIUM)
-		and _band_says(cs, Run.hull.name.to_upper()) and _band_says(cs, "CLICK TO MAKE IT YOURS"))
+		and _band_says(cs, Run.hull.name.to_upper()) and _band_says(cs, "CLICK TO PICK"))
 	_ok("and the live refit is that hull", Run.hull.weight == HullData.Weight.MEDIUM and Run.hull.manufacturer == &"korvan")
 	_ok("the blur comes up behind it", cs._yard.hover_w == int(HullData.Weight.MEDIUM))
 	_fit(cs, "pointing at the medium")
 	await _click(cs, _mid(medium))
 	_ok("a click picks it: LAUNCH appears, on", cs._picked == int(HullData.Weight.MEDIUM) and cs.launchable()
-		and cs._band.key.visible and not cs._band.key.disabled and not _band_says(cs, "CLICK TO MAKE IT YOURS"))
+		and cs._band.key.visible and not cs._band.key.disabled and not _band_says(cs, "CLICK TO PICK"))
 	# the fitted parts spelled out, the hand and the deck (Jon's B2, Nov 12)
 	var parts := true
 	for p: ModuleData in Run.installed:
 		parts = parts and _band_says(cs, p.name.to_upper())
 	var stack := Harness.first(cs._band, func(n: Node) -> bool: return n is YardInfo.DeckStack) as YardInfo.DeckStack
 	_ok("the band spells the fitted parts and the hand out, the stack the deck", parts
-		and _band_says(cs, "HAND SIZE: %d A TURN" % Run.hand_size()) and stack != null and stack.n == Run.deck_size())
+		and _band_says(cs, "HAND SIZE %d" % Run.hand_size()) and stack != null and stack.n == Run.deck_size())
 	var block := Harness.first(cs._band, func(n: Node) -> bool: return n is AttrBlock) as AttrBlock
 	_ok("the seven attributes are the picker's block", block != null and block._rows.size() == Run.attributes().size()
 		and Run.attributes().size() == 7)
@@ -143,11 +143,11 @@ func _pick(cs: ChassisSelect) -> void:
 	_fit(cs, "medium picked")
 	await _enter(heavy)
 	_ok("pointing at the heavy shows the heavy, not yet yours", cs._hover == int(HullData.Weight.HEAVY)
-		and Run.hull.weight == HullData.Weight.HEAVY and _band_says(cs, "CLICK TO MAKE IT YOURS"))
+		and Run.hull.weight == HullData.Weight.HEAVY and _band_says(cs, "CLICK TO PICK"))
 	_fit(cs, "medium picked, pointing at the heavy")
 	await _enter(null)
 	_ok("pointing away goes back to the picked ship", cs._hover < 0 and Run.hull.weight == HullData.Weight.MEDIUM
-		and not _band_says(cs, "CLICK TO MAKE IT YOURS") and cs.launchable())
+		and not _band_says(cs, "CLICK TO PICK") and cs.launchable())
 	await Harness.frames(_tree, 20)
 	_ok("the blur holds round the picked ship with the pointer gone (k %.2f)" % cs._yard._k,
 		is_equal_approx(cs._yard._k, 1.0) and cs._yard._ghost.visible and cs._yard._ghost.source == medium)

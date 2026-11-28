@@ -45,15 +45,13 @@ static func left_column(band: YardBand, m: ManufacturerData, chosen: bool) -> vo
 	em.position = Vector2(x, y - 1)
 	band.add_word_node(em)
 	band.word(m.name.to_upper(), UITheme.FS_SMALL, x + 14, y, m.colour)
-	var tag := band.word("\"%s\"" % m.tagline.to_upper(), UITheme.FS_SMALL, x, y + 13, YardBand.COLD)
-	_wrap(tag, w)
-	y = bottom(tag)
+	y += 13
 	if chosen:
 		var how := band.word(m.identity.to_upper(), UITheme.FS_SMALL, x, y + 2, YardBand.ICE)
 		_wrap(how, w)
 		y = bottom(how)
 	else:
-		band.word("CLICK TO MAKE IT YOURS", UITheme.FS_SMALL, x, y + 2, YardBand.MINT_DIM)
+		band.word("CLICK TO PICK", UITheme.FS_SMALL, x, y + 2, YardBand.MINT_DIM)
 		y += 14
 	var weight := band.word("%s HULL" % HullData.weight_name(Run.hull.weight).to_upper(), UITheme.FS_SMALL, x, y + 1, YardBand.COLD)
 	weight.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -71,8 +69,7 @@ static func fitted_column(band: YardBand, m: ManufacturerData) -> void:
 	for p: ModuleData in Run.installed:
 		var nm := band.word(p.name.to_upper(), UITheme.FS_SMALL, x, row, YardBand.ICE)
 		nm.mouse_filter = Control.MOUSE_FILTER_PASS
-		nm.tooltip_text = Widgets.tip("%s\nA %s part. It puts %d cards in the deck." % [p.name,
-			ModuleData.slot_name(p.slot).to_lower(), p.grant_count()])
+		nm.tooltip_text = Widgets.tip("%s\nPuts %d cards in the deck." % [p.name, p.grant_count()])
 		band.word(ModuleData.slot_name(p.slot).to_upper(), UITheme.FS_SMALL, x + 120, row, YardBand.COLD)
 		row += 11
 	var free := 0
@@ -82,7 +79,7 @@ static func fitted_column(band: YardBand, m: ManufacturerData) -> void:
 	band.word("NO MOUNTS FREE" if free == 0 else ("1 MOUNT FREE" if free == 1 else "%d MOUNTS FREE" % free),
 		UITheme.FS_SMALL, x + 52, YardBand.ROW0 - 4, YardBand.COLD)
 	row += 1
-	var hand := band.word("HAND SIZE: %d A TURN" % Run.hand_size(), UITheme.FS_SMALL, x, row, YardBand.ICE)
+	var hand := band.word("HAND SIZE %d" % Run.hand_size(), UITheme.FS_SMALL, x, row, YardBand.ICE)
 	hand.mouse_filter = Control.MOUSE_FILTER_PASS
 	hand.tooltip_text = Widgets.tip(str(ChassisSelect.MOUNT_TIP["hand"]))
 	# (no deck line: the stack says it, Jon: "Deck 10 cards is redundant")

@@ -10,17 +10,17 @@ const SEED := 5151
 ## The text each check below proves. A changed text fails here until its check is
 ## changed to match (or the code is).
 const TEXTS: Array = [
-	[&"korvan", 3, "After a turn where you fire nothing, you start with 1 more energy."],
-	[&"korvan", 5, "When a charge shot fires, you get 2 more energy that turn."],
-	[&"solari", 3, "When you vent heat, the enemy takes half of it as damage."],
+	[&"korvan", 3, "+1 energy the turn after you fire nothing."],
+	[&"korvan", 5, "+2 energy when a charge shot fires."],
+	[&"solari", 3, "Venting heat deals half of it to the enemy."],
 	[&"solari", 5, "Overheat damage halved."],
 	[&"probate", 3, "+50% credits from wrecks."],
 	[&"probate", 5, "Brace cards give +2."],
-	[&"redline", 3, "Draw 1 extra card each turn."],
+	[&"redline", 3, "+1 card a turn."],
 	[&"redline", 5, "First enemy attack each combat is negated."],
 	[&"verity", 3, "Verity cards cost 1 less energy."],
-	[&"verity", 5, "1 extra energy every turn."],
-	[&"cygnet", 3, "A drone attacks twice the first time it attacks."],
+	[&"verity", 5, "+1 energy a turn."],
+	[&"cygnet", 3, "Each drone's first attack fires twice."],
 	[&"cygnet", 5, "Up to 3 attack drones stay out into the next fight."],
 	[&"calyx", 3, "Mend 3 hull after every fight you win."],
 	[&"calyx", 5, "Each creature you kill leaves 1 more exotic material."],

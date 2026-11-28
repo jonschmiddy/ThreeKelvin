@@ -996,13 +996,13 @@ func _coop_words() -> void:
 	var e := DB.core_boss()
 	var head := e.name.to_upper()
 	var want := {
-		0: [head, "It guards the core.", "It starts to grow stronger", "when the lead ship makes jump 16.", "The lead ship has made 0 jumps."],
-		1: [head, "It guards the core.", "It starts to grow stronger", "when the lead ship makes jump 16.", "The lead ship has made 1 jump."],
-		15: [head, "It guards the core.", "It starts to grow stronger", "when the lead ship makes jump 16.", "The lead ship has made 15 jumps."],
-		16: [head, "It guards the core.", "It grows stronger each time", "the lead ship jumps.", "It woke after jump 15.", "It can grow to twice its strength."],
-		20: [head, "It guards the core.", "It grows stronger each time", "the lead ship jumps.", "It is already stronger.", "It can grow to twice its strength."],
-		25: [head, "It guards the core.", "It grows stronger each time", "the lead ship jumps.", "It is much stronger now.", "It can grow to twice its strength."],
-		33: [head, "It guards the core.", "It is at full strength.", "It will not grow any more."],
+		0: [head, "It guards the core.", "It starts growing", "when the lead ship makes jump 16.", "The lead ship has made 0 jumps."],
+		1: [head, "It guards the core.", "It starts growing", "when the lead ship makes jump 16.", "The lead ship has made 1 jump."],
+		15: [head, "It guards the core.", "It starts growing", "when the lead ship makes jump 16.", "The lead ship has made 15 jumps."],
+		16: [head, "It guards the core.", "It grows stronger", "when the lead ship jumps.", "It woke after jump 15.", "It can grow to twice its strength."],
+		20: [head, "It guards the core.", "It grows stronger", "when the lead ship jumps.", "It is already stronger.", "It can grow to twice its strength."],
+		25: [head, "It guards the core.", "It grows stronger", "when the lead ship jumps.", "It is much stronger now.", "It can grow to twice its strength."],
+		33: [head, "It guards the core.", "It is at full strength."],
 	}
 	var bad: Array[String] = []
 	for j: int in want:

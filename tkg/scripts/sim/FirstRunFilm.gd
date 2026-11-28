@@ -258,7 +258,7 @@ func _flow() -> void:
 	await _click(nr, "NEW RUN")
 	await _wait(0.6)
 	if not (Router.current is ChassisSelect):
-		_mark("seed_popup", {text = "LAUNCH A RUN / Leave the seed empty for a new, random galaxy."})
+		_mark("seed_popup", {text = "LAUNCH A RUN"})
 		await _read(13)
 		await _click(Harness.button_with_text(Router.current, "LAUNCH"), "LAUNCH (seed popup)", true)
 	await _until(func() -> bool: return Router.current is ChassisSelect, 10.0)

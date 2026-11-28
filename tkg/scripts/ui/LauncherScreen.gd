@@ -412,16 +412,12 @@ func _confirm_new_run() -> void:
 	col.add_theme_constant_override("separation", 6)
 	col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	col.add_child(UITheme.body("LAUNCH A RUN", UITheme.ICE, UITheme.FS_HEAD))
-	if save.is_empty():
-		col.add_child(UITheme.body(
-			"Leave the seed empty for a new, random galaxy.",
-			UITheme.COLD, UITheme.FS_SMALL))
-	else:
+	if not save.is_empty():
 		# The abandoned run still goes on the flight record, so this is a cost
 		# rather than a deletion — worth saying which.
 		col.add_child(UITheme.body(_save_line(save), UITheme.CHILL, UITheme.FS_SMALL))
 		col.add_child(UITheme.body(
-			"Launching abandons that run. It keeps its place on the flight record.",
+			"Launching abandons that run.",
 			UITheme.COLD, UITheme.FS_SMALL))
 	col.add_child(_gap(4))
 	# THE TIERS AND THE GALAXY (Jon's T1, Nov 10), then LAUNCH, NOT YET and the
@@ -456,7 +452,7 @@ func _seed_row() -> Control:
 	# case in a full sentence; this only has to cover what it leaves out.
 	var lab := UITheme.body("SEED", UITheme.COLD, UITheme.FS_SMALL)
 	lab.mouse_filter = Control.MOUSE_FILTER_STOP
-	lab.tooltip_text = Widgets.tip("Seeded run\nFly the same number again for the same galaxy, map and loot. Old ones are on the flight record.")
+	lab.tooltip_text = Widgets.tip("Seeded run\nThe same seed gives the same galaxy, map and loot.")
 	row.add_child(lab)
 
 	_seed_field = LineEdit.new()
@@ -619,7 +615,7 @@ func _roll_sky_galaxy() -> void:
 ## Where the ship is and how it is doing — enough to recognise the run without
 ## loading it.
 func _save_line(s: Dictionary) -> String:
-	return "%s — %s, danger %d · %d/%d hull · %d jumps" % [
+	return "%s, %s · danger %d · %d/%d hull · %d jumps" % [
 		str(s.galaxy), str(s.system), int(s.danger),
 		int(s.hp), int(s.max_hp), int(s.jumps)]
 

@@ -636,24 +636,24 @@ static func tooltip(j: int, in_party: bool = false) -> PackedStringArray:
 	var out := PackedStringArray([e.name.to_upper() if e != null else "", "It guards the core."])
 	if in_party and j < int(l.full):
 		if j <= int(l.free):
-			out.append_array(PackedStringArray(["It starts to grow stronger",
+			out.append_array(PackedStringArray(["It starts growing",
 				"when the lead ship makes jump %d." % int(l.wake),
 				"The lead ship has made %d %s." % [j, "jump" if j == 1 else "jumps"]]))
 		else:
 			var pl := ["", "It woke after jump %d." % int(l.free), "It is already stronger.", "It is much stronger now."]
-			out.append_array(PackedStringArray(["It grows stronger each time", "the lead ship jumps.", pl[tier(j)],
+			out.append_array(PackedStringArray(["It grows stronger", "when the lead ship jumps.", pl[tier(j)],
 				"It can grow to %s its strength." % _times(e.grow_cap)]))
 		return out
 	if j < int(l.free):
-		out.append_array(PackedStringArray(["It starts to grow stronger", "in %d jumps." % countdown(j)]))
+		out.append_array(PackedStringArray(["It starts growing", "in %d jumps." % countdown(j)]))
 	elif j == int(l.free):
-		out.append_array(PackedStringArray(["It starts to grow stronger", "after your next jump."]))
+		out.append_array(PackedStringArray(["It starts growing", "after your next jump."]))
 	elif j < int(l.full):
 		var tl := ["", "It woke after jump %d." % int(l.free), "It is already stronger.", "It is much stronger now."]
-		out.append_array(PackedStringArray(["It grows stronger with every", "jump you take.", tl[tier(j)],
+		out.append_array(PackedStringArray(["It grows stronger", "with every jump.", tl[tier(j)],
 			"It can grow to %s its strength." % _times(e.grow_cap)]))
 	else:
-		out.append_array(PackedStringArray(["It is at full strength.", "It will not grow any more."]))
+		out.append_array(PackedStringArray(["It is at full strength."]))
 	return out
 
 

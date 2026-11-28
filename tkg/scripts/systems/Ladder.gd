@@ -11,16 +11,16 @@ enum Form { SPIRAL, DISC, BALL, DWARF }
 ## name, form, the one-line rule
 const RUNGS := [
 	["THE SPIRAL AS IT IS", Form.SPIRAL, "The spiral as it is today."],
-	["PICKED SHELVES", Form.SPIRAL, "Traders got here first. Dock shelves carry fewer parts."],
+	["PICKED SHELVES", Form.SPIRAL, "Traders got here first, so docks stock fewer parts."],
 	["THICK GAS", Form.SPIRAL, "Jumps into a nebula cost 1 more fuel."],
 	["HIDDEN IN GAS", Form.SPIRAL, "Raiders wait inside nebulae, so an ambush there is more likely."],
 	["SHORT TANK", Form.DISC, "Fuel is rationed here, so you launch with 35 fuel in a 45 tank."],
-	["FEWER DOCKS", Form.DISC, "Few people ever settled this old galaxy, so there are a quarter fewer docks."],
-	["SCARCE PARTS", Form.DISC, "Nothing is built here any more, so repairs cost half again as much."],
-	["THE HELLBENDER", Form.BALL, "Nothing here flies in lanes, so the Hellbender starts closer and moves more often."],
+	["FEWER DOCKS", Form.DISC, "Few people settled this old galaxy, so there are 25% fewer docks."],
+	["SCARCE PARTS", Form.DISC, "Nothing is built here any more, so repairs cost 50% more."],
+	["THE HELLBENDER", Form.BALL, "No ship here flies in lanes, so the Hellbender starts closer and moves more often."],
 	["THICK PLATING", Form.BALL, "The hot gas here burns thin hulls, so enemy ships carry 15% more hull."],
 	["ACTIVE CORE", Form.BALL, "The black hole at the core is feeding, so the Custodian gets stronger from jump 12, not 15."],
-	["TORN AWAY", Form.DWARF, "A bigger galaxy is pulling this one apart. From jump 4, the outer ring is lost each jump. Keep moving in."],
+	["TORN AWAY", Form.DWARF, "A bigger galaxy is pulling this one apart. From jump 4, the outer ring is lost each jump, so keep moving in."],
 ]
 const FORM_NAME := ["SPIRAL GALAXY", "LENTICULAR GALAXY", "ELLIPTICAL GALAXY", "TORN DWARF"]
 ## Danger reads in the lamp colour: the spiral rungs cool, the disc amber, the ball red, the dwarf hot.

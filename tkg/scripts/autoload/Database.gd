@@ -70,31 +70,31 @@ func _seed_manufacturers() -> void:
 		# Steel on gunmetal and furnace on soot (Jon, Nov 20, his picks A and A): the two were one orange.
 		# Why: docs/why/Database.md#manufacturer-colour-options
 		[&"korvan", "Korvan Heavy Works", "It fires. Every time.", "#c3cad2", "#2e333a",
-			"Ex-military surplus parts. Ballistics run cold; ordnance and plate run hot.",
-			"Stockpile", "After a turn where you fire nothing, you start with 1 more energy.",
-			"Payday", "When a charge shot fires, you get 2 more energy that turn."],
+			"Cold-running navy guns and hot charge shots.",
+			"Stockpile", "+1 energy the turn after you fire nothing.",
+			"Payday", "+2 energy when a charge shot fires."],
 		[&"solari", "Solari Forge", "The line between reactor and weapon is philosophy.", "#ef9f27", "#201404",
-			"Weapons that hit harder the hotter you run.",
-			"Heat Blast", "When you vent heat, the enemy takes half of it as damage.",
+			"Guns hit harder the hotter you run.",
+			"Heat Blast", "Venting heat deals half of it to the enemy.",
 			"Ignition", "Overheat damage halved."],
 		[&"probate", "The Probate Combine", "Everything is salvage. Even you.", "#b3924e", "#6e5a2e",
-			"Scrap pays and plate holds. It wins slowly and pays well.",
+			"Heavy plate and scrap that pays well.",
 			"Company Rates", "+50% credits from wrecks.",
 			"Reclaimed Plate", "Brace cards give +2."],
 		[&"redline", "Redline Shipyards", "Still flying? Then we did our job.", "#e24b4a", "#1c2127",
-			"Salvaged tech, stealth and refits. Deals in contraband.",
-			"Chop Shop", "Draw 1 extra card each turn.",
+			"Stealth parts, refits and contraband.",
+			"Chop Shop", "+1 card a turn.",
 			"Ghost Protocol", "First enemy attack each combat is negated."],
 		[&"verity", "Verity Ateliers", "Made once, made properly.", "#8a7340", "#e8e0cc",
-			"Few hulls, each one signed. The parts are rare, exact and costly.",
+			"Rare, costly parts made to order.",
 			"Bespoke", "Verity cards cost 1 less energy.",
-			"Provenance", "1 extra energy every turn."],
+			"Provenance", "+1 energy a turn."],
 		[&"cygnet", "Cygnet Dynamics", "You are never alone.", "#58c8d8", "#16202e",
-			"Autonomous drones that fight and intercept for you.",
-			"Swarm Logic", "A drone attacks twice the first time it attacks.",
+			"Drones that fight and intercept for you.",
+			"Swarm Logic", "Each drone's first attack fires twice.",
 			"Hive Mind", "Up to 3 attack drones stay out into the next fight."],
 		[&"calyx", "Calyx Biosystems", "Grown, not built.", "#3f8f6b", "#e2ece6",
-			"Biotech hulls that regenerate, with cards that change as you use them.",
+			"Hulls that heal and cards that change as you play.",
 			"Cultivar", "Mend 3 hull after every fight you win.",
 			"Symbiosis", "Each creature you kill leaves 1 more exotic material."],
 	]
@@ -1719,9 +1719,9 @@ func tier_perks_for(manufacturer: StringName, tier: int) -> Array[StringName]:
 func _seed_perks() -> void:
 	hull_perks = {
 		# +40% is what `MELT_PERK` is: the text said 50 while the code used 1.4.
-		&"salvage_rack": {name = "Salvage Rack", text = "Scrapping modules pays +40%."},
+		&"salvage_rack": {name = "Salvage Rack", text = "Scrapping parts pays 40% more."},
 		&"baffled_vents": {name = "Baffled Vents", text = "+1 heat dissipation."},
-		&"overspec_reactor": {name = "Overspec Reactor", text = "+1 energy per turn."},
+		&"overspec_reactor": {name = "Overspec Reactor", text = "+1 energy a turn."},
 		# No `spare_bay`: a hardpoint lands where arithmetic puts it, not on a rigged anchor.
 		# The three perks below only move numbers already consumed elsewhere.
 		# Why: docs/why/Database.md#tier-perks

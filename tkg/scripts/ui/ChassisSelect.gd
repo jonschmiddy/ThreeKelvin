@@ -21,24 +21,14 @@ const TIER_BLURB: Array[String] = [
 ]
 
 const WEIGHT_BLURB: Array[String] = [
-	"Thin plate and the smallest hold, but it draws the biggest hand and can dodge.",
-	"In the middle on every stat, with no big strength and no big weakness.",
-	"The most plate and the biggest hold, but it cannot dodge at all.",
+	"Biggest hand and best dodge, with thin plate.",
+	"Middle on every stat.",
+	"The most plate and hold, and no dodge.",
 ]
 ## The name, then one sentence, never restating the number beside it.
 const MOUNT_TIP := {
-	"weapon": "Weapon mounts
-Where guns, launchers and charged ordnance bolt on. Each one grants two cards to your deck.",
-	"system": "System mounts
-Armour, coolant and shielding — the defensive half of a build. Each one grants two cards.",
-	"utility": "Utility mounts
-Masts, dishes, drone racks and sensors. The situational parts, and they grant two cards like everything else.",
-	"hand": "Hand
-How many cards you are dealt at the start of each combat turn.",
-	"hold": "Hold
-Loose parts you can carry between fights. A full hold means leaving the next wreck where it lies.",
-	"reactor": "Reactor
-Total cells of hardware this frame can RUN. The hold is what you can haul; this is what you can power, and a part has to satisfy both.",
+	"hand": "Hand size
+Cards dealt each turn of a fight.",
 }
 ## The attribute column's width on the band (`HullNumberTest` holds it).
 const SIDE_W := YardBand.SIDE_W

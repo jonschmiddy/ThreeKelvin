@@ -1,0 +1,1 @@
+- **Changed** — Fewer words on the launch screens: shorter tier rules, the shipyard band without the slogan and with a shorter pitch, shorter hull, hand and part tooltips, set bonuses and Custodian badge lines.

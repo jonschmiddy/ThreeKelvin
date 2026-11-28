@@ -663,13 +663,16 @@ for most, twelve for Cygnet's light, nine for Verity's (its parts grant one each
 Of three options (B1 in the band, B2 on the ship, B3 a dossier plate that had to
 sit over another ship) Jon picked B2, with B1's parts list "without the little
 box to the left". `YardInfo` draws it: the band's left column is the hull's name,
-the manufacturer's emblem and name, its slogan and, once picked, its identity line (while
-only pointed at, CLICK TO MAKE IT YOURS stands there instead, so the column fits);
+the manufacturer's emblem and name and, once picked, its identity line (while
+only pointed at, CLICK TO PICK stands there instead, so the column fits). The slogan
+left the band in the launch text cut (Jon's 2A, Nov 28); it stays in the data for the
+station banners' tooltip;
 the hardpoint column is FITTED, each part's name and slot, the mounts left, the
 hand and the hull's perk, wrapped to the card stack's edge. Jon's notes on the
 build: no deck line ("Deck 10 cards is redundant": the stack says it), the
 column moved left to 32 px after the attribute values, and the perk's second
-line at the parts' pitch. The hand reads "HAND SIZE: 5 A TURN" (Jon's words). The weapons
+line at the parts' pitch. The hand reads "HAND SIZE 5" (Jon's words were "HAND SIZE: 5 A TURN"; the
+launch text cut, Nov 28, left the when to its tooltip). The weapons
 are bolted on every open hull in the yard (`MountPoints`, passive, weapons only, as
 on the Shipyard deck), the kit fitted on `Run` for a moment and put back, and the
 sharp copy over the blur carries them. The deck is a stack of three card backs
