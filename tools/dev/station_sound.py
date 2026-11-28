@@ -70,18 +70,26 @@ PICKS = {
 # hall. The Board and Lab: a small ceiling speaker in the room (not through the wall), the room's own short echo,
 # 4 dB over the mixer's through-wall level, then by capture the Board 3 dB more and the Lab 2 dB less. The yard: its
 # far speaker as the mixer had it. Unclaimed reads the tape through each. Why: docs/why/StationSound.md#the-pa
-PA_KIND = {"prom": "far", "exch": "far", "board": "ceiling", "lab": "ceiling"}
-PA_DB = {"board": 7.0, "lab": 2.0}
+# Then (Jon, Nov 27) "more prominent and clear" in the yard, "slightly" on the Promenade, Exchange and Lab: louder, drier,
+# a little more top, still band-limited. Per deck: its speaker, its tape's, the wet (None: the room's own short echo,
+# times `wet_k`), and dB over the mixer's level, by capture (the line on its own about 5 dB up in the yard, 2-3.5
+# elsewhere: the yard 1 dB and the Exchange 0.5 over the first try, as the opened speakers' make-up is less). The Board
+# stays as picked.
+PA_DECK = {
+    "yard": dict(kind="yard_pa", tape="tape_open", wet=0.25, db=6.0),
+    "prom": dict(kind="far_lift", tape="tape_lift", wet=0.27, db=2.0),
+    "exch": dict(kind="far_lift", tape="tape_lift", wet=0.27, db=2.5),
+    "board": dict(kind="ceiling", tape="tape", wet=None, wet_k=1.0, db=7.0),
+    "lab": dict(kind="ceiling_lift", tape="tape_lift", wet=None, wet_k=0.67, db=4.0),
+}
 
 
 def pa_room(deck, tier, mixer, wet_base):
     """A room's PA from the mixer's (speaker, db, wet, x): its deck's pick."""
-    tape = tier == "unclaimed"
-    if deck == "yard":
-        return dict(mixer, speaker="tape" if tape else "far", wet=0.4 if tape else mixer["wet"])
-    kind = PA_KIND[deck]
-    wet = 0.4 if kind == "far" else round(float(wet_base), 3)
-    return dict(mixer, speaker="tape" if tape else kind, wet=wet, db=round(mixer["db"] + PA_DB.get(deck, 0.0), 2))
+    c = PA_DECK[deck]
+    wet = c["wet"] if c["wet"] is not None else float(wet_base) * c["wet_k"]
+    return dict(mixer, speaker=c["tape"] if tier == "unclaimed" else c["kind"], wet=round(wet, 3),
+                db=round(mixer["db"] + c["db"], 2))
 
 
 LAB_BEDS = SS / "lab_beds" / "C_plant"
@@ -97,11 +105,17 @@ KEEP = {n: 0.0 for n in DK.BOARD_KEEP + ["lab_unclaimed_bulb", "lab_outpost_lamp
                                          "lab_monitor_pop", "lab_city_screen", "lab_capital_glass"]}
 KEEP.update({"board_popup_open": -10.0, "board_popup_close": -10.0})
 # The PA's speakers as the game builds them (filters as stages of Godot's 2-pole filter, Q per stage; EQ10 bells):
-# the mixer's `far` and `tape`, and the Board's and Lab's small ceiling speaker.
+# the Board's small ceiling speaker and the mixer's `tape`, and their clearer kin by deck (PA_DECK).
 SPEAKERS = {
-    "far": dict(hp=[260, 260], lp=[3200, 3200, 2400, 2400, 2400, 2400], bell={}),
     "ceiling": dict(hp=[300, 300], lp=[3000, 3000], bell={}),
     "tape": dict(hp=[380, 380], lp=[3000, 3000], bell={}, tape=True),
+    # (Nov 27, clearer) the yard's far chain with its steep top moved from 2.4 to 3.4 kHz and a 3 dB lift at 2 kHz; the
+    # Promenade's and Exchange's moved to 2.8 kHz with 2 dB; the Lab's ceiling speaker and the tapes a little more top.
+    "yard_pa": dict(hp=[260, 260], lp=[3400] * 6, bell={2000: 3.0}),
+    "far_lift": dict(hp=[260, 260], lp=[3200, 3200, 2800, 2800, 2800, 2800], bell={2000: 2.0}),
+    "ceiling_lift": dict(hp=[300, 300], lp=[3300, 3300], bell={2000: 1.5}),
+    "tape_open": dict(hp=[380, 380], lp=[3500, 3500], bell={2000: 2.0}, tape=True),
+    "tape_lift": dict(hp=[380, 380], lp=[3300, 3300], bell={2000: 1.5}, tape=True),
 }
 
 

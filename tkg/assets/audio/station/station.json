@@ -1974,9 +1974,9 @@
     }
    },
    "pa": {
-    "speaker": "tape",
-    "db": -3.0,
-    "wet": 0.4,
+    "speaker": "tape_lift",
+    "db": -1.0,
+    "wet": 0.27,
     "x": 300.0,
     "mixer": {
      "speaker": "tape",
@@ -2056,9 +2056,9 @@
     }
    },
    "pa": {
-    "speaker": "far",
-    "db": -3.0,
-    "wet": 0.4,
+    "speaker": "far_lift",
+    "db": -1.0,
+    "wet": 0.27,
     "x": 300.0,
     "mixer": {
      "speaker": "cheap",
@@ -2132,9 +2132,9 @@
     }
    },
    "pa": {
-    "speaker": "far",
-    "db": 1.0,
-    "wet": 0.4,
+    "speaker": "far_lift",
+    "db": 3.0,
+    "wet": 0.27,
     "x": 600.0,
     "mixer": {
      "speaker": "clear",
@@ -2208,9 +2208,9 @@
     }
    },
    "pa": {
-    "speaker": "far",
-    "db": 1.0,
-    "wet": 0.4,
+    "speaker": "far_lift",
+    "db": 3.0,
+    "wet": 0.27,
     "x": 600.0,
     "mixer": {
      "speaker": "clear",
@@ -2284,9 +2284,9 @@
     }
    },
    "pa": {
-    "speaker": "far",
-    "db": 1.0,
-    "wet": 0.4,
+    "speaker": "far_lift",
+    "db": 3.0,
+    "wet": 0.27,
     "x": 600.0,
     "mixer": {
      "speaker": "clear",
@@ -2389,9 +2389,9 @@
     }
    },
    "pa": {
-    "speaker": "tape",
-    "db": -8.0,
-    "wet": 0.4,
+    "speaker": "tape_open",
+    "db": -2.0,
+    "wet": 0.25,
     "x": 780.0,
     "mixer": {
      "speaker": "tape",
@@ -2494,9 +2494,9 @@
     }
    },
    "pa": {
-    "speaker": "far",
-    "db": -8.0,
-    "wet": 0.5,
+    "speaker": "yard_pa",
+    "db": -2.0,
+    "wet": 0.25,
     "x": 780.0,
     "mixer": {
      "speaker": "far",
@@ -2603,9 +2603,9 @@
     }
    },
    "pa": {
-    "speaker": "far",
-    "db": -7.0,
-    "wet": 0.4,
+    "speaker": "yard_pa",
+    "db": -1.0,
+    "wet": 0.25,
     "x": 780.0,
     "mixer": {
      "speaker": "far",
@@ -2712,9 +2712,9 @@
     }
    },
    "pa": {
-    "speaker": "far",
-    "db": -7.0,
-    "wet": 0.4,
+    "speaker": "yard_pa",
+    "db": -1.0,
+    "wet": 0.25,
     "x": 780.0,
     "mixer": {
      "speaker": "far",
@@ -2821,9 +2821,9 @@
     }
    },
    "pa": {
-    "speaker": "far",
-    "db": -7.0,
-    "wet": 0.4,
+    "speaker": "yard_pa",
+    "db": -1.0,
+    "wet": 0.25,
     "x": 780.0,
     "mixer": {
      "speaker": "far",
@@ -2907,9 +2907,9 @@
     }
    },
    "pa": {
-    "speaker": "tape",
-    "db": -11.0,
-    "wet": 0.4,
+    "speaker": "tape_lift",
+    "db": -8.5,
+    "wet": 0.27,
     "x": 200.0,
     "mixer": {
      "speaker": "tape_wall",
@@ -2993,9 +2993,9 @@
     }
    },
    "pa": {
-    "speaker": "far",
-    "db": -11.0,
-    "wet": 0.4,
+    "speaker": "far_lift",
+    "db": -8.5,
+    "wet": 0.27,
     "x": 200.0,
     "mixer": {
      "speaker": "wall",
@@ -3079,9 +3079,9 @@
     }
    },
    "pa": {
-    "speaker": "far",
-    "db": -11.0,
-    "wet": 0.4,
+    "speaker": "far_lift",
+    "db": -8.5,
+    "wet": 0.27,
     "x": 200.0,
     "mixer": {
      "speaker": "wall",
@@ -3165,9 +3165,9 @@
     }
    },
    "pa": {
-    "speaker": "far",
-    "db": -11.0,
-    "wet": 0.4,
+    "speaker": "far_lift",
+    "db": -8.5,
+    "wet": 0.27,
     "x": 200.0,
     "mixer": {
      "speaker": "wall",
@@ -3251,9 +3251,9 @@
     }
    },
    "pa": {
-    "speaker": "far",
-    "db": -11.0,
-    "wet": 0.4,
+    "speaker": "far_lift",
+    "db": -8.5,
+    "wet": 0.27,
     "x": 200.0,
     "mixer": {
      "speaker": "wall",
@@ -4090,9 +4090,9 @@
    ],
    "map": {},
    "pa": {
-    "speaker": "tape",
-    "db": -9.0,
-    "wet": 0.1,
+    "speaker": "tape_lift",
+    "db": -7.0,
+    "wet": 0.067,
     "x": 150.0,
     "mixer": {
      "speaker": "tape_door",
@@ -4166,9 +4166,9 @@
    ],
    "map": {},
    "pa": {
-    "speaker": "ceiling",
-    "db": -9.0,
-    "wet": 0.1,
+    "speaker": "ceiling_lift",
+    "db": -7.0,
+    "wet": 0.067,
     "x": 150.0,
     "mixer": {
      "speaker": "door",
@@ -4242,9 +4242,9 @@
    ],
    "map": {},
    "pa": {
-    "speaker": "ceiling",
-    "db": -9.0,
-    "wet": 0.1,
+    "speaker": "ceiling_lift",
+    "db": -7.0,
+    "wet": 0.067,
     "x": 150.0,
     "mixer": {
      "speaker": "door",
@@ -4318,9 +4318,9 @@
    ],
    "map": {},
    "pa": {
-    "speaker": "ceiling",
-    "db": -9.0,
-    "wet": 0.1,
+    "speaker": "ceiling_lift",
+    "db": -7.0,
+    "wet": 0.067,
     "x": 150.0,
     "mixer": {
      "speaker": "door",
@@ -4394,9 +4394,9 @@
    ],
    "map": {},
    "pa": {
-    "speaker": "ceiling",
-    "db": -9.0,
-    "wet": 0.1,
+    "speaker": "ceiling_lift",
+    "db": -7.0,
+    "wet": 0.067,
     "x": 150.0,
     "mixer": {
      "speaker": "door",
@@ -4493,21 +4493,6 @@
   22000
  ],
  "speakers": {
-  "far": {
-   "hp": [
-    260,
-    260
-   ],
-   "lp": [
-    3200,
-    3200,
-    2400,
-    2400,
-    2400,
-    2400
-   ],
-   "bell": {}
-  },
   "ceiling": {
    "hp": [
     300,
@@ -4530,12 +4515,91 @@
    ],
    "bell": {},
    "tape": true
+  },
+  "yard_pa": {
+   "hp": [
+    260,
+    260
+   ],
+   "lp": [
+    3400,
+    3400,
+    3400,
+    3400,
+    3400,
+    3400
+   ],
+   "bell": {
+    "2000": 3.0
+   }
+  },
+  "far_lift": {
+   "hp": [
+    260,
+    260
+   ],
+   "lp": [
+    3200,
+    3200,
+    2800,
+    2800,
+    2800,
+    2800
+   ],
+   "bell": {
+    "2000": 2.0
+   }
+  },
+  "ceiling_lift": {
+   "hp": [
+    300,
+    300
+   ],
+   "lp": [
+    3300,
+    3300
+   ],
+   "bell": {
+    "2000": 1.5
+   }
+  },
+  "tape_open": {
+   "hp": [
+    380,
+    380
+   ],
+   "lp": [
+    3500,
+    3500
+   ],
+   "bell": {
+    "2000": 2.0
+   },
+   "tape": true
+  },
+  "tape_lift": {
+   "hp": [
+    380,
+    380
+   ],
+   "lp": [
+    3300,
+    3300
+   ],
+   "bell": {
+    "2000": 1.5
+   },
+   "tape": true
   }
  },
  "speaker_db": {
-  "far": 3.57,
   "ceiling": 3.62,
-  "tape": 4.56
+  "tape": 4.56,
+  "yard_pa": 2.59,
+  "far_lift": 3.03,
+  "ceiling_lift": 3.17,
+  "tape_open": 3.81,
+  "tape_lift": 4.03
  },
  "mixes": {
   "board_B": {

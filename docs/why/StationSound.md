@@ -127,8 +127,14 @@ on the concourse through a doorway) he picked per deck: the Promenade and the Ex
 deck's own hall; the Hiring Board and the Lab B, `ceiling` (300 Hz-3 kHz) in the room, not behind the wall, the room's
 own short echo (its `wet_base`), 4 dB over the mixer's through-wall level, then by capture the Board 3 dB more and the
 Lab 2 dB less, so each line sits about as far over its bed as the old ones did; the yard its `far` as the mixer had it.
-Unclaimed reads the tape (`tape`) through each the same way. `station_sound.py` (PA_KIND, PA_DB, `pa_room`) makes each
-room's `pa` from the mixer's, kept beside it as `mixer`. `speaker_db` is measured on the dry takes.
+Unclaimed reads the tape through each the same way. Then (Nov 27) "more prominent and clear in the shipyards, slightly
+more in the promenade, exchange and lab": louder against the bed, drier, a little more top, the band limit kept. The
+yard: `yard_pa` (the far chain's steep top moved from 2.4 to 3.4 kHz, 3 dB at 2 kHz), wet 0.25 (was 0.4 and 0.5), 6 dB
+up, its tape `tape_open` (to 3.5 kHz). The Promenade and Exchange: `far_lift` (steep top at 2.8 kHz, 2 dB at 2 kHz), wet
+0.27 (was 0.4), 2 dB up (the Exchange 2.5). The Lab: `ceiling_lift` (to 3.3 kHz), its wet two thirds of the room's, 2 dB up. Their tapes
+`tape_lift`. By capture (the line with the bed's power taken off, the same line before and after): the yard's 4 dB
+up at +5, so 6; the Promenade's 3.3 at +2 and the Lab's tape 3 at +2, kept; the Exchange +2.5. The Board as picked. `station_sound.py` (PA_DECK, `pa_room`) makes each room's `pa` from the mixer's, kept
+beside it as `mixer`. `speaker_db` is measured on the dry takes.
 
 **The tape** (unclaimed) is code too: wow and flutter on the pitch, band-limited 380 Hz-3 kHz, two dropouts (38-47 % of
 the line at 8 %, 61-64.5 % at 25 %), cut dead with a small clunk where its row's `cut` says the written line stops:
