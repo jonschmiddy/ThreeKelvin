@@ -230,7 +230,7 @@ static func take(c: ContractData) -> ContractData:
 	# The work goes on the named system's map now, so it is there to find
 	# however you get there (`Contracts.post_goal`).
 	post_goal(mine)
-	Run.log_line("Signed: %s. It pays %d credits on delivery." % [
+	Run.log_line("Signed: %s. Pays %d credits." % [
 		_short(mine), mine.pay], &"sys")
 	Sig.contracts_changed.emit()
 	return mine
@@ -285,8 +285,7 @@ static func deliver(job: ContractData) -> void:
 	Run.quests_done.append("c%d" % job.id)
 	Run.add_credits(job.pay)
 	Run.standing[job.manufacturer] = int(Run.standing.get(job.manufacturer, 0)) + job.standing
-	Run.log_line("Delivered. %d credits. %s account in good order." % [
-		job.pay, DB.short_name(DB.manufacturer_name(job.manufacturer))], &"good")
+	Run.log_line("Delivered. %d credits." % job.pay, &"good")
 	Sig.contracts_changed.emit()
 	Sig.resources_changed.emit()
 
@@ -342,7 +341,7 @@ static func reach_target(index: int) -> void:
 			continue
 		job.state = ContractData.State.READY
 		moved = true
-		Run.log_line("Recovered: %s. Strapped to the frame until you deliver it." % job.item,
+		Run.log_line("Recovered: %s." % job.item,
 			&"good")
 	if moved:
 		Sig.contracts_changed.emit()
@@ -358,8 +357,7 @@ static func clear_target(index: int) -> void:
 			continue
 		job.state = ContractData.State.READY
 		moved = true
-		Run.log_line("Contact removed. %s will want to hear about it." %
-			DB.short_name(DB.manufacturer_name(job.manufacturer)).to_upper(), &"good")
+		Run.log_line("Contact removed.", &"good")
 	if moved:
 		Sig.contracts_changed.emit()
 

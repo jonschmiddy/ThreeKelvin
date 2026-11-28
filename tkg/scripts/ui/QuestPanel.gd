@@ -180,7 +180,7 @@ func fill() -> void:
 	if signed > 0:
 		say.append("%d SIGNED" % signed)
 	if ready > 0:
-		say.append("%d READY TO HAND IN" % ready)
+		say.append("%d READY" % ready)
 	if marked > 0:
 		say.append("%d MARKED" % marked)
 	_sub.text = " · ".join(say)
@@ -330,7 +330,7 @@ func _row(e: Dictionary) -> Control:
 				if place >= 0:
 					why = "Not during a fight."
 				elif done:
-					why = "Handed in at one of their yards. Which one was not kept."
+					why = "Handed in at one of their yards."
 				a.tooltip_text = Widgets.tip(why)
 			acts.add_child(a)
 		inner.add_child(acts)

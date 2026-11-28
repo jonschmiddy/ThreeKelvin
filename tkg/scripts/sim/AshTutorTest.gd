@@ -801,15 +801,15 @@ func _lines() -> void:
 	_ok("the fuel hint picks its line by the dock: in reach, none, here",
 		AshTutorLines.line_id(&"fuel", {jumps = 2}) == &"fuel_dock" and AshTutorLines.line_id(&"fuel", {}) == &"fuel_none"
 		and AshTutorLines.line_id(&"fuel", {jumps = 0}) == &"fuel_here")
-	# Decks' lines are Jon's picks with a two-line card, spent as shown.
+	# Decks' lines are Jon's picks with a one-line card (text cut, Nov 28; the lab's keeps two), spent as shown.
 	var deck_bad: Array[String] = []
 	for k: StringName in DECKS:
 		var words := String(AshTutorLines.LINES.get(k, ""))
 		var card := Hints.lines(k)
-		if words != String(DECK_A[k]) or card.size() != 2 or not Hints.ORDER.has(k) or not Hints.SPENT_ONCE_HEARD.has(k) \
+		if words != String(DECK_A[k]) or card.size() != (2 if k == &"research" else 1) or not Hints.ORDER.has(k) or not Hints.SPENT_ONCE_HEARD.has(k) \
 				or AshTutorLines.SPOKEN.has(k):
 			deck_bad.append(String(k))
-	_ok("the decks' lines are Jon's picks (B, B, B, A) and the lab's science line, each a hint with a two-line card, said once (%s)" % [
+	_ok("the decks' lines are Jon's picks (B, B, B, A) and the lab's science line, each a hint with a one-line card (the lab's two), said once (%s)" % [
 		"all %d" % DECKS.size() if deck_bad.is_empty() else "NOT " + ", ".join(deck_bad)], deck_bad.is_empty())
 	# THE LAB'S NEW WORDS (science, Nov 4): a new id, so the fabricator's
 	# `laboratory`, spent and heard by every alpha player who saw a lab, holds
@@ -839,7 +839,7 @@ func _lines() -> void:
 	var no_line: Array[String] = []
 	for k in Hints.ORDER:
 		var lid := AshTutorLines.line_id(k, {jumps = 2})
-		if Hints.CARD_ONLY.has(k) != not AshTutorLines.LINES.has(lid) or Hints.lines(k).size() < 2:
+		if Hints.CARD_ONLY.has(k) != not AshTutorLines.LINES.has(lid) or Hints.lines(k).size() < (1 if DECKS.has(k) else 2):
 			no_line.append(String(k))
 	_ok("every lesson has her line and a card (the chassis select's a card only) (%s)" % ("all %d" % Hints.ORDER.size() if no_line.is_empty() else "NOT " + ", ".join(no_line)),
 		no_line.is_empty() and Hints.DEEP.all(func(k: StringName) -> bool: return Hints.ORDER.has(k)))

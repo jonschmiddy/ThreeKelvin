@@ -661,8 +661,8 @@ static func repair_offers(n: MapGen.MapNode) -> Array[Dictionary]:
 	var patch_done := "HULL FULL" if missing <= 0 else ("USE REPAIR" if missing <= 8 else "")
 	var out: Array[Dictionary] = [
 		{"label": "PATCH +%d" % eight, "cost": Market.repair_price(n, eight), "done": patch_done,
-			"tip": "%.1f credits a point here. Repairs cost more on the frontier than in a capital." % Market.repair_rate(n)},
+			"tip": "%.1f credits a point here. Costs more on the frontier." % Market.repair_rate(n)},
 		{"label": "REPAIR +%d" % missing, "cost": Market.repair_price(n, missing), "done": "" if missing > 0 else "HULL FULL",
-			"tip": "Repairs the whole hull at once."},
+			"tip": "The whole hull."},
 	]
 	return out

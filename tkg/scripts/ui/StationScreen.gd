@@ -29,7 +29,6 @@ var _lab_zoom: LabZoom
 ## The Exchange: your hold, and the two places you can carry things to.
 var _hold_grid: HoldGrid
 var _sell_desk: TradeCounter
-var _sell_note: Label
 ## The Promenade: the till across the front of the shop.
 var _till: TradeCounter
 ## The room the two of them stand in.
@@ -51,7 +50,6 @@ var _rail: Control = null
 var _mine_outline: CutawayView.Outline = null
 ## How many clicks on your ship were refused with the thud (for `-- cutawaytest`).
 var denied_clicks := 0
-var _till_note: Label
 var _hull_offer: VBoxContainer
 ## What is posted at this station and what you can close here. Above the shelf,
 ## because it is the part of a station that is about WHERE YOU GO NEXT.
@@ -542,9 +540,6 @@ func _page_stock() -> Control:
 	# The deck is one of Jon's fifteen rooms: `ShopScene` places everything, nothing here does.
 	# Why: docs/why/StationScreen.md#promenade-room
 	_shop = ShopScene.new()
-	# The note sits under the room: inside the right column it pushed the counter off the floor.
-	_till_note = UITheme.body("", UITheme.QUOTE, UITheme.FS_SMALL)
-	_till_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	# A shelf needs a till: carrying a part to it is the same gesture the Exchange uses to sell.
 	# Why: docs/why/StationScreen.md#till
 	# No cables: the shop wears no livery.
@@ -555,7 +550,7 @@ func _page_stock() -> Control:
 		_shelf.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		_shelf.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		stack.add_child(_shelf),
-		TradeCounter.Side.CHARGES, _on_till, _place_shop_furniture, _till_note)
+		TradeCounter.Side.CHARGES, _on_till, _place_shop_furniture)
 	_till = made[1] as TradeCounter
 	return made[0] as Control
 
@@ -575,24 +570,21 @@ func _page_hold() -> Control:
 	# The deck is one of Jon's five rooms, drawn in layers round the hold and the counter.
 	# Why: docs/why/StationScreen.md#exchange-room
 	_exchange = ExchangeScene.new()
-	_sell_note = UITheme.body("Carry something to the counter to be paid for it.",
-		UITheme.QUOTE, UITheme.FS_SMALL)
-	_sell_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	# THE SAME COUNTER THE SHOP HAS, on the side that pays. See `TradeCounter.Side`.
 	var made := _room_page(_exchange, func(stack: Control) -> void:
 		# The hold is the real grid, untouched; it stands in the frame's opening, fitted cell for cell.
 		_hold_grid = HoldGrid.new()
 		_hold_grid.dropped.connect(_on_hold_move)
 		stack.add_child(_hold_grid),
-		TradeCounter.Side.PAYS, _on_counter, _place_exchange_furniture, _sell_note)
+		TradeCounter.Side.PAYS, _on_counter, _place_exchange_furniture)
 	_sell_desk = made[1] as TradeCounter
 	return made[0] as Control
 
 
 ## A room deck (Promenade, Exchange): the room, its furniture, a counter on `side`, the room's
-## three layers over both, then `note` under it. Child order is draw order. Returns [panel, counter].
+## three layers over both. Child order is draw order. Returns [panel, counter].
 func _room_page(room: ShopScene, furniture: Callable, side: TradeCounter.Side,
-		on_took: Callable, on_loaded: Callable, note: Label) -> Array[Control]:
+		on_took: Callable, on_loaded: Callable) -> Array[Control]:
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 5)
 	var stack := Control.new()
@@ -616,7 +608,6 @@ func _room_page(room: ShopScene, furniture: Callable, side: TradeCounter.Side,
 	# A room's art arrives when it is first drawn; the furniture is placed then.
 	room.room_loaded.connect(on_loaded)
 	outer.add_child(stack)
-	outer.add_child(note)
 	return [Widgets.panel_with(Widgets.pad(outer)), counter]
 
 
@@ -1378,7 +1369,7 @@ func _open_purge() -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)
 	col.add_child(UITheme.body("SYSTEM REPAIR", UITheme.ICE, UITheme.FS_HEAD))
-	col.add_child(UITheme.body("%d credits clears one fault. Which one?" % cost,
+	col.add_child(UITheme.body("%d credits a fault." % cost,
 		UITheme.COLD, UITheme.FS_SMALL))
 	col.add_child(UITheme.hsep())
 
@@ -1579,8 +1570,8 @@ func _inspect() -> void:
 		var c := Run.contraband_count()
 		var fine := 20 * c
 		Run.add_credits(-fine)
-		Run.log_line("Customs found %d illegal part%s and fined you %d credits." % [
-			c, "" if c == 1 else "s", fine], &"heat")
+		Run.log_line("Customs fined you %d credits for %d illegal part%s." % [
+			fine, c, "" if c == 1 else "s"], &"heat")
 
 ## One function per tab body, mirroring `_refresh_work`, instead of one 110-line run.
 ## Why: docs/why/StationScreen.md#refresh-split
@@ -1609,9 +1600,9 @@ func _refresh_undock() -> void:
 	_undock.text = "CANNOT UNDOCK"
 	# The pad line points at clicking your ship, as the cutaway never showed the pad (Jon, Oct 23).
 	# Why: docs/why/StationScreen.md#undock-gate
-	var how := "Click your ship in the Shipyard and fit parts from the hold."
+	var how := "Click your ship in the Shipyard to fit parts."
 	if not Run.pad.is_empty():
-		how = "Click your ship in the Shipyard to carry your things aboard."
+		how = "Click your ship in the Shipyard to load them."
 	_undock.tooltip_text = Widgets.tip("%s.
 %s" % ["; ".join(why).capitalize(), how])
 
@@ -1627,8 +1618,8 @@ func _refresh_header(n: MapGen.MapNode) -> void:
 	# Why: docs/why/StationScreen.md#rail-header
 	var note := ""
 	match n.region:
-		MapGen.Region.COSMOPOLITAN: note = "stock from many manufacturers, strict inspections"
-		MapGen.Region.LAWLESS: note = "stolen goods, no customs"
+		MapGen.Region.COSMOPOLITAN: note = "strict customs"
+		MapGen.Region.LAWLESS: note = "no customs"
 	_header.clear()
 	_header.append_text("[font_size=%d][color=#%s]%s STATION[/color][/font_size]\n" % [
 		UITheme.FS_HEAD, UITheme.ICE.to_html(false),
@@ -1682,9 +1673,9 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 	offers.append_array([
 		{"label": "REFUEL +%d" % maxi(1, int(refuel.units)), "cost": refuel_cost, "done": Run.refuel_blocked(n),
 			"tip": Run.rescue_line(refuel) if refuel.get("rescue", false)
-				else "Fuel costs more out on the frontier than in a capital."},
+				else "Costs more on the frontier."},
 		{"label": "FAULTS %d" % dross_n, "cost": purge_cost, "done": "" if dross_n > 0 else "NO FAULTS",
-			"tip": "Choose which fault comes out; each costs the same and clears one."},
+			"tip": "Pick which fault to clear."},
 	])
 	for o: Dictionary in offers:
 		o["ok"] = Run.credits >= int(o["cost"])
@@ -1720,11 +1711,6 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 		var m: ModuleData = n.shop[i]
 		on_offer.append({pick = i, thing = m, price = Market.ask(n, m)})
 
-	# Said once under the till: a bought part goes to the HOLD, so a full hold blocks shopping.
-	if _till_note != null:
-		_till_note.text = ("The shelves are empty." if on_offer.is_empty()
-			else "Carry a part down to the till to buy it. It goes into your hold%s"
-				% (", and your hold is full." if Run.hold_full() else "."))
 	# Development picks the room's level variant; a bare rack stays, as it says out of stock.
 	if _shop != null:
 		_shop.dev = int(n.development)
@@ -1792,14 +1778,7 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 		return
 	_hold_grid.refresh()
 	_place_exchange_furniture()
-	var stray := Run.pad.size()
 
-	# Hold fullness and today's rate go under the room; a
-	# market's rate belongs to the place (`Market.bid`).
-	_sell_note.text = "Hold %d/%d%s. Carry something to the counter to be paid for it. %s" % [
-		Run.cargo_used(), Run.cargo_slots(), "" if stray == 0 else ", %d on the pad" % stray,
-		"This market has bought a lot today, so it pays less than it did."
-		if n.trades >= 3 else "These are this market's usual prices."]
 ## The entry on the lab's screen, restyled, and the Lab's pages behind it.
 func _refresh_bench(n: MapGen.MapNode) -> void:
 	_dress_room(_lab, n)
@@ -1942,7 +1921,7 @@ func _on_action(action: String, thing: Variant) -> void:
 			# shape: a wide part used to be paid for and lost.
 			# Why: docs/why/StationScreen.md#buy-checks
 			if not Run.has_room_for(m):
-				Run.log_line("The hold is full. Nowhere to put it.", &"them")
+				Run.log_line("The hold is full.", &"them")
 				return
 			# One shelf, four buyers: ask first and pay only if you won (`RunState.take_option`).
 			_asking = true
@@ -2303,10 +2282,6 @@ func _listing(c: ContractData, state: String = "open", pay: Array = []) -> Contr
 	var where := UITheme.body(c.status_line(), UITheme.QUOTE, UITheme.FS_SMALL)
 	where.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(where)
-	# how many are watching it and when it went up: the same for the same job
-	var hh := absi(hash(c.text))
-	box.add_child(UITheme.body("%d WATCHING, %dH AGO" % [2 + hh % 11, 1 + (hh / 11) % 20],
-		Color("#4a7a96"), UITheme.FS_SMALL))
 	box.add_child(_offer_foot(c, state, pay))
 	return _note(NOTE_PAPER, box)
 
@@ -2319,7 +2294,7 @@ func _sign_button(c: ContractData) -> Button:
 		# in place round it (`_sync_notes`)
 		_signed_here[_offer_key(c)] = true
 		_refresh())
-	take.tooltip_text = Widgets.tip("Nothing here expires; sign it now, later or never.")
+	take.tooltip_text = Widgets.tip("Jobs never expire.")
 	take.add_theme_font_size_override("font_size", UITheme.FS_HEAD)
 	take.custom_minimum_size = Vector2(72, 26)
 	take.size_flags_horizontal = Control.SIZE_SHRINK_END

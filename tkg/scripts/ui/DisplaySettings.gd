@@ -329,9 +329,9 @@ static func mode_name(m: Mode) -> String:
 
 static func mode_blurb(m: Mode) -> String:
 	match m:
-		Mode.WINDOWED: return "A real window you can move and close."
-		Mode.BORDERLESS: return "Fills the chosen monitor. Alt-tabs instantly."
-		_: return "Exclusive fullscreen: best frame pacing."
+		Mode.WINDOWED: return "A window you can move."
+		Mode.BORDERLESS: return "Fills the monitor and alt-tabs fast."
+		_: return "The smoothest frames."
 
 ## Monitors can be unplugged between sessions, so a stored index is never trusted.
 static func safe_screen() -> int:

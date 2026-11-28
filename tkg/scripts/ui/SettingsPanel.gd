@@ -46,7 +46,7 @@ func build() -> void:
 	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inset.add_child(_body)
 	# No sound of its own: leaving means a step back or the drawer closing, so the owner plays it.
-	var back := DrawerPlate.plate(&"back", "BACK", "SETTINGS ARE KEPT AS YOU GO",
+	var back := DrawerPlate.plate(&"back", "BACK", "",
 		func() -> void: back_requested.emit())
 	back.tone = DrawerPlate.Tone.GOOD
 	add_child(back)
@@ -109,7 +109,7 @@ func _page_hints() -> void:
 			_hints_reset = true
 			_refresh()))
 	if _hints_reset:
-		var l := UITheme.body("Done. Each tutorial step plays again when it comes up.", UITheme.CHILL, UITheme.FS_SMALL)
+		var l := UITheme.body("Done. The tutorial plays again.", UITheme.CHILL, UITheme.FS_SMALL)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_body.add_child(l)
 	# A.S.H., THE SHIP'S AI (`Ash`): her face and her lines at the moments that
@@ -130,7 +130,7 @@ func _page_keys() -> void:
 	# known (Jon: "You can add this control to the controls settings")
 	_body.add_child(_gap(4))
 	_body.add_child(UITheme.body("MOUSE (FIXED)", UITheme.CHILL, UITheme.FS_SMALL))
-	for line: String in ["SECTOR MAP: RIGHT-CLICK THE SELECTED PLACE TO ZOOM ONTO IT", "RIGHT-CLICK AGAIN, OR ON EMPTY SPACE, TO ZOOM OUT"]:
+	for line: String in ["SECTOR MAP: RIGHT-CLICK A PICKED PLACE TO ZOOM IN", "RIGHT-CLICK AGAIN TO ZOOM OUT"]:
 		var l := UITheme.body(line, UITheme.COLD, UITheme.FS_SMALL)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_body.add_child(l)
@@ -188,7 +188,7 @@ func _page_screen() -> void:
 				func() -> void:
 					DisplaySettings.set_screen(i)
 					_refresh())
-			sb.tooltip_text = Widgets.tip("%s. Move the game to this monitor. * marks your primary."
+			sb.tooltip_text = Widgets.tip("%s. * is your main monitor."
 				% DisplaySettings.screen_label(i))
 			srow.add_child(sb)
 		_body.add_child(srow)
@@ -210,7 +210,7 @@ func _page_screen() -> void:
 				_refresh())
 		if capped and s == top:
 			wb.tooltip_text = Widgets.tip(
-				"The largest window on a Retina screen. A bigger one costs too much to draw. BORDERLESS fills the screen.")
+				"The largest window on a Retina screen. BORDERLESS fills it.")
 		wrow.add_child(wb)
 	_body.add_child(wrow)
 	# At 1080p 2x equals the screen height, so only 1x keeps its title bar; say so, do not hide it.
@@ -233,7 +233,7 @@ func _page_screen() -> void:
 				DisplaySettings.set_fps_meter(on)
 				_refresh())
 		fb.tooltip_text = Widgets.tip(
-			"Shows frames per second in the bottom right. It does not slow the game. Use it to put a number on \"the chart felt slow\".")
+			"Frames per second, bottom right.")
 		fchips.add_child(fb)
 	fps.add_child(fchips)
 	_body.add_child(fps)
@@ -254,9 +254,9 @@ func _page_look() -> void:
 					DisplaySettings.set_render_style(st)
 					_refresh())
 			sb.tooltip_text = Widgets.tip({
-				&"simplified": "A clean star chart and sector map, with gas streaming along the arms, pulsing knots and weather in the nebulae.",
-				&"painted": "A hand-painted look, with banded light, hue-shifted shadows and dithered gas.",
-				&"radiant": "The galaxy and its nebulae drawn as lit gas. It is heavy on the graphics card and made for screenshots. It falls back to SIMPLIFIED if the machine can't keep up.",
+				&"simplified": "A clean sky with moving gas.",
+				&"painted": "A hand-painted sky with banded light.",
+				&"radiant": "Lit gas, made for screenshots. Drops to SIMPLIFIED on a slow machine.",
 			}.get(st, ""))
 			strow.add_child(sb)
 		_body.add_child(strow)
@@ -288,14 +288,14 @@ func _page_look() -> void:
 		elif by_machine:
 			why = "The game picked LOW for this computer. "
 		gb.tooltip_text = Widgets.tip(
-			(why + "A lighter sky in every style, for laptops and integrated graphics. It looks the same, but the gas moves a little less.") if low
-			else "The full sky. RADIANT drops to SIMPLIFIED by itself if the machine can't keep up; try LOW first.")
+			(why + "A lighter sky for laptops. The gas moves a little less.") if low
+			else "The full sky.")
 		gchips.add_child(gb)
 	gfx.add_child(gchips)
 	_body.add_child(gfx)
 	if by_machine:
-		var picked := ("The game started on LOW because this kind of graphics chip is often slow. It times the title screen once to check. You can change it." if by_hint
-			else "The game timed this computer on the title screen and picked LOW. You can change it.")
+		var picked := ("The game started on LOW for this kind of graphics chip. It checks once on the title screen. You can change it." if by_hint
+			else "The game timed this computer and picked LOW. You can change it.")
 		gk.tooltip_text = Widgets.tip(picked)
 		gk.mouse_filter = Control.MOUSE_FILTER_PASS
 		var note := UITheme.body("PICKED FOR THIS COMPUTER", UITheme.QUOTE, UITheme.FS_SMALL)
@@ -316,7 +316,7 @@ func _page_look() -> void:
 				_refresh())
 		cb.tooltip_text = Widgets.tip([
 			"No change.",
-			"Red-green (deuteranopia), the most common kind. Colours a red-green eye cannot tell apart are shifted into brightness and blue.",
+			"Red-green (deuteranopia), the most common kind.",
 			"Red-green (protanopia), where reds also go dark.",
 			"Blue-yellow (tritanopia), the rarest kind."][i])
 		crow.add_child(cb)
@@ -334,11 +334,11 @@ func _page_look() -> void:
 				DisplaySettings.set_look(l)
 				_refresh())
 		lb.tooltip_text = Widgets.tip({
-			DisplaySettings.Look.FLAT: "The game as it is drawn.",
-			DisplaySettings.Look.SCANLINES: "One soft line per pixel row.",
-			DisplaySettings.Look.CRT_GENTLE: "A slight curve, soft lines and a vignette, light enough to play in.",
-			DisplaySettings.Look.CRT: "A stronger curve and lines, and a glow on bright pixels.",
-			DisplaySettings.Look.CRT_ARCADE: "An arcade cabinet's heavy curve and shadow mask. Cards are hard to read through it.",
+			DisplaySettings.Look.FLAT: "No filter.",
+			DisplaySettings.Look.SCANLINES: "Soft scanlines.",
+			DisplaySettings.Look.CRT_GENTLE: "A slight curve and soft lines.",
+			DisplaySettings.Look.CRT: "A stronger curve, lines and glow.",
+			DisplaySettings.Look.CRT_ARCADE: "A heavy arcade curve. Cards are hard to read.",
 		}[l])
 		lrow.add_child(lb)
 	_body.add_child(lrow)
@@ -374,8 +374,8 @@ func _page_motion() -> void:
 		func(i: int) -> void:
 			DisplaySettings.set_reduce_flashes(i == 1)
 			_refresh(),
-		["The jump films flash the whole screen on their big moment.",
-			"No whole-screen flashes: a glow round the event instead."]))
+		["Jumps flash the whole screen.",
+			"A glow in place of the flash."]))
 	# THE AUTOPILOT'S FLIGHT (Jon, Nov 5, "AUTOPILOT: DIRECT . CURVED"): the
 	# map's flights for a world clicked twice. A flight under way flies on; the
 	# line drawn is planned again (`SystemOverlay`'s preview key holds the path)
@@ -384,8 +384,8 @@ func _page_motion() -> void:
 		func(i: int) -> void:
 			DisplaySettings.set_autopilot(&"direct" if i == 0 else &"curved")
 			_refresh(),
-		["Points the nose at the world and flies straight there.",
-			"Swings wide round the star, bent by its pull."]))
+		["Flies straight to the world.",
+			"Curves around the star with its pull."]))
 	_body.add_child(_row_chips("SCREEN SHAKE", ["ON", "OFF"],
 		0 if DisplaySettings.screen_shake else 1,
 		func(i: int) -> void:
@@ -395,8 +395,8 @@ func _page_motion() -> void:
 	# is only OFF with a cap (Jon, Oct 27). Both chips say so.
 	var caps := DisplaySettings.FRAME_CAPS
 	var cap_tips := {
-		0: "No cap. Picking NONE also turns VSYNC back on, since VSYNC can only be off with a cap.",
-		30: "At most 30 frames a second. Steadier on a slow machine, and easier on the battery.",
+		0: "No cap. NONE turns VSYNC back on.",
+		30: "At most 30 frames a second. Saves battery.",
 	}
 	_body.add_child(_row_chips("FRAME CAP",
 		caps.map(func(c: int) -> String: return "NONE" if c == 0 else str(c)),
@@ -411,8 +411,8 @@ func _page_motion() -> void:
 		func(i: int) -> void:
 			DisplaySettings.set_vsync(i == 0)
 			_refresh(),
-		["Each frame waits for the screen, so the picture never tears.",
-			"Frames go out as soon as they are drawn, and the picture can tear. OFF needs a frame cap: with FRAME CAP at NONE, OFF sets it to %d. Setting FRAME CAP back to NONE turns VSYNC on again." % DisplaySettings.VSYNC_OFF_CAP]))
+		["No tearing.",
+			"The picture can tear. With FRAME CAP at NONE, OFF sets it to %d, and back to NONE turns VSYNC on." % DisplaySettings.VSYNC_OFF_CAP]))
 	# The zoom ladder's dev rows were removed even in dev
 	# mode (Jon, Oct 19); harnesses pick with `flow=`.
 	# Why: docs/why/SettingsPanel.md#removed-dev-rows

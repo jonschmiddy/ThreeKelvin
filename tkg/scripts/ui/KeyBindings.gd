@@ -45,7 +45,7 @@ func _rebuild() -> void:
 			_under(id)
 	add_child(_gap(6))
 	if _asking_reset:
-		var ask := UITheme.body("PUT EVERY KEY BACK AS IT CAME?", UITheme.WARN, UITheme.FS_SMALL)
+		var ask := UITheme.body("RESET EVERY KEY?", UITheme.WARN, UITheme.FS_SMALL)
 		ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		add_child(ask)
 		var yn := _chips()
@@ -56,7 +56,7 @@ func _rebuild() -> void:
 		add_child(yn)
 	else:
 		var all := DrawerPlate.chip_for("RESET ALL KEYS", false, ask_reset_all)
-		all.tooltip_text = Widgets.tip("Resets every key to its default, after asking.")
+		all.tooltip_text = Widgets.tip("Asks first.")
 		all.disabled = _all_default()
 		add_child(all)
 
@@ -85,8 +85,8 @@ func _row(id: StringName) -> Control:
 		chip.custom_minimum_size = Vector2(CHIP_W, DrawerPlate.CHIP_H)
 		chip.size_flags_horizontal = Control.SIZE_SHRINK_END
 		chip.tooltip_text = Widgets.tip(
-			"Click, then press the key for this." if slot == 0
-			else "A second key that does the same. Click, then press it.")
+			"Click, then press a key." if slot == 0
+			else "Click, then press a second key.")
 		h.add_child(chip)
 	if Keys.is_default(id):
 		h.add_child(_gap_w(RESET_W))
@@ -116,7 +116,7 @@ func _under(id: StringName) -> void:
 		var row := _chips()
 		var swap_b := DrawerPlate.chip_for("SWAP", false, swap)
 		swap_b.tooltip_text = Widgets.tip(
-			"This action takes the key, and the other gets the key this one had.")
+			"The two trade keys.")
 		row.add_child(swap_b)
 		row.add_child(DrawerPlate.chip_for("CANCEL", false, cancel))
 		add_child(row)

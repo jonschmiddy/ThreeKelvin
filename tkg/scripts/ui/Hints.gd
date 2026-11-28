@@ -285,13 +285,13 @@ func lines(id: StringName) -> Array:
 			return ["Stations repair, refuel and trade.", "Pick a deck on the left."]
 		# THE DECKS' (drafts, Oct 20: Jon picks the words)
 		&"shipyard":
-			return ["The drones over your ship repair and refuel it.", "Click one to pay for its job."]
+			return ["Click a drone to buy its repair or fuel."]
 		&"promenade":
-			return ["Buy parts here. Point at one to read it.", "Drag it to the till to buy it."]
+			return ["Drag a part to the till to buy it."]
 		&"exchange":
-			return ["Sell what you carry here.", "Drag a part from your hold to the counter."]
+			return ["Drag a part to the counter to sell it."]
 		&"hiring_board":
-			return ["Manufacturers post paid work here.", "Press SIGN on a note to take the job."]
+			return ["Press SIGN on a note to take the job."]
 		&"research":
 			# (science, Lab layout 1C, Nov 4: the screen is pressed to work it;
 			# its pages say the rest)

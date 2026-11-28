@@ -240,7 +240,7 @@ static func _entry(job: ContractData, n: int) -> Dictionary:
 		e.paid = "Paid %d credits%s." % [job.pay,
 			(" and %d standing with %s" % [job.standing, who]) if job.standing > 0 else ""]
 	elif job.state == ContractData.State.READY:
-		e.what = "Hand in at any %s yard" % who
+		e.what = "Hand in"
 		e.state = "READY"
 		e.state_colour = UITheme.GOOD
 		e.tag = "%d HAND IN" % n
@@ -277,9 +277,9 @@ static func _entry(job: ContractData, n: int) -> Dictionary:
 		else:
 			tip += "\n%s, layer %d, %s." % [MapGen.star_name(p2), p2.layer + 1, String(e.jumps).to_lower()]
 	if done:
-		tip += "\n%s Posted by %s." % [e.paid, DB.manufacturer_name(job.manufacturer)]
+		tip += "\n%s" % e.paid
 	else:
-		tip += "\nPays %d credits. Posted by %s." % [job.pay, DB.manufacturer_name(job.manufacturer)]
+		pass
 	e.tip = tip
 	return e
 
@@ -290,7 +290,7 @@ static func _task(job: ContractData, who: String, item: String) -> String:
 		ContractData.Kind.FETCH:
 			return "Pick up %s" % item
 		ContractData.Kind.HEAT:
-			return "Bring heat to any %s yard" % who
+			return "Bring heat"
 	return "Destroy the contact"
 
 
@@ -338,10 +338,8 @@ static func _event_entry(q: Dictionary, n: int) -> Dictionary:
 			e.pay = ""
 			e.paid = "What it paid was not kept."
 		tip += "\n" + e.paid
-	else:
-		tip += "\nPays on arrival."
 	if who != "":
-		tip += " %s gave it to you." % who
+		tip += "\nFrom %s." % who
 	e.tip = tip
 	return e
 

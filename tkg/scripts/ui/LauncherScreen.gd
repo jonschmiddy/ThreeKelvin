@@ -266,7 +266,7 @@ func _confirm_continue() -> void:
 	col.add_child(UITheme.body("RESUME THIS RUN", UITheme.ICE, UITheme.FS_HEAD))
 	col.add_child(UITheme.body(_save_line(save), UITheme.CHILL, UITheme.FS_SMALL))
 	col.add_child(UITheme.body(
-		"Continuing consumes the save. There is no going back to it.",
+		"Continuing uses up the save.",
 		UITheme.COLD, UITheme.FS_SMALL))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)

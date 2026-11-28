@@ -144,7 +144,7 @@ func _show_exits() -> void:
 		func() -> void: confirm(false))
 	save.tone = DrawerPlate.Tone.GOOD
 	_exits.add_child(save)
-	var abandon := DrawerPlate.plate(&"abandon", "ABANDON — EXIT TO TITLE", "THIS RUN ENDS",
+	var abandon := DrawerPlate.plate(&"abandon", "ABANDON THE RUN", "THIS RUN ENDS",
 		func() -> void: confirm(true))
 	abandon.tone = DrawerPlate.Tone.BAD
 	_exits.add_child(abandon)
@@ -164,7 +164,7 @@ func confirm(destroys: bool) -> void:
 	var why := "SHIP, CARGO AND MAP GONE. IT GOES ON THE RECORD."
 	if not destroys:
 		why = "CONTINUE FROM THE TITLE. THE FIGHT STARTS OVER." if fighting \
-			else "CONTINUE FROM THE TITLE, WHERE YOU LEFT OFF."
+			else "CONTINUE FROM THE TITLE."
 	var note := UITheme.body(why, UITheme.COLD, UITheme.FS_SMALL)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_exits.add_child(note)
@@ -319,7 +319,7 @@ func _ship() -> Control:
 	v.add_child(top)
 	v.add_child(UITheme.body(m.name.to_upper() if m != null else "UNBRANDED SALVAGE",
 		m.colour if m != null else UITheme.CHILL, UITheme.FS_SMALL))
-	v.add_child(UITheme.body("%s CHASSIS · %d CARDS A TURN · %d IN DECK" % [
+	v.add_child(UITheme.body("%s · HAND %d · DECK %d" % [
 		HullData.weight_name(Run.hull.weight).to_upper(), Run.hand_size(), Run.deck_size()],
 		UITheme.COLD, UITheme.FS_SMALL))
 	return box

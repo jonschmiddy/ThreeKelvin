@@ -129,7 +129,7 @@ func _galaxy(sd: int) -> void:
 			right = false
 			print("    row %d (%s): missing %s, place ok %s" % [i + 1, ContractData.Kind.keys()[job.kind], missing, place_ok])
 	_ok("each row is its quest: mark, state, task, where, jumps, pay and poster; READY and heat on the nearest paying yard", right)
-	_ok("the table's head counts them (%s)" % p2._sub.text, p2._sub.text == "%d SIGNED · 1 READY TO HAND IN" % held.size())
+	_ok("the table's head counts them (%s)" % p2._sub.text, p2._sub.text == "%d SIGNED · 1 READY" % held.size())
 
 	# A ROW PICKED
 	var hunt: ContractData = held[1]

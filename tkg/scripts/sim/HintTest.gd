@@ -32,7 +32,7 @@ func run(tree: SceneTree) -> void:
 		not Hints.seen(&"ship") and not Hints.seen(&"wreck") and not Hints.seen(&"step_jump")
 		and Hints.seen(&"events"))
 	# (the cutaway's three: A.S.H.'s two sentences and its keys, Jon's merge:A, Oct 20)
-	_ok("every hint is two lines at grade 5.2 or under, the cutaway's three (tools/prose_grade.py checks the grade; here: the lines)",
+	_ok("every hint is two lines at grade 5.2 or under, the cutaway's three, four decks' one (tools/prose_grade.py checks the grade; here: the lines)",
 		Hints.ORDER.all(func(id: StringName) -> bool: return Hints.lines(id).size() == _lines_for(id)))
 
 	var n := _system()
@@ -903,4 +903,7 @@ func _park_deep() -> void:
 
 
 static func _lines_for(id: StringName) -> int:
+	# four decks' cards are one line since the text cut (Jon, Nov 28); the lab's keeps two
+	if id in [&"shipyard", &"promenade", &"exchange", &"hiring_board"]:
+		return 1
 	return 3 if id == &"cutaway" else 2
